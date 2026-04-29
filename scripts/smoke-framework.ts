@@ -9,6 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 
 const DESIGN_EVAL = "evals/design-rls-001-tenant-isolation";
+const CLIENT_RLS_EVAL = "evals/design-rls-002-own-todos-client";
 const FUNCTIONS_EVAL = "evals/design-functions-001-order-total";
 const EDGE_AUTH_DB_EVAL = "evals/design-functions-002-edge-auth-db";
 const DETECT_EVAL = "evals/detect-security-001-public-table";
@@ -126,6 +127,55 @@ USING (author_id = auth.uid());
   );
 
   console.log("PASS design scorer + project-db dispatcher");
+}
+
+async function smokeClientRlsEval() {
+  const scorer = await loadScorer(CLIENT_RLS_EVAL);
+
+  await withMgmt(
+    { projectSeedSql: seedPath(CLIENT_RLS_EVAL, "project.sql") },
+    async (mgmt) => {
+      await mgmt.call("database.query", {
+        query: `
+ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can read own todos"
+ON todos
+FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
+
+CREATE POLICY "users can insert own todos"
+ON todos
+FOR INSERT
+TO authenticated
+WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "users can update own todos"
+ON todos
+FOR UPDATE
+TO authenticated
+USING (user_id = auth.uid())
+WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "users can delete own todos"
+ON todos
+FOR DELETE
+TO authenticated
+USING (user_id = auth.uid());
+        `,
+      });
+
+      const score = await scorer({
+        mgmt,
+        client: mgmt.backends.projectDb.client,
+        toolCalls: [],
+      });
+      assert.equal(score.passed, true, score.notes);
+    }
+  );
+
+  console.log("PASS client-scored RLS scorer + supabase-js");
 }
 
 async function smokeFunctionsEval() {
@@ -425,6 +475,7 @@ GROUP BY 1;
 async function main() {
   await smokeToolSurface();
   await smokeDesignEval();
+  await smokeClientRlsEval();
   await smokeFunctionsEval();
   await smokeSupaliteClient();
   await smokeEdgeAuthDbEval();
