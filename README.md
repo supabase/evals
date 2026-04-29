@@ -6,13 +6,15 @@ This is an MVP scaffold: working structure, one model, sample evals across categ
 
 ## Categories
 
-| Category | What it measures | Scoring |
-|---|---|---|
-| **Design** (DB / Functions / Storage / Auth / Data API + RLS / Realtime) | Can the agent build correct Supabase primitives? | SQL/HTTP test suite against final state |
-| **Deploy** | Can the agent use the CLI / `api` command / MCP? | Mock mgmt-API state matches expected |
-| **Detect** (Security / Performance / Reliability) | Can the agent identify issues from logs + project state? | Did its report mention the planted root cause? |
-| **Notify** | Does the agent dispatch alerts via the right tool calls? | Tool-call assertion |
-| **Resolve** | Given an alert, can it propose a working fix? | Apply diff → re-run Detect fixture → issue clears |
+
+| Category                                                                 | What it measures                                         | Scoring                                           |
+| ------------------------------------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------- |
+| **Design** (DB / Functions / Storage / Auth / Data API + RLS / Realtime) | Can the agent build correct Supabase primitives?         | SQL/HTTP test suite against final state           |
+| **Deploy**                                                               | Can the agent use the CLI / `api` command / MCP?         | Mock mgmt-API state matches expected              |
+| **Detect** (Security / Performance / Reliability)                        | Can the agent identify issues from logs + project state? | Did its report mention the planted root cause?    |
+| **Notify**                                                               | Does the agent dispatch alerts via the right tool calls? | Tool-call assertion                               |
+| **Resolve**                                                              | Given an alert, can it propose a working fix?            | Apply diff → re-run Detect fixture → issue clears |
+
 
 ## Structure
 
@@ -29,13 +31,15 @@ results/          written per (model x eval) pair
 
 The agent's tools are mgmt-api endpoints, not filesystem ops. Same surface the Supabase CLI and (via code-mode) the MCP server end up wrapping. Tool names mirror endpoint paths:
 
-| Tool | Real mgmt-api endpoint | Backed by |
-|---|---|---|
-| `database.query` | `POST /v1/projects/{ref}/database/query` | supalite project DB ([shims/project-db.ts](shims/project-db.ts)) |
-| `logs.all` | `GET /v1/projects/{ref}/analytics/endpoints/logs.all` | PGlite logs DB ([shims/logs-db.ts](shims/logs-db.ts)) |
-| `notifications.send` | placeholder — no first-class endpoint yet | in-memory recorder ([shims/notifications.ts](shims/notifications.ts)) |
-| `functions.deploy` | `POST /v1/projects/{ref}/functions/deploy` | in-memory Edge Functions runtime ([shims/edge-functions.ts](shims/edge-functions.ts)) |
-| `functions.list` | `GET /v1/projects/{ref}/functions` | in-memory Edge Functions runtime ([shims/edge-functions.ts](shims/edge-functions.ts)) |
+
+| Tool                 | Real mgmt-api endpoint                                | Backed by                                                                             |
+| -------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `database.query`     | `POST /v1/projects/{ref}/database/query`              | supalite project DB ([shims/project-db.ts](shims/project-db.ts))                      |
+| `logs.all`           | `GET /v1/projects/{ref}/analytics/endpoints/logs.all` | PGlite logs DB ([shims/logs-db.ts](shims/logs-db.ts))                                 |
+| `notifications.send` | placeholder — no first-class endpoint yet             | in-memory recorder ([shims/notifications.ts](shims/notifications.ts))                 |
+| `functions.deploy`   | `POST /v1/projects/{ref}/functions/deploy`            | in-memory Edge Functions runtime ([shims/edge-functions.ts](shims/edge-functions.ts)) |
+| `functions.list`     | `GET /v1/projects/{ref}/functions`                    | in-memory Edge Functions runtime ([shims/edge-functions.ts](shims/edge-functions.ts)) |
+
 
 Per-eval tool allowlist via `tools.json` — RLS evals get only `database.query`, so the eval scores SQL correctness, not file-editing skill. Add a new endpoint by registering it in [shims/management-api.ts](shims/management-api.ts); it becomes a tool automatically.
 
@@ -72,7 +76,7 @@ npx skills add supabase/agent-skills    # installs skills into ./skills/
 cp .env.example .env                    # fill in provider credentials for agent-backed runs
 ```
 
-Skills are pulled from [supabase/agent-skills](https://github.com/supabase/agent-skills) — never authored locally. See [`skills/MANIFEST.md`](skills/MANIFEST.md) for the list this suite expects.
+Skills are pulled from [supabase/agent-skills](https://github.com/supabase/agent-skills) — never authored locally. See `[skills/MANIFEST.md](skills/MANIFEST.md)` for the list this suite expects.
 
 ## Running
 
@@ -98,35 +102,28 @@ This section is the contract for humans and agents adding evals, skills, shims, 
 ## Adding an eval
 
 1. **Create the directory.** Name: `evals/<category>-<subcategory>-<NNN>-<slug>/`.
-   - `<category>`: one of `design`, `deploy`, `detect`, `notify`, `resolve`.
-   - `<subcategory>`: short tag, e.g. `rls`, `db`, `functions`, `storage`, `auth`, `realtime`, `security`, `performance`, `reliability`. (`deploy` and `notify` typically have none — use a topical word like `cli` or `email`.)
-   - `<NNN>`: zero-padded 3-digit number, unique within `<category>-<subcategory>`.
-   - `<slug>`: kebab-case, ~3 words.
-
+  - `<category>`: one of `design`, `deploy`, `detect`, `notify`, `resolve`.
+  - `<subcategory>`: short tag, e.g. `rls`, `db`, `functions`, `storage`, `auth`, `realtime`, `security`, `performance`, `reliability`. (`deploy` and `notify` typically have none — use a topical word like `cli` or `email`.)
+  - `<NNN>`: zero-padded 3-digit number, unique within `<category>-<subcategory>`.
+  - `<slug>`: kebab-case, ~3 words.
 2. **Write `PROMPT.md`.** This is the *only* task description the agent sees. Be concrete about success criteria but never describe what the scorer checks (the agent shouldn't game the test). Bad: "make sure tenant A can't see tenant B's notes". Good: "users can read notes only from orgs they're a member of".
-
 3. **Write `EVAL.ts`.** Default-export a `Scorer` from `harness/types.ts`. Four scoring patterns — pick the one that fits:
 
-   | Pattern | Use for | What `EvalContext` exposes |
-   |---|---|---|
-   | **DB state assertion** | Design (DB / RLS), Deploy DB-side | `ctx.mgmt.call("database.query", { query })` — same dispatcher the agent used. Use the `BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub = ...` pattern to test under specific users. |
-   | **Supabase client assertion** | Functions / Auth / Data API | `ctx.client` — an in-process `@supabase/supabase-js` client backed by the same supalite project DB as `database.query`. Use this to verify generated code works through PostgREST + GoTrue. |
-   | **Report assertion** | Detect | `ctx.agentReport` (final text from the agent) — match planted identifiers (table names, `query_hash`, `function_id`). Regex first, LLM-judge as fallback only. |
-   | **Tool-call assertion** | Notify | `ctx.mgmt.backends.notifications.calls()` — every dispatch, with channel/severity/payload. Penalize spam (multiple calls). |
-   | **Diff-replay** | Resolve | re-run a Detect fixture after applying the agent's proposed change — does the issue clear? |
+  | Pattern                       | Use for                           | What `EvalContext` exposes                                                                                                                                                                                |
+  | ----------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | **DB state assertion**        | Design (DB / RLS), Deploy DB-side | `ctx.mgmt.call("database.query", { query })` — same dispatcher the agent used. Use the `BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub = ...` pattern to test under specific users. |
+  | **Supabase client assertion** | Functions / Auth / Data API       | `ctx.client` — an in-process `@supabase/supabase-js` client backed by the same supalite project DB as `database.query`. Use this to verify generated code works through PostgREST + GoTrue.               |
+  | **Report assertion**          | Detect                            | `ctx.agentReport` (final text from the agent) — match planted identifiers (table names, `query_hash`, `function_id`). Regex first, LLM-judge as fallback only.                                            |
+  | **Tool-call assertion**       | Notify                            | `ctx.mgmt.backends.notifications.calls()` — every dispatch, with channel/severity/payload. Penalize spam (multiple calls).                                                                                |
+  | **Diff-replay**               | Resolve                           | re-run a Detect fixture after applying the agent's proposed change — does the issue clear?                                                                                                                |
 
    Return `{ passed, score, notes }`. Use `score: 0..1` for partial credit; set `passed` to your boolean threshold.
-
 4. **Add seeds under `seed/`.** All optional.
-   - `project.sql` → applied to a fresh supalite project DB (after supalite auth + [shims/auth.sql](shims/auth.sql) role scaffolding).
-   - `logs.ndjson` → one JSON object per line, columns: `id`, `ts`, `source`, `level`, `message?`, `metadata`.
-
+  - `project.sql` → applied to a fresh supalite project DB (after supalite auth + [shims/auth.sql](shims/auth.sql) role scaffolding).
+  - `logs.ndjson` → one JSON object per line, columns: `id`, `ts`, `source`, `level`, `message?`, `metadata`.
 5. **Write `tools.json`.** Array of mgmt-api endpoints the agent may call, e.g. `["database.query"]`. Empty/missing means the experiment's `defaultTools` apply. **Narrow this aggressively** — give the agent only the tools the eval is testing. RLS evals get `database.query` only; an audit eval gets `database.query` + `logs.all`. This is the single biggest lever for keeping evals focused on the skill being measured.
-
 6. **Write `skills.json`.** Array of skill names from `skills/`. Empty array means the experiment's `defaultSkills` apply. Adding `skills.json` *narrows* the surface so you can test "can it do this with just RLS skill?" cleanly.
-
 7. **Plant the failure mode visibly in the seed.** Detect/Notify evals must have a deterministic, named thing to find — a specific table, a specific `query_hash`, a specific `function_id`. Vague seeds give vague scores. See [evals/detect-security-001-public-table/](evals/detect-security-001-public-table/) — the planted issue is named `customer_payment_methods` and the scorer requires that exact string.
-
 8. **Test it locally.** `pnpm run eval -- --dry` confirms discovery + tool resolution. `pnpm run eval -- --smoke` runs the new eval (if it's the first in its category) or `pnpm run eval -- --force` re-runs everything.
 
 ### Eval naming examples
@@ -147,7 +144,7 @@ resolve-perf-001-slow-query-fix/
 
 ## Using and adding skills
 
-Skills come from [supabase/agent-skills](https://github.com/supabase/agent-skills). They are **not** authored in this repo — `skills/` is just where `npx skills add` installs them, and its contents are gitignored except [`skills/MANIFEST.md`](skills/MANIFEST.md).
+Skills come from [supabase/agent-skills](https://github.com/supabase/agent-skills). They are **not** authored in this repo — `skills/` is just where `npx skills add` installs them, and its contents are gitignored except `[skills/MANIFEST.md](skills/MANIFEST.md)`.
 
 To **use** an existing skill in an eval:
 
@@ -177,6 +174,7 @@ To add an endpoint:
 The tool name the agent sees is the endpoint name with `.` replaced by `_` (e.g. `database.query` → `database_query`); the description includes the real mgmt-api path so the agent can correlate with public docs.
 
 Backend ideas not yet built (each just needs a couple of endpoints registered):
+
 - **Secrets** (`secrets.create`, `secrets.list`, `secrets.delete`) for Deploy.
 - **Storage** (`storage.buckets.create`, `storage.objects.list`) for Storage Design evals.
 - **Auth config** (`config.auth.get`, `config.auth.update`) for Auth Design evals.
@@ -193,13 +191,13 @@ When you add an endpoint or backend, update the Status table.
 
 1. Create `experiments/<model-id>.ts`.
 2. Default-export an `ExperimentConfig` (see [harness/types.ts](harness/types.ts)):
-   - `agent`: runtime identifier. Today this should be `ai-sdk`; future subprocess drivers (e.g. `claude-code`) can be added separately.
-   - `provider`: model provider name. Today supported: `anthropic`, `openai`.
-   - `model`: model id passed to that provider.
-   - `providerOptions`: optional provider-specific options forwarded through AI SDK Core (for example Anthropic `effort` or OpenAI `reasoningEffort`).
-   - `defaultSkills`: skill names loaded for every eval unless the eval narrows them.
-   - `defaultTools`: mgmt-api endpoint allowlist applied unless the eval narrows it via `tools.json`.
-   - `runs`, `earlyExit`, `timeoutSec`: re-run up to `runs` times, stop on first pass if `earlyExit`.
+  - `agent`: runtime identifier. Today this should be `ai-sdk`; future subprocess drivers (e.g. `claude-code`) can be added separately.
+  - `provider`: model provider name. Today supported: `anthropic`, `openai`.
+  - `model`: model id passed to that provider.
+  - `providerOptions`: optional provider-specific options forwarded through AI SDK Core (for example Anthropic `effort` or OpenAI `reasoningEffort`).
+  - `defaultSkills`: skill names loaded for every eval unless the eval narrows them.
+  - `defaultTools`: mgmt-api endpoint allowlist applied unless the eval narrows it via `tools.json`.
+  - `runs`, `earlyExit`, `timeoutSec`: re-run up to `runs` times, stop on first pass if `earlyExit`.
 3. Variants by suffix. Convention: `<model-id>--<variant>.ts` for experiments that toggle one axis (e.g. `claude-opus-4.7--no-skills.ts` to measure skill contribution). Avoid forking unrelated variants into separate models.
 
 ## Frontend (vite-react) evals — convention
@@ -225,6 +223,7 @@ evals/design-frontend-001-auth-flow/
 ```
 
 Pick the lightest scoring tier that catches the bug:
+
 - Build-only (`vite build`) — catches type/import errors.
 - DOM unit (vitest + RTL + real `supabase-js` against shims) — catches data-flow bugs.
 - Playwright E2E — only when the *interaction* is the point (auth, realtime, optimistic updates).
@@ -243,24 +242,27 @@ Read this before touching anything:
 
 ## Status
 
-| Piece | State |
-|---|---|
-| Eval directory layout | done |
-| Experiment configs | done |
-| Sample evals (Design / Detect / Notify) | done |
-| Skills wired to supabase/agent-skills package | done |
-| Mgmt-api dispatcher (`database.query`, `logs.all`, `notifications.send`, `functions.deploy`, `functions.list`) | done |
-| supalite project DB (PostgREST + GoTrue + PGlite backend) | done |
-| PGlite logs DB | done |
-| Notifications recorder | done |
-| In-memory Edge Functions runtime with supabase-js bridge | done |
-| Credential-free framework smoke script | done |
-| Agent driver — AI SDK Core (Anthropic + OpenAI) | done |
-| Runner — discovers, executes, memoizes, retries with `earlyExit` | done |
-| `claude-code` subprocess driver | not started |
-| Secrets / Storage / Auth-config endpoints | not started |
-| Realtime shim | not started |
-| Frontend (vite-react) eval support | not started |
-| Deploy evals | not started |
-| Resolve evals | not started |
-| Results export script | not started |
+
+| Piece                                                                                                          | State       |
+| -------------------------------------------------------------------------------------------------------------- | ----------- |
+| Eval directory layout                                                                                          | done        |
+| Experiment configs                                                                                             | done        |
+| Sample evals (Design / Detect / Notify)                                                                        | done        |
+| Skills wired to supabase/agent-skills package                                                                  | done        |
+| Mgmt-api dispatcher (`database.query`, `logs.all`, `notifications.send`, `functions.deploy`, `functions.list`) | done        |
+| supalite project DB (PostgREST + GoTrue + PGlite backend)                                                      | done        |
+| PGlite logs DB                                                                                                 | done        |
+| Notifications recorder                                                                                         | done        |
+| In-memory Edge Functions runtime with supabase-js bridge                                                       | done        |
+| Credential-free framework smoke script                                                                         | done        |
+| Agent driver — AI SDK Core (Anthropic + OpenAI)                                                                | done        |
+| Runner — discovers, executes, memoizes, retries with `earlyExit`                                               | done        |
+| `claude-code` subprocess driver                                                                                | not started |
+| Secrets / Storage / Auth-config endpoints                                                                      | not started |
+| Realtime shim                                                                                                  | not started |
+| Frontend (vite-react) eval support                                                                             | not started |
+| Deploy evals                                                                                                   | not started |
+| Resolve evals                                                                                                  | not started |
+| Results export script                                                                                          | not started |
+
+
