@@ -1,4 +1,4 @@
-import type { Scorer } from "../../harness/types.js";
+import type { Scorer } from "../../apps/framework/harness/types.js";
 
 const USER_A_EMAIL = "todo-user-a@example.com";
 const USER_B_EMAIL = "todo-user-b@example.com";

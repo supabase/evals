@@ -3,21 +3,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
+import type { EvalResult } from "@supabase-evals/eval-types"
 
 const RESULTS_MODULE_ID = "virtual:supabase-eval-results"
 const RESOLVED_RESULTS_MODULE_ID = `\0${RESULTS_MODULE_ID}`
 
-type EvalResult = {
-  experiment: string
-  eval: string
-  passed: boolean
-  score?: number
-  notes?: string
-  prompt?: string
-  promptSourcePath?: string
-  attempts?: number
-  sourcePath: string
-}
+const REPO_ROOT = path.resolve(__dirname, "../..")
 
 function readPrompt(evalsDir: string, evalId: string) {
   const promptPath = path.resolve(evalsDir, evalId, "PROMPT.md")
@@ -33,7 +24,7 @@ function readPrompt(evalsDir: string, evalId: string) {
 
   return {
     prompt: readFileSync(promptPath, "utf8").trim(),
-    promptSourcePath: path.relative(path.resolve(__dirname, ".."), promptPath),
+    promptSourcePath: path.relative(REPO_ROOT, promptPath),
   }
 }
 
@@ -64,8 +55,8 @@ function readResultFile(
 }
 
 function loadEvalResults() {
-  const resultsDir = path.resolve(__dirname, "../results")
-  const evalsDir = path.resolve(__dirname, "../evals")
+  const resultsDir = path.resolve(REPO_ROOT, "results")
+  const evalsDir = path.resolve(REPO_ROOT, "evals")
 
   if (!existsSync(resultsDir)) {
     return []

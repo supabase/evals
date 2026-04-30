@@ -1,5 +1,5 @@
-import { runProjectChecks } from "../../harness/project-runner.js";
-import type { Scorer } from "../../harness/types.js";
+import { runProjectChecks } from "../../apps/framework/harness/project-runner.js";
+import type { Scorer } from "../../apps/framework/harness/types.js";
 
 const scorer: Scorer = async (ctx) => {
   if (!ctx.workspace) {

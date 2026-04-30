@@ -1,4 +1,4 @@
-import type { Scorer } from "../../harness/types.js";
+import type { Scorer } from "../../apps/framework/harness/types.js";
 
 const FUNCTION_NAME = "order-total";
 

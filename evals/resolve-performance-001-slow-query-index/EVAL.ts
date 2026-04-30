@@ -1,4 +1,4 @@
-import type { Scorer } from "../../harness/types.js";
+import type { Scorer } from "../../apps/framework/harness/types.js";
 
 const TARGET_USER = "00000000-0000-0000-0000-000000000001";
 

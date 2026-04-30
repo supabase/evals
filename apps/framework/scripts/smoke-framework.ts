@@ -8,7 +8,7 @@ import { buildTools } from "../harness/tool-surface.js";
 import type { Scorer } from "../harness/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, "..");
+const ROOT = join(__dirname, "..", "..", "..");
 
 const DESIGN_EVAL = "evals/design-rls-001-tenant-isolation";
 const CLIENT_RLS_EVAL = "evals/design-rls-002-own-todos-client";

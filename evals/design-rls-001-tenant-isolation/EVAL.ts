@@ -1,4 +1,4 @@
-import type { Scorer } from "../../harness/types.js";
+import type { Scorer } from "../../apps/framework/harness/types.js";
 
 const ORG_A = "11111111-1111-1111-1111-111111111111";
 const USER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
