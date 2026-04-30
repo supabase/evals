@@ -25,10 +25,13 @@ import type {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 
-const args = new Set(process.argv.slice(2));
+const rawArgs = process.argv.slice(2);
+const args = new Set(rawArgs);
 const FORCE = args.has("--force");
 const SMOKE = args.has("--smoke");
 const DRY = args.has("--dry");
+const EXPERIMENT_FILTER = readFlag("experiment");
+const MODEL_FILTER = readFlag("model");
 
 async function loadExperiments() {
   const dir = join(ROOT, "experiments");
@@ -38,6 +41,22 @@ async function loadExperiments() {
     out.push({ name: f.replace(/\.ts$/, ""), config: mod.default as ExperimentConfig });
   }
   return out;
+}
+
+function readFlag(name: string): string | undefined {
+  const prefix = `--${name}=`;
+  const inline = rawArgs.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length);
+
+  const idx = rawArgs.indexOf(`--${name}`);
+  if (idx !== -1) {
+    const value = rawArgs[idx + 1];
+    if (!value || value.startsWith("--")) {
+      throw new Error(`--${name} requires a value`);
+    }
+    return value;
+  }
+  return undefined;
 }
 
 function readJsonIfExists<T>(p: string): T | undefined {
@@ -57,7 +76,11 @@ function discoverEvals(): EvalManifest[] {
     const mode = isProject
       ? "project"
       : "tool";
-    const [category, subcategory] = id.split("-");
+    const parts = id.split("-");
+    if (parts.length < 4 || /^\d+$/.test(parts[1])) {
+      throw new Error(`eval id must be <category>-<subcategory>-<NNN>-<slug>: ${id}`);
+    }
+    const [category, subcategory] = parts;
     out.push({
       id,
       mode,
@@ -215,7 +238,20 @@ async function runOne(
 }
 
 async function main() {
-  const experiments = await loadExperiments();
+  const experiments = (await loadExperiments()).filter(({ name, config }) => {
+    if (EXPERIMENT_FILTER && name !== EXPERIMENT_FILTER) return false;
+    if (MODEL_FILTER && config.model !== MODEL_FILTER) return false;
+    return true;
+  });
+  if (EXPERIMENT_FILTER || MODEL_FILTER) {
+    const filter = [
+      EXPERIMENT_FILTER ? `experiment=${EXPERIMENT_FILTER}` : undefined,
+      MODEL_FILTER ? `model=${MODEL_FILTER}` : undefined,
+    ].filter(Boolean).join(" ");
+    if (experiments.length === 0) {
+      throw new Error(`no experiments matched ${filter}`);
+    }
+  }
   const evals = discoverEvals();
   console.log(`${experiments.length} experiment(s), ${evals.length} eval(s)`);
 

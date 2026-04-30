@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootMgmtApi, type MgmtApiHandle } from "../shims/management-api.js";
 import { runProjectChecks } from "../harness/project-runner.js";
 import { buildTools } from "../harness/tool-surface.js";
-import type { Scorer, ToolCallRecord } from "../harness/types.js";
+import type { Scorer } from "../harness/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -14,8 +14,8 @@ const DESIGN_EVAL = "evals/design-rls-001-tenant-isolation";
 const CLIENT_RLS_EVAL = "evals/design-rls-002-own-todos-client";
 const FUNCTIONS_EVAL = "evals/design-functions-001-order-total";
 const EDGE_AUTH_DB_EVAL = "evals/design-functions-002-edge-auth-db";
+const OBSERVE_EVAL = "evals/observe-logs-001-top-error-function";
 const DETECT_EVAL = "evals/detect-security-001-public-table";
-const NOTIFY_EVAL = "evals/notify-001-error-spike";
 const FRONTEND_EVAL = "evals/design-frontend-001-todos-app";
 
 async function loadScorer(relDir: string): Promise<Scorer> {
@@ -44,15 +44,13 @@ async function smokeToolSurface() {
     const { tools, resolve } = buildTools(mgmt, [
       "database.query",
       "functions.deploy",
-      "notifications.send",
     ]);
     assert.deepEqual(
       Object.keys(tools).sort(),
-      ["database_query", "functions_deploy", "notifications_send"]
+      ["database_query", "functions_deploy"]
     );
     assert.equal(resolve("database_query"), "database.query");
     assert.equal(resolve("functions_deploy"), "functions.deploy");
-    assert.equal(resolve("notifications_send"), "notifications.send");
     assert.equal(resolve("logs_all"), undefined);
   });
   console.log("PASS tool surface");
@@ -429,50 +427,41 @@ ORDER BY grantee;
   console.log("PASS detect scorer + logs/database shims");
 }
 
-async function smokeNotifyEval() {
-  const scorer = await loadScorer(NOTIFY_EVAL);
+async function smokeObserveEval() {
+  const scorer = await loadScorer(OBSERVE_EVAL);
 
   await withMgmt(
-    { logsSeedNdjson: seedPath(NOTIFY_EVAL, "logs.ndjson") },
+    { logsSeedNdjson: seedPath(OBSERVE_EVAL, "logs.ndjson") },
     async (mgmt) => {
       const stats = (await mgmt.call("logs.all", {
         sql: `
 SELECT
   metadata->>'function_id' AS function_id,
-  SUM((level = 'error')::int)::float / COUNT(*)::float AS error_rate
+  SUM((level = 'error')::int)::int AS errors,
+  COUNT(*)::int AS total
 FROM logs
-WHERE metadata->>'function_id' = 'process-payment'
-GROUP BY 1;
+WHERE source = 'edge-function'
+GROUP BY 1
+ORDER BY errors DESC, total DESC
+LIMIT 1;
         `,
-      })) as { rows: Array<{ function_id: string; error_rate: number }> };
+      })) as { rows: Array<{ function_id: string; errors: number; total: number }> };
 
-      assert.equal(stats.rows[0]?.function_id, "process-payment");
-      assert(Number(stats.rows[0]?.error_rate) > 0.05);
+      assert.equal(stats.rows[0]?.function_id, "stripe-webhook");
+      assert.equal(Number(stats.rows[0]?.errors), 9);
+      assert.equal(Number(stats.rows[0]?.total), 50);
 
-      const toolCalls: ToolCallRecord[] = [
-        {
-          endpoint: "notifications.send",
-          body: {
-            channel: "pagerduty",
-            severity: "high",
-            payload: {
-              function_id: stats.rows[0]?.function_id,
-              error_rate: Number(stats.rows[0]?.error_rate),
-            },
-          },
-          ts: Date.now(),
-        },
-      ];
-
-      const result = await mgmt.call("notifications.send", toolCalls[0].body);
-      toolCalls[0].result = result;
-
-      const score = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls });
+      const score = await scorer({
+        mgmt,
+        client: mgmt.backends.projectDb.client,
+        toolCalls: [],
+        agentReport: "stripe-webhook had the most errors with 9 errors out of 50 events.",
+      });
       assert.equal(score.passed, true, score.notes);
     }
   );
 
-  console.log("PASS notify scorer + notifications recorder");
+  console.log("PASS observe scorer + logs shim");
 }
 
 async function smokeProjectEval() {
@@ -509,8 +498,8 @@ async function main() {
   await smokeSupaliteClient();
   await smokeEdgeAuthDbEval();
   await smokeProjectEval();
+  await smokeObserveEval();
   await smokeDetectEval();
-  await smokeNotifyEval();
   console.log("PASS framework smoke");
 }
 

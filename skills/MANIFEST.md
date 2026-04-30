@@ -16,6 +16,18 @@ in sync with the eval `skills.json` files and `experiments/*.ts`
 | `supabase`                         | All experiments (default)                 | General-purpose Supabase guidance. |
 | `supabase-postgres-best-practices` | Design / Detect evals touching SQL or RLS | Postgres + RLS patterns.           |
 
+## Wanted upstream
+
+These skills would make future Observe/Detect/Resolve evals more representative,
+but they should be authored in
+[supabase/agent-skills](https://github.com/supabase/agent-skills), not locally
+in this repo.
+
+| Skill | Would be used by | Tracking |
+| --- | --- | --- |
+| `supabase-observability` | Observe logs/perf/usage evals and Detect reliability evals | https://github.com/supabase/agent-skills/issues/new |
+| `supabase-rls-audit` | Detect/Resolve security evals involving subtle RLS issues | https://github.com/supabase/agent-skills/issues/new |
+
 
 ## Install
 

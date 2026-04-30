@@ -12,7 +12,7 @@ const config: ExperimentConfig = {
   defaultSkills: ["supabase", "supabase-postgres-best-practices"],
   // Default mgmt-api endpoints the agent can call. Per-eval `tools.json`
   // narrows this further.
-  defaultTools: ["database.query", "logs.all", "notifications.send"],
+  defaultTools: ["database.query", "logs.all"],
   runs: 4,
   earlyExit: true,
   timeoutSec: 720,

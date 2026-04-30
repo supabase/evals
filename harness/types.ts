@@ -17,7 +17,7 @@ export interface ExperimentConfig {
   timeoutSec: number;
 }
 
-export type EvalCategory = "design" | "deploy" | "detect" | "notify" | "resolve";
+export type EvalCategory = "design" | "deploy" | "observe" | "detect" | "resolve";
 export type EvalMode = "tool" | "project";
 export type FileEndpoint = "files.list" | "files.read" | "files.write" | "files.edit";
 

@@ -9,13 +9,11 @@
 
 import { bootProjectDb, type ProjectDbHandle } from "./project-db.js";
 import { bootLogsDb, type LogsDbHandle } from "./logs-db.js";
-import { bootNotifications, type NotificationsHandle } from "./notifications.js";
 import { bootEdgeFunctions, type EdgeFunctionsHandle } from "./edge-functions.js";
 
 export type Endpoint =
   | "database.query"
   | "logs.all"
-  | "notifications.send"
   | "functions.deploy"
   | "functions.list";
 // Future: secrets.create, storage.buckets.create, ...
@@ -27,7 +25,6 @@ export interface MgmtApiHandle {
   backends: {
     projectDb: ProjectDbHandle;
     logsDb: LogsDbHandle;
-    notifications: NotificationsHandle;
     edgeFunctions: EdgeFunctionsHandle;
   };
   /** All endpoints registered. Used to build the tool surface. */
@@ -46,7 +43,6 @@ export interface EndpointSpec {
 interface BackendCtx {
   projectDb: ProjectDbHandle;
   logsDb: LogsDbHandle;
-  notifications: NotificationsHandle;
   edgeFunctions: EdgeFunctionsHandle;
 }
 
@@ -58,13 +54,12 @@ export interface BootOptions {
 export async function bootMgmtApi(opts: BootOptions = {}): Promise<MgmtApiHandle> {
   const projectDb = await bootProjectDb(opts.projectSeedSql);
   const logsDb = await bootLogsDb(opts.logsSeedNdjson);
-  const notifications = bootNotifications();
   const edgeFunctions = bootEdgeFunctions(() => ({
     url: projectDb.url,
     anonKey: projectDb.anonKey,
     fetch: projectDb.fetch,
   }));
-  const ctx: BackendCtx = { projectDb, logsDb, notifications, edgeFunctions };
+  const ctx: BackendCtx = { projectDb, logsDb, edgeFunctions };
   const registry = register();
 
   return {
@@ -120,33 +115,6 @@ function register(): Map<Endpoint, EndpointSpec> {
     handler: async ({ sql }: { sql: string }, { logsDb }) => {
       const { rows } = await logsDb.query(sql);
       return { rows };
-    },
-  });
-
-  m.set("notifications.send", {
-    http: "POST /v1/projects/{ref}/notifications  (mock — placeholder for a future endpoint)",
-    description:
-      "Dispatch a notification (alert) to a downstream channel. " +
-      "Use this when you've confirmed a problem worth paging humans about. " +
-      "Spurious calls count against you.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        channel: { type: "string", enum: ["slack", "pagerduty", "email", "webhook"] },
-        severity: { type: "string", enum: ["low", "medium", "high", "critical"] },
-        payload: {
-          type: "object",
-          description: "Free-form payload. Include identifiers the receiver needs (function_id, query_hash, error_rate, summary, ...).",
-        },
-      },
-      required: ["channel", "severity", "payload"],
-    },
-    handler: async (
-      body: { channel: string; severity: string; payload: Record<string, unknown> },
-      { notifications }
-    ) => {
-      notifications.send(body);
-      return { ok: true };
     },
   });
 
