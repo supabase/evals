@@ -33,7 +33,7 @@ function readPrompt(evalsDir: string, evalId: string) {
 
   return {
     prompt: readFileSync(promptPath, "utf8").trim(),
-    promptSourcePath: path.relative(path.resolve(__dirname, "../.."), promptPath),
+    promptSourcePath: path.relative(path.resolve(__dirname, ".."), promptPath),
   }
 }
 
@@ -64,8 +64,8 @@ function readResultFile(
 }
 
 function loadEvalResults() {
-  const resultsDir = path.resolve(__dirname, "../../results")
-  const evalsDir = path.resolve(__dirname, "../../evals")
+  const resultsDir = path.resolve(__dirname, "../results")
+  const evalsDir = path.resolve(__dirname, "../evals")
 
   if (!existsSync(resultsDir)) {
     return []
