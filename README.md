@@ -27,9 +27,23 @@ evals/            eval tasks — each is self-contained
 results/          written per (model x eval) pair
 ```
 
+### Two eval modes
+
+The runner supports two modes:
+
+| Mode | How it is detected | Agent surface | Scoring |
+|---|---|---|---|
+| **Tool eval** | Default eval shape (`PROMPT.md`, `EVAL.ts`, optional `seed/`) | Mock mgmt-api tools (`database.query`, `logs.all`, `functions.deploy`, ...) | Scorer uses `ctx.mgmt` and/or `ctx.client` |
+| **Project eval** | Eval has `app/package.json` and `app/src/` | File tools scoped to a copied workspace (`files_list`, `files_read`, `files_write`, `files_edit`) | Scorer runs `vite build` + withheld Vitest/RTL tests against supalite |
+
+The contents of `app/` are copied per attempt to
+`results/<experiment>/<eval-id>/attempt-<n>/workspace/`. The agent edits only
+that copy. `EVAL.ts` and `tests/` are withheld during the agent turn and copied
+in before scoring.
+
 ### Tool surface mirrors the Management API
 
-The agent's tools are mgmt-api endpoints, not filesystem ops. Same surface the Supabase CLI and (via code-mode) the MCP server end up wrapping. Tool names mirror endpoint paths:
+Tool eval agents use mgmt-api endpoints. Same surface the Supabase CLI and (via code-mode) the MCP server end up wrapping. Tool names mirror endpoint paths:
 
 
 | Tool                 | Real mgmt-api endpoint                                | Backed by                                                                             |
@@ -49,9 +63,26 @@ scorers using `ctx.client`, and deployed Edge Functions using
 remain separate: `logs.all` queries a standalone PGlite table seeded from
 `seed/logs.ndjson`.
 
+### Project eval file tools
+
+Project eval agents get file tools instead of mgmt-api tools:
+
+| Tool | Purpose |
+|---|---|
+| `files_list` | List files/directories relative to the workspace |
+| `files_read` | Read a UTF-8 file |
+| `files_write` | Write a UTF-8 file, creating parents |
+| `files_edit` | Replace exactly one string occurrence in a file |
+
+All paths are relative to the per-attempt workspace and rejected if they escape
+it. There is no shell access in project eval v1.
+
 ### No sandbox required (yet)
 
-Every state-changing operation goes through an in-process shim, so for Design / Detect / Notify / Resolve evals the agent never touches the host filesystem. Frontend evals (when added) will opt into a tmpdir or Docker via experiment config.
+Tool eval state changes go through in-process shims. Project eval writes are
+limited to the copied workspace under `results/`. This is not a hard process
+sandbox; if we add untrusted shell execution later, that should be a separate
+sandboxed runner.
 
 ### RLS testing
 
@@ -107,7 +138,7 @@ This section is the contract for humans and agents adding evals, skills, shims, 
   - `<NNN>`: zero-padded 3-digit number, unique within `<category>-<subcategory>`.
   - `<slug>`: kebab-case, ~3 words.
 2. **Write `PROMPT.md`.** This is the *only* task description the agent sees. Be concrete about success criteria but never describe what the scorer checks (the agent shouldn't game the test). Bad: "make sure tenant A can't see tenant B's notes". Good: "users can read notes only from orgs they're a member of".
-3. **Write `EVAL.ts`.** Default-export a `Scorer` from `harness/types.ts`. Four scoring patterns — pick the one that fits:
+3. **Write `EVAL.ts`.** Default-export a `Scorer` from `harness/types.ts`. Common scoring patterns:
 
   | Pattern                       | Use for                           | What `EvalContext` exposes                                                                                                                                                                                |
   | ----------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -116,15 +147,17 @@ This section is the contract for humans and agents adding evals, skills, shims, 
   | **Report assertion**          | Detect                            | `ctx.agentReport` (final text from the agent) — match planted identifiers (table names, `query_hash`, `function_id`). Regex first, LLM-judge as fallback only.                                            |
   | **Tool-call assertion**       | Notify                            | `ctx.mgmt.backends.notifications.calls()` — every dispatch, with channel/severity/payload. Penalize spam (multiple calls).                                                                                |
   | **Diff-replay**               | Resolve                           | re-run a Detect fixture after applying the agent's proposed change — does the issue clear?                                                                                                                |
+  | **Project checks**            | Frontend / full app               | `ctx.workspace` — run `runProjectChecks(ctx.workspace)` to execute `vite build` and withheld Vitest/RTL tests.                                                                                            |
 
    Return `{ passed, score, notes }`. Use `score: 0..1` for partial credit; set `passed` to your boolean threshold.
-4. **Add seeds under `seed/`.** All optional.
+4. **For tool evals, add seeds under `seed/`.** All optional.
   - `project.sql` → applied to a fresh supalite project DB (after supalite auth + [shims/auth.sql](shims/auth.sql) role scaffolding).
   - `logs.ndjson` → one JSON object per line, columns: `id`, `ts`, `source`, `level`, `message?`, `metadata`.
-5. **Write `tools.json`.** Array of mgmt-api endpoints the agent may call, e.g. `["database.query"]`. Empty/missing means the experiment's `defaultTools` apply. **Narrow this aggressively** — give the agent only the tools the eval is testing. RLS evals get `database.query` only; an audit eval gets `database.query` + `logs.all`. This is the single biggest lever for keeping evals focused on the skill being measured.
-6. **Write `skills.json`.** Array of skill names from `skills/`. Empty array means the experiment's `defaultSkills` apply. Adding `skills.json` *narrows* the surface so you can test "can it do this with just RLS skill?" cleanly.
-7. **Plant the failure mode visibly in the seed.** Detect/Notify evals must have a deterministic, named thing to find — a specific table, a specific `query_hash`, a specific `function_id`. Vague seeds give vague scores. See [evals/detect-security-001-public-table/](evals/detect-security-001-public-table/) — the planted issue is named `customer_payment_methods` and the scorer requires that exact string.
-8. **Test it locally.** `pnpm run eval -- --dry` confirms discovery + tool resolution. `pnpm run eval -- --smoke` runs the new eval (if it's the first in its category) or `pnpm run eval -- --force` re-runs everything.
+5. **For project evals, include a Vite app under `app/`.** Add `app/package.json`, `app/vite.config.ts`, `app/tsconfig.json`, `app/index.html`, `app/src/`, `app/supabase/config.toml`, `app/supabase/schemas/*.sql`, optional `app/supabase/seed.sql`, and root-level withheld `tests/`. The runner detects this shape automatically.
+6. **For tool evals, write `tools.json`.** Array of mgmt-api endpoints the agent may call, e.g. `["database.query"]`. Empty/missing means the experiment's `defaultTools` apply. **Narrow this aggressively** — give the agent only the tools the eval is testing. RLS evals get `database.query` only; an audit eval gets `database.query` + `logs.all`. This is the single biggest lever for keeping evals focused on the skill being measured.
+7. **Write `skills.json`.** Array of skill names from `skills/`. Empty array means the experiment's `defaultSkills` apply. Adding `skills.json` *narrows* the surface so you can test "can it do this with just RLS skill?" cleanly.
+8. **Plant the failure mode visibly in the seed.** Detect/Notify evals must have a deterministic, named thing to find — a specific table, a specific `query_hash`, a specific `function_id`. Vague seeds give vague scores. See [evals/detect-security-001-public-table/](evals/detect-security-001-public-table/) — the planted issue is named `customer_payment_methods` and the scorer requires that exact string.
+9. **Test it locally.** `npm run eval:dry` confirms discovery + tool resolution. `npm run eval:smoke` runs the first eval per category or `npm run eval:force` re-runs everything.
 
 ### Eval naming examples
 
@@ -179,12 +212,6 @@ Backend ideas not yet built (each just needs a couple of endpoints registered):
 - **Storage** (`storage.buckets.create`, `storage.objects.list`) for Storage Design evals.
 - **Auth config** (`config.auth.get`, `config.auth.update`) for Auth Design evals.
 
-For frontend / project-based evals, the project DB side already exists:
-`ctx.client` and Edge Function env vars point at supalite (PostgREST + GoTrue).
-What is still missing is the Next.js-style project harness: tempdir-per-attempt
-copies, file-editing tools, build/test commands, and a sandbox decision. Realtime
-still needs its own shim when an eval requires presence/broadcast.
-
 When you add an endpoint or backend, update the Status table.
 
 ## Adding a model / experiment
@@ -202,31 +229,34 @@ When you add an endpoint or backend, update the Status table.
 
 ## Frontend (vite-react) evals — convention
 
-Not yet built, but reserved shape:
+Frontend evals are project evals. The agent edits a copied Vite app using file
+tools only; withheld tests are copied in after the agent finishes.
 
 ```
 evals/design-frontend-001-auth-flow/
   PROMPT.md
-  EVAL.ts                        # uses Playwright/vitest-browser
-  seed/
-    project.sql
-    mgmt-api.json
+  EVAL.ts                        # calls runProjectChecks(ctx.workspace)
   app/                           # vite-react app the agent edits
     package.json
     vite.config.ts
-    .env.example                 # injected at boot with shim URLs
-    src/...
+    tsconfig.json
+    index.html
+    supabase/
+      config.toml
+      schemas/
+        schema.sql
+      seed.sql
+    src/
+      ...
   tests/                         # withheld — referenced by EVAL.ts
-    unit.spec.ts
-    e2e.spec.ts
+    *.test.tsx
   skills.json
 ```
 
-Pick the lightest scoring tier that catches the bug:
-
-- Build-only (`vite build`) — catches type/import errors.
-- DOM unit (vitest + RTL + real `supabase-js` against shims) — catches data-flow bugs.
-- Playwright E2E — only when the *interaction* is the point (auth, realtime, optimistic updates).
+`runProjectChecks()` runs `vite build`, then `vitest run` with a generated setup
+file. That setup boots supalite from `supabase/schemas/*.sql` and
+`supabase/seed.sql`, then routes frontend `fetch` calls for
+`VITE_SUPABASE_URL` into `app.fetch`.
 
 ## For agents extending this suite
 
@@ -234,7 +264,7 @@ Read this before touching anything:
 
 - **Don't invent fields.** The runner's discovery is strictly: directory naming + `skills.json` + `tools.json` + the files in `seed/`. Don't add a `config.json` or `meta.yaml` — extend [harness/types.ts](harness/types.ts) and the runner instead.
 - **Don't author skills locally.** Skills live in [supabase/agent-skills](https://github.com/supabase/agent-skills). If a skill is missing, contribute it upstream — never create `skills/<name>/SKILL.md` here.
-- **Don't bypass the mgmt-api dispatcher.** If the agent needs to do something, it should call a mgmt-api endpoint. Don't expose backend handles directly to tools — that drifts from the real CLI/MCP surface and makes evals non-portable.
+- **Don't bypass the mgmt-api dispatcher in tool evals.** If the agent needs to do something there, it should call a mgmt-api endpoint. Project evals are different: the deliverable is file changes in the workspace.
 - **Don't leak the scorer into the prompt.** `PROMPT.md` and `EVAL.ts` should look at the same problem from opposite sides. If you find yourself copying assertion text into the prompt, you're optimizing for cheating.
 - **Plant a deterministic identifier in every Detect/Notify seed.** A regex on a vague phrase ("there's a slow query") flakes badly across models. Plant the `query_hash`, the table name, the `function_id`.
 - **Add at most one new shim per PR.** Each shim is a long-lived contract; bundling them makes review hard and drift inevitable.
@@ -257,10 +287,11 @@ Read this before touching anything:
 | Credential-free framework smoke script                                                                         | done        |
 | Agent driver — AI SDK Core (Anthropic + OpenAI)                                                                | done        |
 | Runner — discovers, executes, memoizes, retries with `earlyExit`                                               | done        |
+| Project eval mode (file tools + workspace copy + Vite/Vitest scoring)                                          | done        |
 | `claude-code` subprocess driver                                                                                | not started |
 | Secrets / Storage / Auth-config endpoints                                                                      | not started |
 | Realtime shim                                                                                                  | not started |
-| Frontend (vite-react) eval support                                                                             | not started |
+| Frontend (vite-react) eval support                                                                             | done        |
 | Deploy evals                                                                                                   | not started |
 | Resolve evals                                                                                                  | not started |
 | Results export script                                                                                          | not started |

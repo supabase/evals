@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootMgmtApi, type MgmtApiHandle } from "../shims/management-api.js";
+import { runProjectChecks } from "../harness/project-runner.js";
 import { buildTools } from "../harness/tool-surface.js";
 import type { Scorer, ToolCallRecord } from "../harness/types.js";
 
@@ -14,6 +16,7 @@ const FUNCTIONS_EVAL = "evals/design-functions-001-order-total";
 const EDGE_AUTH_DB_EVAL = "evals/design-functions-002-edge-auth-db";
 const DETECT_EVAL = "evals/detect-security-001-public-table";
 const NOTIFY_EVAL = "evals/notify-001-error-spike";
+const FRONTEND_EVAL = "evals/design-frontend-001-todos-app";
 
 async function loadScorer(relDir: string): Promise<Scorer> {
   const mod = await import(pathToFileURL(join(ROOT, relDir, "EVAL.ts")).href);
@@ -472,6 +475,32 @@ GROUP BY 1;
   console.log("PASS notify scorer + notifications recorder");
 }
 
+async function smokeProjectEval() {
+  const source = join(ROOT, FRONTEND_EVAL, "app");
+  const workspace = join(ROOT, "results", "_smoke", "design-frontend-001-todos-app");
+  rmSync(workspace, { recursive: true, force: true });
+  mkdirSync(dirname(workspace), { recursive: true });
+  cpSync(source, workspace, {
+    recursive: true,
+    filter: (src) => !src.endsWith("/EVAL.ts"),
+  });
+  cpSync(join(ROOT, FRONTEND_EVAL, "tests"), join(workspace, "tests"), {
+    recursive: true,
+  });
+  writeFileSync(join(workspace, ".env.local"), [
+    "VITE_SUPABASE_URL=http://supabase-evals.local",
+    "VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key",
+    "",
+  ].join("\n"));
+  writeFileSync(join(workspace, "src", "App.tsx"), GOOD_FRONTEND_APP);
+
+  const result = await runProjectChecks(workspace);
+  assert.equal(result.build.ok, true, result.build.stderr || result.build.stdout);
+  assert.equal(result.vitest?.ok, true, result.vitest?.stderr || result.vitest?.stdout);
+
+  console.log("PASS project-mode vite/react/supalite scorer");
+}
+
 async function main() {
   await smokeToolSurface();
   await smokeDesignEval();
@@ -479,6 +508,7 @@ async function main() {
   await smokeFunctionsEval();
   await smokeSupaliteClient();
   await smokeEdgeAuthDbEval();
+  await smokeProjectEval();
   await smokeDetectEval();
   await smokeNotifyEval();
   console.log("PASS framework smoke");
@@ -488,3 +518,138 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+const GOOD_FRONTEND_APP = `
+import { useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+type Todo = {
+  id: string;
+  body: string;
+  done: boolean;
+};
+
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+
+export default function App() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [newTodo, setNewTodo] = useState("");
+  const [signedIn, setSignedIn] = useState(false);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [error, setError] = useState("");
+
+  async function loadTodos() {
+    const { data, error } = await supabase
+      .from("todos")
+      .select("id,body,done")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    setTodos(data ?? []);
+  }
+
+  async function handleSignIn(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setSignedIn(true);
+    await loadTodos();
+  }
+
+  async function handleAddTodo(event: React.FormEvent) {
+    event.preventDefault();
+    const body = newTodo.trim();
+    if (!body) return;
+    setError("");
+    const { data, error } = await supabase
+      .from("todos")
+      .insert({ body })
+      .select("id,body,done")
+      .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setTodos((current) => [...current, data]);
+    setNewTodo("");
+  }
+
+  async function handleToggleTodo(todo: Todo) {
+    setError("");
+    const { data, error } = await supabase
+      .from("todos")
+      .update({ done: !todo.done })
+      .eq("id", todo.id)
+      .select("id,body,done")
+      .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setTodos((current) => current.map((item) => (item.id === todo.id ? data : item)));
+  }
+
+  return (
+    <main>
+      <h1>Todos</h1>
+
+      <form onSubmit={handleSignIn}>
+        <input
+          data-testid="email-input"
+          placeholder="Email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <input
+          data-testid="password-input"
+          placeholder="Password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+        <button data-testid="sign-in-button" type="submit">
+          Sign in
+        </button>
+      </form>
+
+      {signedIn ? <p data-testid="signed-in">Signed in</p> : null}
+      {error ? <p role="alert">{error}</p> : null}
+
+      <form onSubmit={handleAddTodo}>
+        <input
+          data-testid="todo-input"
+          placeholder="New todo"
+          value={newTodo}
+          onChange={(event) => setNewTodo(event.target.value)}
+        />
+        <button data-testid="add-button" type="submit">
+          Add
+        </button>
+      </form>
+
+      <ul data-testid="todo-list">
+        {todos.map((todo) => (
+          <li key={todo.id}>
+            <label>
+              <input
+                data-testid={\`todo-checkbox-\${todo.body}\`}
+                type="checkbox"
+                checked={todo.done}
+                onChange={() => void handleToggleTodo(todo)}
+              />
+              {todo.body}
+            </label>
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+`;

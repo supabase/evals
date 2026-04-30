@@ -7,7 +7,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import type { Endpoint, MgmtApiHandle } from "../shims/management-api.js";
-import { buildTools } from "./tool-surface.js";
+import { buildTools, type AgentToolSet } from "./tool-surface.js";
 import type { AgentRuntime, ExperimentConfig, ModelProvider, ToolCallRecord } from "./types.js";
 
 const MAX_STEPS = 30;
@@ -20,8 +20,10 @@ export interface RunAgentArgs {
   providerOptions?: Record<string, unknown>;
   systemPrompt: string;
   userPrompt: string;
-  mgmt: MgmtApiHandle;
-  allowedTools: Endpoint[];
+  mgmt?: MgmtApiHandle;
+  allowedTools?: Endpoint[];
+  tools?: AgentToolSet;
+  toolCalls?: ToolCallRecord[];
   timeoutSec: number;
 }
 
@@ -81,8 +83,11 @@ function buildProviderOptions(
 export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
   assertCanRunExperiment({ agent: args.agent, provider: args.provider });
 
-  const toolCalls: ToolCallRecord[] = [];
-  const { tools } = buildTools(args.mgmt, args.allowedTools, toolCalls);
+  const toolCalls: ToolCallRecord[] = args.toolCalls ?? [];
+  const tools =
+    args.tools ??
+    buildTools(required(args.mgmt, "mgmt"), required(args.allowedTools, "allowedTools"), toolCalls)
+      .tools;
   const result = await generateText({
     model: resolveModel(args.provider, args.model),
     system: args.systemPrompt,
@@ -103,4 +108,9 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
     steps: result.steps.length,
     stoppedReason,
   };
+}
+
+function required<T>(value: T | undefined, name: string): T {
+  if (value === undefined) throw new Error(`runAgent missing ${name}`);
+  return value;
 }

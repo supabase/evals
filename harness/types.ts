@@ -18,11 +18,17 @@ export interface ExperimentConfig {
 }
 
 export type EvalCategory = "design" | "deploy" | "detect" | "notify" | "resolve";
+export type EvalMode = "tool" | "project";
+export type FileEndpoint = "files.list" | "files.read" | "files.write" | "files.edit";
 
 export interface EvalManifest {
   id: string;
+  mode: EvalMode;
   category: EvalCategory;
   subcategory?: string;
+  dir: string;
+  /** Project root for project-mode evals. */
+  appDir?: string;
   promptPath: string;
   evalPath: string;
   seedDir: string;
@@ -42,12 +48,14 @@ export interface EvalContext {
   mgmt: MgmtApiHandle;
   /** In-process supabase-js client for the unified project database. */
   client: SupabaseClient;
+  /** Per-attempt copied workspace for project-mode evals. */
+  workspace?: string;
   toolCalls: ToolCallRecord[];
   agentReport?: string;
 }
 
 export interface ToolCallRecord {
-  endpoint: Endpoint;
+  endpoint: Endpoint | FileEndpoint;
   body: Record<string, unknown>;
   result?: unknown;
   error?: string;
