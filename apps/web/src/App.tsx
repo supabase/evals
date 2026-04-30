@@ -530,7 +530,7 @@ function TimelineStage({ stage }: { stage: (typeof JOURNEY_STAGES)[number] }) {
             />
           ))
         ) : (
-          <div className="self-center text-sm text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             No results
           </div>
         )}
@@ -576,7 +576,7 @@ function TimelineByModel() {
             />
           ))
         ) : (
-          <div className="self-center text-sm text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             No results
           </div>
         )}
