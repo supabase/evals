@@ -76,8 +76,21 @@ function buildProviderOptions(
   provider: ModelProvider,
   options?: Record<string, unknown>
 ): Record<string, Record<string, unknown>> | undefined {
-  if (!options || Object.keys(options).length === 0) return undefined;
-  return { [provider]: options };
+  const mergedOptions =
+    provider === "openai" ? withOpenAiZdrDefaults(options) : options;
+  if (!mergedOptions || Object.keys(mergedOptions).length === 0) return undefined;
+  return { [provider]: mergedOptions };
+}
+
+function withOpenAiZdrDefaults(options?: Record<string, unknown>): Record<string, unknown> {
+  const include = Array.isArray(options?.include) ? options.include : [];
+  return {
+    ...options,
+    store: options?.store ?? false,
+    include: include.includes("reasoning.encrypted_content")
+      ? include
+      : [...include, "reasoning.encrypted_content"],
+  };
 }
 
 export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
