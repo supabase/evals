@@ -1,0 +1,51 @@
+import { describe, it, expect } from 'vitest'
+import { createTestApp } from './helpers.js'
+
+describe('functions', () => {
+  it('deploys a function and lists it', async () => {
+    const app = await createTestApp([{ ref: 'fn-proj' }])
+
+    const formData = new FormData()
+    formData.append('metadata', JSON.stringify({ name: 'hello', entrypoint_path: 'index.ts', verify_jwt: false }))
+    formData.append('file', new File(['export default { fetch: () => new Response("hi") }'], 'index.ts', { type: 'application/typescript' }))
+
+    const deployRes = await app.request('/v1/projects/fn-proj/functions/deploy?slug=hello', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-token' },
+      body: formData,
+    })
+    expect(deployRes.status).toBe(201)
+
+    const listRes = await app.request('/v1/projects/fn-proj/functions', {
+      headers: { Authorization: 'Bearer test-token' },
+    })
+    const list = await listRes.json() as Array<{ slug: string }>
+    expect(list).toHaveLength(1)
+    expect(list[0].slug).toBe('hello')
+  })
+
+  it('returns function body as multipart', async () => {
+    const app = await createTestApp([{ ref: 'fn-body-proj' }])
+
+    const source = 'export default { fetch: () => new Response("ok") }'
+    const formData = new FormData()
+    formData.append('metadata', JSON.stringify({ name: 'fn', entrypoint_path: 'fn.ts' }))
+    formData.append('file', new File([source], 'fn.ts', { type: 'application/typescript' }))
+
+    await app.request('/v1/projects/fn-body-proj/functions/deploy?slug=fn', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-token' },
+      body: formData,
+    })
+
+    const bodyRes = await app.request('/v1/projects/fn-body-proj/functions/fn/body', {
+      headers: { Authorization: 'Bearer test-token' },
+    })
+    expect(bodyRes.status).toBe(200)
+    const contentType = bodyRes.headers.get('content-type') ?? ''
+    expect(contentType).toContain('multipart/form-data')
+    const text = await bodyRes.text()
+    expect(text).toContain('fn.ts')
+    expect(text).toContain(source)
+  })
+})

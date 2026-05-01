@@ -1,0 +1,67 @@
+import { Hono } from 'hono'
+import type { ProjectStore } from '../project-store.js'
+
+export function createDatabaseRoutes(store: ProjectStore): Hono {
+  const app = new Hono()
+
+  app.post('/v1/projects/:ref/database/query', async (c) => {
+    const { ref } = c.req.param()
+    const project = store.get(ref)
+    if (!project) return c.json({ message: 'Project not found' }, 404)
+
+    const body = await c.req.json<{ query: string; parameters?: unknown[]; read_only?: boolean }>()
+    const { query, parameters } = body
+
+    try {
+      const result = parameters?.length
+        ? await project.pglite.query(query, parameters)
+        : await project.app.connection.exec(query)
+      return c.json(extractRows(result))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return c.json({ message }, 400)
+    }
+  })
+
+  app.get('/v1/projects/:ref/database/migrations', (c) => {
+    const { ref } = c.req.param()
+    const project = store.get(ref)
+    if (!project) return c.json({ message: 'Project not found' }, 404)
+    return c.json(project.migrations)
+  })
+
+  app.post('/v1/projects/:ref/database/migrations', async (c) => {
+    const { ref } = c.req.param()
+    const project = store.get(ref)
+    if (!project) return c.json({ message: 'Project not found' }, 404)
+
+    const body = await c.req.json<{ name: string; query: string }>()
+    const { name, query } = body
+
+    try {
+      await project.app.connection.exec(query)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return c.json({ message }, 400)
+    }
+
+    const version = new Date().toISOString().replace(/\D/g, '').slice(0, 14)
+    project.migrations.push({ version, name })
+    return c.json({ version, name }, 201)
+  })
+
+  return app
+}
+
+function extractRows(result: unknown): unknown[] {
+  if (Array.isArray(result)) {
+    const last = result[result.length - 1]
+    return hasRows(last) ? last.rows : []
+  }
+  return hasRows(result) ? result.rows : []
+}
+
+function hasRows(v: unknown): v is { rows: unknown[] } {
+  if (typeof v !== 'object' || v === null || !('rows' in v)) return false
+  return Array.isArray((v as Record<string, unknown>)['rows'])
+}

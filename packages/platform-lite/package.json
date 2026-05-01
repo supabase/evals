@@ -1,0 +1,36 @@
+{
+  "name": "platform-lite",
+  "version": "0.1.0",
+  "description": "Lightweight fake Supabase platform with a Management API HTTP interface",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "generate:types": "curl -sf https://api.supabase.com/api/v1-json -o src/management-api/openapi.json && openapi-typescript src/management-api/openapi.json -o src/management-api/types.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.4.1",
+    "@hono/node-server": "^1.13.8",
+    "@supabase/supabase-js": "^2.105.1",
+    "hono": "^4.7.7",
+    "lite-supa": "^0.3.3"
+  },
+  "devDependencies": {
+    "@supabase/mcp-server-supabase": "^0.7.0",
+    "@types/node": "^22.0.0",
+    "openapi-typescript": "^7.8.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.3"
+  }
+}
