@@ -1,13 +1,7 @@
-// Drives an API model through one eval using AI SDK Core. The runner stays
-// provider-neutral; Anthropic and OpenAI differ only in provider selection and
-// provider-specific options.
-
 import { generateText, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import type { LanguageModel } from "ai";
-import type { Endpoint, MgmtApiHandle } from "../shims/management-api.js";
-import { buildTools, type AgentToolSet } from "./tool-surface.js";
+import type { LanguageModel, ToolSet } from "ai";
 import type { AgentRuntime, ExperimentConfig, ModelProvider, ToolCallRecord } from "./types.js";
 
 const MAX_STEPS = 30;
@@ -20,10 +14,7 @@ export interface RunAgentArgs {
   providerOptions?: Record<string, unknown>;
   systemPrompt: string;
   userPrompt: string;
-  mgmt?: MgmtApiHandle;
-  allowedTools?: Endpoint[];
-  tools?: AgentToolSet;
-  toolCalls?: ToolCallRecord[];
+  tools: ToolSet;
   timeoutSec: number;
 }
 
@@ -82,7 +73,9 @@ function buildProviderOptions(
   return { [provider]: mergedOptions };
 }
 
-function withOpenAiZdrDefaults(options?: Record<string, unknown>): Record<string, unknown> {
+function withOpenAiZdrDefaults(
+  options?: Record<string, unknown>
+): Record<string, unknown> {
   const include = Array.isArray(options?.include) ? options.include : [];
   return {
     ...options,
@@ -96,21 +89,28 @@ function withOpenAiZdrDefaults(options?: Record<string, unknown>): Record<string
 export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
   assertCanRunExperiment({ agent: args.agent, provider: args.provider });
 
-  const toolCalls: ToolCallRecord[] = args.toolCalls ?? [];
-  const tools =
-    args.tools ??
-    buildTools(required(args.mgmt, "mgmt"), required(args.allowedTools, "allowedTools"), toolCalls)
-      .tools;
   const result = await generateText({
     model: resolveModel(args.provider, args.model),
     system: args.systemPrompt,
     prompt: args.userPrompt,
-    tools,
+    tools: args.tools,
     stopWhen: stepCountIs(MAX_STEPS),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     timeout: { totalMs: args.timeoutSec * 1000 },
     providerOptions: buildProviderOptions(args.provider, args.providerOptions) as any,
   });
+
+  const toolCalls: ToolCallRecord[] = result.steps.flatMap((step) =>
+    (step.toolResults ?? []).map((tr) => {
+      const r = tr as { toolName: string; args?: unknown; result?: unknown };
+      return {
+        endpoint: r.toolName,
+        body: (r.args ?? {}) as Record<string, unknown>,
+        result: r.result,
+        ts: Date.now(),
+      };
+    })
+  );
 
   const stoppedReason =
     result.steps.length >= MAX_STEPS ? "max_steps" : result.finishReason;
@@ -121,9 +121,4 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
     steps: result.steps.length,
     stoppedReason,
   };
-}
-
-function required<T>(value: T | undefined, name: string): T {
-  if (value === undefined) throw new Error(`runAgent missing ${name}`);
-  return value;
 }

@@ -9,7 +9,7 @@ const config: ExperimentConfig = {
     textVerbosity: "low",
   },
   skills: ["supabase", "supabase-postgres-best-practices"],
-  mode: "mcp",
+  mode: "executor",
   runs: 4,
   earlyExit: true,
   timeoutSec: 720,

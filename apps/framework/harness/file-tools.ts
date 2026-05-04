@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "
 import { dirname, relative, resolve, sep } from "node:path";
 import { mkdirSync } from "node:fs";
 import { jsonSchema, tool, type ToolSet } from "ai";
-import type { FileEndpoint, ToolCallRecord } from "./types.js";
+import type { FileEndpoint } from "./types.js";
 
 export const FILE_ENDPOINTS: FileEndpoint[] = [
   "files.list",
@@ -11,29 +11,14 @@ export const FILE_ENDPOINTS: FileEndpoint[] = [
   "files.edit",
 ];
 
-export function buildFileTools(
-  workspace: string,
-  toolCalls?: ToolCallRecord[]
-): ToolSet {
+export function buildFileTools(workspace: string): ToolSet {
   const root = resolve(workspace);
 
   const record = async <T>(
-    endpoint: FileEndpoint,
-    body: Record<string, unknown>,
+    _endpoint: FileEndpoint,
+    _body: Record<string, unknown>,
     fn: () => Promise<T> | T
-  ): Promise<T> => {
-    const rec: ToolCallRecord = { endpoint, body, ts: Date.now() };
-    try {
-      const result = await fn();
-      rec.result = result;
-      toolCalls?.push(rec);
-      return result;
-    } catch (error) {
-      rec.error = error instanceof Error ? error.message : String(error);
-      toolCalls?.push(rec);
-      throw error;
-    }
-  };
+  ): Promise<T> => fn();
 
   return {
     files_list: tool({

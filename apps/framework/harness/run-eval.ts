@@ -11,7 +11,8 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { bootMgmtApi } from "../shims/management-api.js";
+import { bootPlatformBackend } from "./platform-backend.js";
+import { createMcpTools } from "./mcp-tools.js";
 import { assertCanRunExperiment, runAgent } from "./agent-driver.js";
 import { buildFileTools } from "./file-tools.js";
 import type {
@@ -33,6 +34,7 @@ const SMOKE = args.has("--smoke");
 const DRY = args.has("--dry");
 const EXPERIMENT_FILTER = readFlag("experiment");
 const MODEL_FILTER = readFlag("model");
+const EVAL_FILTER = readFlag("eval");
 
 async function loadExperiments() {
   const dir = join(FRAMEWORK_DIR, "experiments");
@@ -60,10 +62,6 @@ function readFlag(name: string): string | undefined {
   return undefined;
 }
 
-function readJsonIfExists<T>(p: string): T | undefined {
-  return existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as T) : undefined;
-}
-
 function discoverEvals(): EvalManifest[] {
   const dir = join(ROOT, "evals");
   if (!existsSync(dir)) return [];
@@ -74,9 +72,7 @@ function discoverEvals(): EvalManifest[] {
     const appDir = join(evalDir, "app");
     const isProject =
       existsSync(join(appDir, "package.json")) && existsSync(join(appDir, "src"));
-    const mode = isProject
-      ? "project"
-      : "tool";
+    const mode = isProject ? "project" : "tool";
     const parts = id.split("-");
     if (parts.length < 4 || /^\d+$/.test(parts[1])) {
       throw new Error(`eval id must be <category>-<subcategory>-<NNN>-<slug>: ${id}`);
@@ -93,10 +89,13 @@ function discoverEvals(): EvalManifest[] {
       evalPath: join(evalDir, "EVAL.ts"),
       seedDir: join(evalDir, "seed"),
       skills: readJsonIfExists<string[]>(join(evalDir, "skills.json")) ?? [],
-      tools: readJsonIfExists<any[]>(join(evalDir, "tools.json")) ?? [],
     });
   }
   return out;
+}
+
+function readJsonIfExists<T>(p: string): T | undefined {
+  return existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as T) : undefined;
 }
 
 function loadSkills(skillNames: string[]): string {
@@ -104,7 +103,10 @@ function loadSkills(skillNames: string[]): string {
   for (const name of skillNames) {
     const p = join(ROOT, "skills", name, "SKILL.md");
     if (existsSync(p)) blocks.push(`# Skill: ${name}\n\n${readFileSync(p, "utf8")}`);
-    else blocks.push(`# Skill: ${name}\n\n(not installed — run \`npx skills add supabase/agent-skills\`)`);
+    else
+      blocks.push(
+        `# Skill: ${name}\n\n(not installed — run \`npx skills add supabase/agent-skills\`)`
+      );
   }
   return blocks.join("\n\n---\n\n");
 }
@@ -141,13 +143,31 @@ function copyWithheldTests(ev: EvalManifest, workspace: string) {
   }
 }
 
+function buildSystemPrompt(mode: "mcp" | "executor" | "project", skillContext: string): string {
+  const base =
+    mode === "project"
+      ? "You are an agent solving a Supabase frontend project eval task. " +
+        "Use the provided file tools to inspect and modify the project files in the workspace. " +
+        "Do not expect shell access. When you are done, end your turn with a short summary of what you changed."
+      : "You are an agent solving a Supabase eval task. " +
+        "Use the provided tools to inspect and modify the project. " +
+        "When you are done, end your turn with a short summary of what you did " +
+        "(or for audit tasks, your findings).";
+
+  const executorNote =
+    mode === "executor"
+      ? "\n\nWhen execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept."
+      : "";
+
+  return skillContext ? `${base}${executorNote}\n\n${skillContext}` : `${base}${executorNote}`;
+}
+
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
   ev: EvalManifest
 ): Promise<ScoreResult & { attempts: number; toolCalls: unknown[] }> {
-  const tools = ev.tools.length ? ev.tools : exp.defaultTools;
-  const skills = ev.skills.length ? ev.skills : exp.defaultSkills;
+  const skills = ev.skills.length ? ev.skills : exp.skills;
   const skillContext = loadSkills(skills);
   const prompt = readFileSync(ev.promptPath, "utf8");
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as Scorer;
@@ -159,13 +179,8 @@ async function runOne(
     if (ev.mode === "project") {
       const workspace = workspacePath(expName, ev.id, attempt);
       materializeWorkspace(ev, workspace);
-      const projectToolCalls: any[] = [];
-      const fileTools = buildFileTools(workspace, projectToolCalls);
-      const systemPrompt =
-        "You are an agent solving a Supabase frontend project eval task. " +
-        "Use the provided file tools to inspect and modify the project files in the workspace. " +
-        "Do not expect shell access. When you are done, end your turn with a short summary of what you changed.\n\n" +
-        skillContext;
+      const fileTools = buildFileTools(workspace);
+      const systemPrompt = buildSystemPrompt("project", skillContext);
 
       const run = await runAgent({
         agent: exp.agent,
@@ -175,7 +190,6 @@ async function runOne(
         systemPrompt,
         userPrompt: prompt,
         tools: fileTools,
-        toolCalls: projectToolCalls,
         timeoutSec: exp.timeoutSec,
       });
 
@@ -193,54 +207,64 @@ async function runOne(
       continue;
     }
 
+    // Tool mode: boot platform-lite, connect MCP/executor
     const projectSeedSql = join(ev.seedDir, "project.sql");
     const logsSeedNdjson = join(ev.seedDir, "logs.ndjson");
-    const mgmt = await bootMgmtApi({
+
+    const backend = await bootPlatformBackend({
       projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
       logsSeedNdjson: existsSync(logsSeedNdjson) ? logsSeedNdjson : undefined,
     });
 
     try {
-      const systemPrompt =
-        "You are an agent solving a Supabase eval task. " +
-        "Use the provided tools to inspect and modify the project. " +
-        "When you are done, end your turn with a short summary of what you did " +
-        "(or for audit tasks, your findings).\n\n" +
-        skillContext;
+      const { tools, close: closeMcp } = await createMcpTools(
+        exp.mode,
+        backend.port,
+        backend.accessToken
+      );
 
-      const run = await runAgent({
-        agent: exp.agent,
-        provider: exp.provider,
-        model: exp.model,
-        providerOptions: exp.providerOptions,
-        systemPrompt,
-        userPrompt: prompt,
-        mgmt,
-        allowedTools: tools as any,
-        timeoutSec: exp.timeoutSec,
-      });
+      try {
+        const systemPrompt = buildSystemPrompt(exp.mode, skillContext);
+        const run = await runAgent({
+          agent: exp.agent,
+          provider: exp.provider,
+          model: exp.model,
+          providerOptions: exp.providerOptions,
+          systemPrompt,
+          userPrompt: prompt,
+          tools,
+          timeoutSec: exp.timeoutSec,
+        });
 
-      lastToolCalls = run.toolCalls;
-      last = await scorer({
-        mgmt,
-        client: mgmt.backends.projectDb.client,
-        toolCalls: run.toolCalls,
-        agentReport: run.agentReport,
-      });
+        lastToolCalls = run.toolCalls;
+        last = await scorer({
+          mgmt: backend.scorer,
+          client: backend.scorer.backends.projectDb.client,
+          toolCalls: run.toolCalls,
+          agentReport: run.agentReport,
+        });
 
-      if (exp.earlyExit && last.passed) {
-        return { ...last, attempts: attempt, toolCalls: run.toolCalls };
+        if (exp.earlyExit && last.passed) {
+          return { ...last, attempts: attempt, toolCalls: run.toolCalls };
+        }
+      } finally {
+        await closeMcp();
       }
     } finally {
-      await mgmt.close();
+      await backend.close();
     }
   }
+
   return { ...last, attempts: exp.runs, toolCalls: lastToolCalls };
+}
+
+function normalizeExperimentName(s: string): string {
+  return s.replace(/^experiments\//, "").replace(/\.ts$/, "");
 }
 
 async function main() {
   const experiments = (await loadExperiments()).filter(({ name, config }) => {
-    if (EXPERIMENT_FILTER && name !== EXPERIMENT_FILTER) return false;
+    if (EXPERIMENT_FILTER && name !== normalizeExperimentName(EXPERIMENT_FILTER)) return false;
     if (MODEL_FILTER && config.model !== MODEL_FILTER) return false;
     return true;
   });
@@ -248,7 +272,9 @@ async function main() {
     const filter = [
       EXPERIMENT_FILTER ? `experiment=${EXPERIMENT_FILTER}` : undefined,
       MODEL_FILTER ? `model=${MODEL_FILTER}` : undefined,
-    ].filter(Boolean).join(" ");
+    ]
+      .filter(Boolean)
+      .join(" ");
     if (experiments.length === 0) {
       throw new Error(`no experiments matched ${filter}`);
     }
@@ -263,7 +289,13 @@ async function main() {
           return acc;
         }, {})
       )
-    : evals;
+    : EVAL_FILTER
+      ? evals.filter((e) => e.id === EVAL_FILTER)
+      : evals;
+
+  if (EVAL_FILTER && filtered.length === 0) {
+    throw new Error(`no eval matched --eval=${EVAL_FILTER}`);
+  }
 
   for (const { name, config } of experiments) {
     if (!DRY) {
@@ -284,7 +316,7 @@ async function main() {
         console.log(
           ev.mode === "project"
             ? `PLAN ${name} x ${ev.id}  mode=project tools=files.*`
-            : `PLAN ${name} x ${ev.id}  tools=${(ev.tools.length ? ev.tools : config.defaultTools).join(",")}`
+            : `PLAN ${name} x ${ev.id}  mode=${config.mode} model=${config.model}`
         );
         continue;
       }
@@ -292,15 +324,10 @@ async function main() {
       try {
         const res = await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
-        writeFileSync(
-          out,
-          JSON.stringify(
-            { experiment: name, eval: ev.id, ...res },
-            null,
-            2
-          )
+        writeFileSync(out, JSON.stringify({ experiment: name, eval: ev.id, ...res }, null, 2));
+        console.log(
+          `  -> ${res.passed ? "PASS" : "FAIL"} (score ${res.score.toFixed(2)}, attempts ${res.attempts})`
         );
-        console.log(`  -> ${res.passed ? "PASS" : "FAIL"} (score ${res.score.toFixed(2)}, attempts ${res.attempts})`);
       } catch (e) {
         console.error(`  -> ERROR ${e instanceof Error ? e.message : String(e)}`);
       }

@@ -2,10 +2,9 @@ import assert from "node:assert/strict";
 import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { bootMgmtApi, type MgmtApiHandle } from "../shims/management-api.js";
+import { bootPlatformBackend } from "../harness/platform-backend.js";
 import { runProjectChecks } from "../harness/project-runner.js";
-import { buildTools } from "../harness/tool-surface.js";
-import type { Scorer } from "../harness/types.js";
+import type { Scorer, ScorerHandle } from "../harness/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
@@ -23,15 +22,15 @@ async function loadScorer(relDir: string): Promise<Scorer> {
   return mod.default as Scorer;
 }
 
-async function withMgmt<T>(
+async function withBackend<T>(
   opts: { projectSeedSql?: string; logsSeedNdjson?: string },
-  fn: (mgmt: MgmtApiHandle) => Promise<T>
+  fn: (backend: { scorer: ScorerHandle; port: number; ref: string; accessToken: string }) => Promise<T>
 ): Promise<T> {
-  const mgmt = await bootMgmtApi(opts);
+  const backend = await bootPlatformBackend(opts);
   try {
-    return await fn(mgmt);
+    return await fn(backend);
   } finally {
-    await mgmt.close();
+    await backend.close();
   }
 }
 
@@ -39,29 +38,12 @@ function seedPath(relDir: string, file: string): string {
   return join(ROOT, relDir, "seed", file);
 }
 
-async function smokeToolSurface() {
-  await withMgmt({}, async (mgmt) => {
-    const { tools, resolve } = buildTools(mgmt, [
-      "database.query",
-      "functions.deploy",
-    ]);
-    assert.deepEqual(
-      Object.keys(tools).sort(),
-      ["database_query", "functions_deploy"]
-    );
-    assert.equal(resolve("database_query"), "database.query");
-    assert.equal(resolve("functions_deploy"), "functions.deploy");
-    assert.equal(resolve("logs_all"), undefined);
-  });
-  console.log("PASS tool surface");
-}
-
 async function smokeDesignEval() {
   const scorer = await loadScorer(DESIGN_EVAL);
 
-  await withMgmt(
+  await withBackend(
     { projectSeedSql: seedPath(DESIGN_EVAL, "project.sql") },
-    async (mgmt) => {
+    async ({ scorer: mgmt }) => {
       const before = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
       assert.equal(before.passed, false);
       assert.match(before.notes ?? "", /RLS not enabled/i);
@@ -73,51 +55,40 @@ GRANT SELECT ON memberships TO authenticated;
 GRANT SELECT, INSERT ON notes TO authenticated;
 
 CREATE POLICY "members can read notes in their orgs"
-ON notes
-FOR SELECT
-TO authenticated
+ON notes FOR SELECT TO authenticated
 USING (
   EXISTS (
-    SELECT 1
-    FROM memberships
+    SELECT 1 FROM memberships
     WHERE memberships.org_id = notes.org_id
       AND memberships.user_id = auth.uid()
   )
 );
 
 CREATE POLICY "members can insert their own notes in their orgs"
-ON notes
-FOR INSERT
-TO authenticated
+ON notes FOR INSERT TO authenticated
 WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (
-    SELECT 1
-    FROM memberships
+    SELECT 1 FROM memberships
     WHERE memberships.org_id = notes.org_id
       AND memberships.user_id = auth.uid()
   )
 );
 
 CREATE POLICY "authors can update their own notes"
-ON notes
-FOR UPDATE
-TO authenticated
+ON notes FOR UPDATE TO authenticated
 USING (author_id = auth.uid())
 WITH CHECK (
   author_id = auth.uid()
   AND EXISTS (
-    SELECT 1
-    FROM memberships
+    SELECT 1 FROM memberships
     WHERE memberships.org_id = notes.org_id
       AND memberships.user_id = auth.uid()
   )
 );
 
 CREATE POLICY "authors can delete their own notes"
-ON notes
-FOR DELETE
-TO authenticated
+ON notes FOR DELETE TO authenticated
 USING (author_id = auth.uid());
         `,
       });
@@ -127,51 +98,27 @@ USING (author_id = auth.uid());
     }
   );
 
-  console.log("PASS design scorer + project-db dispatcher");
+  console.log("PASS design scorer + platform-backend dispatcher");
 }
 
 async function smokeClientRlsEval() {
   const scorer = await loadScorer(CLIENT_RLS_EVAL);
 
-  await withMgmt(
+  await withBackend(
     { projectSeedSql: seedPath(CLIENT_RLS_EVAL, "project.sql") },
-    async (mgmt) => {
+    async ({ scorer: mgmt }) => {
       await mgmt.call("database.query", {
         query: `
 ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "users can read own todos"
-ON todos
-FOR SELECT
-TO authenticated
-USING (user_id = auth.uid());
-
-CREATE POLICY "users can insert own todos"
-ON todos
-FOR INSERT
-TO authenticated
-WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "users can update own todos"
-ON todos
-FOR UPDATE
-TO authenticated
-USING (user_id = auth.uid())
-WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "users can delete own todos"
-ON todos
-FOR DELETE
-TO authenticated
-USING (user_id = auth.uid());
+CREATE POLICY "users can read own todos" ON todos FOR SELECT TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "users can insert own todos" ON todos FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "users can update own todos" ON todos FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "users can delete own todos" ON todos FOR DELETE TO authenticated USING (user_id = auth.uid());
         `,
       });
 
-      const score = await scorer({
-        mgmt,
-        client: mgmt.backends.projectDb.client,
-        toolCalls: [],
-      });
+      const score = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
       assert.equal(score.passed, true, score.notes);
     }
   );
@@ -182,71 +129,22 @@ USING (user_id = auth.uid());
 async function smokeFunctionsEval() {
   const scorer = await loadScorer(FUNCTIONS_EVAL);
 
-  await withMgmt({}, async (mgmt) => {
+  await withBackend({}, async ({ scorer: mgmt, port, ref, accessToken }) => {
     const before = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
     assert.equal(before.passed, false);
     assert.match(before.notes ?? "", /function not found/i);
 
-    await mgmt.call("functions.deploy", {
-      slug: "order-total",
-      metadata: {
-        name: "order-total",
-        verify_jwt: false,
-        entrypoint_path: "index.ts",
-      },
-      file: [`
-Deno.serve(async (req) => {
-  const json = (payload, status = 200) =>
-    new Response(JSON.stringify(payload), {
-      status,
-      headers: { "content-type": "application/json" },
+    const deployUrl = `http://localhost:${port}/v1/projects/${ref}/functions/deploy?slug=order-total`;
+    const form = new FormData();
+    form.append("metadata", JSON.stringify({ name: "order-total", verify_jwt: false, entrypoint_path: "index.ts" }));
+    form.append("file", new File([ORDER_TOTAL_SOURCE], "index.ts", { type: "application/typescript" }));
+
+    const deployRes = await fetch(deployUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
     });
-
-  if (req.method !== "POST") {
-    return json({ error: "method not allowed" }, 405);
-  }
-
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return json({ error: "invalid json" }, 400);
-  }
-
-  if (!Array.isArray(body.items) || body.items.length === 0) {
-    return json({ error: "items are required" }, 400);
-  }
-
-  let subtotal = 0;
-  for (const item of body.items) {
-    if (
-      !Number.isFinite(item.unit_price_cents) ||
-      !Number.isFinite(item.quantity) ||
-      item.unit_price_cents <= 0 ||
-      item.quantity <= 0
-    ) {
-      return json({ error: "invalid item" }, 400);
-    }
-    subtotal += item.unit_price_cents * item.quantity;
-  }
-
-  const couponDiscount =
-    body.coupon === "WELCOME10" ? Math.min(Math.round(subtotal * 0.1), 2000) : 0;
-  const enterpriseDiscount =
-    body.customer_tier === "enterprise" ? Math.round(subtotal * 0.15) : 0;
-  const discount = Math.max(couponDiscount, enterpriseDiscount);
-  const taxable = subtotal - discount;
-  const tax = Math.round(taxable * 0.0725);
-
-  return json({
-    subtotal_cents: subtotal,
-    discount_cents: discount,
-    tax_cents: tax,
-    total_cents: taxable + tax,
-  });
-});
-      `],
-    });
+    assert.equal(deployRes.status, 201, `deploy failed: ${await deployRes.text()}`);
 
     const after = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
     assert.equal(after.passed, true, after.notes);
@@ -256,7 +154,7 @@ Deno.serve(async (req) => {
 }
 
 async function smokeSupaliteClient() {
-  await withMgmt({}, async (mgmt) => {
+  await withBackend({}, async ({ scorer: mgmt }) => {
     await mgmt.call("database.query", {
       query: `
 CREATE TABLE todos (
@@ -268,17 +166,8 @@ CREATE TABLE todos (
 ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON todos TO authenticated;
 
-CREATE POLICY "users can insert their own todos"
-ON todos
-FOR INSERT
-TO authenticated
-WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "users can read their own todos"
-ON todos
-FOR SELECT
-TO authenticated
-USING (user_id = auth.uid());
+CREATE POLICY "users can insert their own todos" ON todos FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "users can read their own todos" ON todos FOR SELECT TO authenticated USING (user_id = auth.uid());
       `,
     });
 
@@ -311,72 +200,23 @@ USING (user_id = auth.uid());
 async function smokeEdgeAuthDbEval() {
   const scorer = await loadScorer(EDGE_AUTH_DB_EVAL);
 
-  await withMgmt(
+  await withBackend(
     { projectSeedSql: seedPath(EDGE_AUTH_DB_EVAL, "project.sql") },
-    async (mgmt) => {
-      await mgmt.call("functions.deploy", {
-        slug: "todo-create",
-        metadata: {
-          name: "todo-create",
-          verify_jwt: true,
-          entrypoint_path: "index.ts",
-        },
-        file: [`
-import { createClient } from "@supabase/supabase-js";
+    async ({ scorer: mgmt, port, ref, accessToken }) => {
+      // Deploy the function via platform-lite's HTTP management API
+      const deployUrl = `http://localhost:${port}/v1/projects/${ref}/functions/deploy?slug=todo-create`;
+      const form = new FormData();
+      form.append("metadata", JSON.stringify({ name: "todo-create", verify_jwt: true, entrypoint_path: "index.ts" }));
+      form.append("file", new File([TODO_CREATE_SOURCE], "index.ts", { type: "application/typescript" }));
 
-Deno.serve(async (req) => {
-  const json = (payload, status = 200) =>
-    new Response(JSON.stringify(payload), {
-      status,
-      headers: { "content-type": "application/json" },
-    });
-
-  if (req.method !== "POST") {
-    return json({ error: "method not allowed" }, 405);
-  }
-
-  const authorization = req.headers.get("authorization");
-  if (!authorization) {
-    return json({ error: "missing authorization" }, 401);
-  }
-
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return json({ error: "invalid json" }, 400);
-  }
-
-  if (typeof body.body !== "string" || body.body.trim() === "") {
-    return json({ error: "body is required" }, 400);
-  }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL"),
-    Deno.env.get("SUPABASE_ANON_KEY"),
-    { global: { headers: { Authorization: authorization } } }
-  );
-
-  const { data, error } = await supabase
-    .from("todos")
-    .insert({ body: body.body })
-    .select("id,body,user_id")
-    .single();
-
-  if (error) {
-    return json({ error: error.message }, 400);
-  }
-
-  return json(data, 201);
-});
-        `],
+      const deployRes = await fetch(deployUrl, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: form,
       });
+      assert.equal(deployRes.status, 201, `deploy failed: ${await deployRes.text()}`);
 
-      const score = await scorer({
-        mgmt,
-        client: mgmt.backends.projectDb.client,
-        toolCalls: [],
-      });
+      const score = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
       assert.equal(score.passed, true, score.notes);
     }
   );
@@ -384,30 +224,56 @@ Deno.serve(async (req) => {
   console.log("PASS edge function auth + supabase-js DB scorer");
 }
 
+async function smokeLogsSeeding() {
+  await withBackend(
+    { logsSeedNdjson: seedPath(OBSERVE_EVAL, "logs.ndjson") },
+    async ({ port, ref, accessToken }) => {
+      const url = `http://localhost:${port}/v1/projects/${ref}/analytics/endpoints/logs.all?sql=${encodeURIComponent("SELECT count(*)::int AS n FROM edge_logs")}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const body = await res.json() as { result: Array<{ n: number }> };
+      assert(body.result[0] && body.result[0].n > 0, "expected seeded logs");
+    }
+  );
+
+  console.log("PASS logs seeding via platform-lite");
+}
+
+async function smokeObserveEval() {
+  const scorer = await loadScorer(OBSERVE_EVAL);
+
+  await withBackend(
+    { logsSeedNdjson: seedPath(OBSERVE_EVAL, "logs.ndjson") },
+    async ({ scorer: mgmt }) => {
+      const score = await scorer({
+        mgmt,
+        client: mgmt.backends.projectDb.client,
+        toolCalls: [],
+        agentReport: "stripe-webhook had the most errors with 9 errors out of 50 events.",
+      });
+      assert.equal(score.passed, true, score.notes);
+    }
+  );
+
+  console.log("PASS observe scorer");
+}
+
 async function smokeDetectEval() {
   const scorer = await loadScorer(DETECT_EVAL);
 
-  await withMgmt(
+  await withBackend(
     {
       projectSeedSql: seedPath(DETECT_EVAL, "project.sql"),
       logsSeedNdjson: seedPath(DETECT_EVAL, "logs.ndjson"),
     },
-    async (mgmt) => {
-      const grant = (await mgmt.call("database.query", {
+    async ({ scorer: mgmt }) => {
+      const grant = await mgmt.call("database.query", {
         query: `
-SELECT grantee
-FROM information_schema.role_table_grants
-WHERE table_name = 'customer_payment_methods'
-  AND privilege_type = 'SELECT'
+SELECT grantee FROM information_schema.role_table_grants
+WHERE table_name = 'customer_payment_methods' AND privilege_type = 'SELECT'
 ORDER BY grantee;
         `,
-      })) as { rows: Array<{ grantee: string }> };
+      }) as { rows: Array<{ grantee: string }> };
       assert(grant.rows.some((row) => row.grantee === "anon"));
-
-      const logs = (await mgmt.call("logs.all", {
-        sql: "SELECT count(*)::int AS n FROM logs;",
-      })) as { rows: Array<{ n: number }> };
-      assert(logs.rows[0]?.n > 0);
 
       const report = [
         "customer_payment_methods is exposed to anon.",
@@ -424,44 +290,7 @@ ORDER BY grantee;
     }
   );
 
-  console.log("PASS detect scorer + logs/database shims");
-}
-
-async function smokeObserveEval() {
-  const scorer = await loadScorer(OBSERVE_EVAL);
-
-  await withMgmt(
-    { logsSeedNdjson: seedPath(OBSERVE_EVAL, "logs.ndjson") },
-    async (mgmt) => {
-      const stats = (await mgmt.call("logs.all", {
-        sql: `
-SELECT
-  metadata->>'function_id' AS function_id,
-  SUM((level = 'error')::int)::int AS errors,
-  COUNT(*)::int AS total
-FROM logs
-WHERE source = 'edge-function'
-GROUP BY 1
-ORDER BY errors DESC, total DESC
-LIMIT 1;
-        `,
-      })) as { rows: Array<{ function_id: string; errors: number; total: number }> };
-
-      assert.equal(stats.rows[0]?.function_id, "stripe-webhook");
-      assert.equal(Number(stats.rows[0]?.errors), 9);
-      assert.equal(Number(stats.rows[0]?.total), 50);
-
-      const score = await scorer({
-        mgmt,
-        client: mgmt.backends.projectDb.client,
-        toolCalls: [],
-        agentReport: "stripe-webhook had the most errors with 9 errors out of 50 events.",
-      });
-      assert.equal(score.passed, true, score.notes);
-    }
-  );
-
-  console.log("PASS observe scorer + logs shim");
+  console.log("PASS detect scorer + database shim");
 }
 
 async function smokeProjectEval() {
@@ -473,14 +302,11 @@ async function smokeProjectEval() {
     recursive: true,
     filter: (src) => !src.endsWith("/EVAL.ts"),
   });
-  cpSync(join(ROOT, FRONTEND_EVAL, "tests"), join(workspace, "tests"), {
-    recursive: true,
-  });
-  writeFileSync(join(workspace, ".env.local"), [
-    "VITE_SUPABASE_URL=http://supabase-evals.local",
-    "VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key",
-    "",
-  ].join("\n"));
+  cpSync(join(ROOT, FRONTEND_EVAL, "tests"), join(workspace, "tests"), { recursive: true });
+  writeFileSync(
+    join(workspace, ".env.local"),
+    ["VITE_SUPABASE_URL=http://supabase-evals.local", "VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key", ""].join("\n")
+  );
   writeFileSync(join(workspace, "src", "App.tsx"), GOOD_FRONTEND_APP);
 
   const result = await runProjectChecks(workspace);
@@ -491,15 +317,15 @@ async function smokeProjectEval() {
 }
 
 async function main() {
-  await smokeToolSurface();
   await smokeDesignEval();
   await smokeClientRlsEval();
   await smokeFunctionsEval();
   await smokeSupaliteClient();
   await smokeEdgeAuthDbEval();
-  await smokeProjectEval();
+  await smokeLogsSeeding();
   await smokeObserveEval();
   await smokeDetectEval();
+  await smokeProjectEval();
   console.log("PASS framework smoke");
 }
 
@@ -508,15 +334,76 @@ main().catch((error) => {
   process.exit(1);
 });
 
+const ORDER_TOTAL_SOURCE = `
+Deno.serve(async (req) => {
+  const json = (payload, status = 200) =>
+    new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
+
+  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
+
+  let body;
+  try { body = await req.json(); } catch { return json({ error: "invalid json" }, 400); }
+  if (!Array.isArray(body.items) || body.items.length === 0) return json({ error: "items are required" }, 400);
+
+  let subtotal = 0;
+  for (const item of body.items) {
+    if (!Number.isFinite(item.unit_price_cents) || !Number.isFinite(item.quantity) || item.unit_price_cents <= 0 || item.quantity <= 0) {
+      return json({ error: "invalid item" }, 400);
+    }
+    subtotal += item.unit_price_cents * item.quantity;
+  }
+
+  const couponDiscount = body.coupon === "WELCOME10" ? Math.min(Math.round(subtotal * 0.1), 2000) : 0;
+  const enterpriseDiscount = body.customer_tier === "enterprise" ? Math.round(subtotal * 0.15) : 0;
+  const discount = Math.max(couponDiscount, enterpriseDiscount);
+  const taxable = subtotal - discount;
+  const tax = Math.round(taxable * 0.0725);
+
+  return json({ subtotal_cents: subtotal, discount_cents: discount, tax_cents: tax, total_cents: taxable + tax });
+});
+`;
+
+const TODO_CREATE_SOURCE = `
+import { createClient } from "@supabase/supabase-js";
+
+Deno.serve(async (req) => {
+  const json = (payload, status = 200) =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+
+  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
+
+  const authorization = req.headers.get("authorization");
+  if (!authorization) return json({ error: "missing authorization" }, 401);
+
+  let body;
+  try { body = await req.json(); } catch { return json({ error: "invalid json" }, 400); }
+  if (typeof body.body !== "string" || body.body.trim() === "") return json({ error: "body is required" }, 400);
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL"),
+    Deno.env.get("SUPABASE_ANON_KEY"),
+    { global: { headers: { Authorization: authorization } } }
+  );
+
+  const { data, error } = await supabase
+    .from("todos")
+    .insert({ body: body.body })
+    .select("id,body,user_id")
+    .single();
+
+  if (error) return json({ error: error.message }, 400);
+  return json(data, 201);
+});
+`;
+
 const GOOD_FRONTEND_APP = `
 import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-type Todo = {
-  id: string;
-  body: string;
-  done: boolean;
-};
+type Todo = { id: string; body: string; done: boolean };
 
 export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -532,10 +419,7 @@ export default function App() {
   const [error, setError] = useState("");
 
   async function loadTodos() {
-    const { data, error } = await supabase
-      .from("todos")
-      .select("id,body,done")
-      .order("created_at", { ascending: true });
+    const { data, error } = await supabase.from("todos").select("id,body,done").order("created_at", { ascending: true });
     if (error) throw error;
     setTodos(data ?? []);
   }
@@ -544,10 +428,7 @@ export default function App() {
     event.preventDefault();
     setError("");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-      return;
-    }
+    if (error) { setError(error.message); return; }
     setSignedIn(true);
     await loadTodos();
   }
@@ -557,82 +438,38 @@ export default function App() {
     const body = newTodo.trim();
     if (!body) return;
     setError("");
-    const { data, error } = await supabase
-      .from("todos")
-      .insert({ body })
-      .select("id,body,done")
-      .single();
-    if (error) {
-      setError(error.message);
-      return;
-    }
+    const { data, error } = await supabase.from("todos").insert({ body }).select("id,body,done").single();
+    if (error) { setError(error.message); return; }
     setTodos((current) => [...current, data]);
     setNewTodo("");
   }
 
   async function handleToggleTodo(todo: Todo) {
     setError("");
-    const { data, error } = await supabase
-      .from("todos")
-      .update({ done: !todo.done })
-      .eq("id", todo.id)
-      .select("id,body,done")
-      .single();
-    if (error) {
-      setError(error.message);
-      return;
-    }
+    const { data, error } = await supabase.from("todos").update({ done: !todo.done }).eq("id", todo.id).select("id,body,done").single();
+    if (error) { setError(error.message); return; }
     setTodos((current) => current.map((item) => (item.id === todo.id ? data : item)));
   }
 
   return (
     <main>
       <h1>Todos</h1>
-
       <form onSubmit={handleSignIn}>
-        <input
-          data-testid="email-input"
-          placeholder="Email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
-        <input
-          data-testid="password-input"
-          placeholder="Password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-        <button data-testid="sign-in-button" type="submit">
-          Sign in
-        </button>
+        <input data-testid="email-input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input data-testid="password-input" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <button data-testid="sign-in-button" type="submit">Sign in</button>
       </form>
-
       {signedIn ? <p data-testid="signed-in">Signed in</p> : null}
       {error ? <p role="alert">{error}</p> : null}
-
       <form onSubmit={handleAddTodo}>
-        <input
-          data-testid="todo-input"
-          placeholder="New todo"
-          value={newTodo}
-          onChange={(event) => setNewTodo(event.target.value)}
-        />
-        <button data-testid="add-button" type="submit">
-          Add
-        </button>
+        <input data-testid="todo-input" placeholder="New todo" value={newTodo} onChange={(e) => setNewTodo(e.target.value)} />
+        <button data-testid="add-button" type="submit">Add</button>
       </form>
-
       <ul data-testid="todo-list">
         {todos.map((todo) => (
           <li key={todo.id}>
             <label>
-              <input
-                data-testid={\`todo-checkbox-\${todo.body}\`}
-                type="checkbox"
-                checked={todo.done}
-                onChange={() => void handleToggleTodo(todo)}
-              />
+              <input data-testid={\`todo-checkbox-\${todo.body}\`} type="checkbox" checked={todo.done} onChange={() => void handleToggleTodo(todo)} />
               {todo.body}
             </label>
           </li>

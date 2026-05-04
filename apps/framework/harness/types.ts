@@ -1,17 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Endpoint, MgmtApiHandle } from "../shims/management-api.js";
 
 export type AgentRuntime = "ai-sdk";
 export type ModelProvider = "anthropic" | "openai";
+export type AgentMode = "mcp" | "executor";
 
 export interface ExperimentConfig {
   agent: AgentRuntime;
   provider: ModelProvider;
   model: string;
   providerOptions?: Record<string, unknown>;
-  defaultSkills: string[];
-  /** Default tool allowlist (mgmt-api endpoints). Per-eval `tools.json` narrows further. */
-  defaultTools: Endpoint[];
+  skills: string[];
+  mode: AgentMode;
   runs: number;
   earlyExit: boolean;
   timeoutSec: number;
@@ -27,14 +26,11 @@ export interface EvalManifest {
   category: EvalCategory;
   subcategory?: string;
   dir: string;
-  /** Project root for project-mode evals. */
   appDir?: string;
   promptPath: string;
   evalPath: string;
   seedDir: string;
   skills: string[];
-  /** Endpoints the agent is allowed to call for this eval. */
-  tools: Endpoint[];
 }
 
 export interface ScoreResult {
@@ -43,19 +39,43 @@ export interface ScoreResult {
   notes?: string;
 }
 
+export interface EdgeFunctionsInvokeInput {
+  name: string;
+  method?: string;
+  path?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+}
+
+export interface EdgeFunctionsInvokeResult {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface ScorerHandle {
+  call: (endpoint: "database.query", body: { query: string }) => Promise<{ rows: unknown[] }>;
+  backends: {
+    projectDb: {
+      client: SupabaseClient;
+      app: { getClient: () => SupabaseClient };
+    };
+    edgeFunctions: {
+      invoke: (input: EdgeFunctionsInvokeInput) => Promise<EdgeFunctionsInvokeResult>;
+    };
+  };
+}
+
 export interface EvalContext {
-  /** Same dispatcher the agent used. Scorers call mgmt.call(...) too. */
-  mgmt: MgmtApiHandle;
-  /** In-process supabase-js client for the unified project database. */
+  mgmt: ScorerHandle;
   client: SupabaseClient;
-  /** Per-attempt copied workspace for project-mode evals. */
   workspace?: string;
   toolCalls: ToolCallRecord[];
   agentReport?: string;
 }
 
 export interface ToolCallRecord {
-  endpoint: Endpoint | FileEndpoint;
+  endpoint: string;
   body: Record<string, unknown>;
   result?: unknown;
   error?: string;

@@ -1,4 +1,4 @@
-import { App } from 'lite-supa'
+import { App, getAuthSchemaSql } from 'lite-supa'
 import { createPgliteConnection, type PgliteConnection } from 'lite-supa/pglite'
 import { PGlite } from '@electric-sql/pglite'
 import type { LogRow } from '../types.js'
@@ -22,6 +22,26 @@ export type EdgeFunctionEntry = {
   import_map_path: string | undefined
   files: Array<{ name: string; content: string }>
 }
+
+const JWT_SECRET = 'supabase-evals-dev-secret'
+
+const AUTH_ROLES_SQL = `
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE ROLE service_role NOLOGIN BYPASSRLS;
+DO $$
+BEGIN
+  EXECUTE format('GRANT anon, authenticated, service_role TO %I', current_user);
+END $$;
+CREATE SCHEMA IF NOT EXISTS auth;
+GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
+  SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
+$$;
+CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT NULLIF(current_setting('request.jwt.claim.role', true), '');
+$$;
+`
 
 const LOGS_BASE_SQL = `
 CREATE TABLE IF NOT EXISTS edge_logs (
@@ -110,8 +130,18 @@ export class ProjectInstance {
     // so we resolve it before constructing the App.
     const connection = await createPgliteConnection()
     this.pglite = (connection as PgliteConnection).driver
-    this.app = new App({ connection })
+    this.app = new App({
+      connection,
+      auth: {
+        enabled: true,
+        jwt_secret: JWT_SECRET,
+        enable_signup: true,
+        email: { enable_confirmations: false },
+      },
+    })
     await this.app.init()
+    await this.app.connection.exec(AUTH_ROLES_SQL)
+    await this.app.connection.exec(getAuthSchemaSql())
 
     if (sql) {
       await this.app.connection.exec(sql)

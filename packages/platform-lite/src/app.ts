@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { createProjectStore } from './project-store.js'
+import { createProjectStore, type ProjectStore } from './project-store.js'
 import { ProjectInstance } from './project/ProjectInstance.js'
 import { loadSeedDir } from './seed.js'
 import { createAccountRoutes } from './management-api/account.js'
@@ -10,7 +10,13 @@ import { createDevelopmentRoutes } from './management-api/development.js'
 import { createOpenApiRoutes } from './management-api/openapi.js'
 import type { AppOptions } from './types.js'
 
-export async function createApp(options: AppOptions = {}): Promise<Hono> {
+export interface AppContext {
+  app: Hono
+  getProject: (ref: string) => ProjectInstance | undefined
+  refs: () => string[]
+}
+
+async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectStore }> {
   const { accessToken, projects = [], seedDir } = options
 
   const store = createProjectStore()
@@ -50,7 +56,20 @@ export async function createApp(options: AppOptions = {}): Promise<Hono> {
   app.route('/', createDebuggingRoutes(store))
   app.route('/', createDevelopmentRoutes(store))
 
-  return app
+  return { app, store }
+}
+
+export async function createAppContext(options: AppOptions = {}): Promise<AppContext> {
+  const { app, store } = await build(options)
+  return {
+    app,
+    getProject: (ref) => store.get(ref),
+    refs: () => [...store.keys()],
+  }
+}
+
+export async function createApp(options: AppOptions = {}): Promise<Hono> {
+  return (await build(options)).app
 }
 
 function generateRef(): string {

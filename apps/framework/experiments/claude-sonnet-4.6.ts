@@ -7,12 +7,9 @@ const config: ExperimentConfig = {
   providerOptions: {
     effort: "max",
   },
-  // Skills installed from supabase/agent-skills (see skills/MANIFEST.md).
-  defaultSkills: ["supabase", "supabase-postgres-best-practices"],
-  // Default mgmt-api endpoints the agent can call. Per-eval `tools.json`
-  // narrows this further.
-  defaultTools: ["database.query", "logs.all"],
-  runs: 4,
+  skills: ["supabase", "supabase-postgres-best-practices"],
+  mode: "mcp",
+  runs: 1,
   earlyExit: true,
   timeoutSec: 720,
 };
