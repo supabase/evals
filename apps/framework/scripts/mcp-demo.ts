@@ -10,7 +10,7 @@
 
 import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
-import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
 import { generateText, stepCountIs } from "ai";
 import { createApp, listen } from "platform-lite";
 
@@ -61,7 +61,7 @@ console.log(`MCP tools available: ${Object.keys(tools).join(", ")}\n`);
 // --- 4. Run a one-shot agent task -------------------------------------------
 
 const { text, steps } = await generateText({
-  model: anthropic("claude-haiku-4-5-20251001"),
+  model: openai("gpt-5.4-mini"),
   tools,
   stopWhen: stepCountIs(10),
   prompt:
