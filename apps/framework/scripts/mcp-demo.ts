@@ -65,7 +65,7 @@ const { text, steps } = await generateText({
   tools,
   stopWhen: stepCountIs(10),
   providerOptions: {
-    openai: { store: false, include: ["reasoning.encrypted_content"] },
+    openai: { store: false },
   },
   prompt:
     "List the projects, then query the todos table in the first project and give me a brief summary of what's there.",
