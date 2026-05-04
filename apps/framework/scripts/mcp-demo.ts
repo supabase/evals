@@ -9,7 +9,7 @@
  */
 
 import { createMCPClient } from "@ai-sdk/mcp";
-import { Experimental_StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
+import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateText, stepCountIs } from "ai";
 import { createApp, listen } from "platform-lite";
@@ -40,7 +40,7 @@ console.log(`platform-lite started on port ${port}`);
 
 // --- 2. Connect AI SDK MCP client → supabase-mcp → platform-lite ------------
 
-const transport = new Experimental_StdioMCPTransport({
+const transport = new StdioMCPTransport({
   command: "npx",
   args: [
     "@supabase/mcp-server-supabase@0.7.0",
