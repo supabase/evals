@@ -84,7 +84,7 @@ const { text, steps } = await generateText({
   tools,
   stopWhen: stepCountIs(20),
   system:
-    "Before calling any tool, use tools.describe.tool({ path }) to look up its exact TypeScript signature. When execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept.",
+    "When execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept.",
   onStepFinish({ toolResults }) {
     for (const result of toolResults) {
       if (result.toolName === "execute") {
