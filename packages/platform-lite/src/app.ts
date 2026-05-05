@@ -8,12 +8,23 @@ import { createFunctionsRoutes } from './management-api/functions.js'
 import { createDebuggingRoutes } from './management-api/debugging.js'
 import { createDevelopmentRoutes } from './management-api/development.js'
 import { createOpenApiRoutes } from './management-api/openapi.js'
+import { listen } from './listen.js'
+import type { ListenOptions } from './listen.js'
 import type { AppOptions } from './types.js'
 
-export interface AppContext {
-  app: Hono
-  getProject: (ref: string) => ProjectInstance | undefined
-  refs: () => string[]
+export interface ServerHandle extends AsyncDisposable {
+  readonly url: string
+  dispose(): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
+}
+
+export interface PlatformHandle extends AsyncDisposable {
+  readonly app: Hono
+  getProject(ref: string): ProjectInstance | undefined
+  refs(): string[]
+  listen(options?: ListenOptions): Promise<ServerHandle>
+  dispose(): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
 }
 
 async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectStore }> {
@@ -59,17 +70,28 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
   return { app, store }
 }
 
-export async function createAppContext(options: AppOptions = {}): Promise<AppContext> {
+export async function createPlatform(options: AppOptions = {}): Promise<PlatformHandle> {
   const { app, store } = await build(options)
+
+  const dispose = async () => {}
+
   return {
     app,
     getProject: (ref) => store.get(ref),
     refs: () => [...store.keys()],
+    listen: async (options) => {
+      const { port, close } = await listen(app, options)
+      const url = `http://localhost:${port}`
+      const serverDispose = async () => { close() }
+      return {
+        url,
+        dispose: serverDispose,
+        [Symbol.asyncDispose]: serverDispose,
+      }
+    },
+    dispose,
+    [Symbol.asyncDispose]: dispose,
   }
-}
-
-export async function createApp(options: AppOptions = {}): Promise<Hono> {
-  return (await build(options)).app
 }
 
 function generateRef(): string {

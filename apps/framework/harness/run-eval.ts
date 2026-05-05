@@ -221,7 +221,7 @@ async function runOne(
     try {
       const { tools, close: closeMcp } = await createMcpTools(
         exp.mode,
-        backend.port,
+        Number(new URL(backend.url).port),
         backend.accessToken
       );
 

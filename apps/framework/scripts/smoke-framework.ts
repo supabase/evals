@@ -24,7 +24,7 @@ async function loadScorer(relDir: string): Promise<Scorer> {
 
 async function withBackend<T>(
   opts: { projectSeedSql?: string; logsSeedNdjson?: string },
-  fn: (backend: { scorer: ScorerHandle; port: number; ref: string; accessToken: string }) => Promise<T>
+  fn: (backend: { scorer: ScorerHandle; url: string; ref: string; accessToken: string }) => Promise<T>
 ): Promise<T> {
   const backend = await bootPlatformBackend(opts);
   try {
@@ -129,12 +129,12 @@ CREATE POLICY "users can delete own todos" ON todos FOR DELETE TO authenticated 
 async function smokeFunctionsEval() {
   const scorer = await loadScorer(FUNCTIONS_EVAL);
 
-  await withBackend({}, async ({ scorer: mgmt, port, ref, accessToken }) => {
+  await withBackend({}, async ({ scorer: mgmt, url, ref, accessToken }) => {
     const before = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
     assert.equal(before.passed, false);
     assert.match(before.notes ?? "", /function not found/i);
 
-    const deployUrl = `http://localhost:${port}/v1/projects/${ref}/functions/deploy?slug=order-total`;
+    const deployUrl = `${url}/v1/projects/${ref}/functions/deploy?slug=order-total`;
     const form = new FormData();
     form.append("metadata", JSON.stringify({ name: "order-total", verify_jwt: false, entrypoint_path: "index.ts" }));
     form.append("file", new File([ORDER_TOTAL_SOURCE], "index.ts", { type: "application/typescript" }));
@@ -202,9 +202,9 @@ async function smokeEdgeAuthDbEval() {
 
   await withBackend(
     { projectSeedSql: seedPath(EDGE_AUTH_DB_EVAL, "project.sql") },
-    async ({ scorer: mgmt, port, ref, accessToken }) => {
+    async ({ scorer: mgmt, url, ref, accessToken }) => {
       // Deploy the function via platform-lite's HTTP management API
-      const deployUrl = `http://localhost:${port}/v1/projects/${ref}/functions/deploy?slug=todo-create`;
+      const deployUrl = `${url}/v1/projects/${ref}/functions/deploy?slug=todo-create`;
       const form = new FormData();
       form.append("metadata", JSON.stringify({ name: "todo-create", verify_jwt: true, entrypoint_path: "index.ts" }));
       form.append("file", new File([TODO_CREATE_SOURCE], "index.ts", { type: "application/typescript" }));
@@ -227,9 +227,9 @@ async function smokeEdgeAuthDbEval() {
 async function smokeLogsSeeding() {
   await withBackend(
     { logsSeedNdjson: seedPath(OBSERVE_EVAL, "logs.ndjson") },
-    async ({ port, ref, accessToken }) => {
-      const url = `http://localhost:${port}/v1/projects/${ref}/analytics/endpoints/logs.all?sql=${encodeURIComponent("SELECT count(*)::int AS n FROM edge_logs")}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    async ({ url, ref, accessToken }) => {
+      const logsUrl = `${url}/v1/projects/${ref}/analytics/endpoints/logs.all?sql=${encodeURIComponent("SELECT count(*)::int AS n FROM edge_logs")}`;
+      const res = await fetch(logsUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
       const body = await res.json() as { result: Array<{ n: number }> };
       assert(body.result[0] && body.result[0].n > 0, "expected seeded logs");
     }

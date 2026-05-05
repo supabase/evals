@@ -12,7 +12,7 @@ import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
 import { openai } from "@ai-sdk/openai";
 import { generateText, stepCountIs } from "ai";
-import { createApp, listen } from "platform-lite";
+import { createPlatform } from "platform-lite";
 
 const ACCESS_TOKEN = "demo-token";
 
@@ -30,13 +30,13 @@ const SEED_SQL = `
 
 // --- 1. Start platform-lite on a random port --------------------------------
 
-const app = await createApp({
+await using platform = await createPlatform({
   accessToken: ACCESS_TOKEN,
   projects: [{ name: "demo-project", sql: SEED_SQL }],
 });
 
-const { port, close: closePlatform } = await listen(app, { port: 0 });
-console.log(`platform-lite started on port ${port}`);
+await using server = await platform.listen();
+console.log(`platform-lite started at ${server.url}`);
 
 // --- 2. Connect AI SDK MCP client → supabase-mcp → platform-lite ------------
 
@@ -47,7 +47,7 @@ const transport = new StdioMCPTransport({
     "--access-token",
     ACCESS_TOKEN,
     "--api-url",
-    `http://localhost:${port}`,
+    server.url,
     "--features",
     "account,database,development,debugging,functions",
   ],
@@ -77,5 +77,4 @@ console.log("Response:\n", text);
 // --- 5. Cleanup -------------------------------------------------------------
 
 await mcp.close();
-closePlatform();
-process.exit(0);
+// server and platform disposed automatically via await using

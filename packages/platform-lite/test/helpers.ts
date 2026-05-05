@@ -1,9 +1,10 @@
-import { createApp } from '../src/app.js'
+import { createPlatform } from '../src/app.js'
 import type { AppOptions, ProjectSeed } from '../src/types.js'
 import type { Hono } from 'hono'
 
 export async function createTestApp(projects?: ProjectSeed[], options?: Partial<AppOptions>): Promise<Hono> {
-  return createApp({ projects: projects ?? [], accessToken: 'test-token', ...options })
+  const platform = await createPlatform({ projects: projects ?? [], accessToken: 'test-token', ...options })
+  return platform.app
 }
 
 export async function request<T = unknown>(

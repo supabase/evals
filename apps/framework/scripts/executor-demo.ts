@@ -17,7 +17,7 @@ import { generateText, stepCountIs } from "ai"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createApp, listen } from "platform-lite"
+import { createPlatform } from "platform-lite"
 
 const ACCESS_TOKEN = "demo-token"
 
@@ -35,13 +35,13 @@ const SEED_SQL = `
 
 // --- 1. Start platform-lite on a random port --------------------------------
 
-const app = await createApp({
+await using platform = await createPlatform({
   accessToken: ACCESS_TOKEN,
   projects: [{ name: "demo-project", sql: SEED_SQL }],
 })
 
-const { port, close: closePlatform } = await listen(app, { port: 0 })
-console.log(`platform-lite started on port ${port}`)
+await using server = await platform.listen()
+console.log(`platform-lite started at ${server.url}`)
 
 // --- 2. Write executor.jsonc pointing at platform-lite ----------------------
 
@@ -53,8 +53,8 @@ writeFileSync(
       {
         kind: "openapi",
         namespace: "platform",
-        spec: `http://localhost:${port}/openapi.json`,
-        baseUrl: `http://localhost:${port}`,
+        spec: `${server.url}/openapi.json`,
+        baseUrl: server.url,
         headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
       },
     ],
@@ -111,5 +111,4 @@ console.log("Response:\n", text)
 // --- 5. Cleanup -------------------------------------------------------------
 
 await mcp.close()
-closePlatform()
-process.exit(0)
+// server and platform disposed automatically via await using
