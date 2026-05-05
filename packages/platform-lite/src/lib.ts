@@ -1,6 +1,8 @@
-export { createApp, createAppContext } from './app.js'
-export type { AppContext } from './app.js'
-export { listen } from './listen.js'
-export type { AppOptions, ProjectSeed, LogRow } from './types.js'
-export type { ListenOptions, ListenResult } from './listen.js'
-export type { ProjectInstance } from './project/ProjectInstance.js'
+import { createPlatform } from './app.js'
+
+const port = process.env.PORT ? Number(process.env.PORT) : undefined
+const accessToken = process.env.ACCESS_TOKEN
+const seedDir = process.env.SEED_DIR ?? './seed'
+
+const platform = await createPlatform({ accessToken, seedDir })
+await platform.listen({ port })
