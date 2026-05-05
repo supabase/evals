@@ -101,10 +101,14 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
     timeout: { totalMs: args.timeoutSec * 1000 },
     providerOptions: buildProviderOptions(args.provider, args.providerOptions) as any,
     experimental_onToolCallFinish: (event) => {
-      const e = event as { toolName: string; input?: unknown; output?: unknown };
+      const e = event as unknown as {
+        toolCall: { toolName: string; input?: unknown };
+        output?: unknown;
+        durationMs: number;
+      };
       toolCalls.push({
-        endpoint: e.toolName,
-        body: (e.input ?? {}) as Record<string, unknown>,
+        endpoint: e.toolCall.toolName,
+        body: (e.toolCall.input ?? {}) as Record<string, unknown>,
         result: e.output,
         ts: Date.now(),
       });
