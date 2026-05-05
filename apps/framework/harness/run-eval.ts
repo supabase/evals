@@ -166,7 +166,7 @@ async function runOne(
   expName: string,
   exp: ExperimentConfig,
   ev: EvalManifest
-): Promise<ScoreResult & { attempts: number; toolCalls: unknown[] }> {
+): Promise<ScoreResult & { attempts: number; toolCalls: unknown[]; agentReport: string }> {
   const skills = ev.skills.length ? ev.skills : exp.skills;
   const skillContext = loadSkills(skills);
   const prompt = readFileSync(ev.promptPath, "utf8");
@@ -174,6 +174,7 @@ async function runOne(
 
   let last: ScoreResult = { passed: false, score: 0, notes: "no attempts" };
   let lastToolCalls: unknown[] = [];
+  let lastAgentReport = "";
 
   for (let attempt = 1; attempt <= exp.runs; attempt += 1) {
     if (ev.mode === "project") {
@@ -195,6 +196,7 @@ async function runOne(
 
       copyWithheldTests(ev, workspace);
       lastToolCalls = run.toolCalls;
+      lastAgentReport = run.agentReport;
       last = await scorer({
         workspace,
         toolCalls: run.toolCalls,
@@ -202,7 +204,7 @@ async function runOne(
       } as any);
 
       if (exp.earlyExit && last.passed) {
-        return { ...last, attempts: attempt, toolCalls: run.toolCalls };
+        return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
       }
       continue;
     }
@@ -237,6 +239,7 @@ async function runOne(
         });
 
         lastToolCalls = run.toolCalls;
+        lastAgentReport = run.agentReport;
         last = await scorer({
           mgmt: backend.scorer,
           client: backend.scorer.backends.projectDb.client,
@@ -245,7 +248,7 @@ async function runOne(
         });
 
         if (exp.earlyExit && last.passed) {
-          return { ...last, attempts: attempt, toolCalls: run.toolCalls };
+          return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
         }
       } finally {
         await closeMcp();
@@ -255,7 +258,7 @@ async function runOne(
     }
   }
 
-  return { ...last, attempts: exp.runs, toolCalls: lastToolCalls };
+  return { ...last, attempts: exp.runs, toolCalls: lastToolCalls, agentReport: lastAgentReport };
 }
 
 function normalizeExperimentName(s: string): string {

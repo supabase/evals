@@ -102,11 +102,11 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
 
   const toolCalls: ToolCallRecord[] = result.steps.flatMap((step) =>
     (step.toolResults ?? []).map((tr) => {
-      const r = tr as { toolName: string; args?: unknown; result?: unknown };
+      const r = tr as { toolName: string; input?: unknown; output?: unknown };
       return {
         endpoint: r.toolName,
-        body: (r.args ?? {}) as Record<string, unknown>,
-        result: r.result,
+        body: (r.input ?? {}) as Record<string, unknown>,
+        result: r.output,
         ts: Date.now(),
       };
     })
