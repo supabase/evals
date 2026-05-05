@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import ts from "typescript";
-import { createAppContext, listen } from "platform-lite";
+import { createPlatform } from "platform-lite";
 import type { ProjectInstance } from "platform-lite";
 import type {
   ScorerHandle,
@@ -17,7 +17,7 @@ export const ACCESS_TOKEN = "eval-token";
 const RUNTIME_URL = "http://supabase-evals.local";
 
 export interface PlatformBackend {
-  port: number;
+  url: string;
   ref: string;
   accessToken: string;
   scorer: ScorerHandle;
@@ -38,24 +38,24 @@ export async function bootPlatformBackend(opts: {
       ? parseNdjson(opts.logsSeedNdjson)
       : undefined;
 
-  const ctx = await createAppContext({
+  const platform = await createPlatform({
     accessToken: ACCESS_TOKEN,
     projects: [{ sql, logs }],
   });
 
-  const { port, close } = await listen(ctx.app, { port: 0, quiet: true });
+  const server = await platform.listen({ port: 0 });
 
-  const refs = ctx.refs();
+  const refs = platform.refs();
   if (refs.length === 0) throw new Error("platform backend: no projects");
   const ref = refs[0];
-  const instance = ctx.getProject(ref)!;
+  const instance = platform.getProject(ref)!;
 
   return {
-    port,
+    url: server.url,
     ref,
     accessToken: ACCESS_TOKEN,
     scorer: buildScorerHandle(instance),
-    close: async () => close(),
+    close: () => server.dispose(),
   };
 }
 
