@@ -43,7 +43,7 @@ export async function bootPlatformBackend(opts: {
     projects: [{ sql, logs }],
   });
 
-  const server = await platform.listen({ port: 0 });
+  const server = await platform.listen();
 
   const refs = platform.refs();
   if (refs.length === 0) throw new Error("platform backend: no projects");
