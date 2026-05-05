@@ -38,6 +38,7 @@ async function createSupabaseMcpTools(
       "--features",
       "account,database,development,debugging,functions",
     ],
+    stderr: "ignore",
   });
   const mcp = await createMCPClient({ transport });
   const tools = await mcp.tools();
@@ -70,6 +71,7 @@ async function createExecutorTools(
     command: "executor",
     args: ["mcp", "--scope", scopeDir],
     env: { ...process.env, EXECUTOR_DATA_DIR: dataDir },
+    stderr: "ignore",
   });
 
   const mcp = await createMCPClient({ transport });
