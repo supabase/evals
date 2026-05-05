@@ -89,6 +89,8 @@ function withOpenAiZdrDefaults(
 export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
   assertCanRunExperiment({ agent: args.agent, provider: args.provider });
 
+  const toolCalls: ToolCallRecord[] = [];
+
   const result = await generateText({
     model: resolveModel(args.provider, args.model),
     system: args.systemPrompt,
@@ -98,19 +100,16 @@ export async function runAgent(args: RunAgentArgs): Promise<RunAgentResult> {
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     timeout: { totalMs: args.timeoutSec * 1000 },
     providerOptions: buildProviderOptions(args.provider, args.providerOptions) as any,
-  });
-
-  const toolCalls: ToolCallRecord[] = result.steps.flatMap((step) =>
-    (step.toolResults ?? []).map((tr) => {
-      const r = tr as { toolName: string; input?: unknown; output?: unknown };
-      return {
-        endpoint: r.toolName,
-        body: (r.input ?? {}) as Record<string, unknown>,
-        result: r.output,
+    experimental_onToolCallFinish: (event) => {
+      const e = event as { toolName: string; input?: unknown; output?: unknown };
+      toolCalls.push({
+        endpoint: e.toolName,
+        body: (e.input ?? {}) as Record<string, unknown>,
+        result: e.output,
         ts: Date.now(),
-      };
-    })
-  );
+      });
+    },
+  });
 
   const stoppedReason =
     result.steps.length >= MAX_STEPS ? "max_steps" : result.finishReason;
