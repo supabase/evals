@@ -53,7 +53,7 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
   if (accessToken !== undefined) {
     app.use('*', async (c, next) => {
       const authHeader = c.req.header('Authorization')
-      const token = authHeader?.replace('Bearer ', '')
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
       if (token !== accessToken) {
         return c.json({ message: 'Unauthorized' }, 401)
       }
