@@ -107,7 +107,7 @@ function loadSkills(skillNames: string[]): string {
     if (existsSync(p)) blocks.push(`# Skill: ${name}\n\n${readFileSync(p, "utf8")}`);
     else
       blocks.push(
-        `# Skill: ${name}\n\n(not installed — run \`npx skills add supabase/agent-skills\`)`
+        `# Skill: ${name}\n\n(not found — ensure submodule is initialised: \`git submodule update --init\`)`
       );
   }
   return blocks.join("\n\n---\n\n");

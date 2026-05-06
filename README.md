@@ -71,12 +71,12 @@ All paths are relative to the per-attempt workspace and rejected if they escape 
 ## Setup
 
 ```bash
+git clone --recurse-submodules git@github.com:supabase-org/supabase-evals.git
 npm install
-npx skills add supabase/agent-skills
 cp .env.example .env
 ```
 
-Skills are pulled from [supabase/agent-skills](https://github.com/supabase/agent-skills). They are never authored locally. See [skills/MANIFEST.md](skills/MANIFEST.md) for the list this suite expects.
+Skills come from [supabase/agent-skills](https://github.com/supabase/agent-skills), pinned as a git submodule at `submodules/agent-skills`. The `skills/` directory contains symlinks into the submodule — no separate install step needed.
 
 ## Running
 
@@ -199,13 +199,11 @@ evals/design-frontend-001-auth-flow/
 
 Skills come from [supabase/agent-skills](https://github.com/supabase/agent-skills). They are not authored in this repo.
 
-To use an existing skill in an eval:
+To use an existing skill in an eval, reference its directory name in the eval's `skills.json`. The `skills/` directory contains symlinks into the submodule — they are ready after cloning with `--recurse-submodules`.
 
-1. Install it with `npx skills add supabase/agent-skills`.
-2. Reference its directory name in the eval's `skills.json`.
-3. Add it to [skills/MANIFEST.md](skills/MANIFEST.md) so contributors know it is expected.
+To add a skill that doesn't exist yet, contribute it upstream to [supabase/agent-skills](https://github.com/supabase/agent-skills), then add a symlink under `skills/` pointing to the new skill directory in the submodule.
 
-If a skill does not exist yet, contribute it upstream rather than creating a local workaround under `skills/`.
+To test changes to a skill before they're merged upstream, check out a branch in `submodules/agent-skills` — the submodule ref in this repo will point to that commit while you iterate.
 
 ## Adding A Management API Endpoint
 
