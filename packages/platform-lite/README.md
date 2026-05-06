@@ -1,4 +1,4 @@
-# supabox-lite
+# platform-lite
 
 Lightweight in-process Supabase platform exposing the real Management API HTTP interface, backed by PGlite. No Docker required.
 
