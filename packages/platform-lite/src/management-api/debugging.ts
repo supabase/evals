@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { ProjectStore } from '../project-store.js'
+import { extractRows } from './utils.js'
 
 const RLS_DISABLED_SQL = `
 SELECT
@@ -138,18 +139,6 @@ function compileLogsSql(sql: string): string {
 
 type LogsSource = 'edge_logs' | 'auth_logs' | 'postgres_logs' | 'function_edge_logs' | 'function_logs'
 
-function extractRows(result: unknown): unknown[] {
-  if (Array.isArray(result)) {
-    const last = result[result.length - 1]
-    return hasRows(last) ? last.rows : []
-  }
-  return hasRows(result) ? result.rows : []
-}
-
-function hasRows(v: unknown): v is { rows: unknown[] } {
-  if (typeof v !== 'object' || v === null || !('rows' in v)) return false
-  return Array.isArray((v as Record<string, unknown>)['rows'])
-}
 
 function isAdvisorRow(v: unknown): v is { schema: string; name: string } {
   return typeof v === 'object' && v !== null && 'schema' in v && 'name' in v

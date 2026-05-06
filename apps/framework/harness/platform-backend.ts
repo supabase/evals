@@ -86,23 +86,6 @@ function buildScorerHandle(instance: ProjectInstance): ScorerHandle {
   };
 }
 
-function extractRows(result: unknown): unknown[] {
-  if (Array.isArray(result)) {
-    const last = result[result.length - 1];
-    return hasRows(last) ? (last.rows as unknown[]) : [];
-  }
-  return hasRows(result) ? (result.rows as unknown[]) : [];
-}
-
-function hasRows(v: unknown): v is { rows: unknown[] } {
-  return (
-    typeof v === "object" &&
-    v !== null &&
-    "rows" in v &&
-    Array.isArray((v as Record<string, unknown>).rows)
-  );
-}
-
 function parseJsonl(path: string) {
   return readFileSync(path, "utf8")
     .split("\n")

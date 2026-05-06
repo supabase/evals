@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { ProjectStore } from '../project-store.js'
+import { extractRows } from './utils.js'
 
 export function createDatabaseRoutes(store: ProjectStore): Hono {
   const app = new Hono()
@@ -53,15 +54,3 @@ export function createDatabaseRoutes(store: ProjectStore): Hono {
   return app
 }
 
-function extractRows(result: unknown): unknown[] {
-  if (Array.isArray(result)) {
-    const last = result[result.length - 1]
-    return hasRows(last) ? last.rows : []
-  }
-  return hasRows(result) ? result.rows : []
-}
-
-function hasRows(v: unknown): v is { rows: unknown[] } {
-  if (typeof v !== 'object' || v === null || !('rows' in v)) return false
-  return Array.isArray((v as Record<string, unknown>)['rows'])
-}
