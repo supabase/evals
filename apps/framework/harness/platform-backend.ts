@@ -59,6 +59,12 @@ export async function bootPlatformBackend(opts: {
   };
 }
 
+/**
+ * Builds the in-process project access object passed to scorer functions.
+ * Scorers call this directly against PGlite rather than over HTTP — both hit
+ * the same instance, and the bypass is intentional: if the HTTP route ever
+ * adds middleware (logging, RBAC), scorer queries should remain unaffected.
+ */
 function buildScorerHandle(instance: ProjectInstance): ScorerHandle {
   return {
     call: async (_endpoint, body) => {
