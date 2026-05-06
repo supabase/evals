@@ -22,7 +22,7 @@ export async function loadSeedDir(dir: string): Promise<ProjectSeed[]> {
       // optional
     }
 
-    const logsPath = join(projectDir, 'logs.ndjson')
+    const logsPath = join(projectDir, 'logs.jsonl')
     try {
       const raw = await readFile(logsPath, 'utf-8')
       seed.logs = raw

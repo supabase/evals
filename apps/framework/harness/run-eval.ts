@@ -211,11 +211,11 @@ async function runOne(
 
     // Tool mode: boot platform-lite, connect MCP/executor
     const projectSeedSql = join(ev.seedDir, "project.sql");
-    const logsSeedNdjson = join(ev.seedDir, "logs.ndjson");
+    const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
 
     const backend = await bootPlatformBackend({
       projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
-      logsSeedNdjson: existsSync(logsSeedNdjson) ? logsSeedNdjson : undefined,
+      logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
     });
 
     try {

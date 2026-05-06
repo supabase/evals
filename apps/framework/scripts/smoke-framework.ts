@@ -23,7 +23,7 @@ async function loadScorer(relDir: string): Promise<Scorer> {
 }
 
 async function withBackend<T>(
-  opts: { projectSeedSql?: string; logsSeedNdjson?: string },
+  opts: { projectSeedSql?: string; logsSeedJsonl?: string },
   fn: (backend: { scorer: ScorerHandle; url: string; ref: string; accessToken: string }) => Promise<T>
 ): Promise<T> {
   const backend = await bootPlatformBackend(opts);
@@ -226,7 +226,7 @@ async function smokeEdgeAuthDbEval() {
 
 async function smokeLogsSeeding() {
   await withBackend(
-    { logsSeedNdjson: seedPath(OBSERVE_EVAL, "logs.ndjson") },
+    { logsSeedJsonl: seedPath(OBSERVE_EVAL, "logs.jsonl") },
     async ({ url, ref, accessToken }) => {
       const logsUrl = `${url}/v1/projects/${ref}/analytics/endpoints/logs.all?sql=${encodeURIComponent("SELECT count(*)::int AS n FROM edge_logs")}`;
       const res = await fetch(logsUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -242,7 +242,7 @@ async function smokeObserveEval() {
   const scorer = await loadScorer(OBSERVE_EVAL);
 
   await withBackend(
-    { logsSeedNdjson: seedPath(OBSERVE_EVAL, "logs.ndjson") },
+    { logsSeedJsonl: seedPath(OBSERVE_EVAL, "logs.jsonl") },
     async ({ scorer: mgmt }) => {
       const score = await scorer({
         mgmt,
@@ -263,7 +263,7 @@ async function smokeDetectEval() {
   await withBackend(
     {
       projectSeedSql: seedPath(DETECT_EVAL, "project.sql"),
-      logsSeedNdjson: seedPath(DETECT_EVAL, "logs.ndjson"),
+      logsSeedJsonl: seedPath(DETECT_EVAL, "logs.jsonl"),
     },
     async ({ scorer: mgmt }) => {
       const grant = await mgmt.call("database.query", {

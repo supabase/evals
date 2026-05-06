@@ -66,7 +66,7 @@ const res = await app.request('/v1/projects/test-project/database/query', {
 fixtures/
 └── my-project/
     ├── project.sql     # SQL executed on boot
-    └── logs.ndjson     # one JSON object per line: { ts, source, level, message }
+    └── logs.jsonl      # one JSON object per line: { ts, source, level, message }
 ```
 
 ### Programmatic (`projects`)

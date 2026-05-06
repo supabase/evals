@@ -53,7 +53,7 @@ Tool eval agents use mock management API endpoints. Tool names mirror real Supab
 
 Per-eval tool allowlists live in `tools.json`. Narrow them aggressively. Design RLS evals usually get only `database.query`; Observe log evals get only `logs.all`; Resolve evals get exactly the tools needed to apply the fix.
 
-The project DB is a single supalite App backed by PGlite. `database.query`, scorers using `ctx.client`, and deployed Edge Functions using `@supabase/supabase-js` all target that same project state. Logs remain separate: `logs.all` queries a standalone PGlite table seeded from `seed/logs.ndjson`.
+The project DB is a single supalite App backed by PGlite. `database.query`, scorers using `ctx.client`, and deployed Edge Functions using `@supabase/supabase-js` all target that same project state. Logs remain separate: `logs.all` queries a standalone PGlite table seeded from `seed/logs.jsonl`.
 
 ## Project Eval File Tools
 
@@ -144,7 +144,7 @@ Every eval contains:
 3. `tools.json` — tool eval allowlist. Empty or missing means the experiment defaults apply, but evals should usually narrow this explicitly.
 4. `skills.json` — skills from [skills/MANIFEST.md](skills/MANIFEST.md). Empty array means experiment defaults.
 5. Optional `seed/project.sql` — applied to a fresh supalite project DB.
-6. Optional `seed/logs.ndjson` — one JSON object per line with columns `id`, `ts`, `source`, `level`, `message?`, `metadata`.
+6. Optional `seed/logs.jsonl` — one JSON object per line with columns `id`, `ts`, `source`, `level`, `message?`, `metadata`.
 
 Common scoring patterns:
 

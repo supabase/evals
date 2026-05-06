@@ -26,7 +26,7 @@ export interface PlatformBackend {
 
 export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
-  logsSeedNdjson?: string;
+  logsSeedJsonl?: string;
 }): Promise<PlatformBackend> {
   const sql =
     opts.projectSeedSql && existsSync(opts.projectSeedSql)
@@ -34,8 +34,8 @@ export async function bootPlatformBackend(opts: {
       : undefined;
 
   const logs =
-    opts.logsSeedNdjson && existsSync(opts.logsSeedNdjson)
-      ? parseNdjson(opts.logsSeedNdjson)
+    opts.logsSeedJsonl && existsSync(opts.logsSeedJsonl)
+      ? parseJsonl(opts.logsSeedJsonl)
       : undefined;
 
   const platform = await createPlatform({
@@ -97,7 +97,7 @@ function hasRows(v: unknown): v is { rows: unknown[] } {
   );
 }
 
-function parseNdjson(path: string) {
+function parseJsonl(path: string) {
   return readFileSync(path, "utf8")
     .split("\n")
     .filter((l) => l.trim())
