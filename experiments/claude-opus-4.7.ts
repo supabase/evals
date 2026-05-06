@@ -1,12 +1,11 @@
-import type { ExperimentConfig } from "../harness/types.js";
+import type { ExperimentConfig } from "../apps/framework/harness/types.js";
 
 const config: ExperimentConfig = {
   agent: "ai-sdk",
-  provider: "openai",
-  model: "gpt-5.4-nano",
+  provider: "anthropic",
+  model: "claude-opus-4-7",
   providerOptions: {
-    reasoningEffort: "low",
-    textVerbosity: "low",
+    effort: "max",
   },
   skills: ["supabase", "supabase-postgres-best-practices"],
   mode: "mcp",

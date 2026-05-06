@@ -27,7 +27,6 @@ import type {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
-const FRAMEWORK_DIR = join(__dirname, "..");
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
@@ -39,7 +38,7 @@ const MODEL_FILTER = readFlag("model");
 const EVAL_FILTER = readFlag("eval");
 
 async function loadExperiments() {
-  const dir = join(FRAMEWORK_DIR, "experiments");
+  const dir = join(ROOT, "experiments");
   const out: Array<{ name: string; config: ExperimentConfig }> = [];
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
     const mod = await import(pathToFileURL(join(dir, f)).href);

@@ -1,14 +1,11 @@
-import type { ExperimentConfig } from "../harness/types.js";
+import type { ExperimentConfig } from "../apps/framework/harness/types.js";
 
 const config: ExperimentConfig = {
   agent: "ai-sdk",
   provider: "anthropic",
-  model: "claude-sonnet-4-6",
-  providerOptions: {
-    effort: "max",
-  },
+  model: "claude-haiku-4-5",
   skills: ["supabase", "supabase-postgres-best-practices"],
-  mode: "executor",
+  mode: "mcp",
   runs: 4,
   earlyExit: true,
   timeoutSec: 720,
