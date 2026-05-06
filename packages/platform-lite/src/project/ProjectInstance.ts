@@ -152,15 +152,10 @@ export class ProjectInstance {
     await this.logsDb.exec(LOGS_BASE_SQL)
     if (logs?.length) {
       for (const row of logs) {
-        await this.logsDb.exec(`
-          INSERT INTO edge_logs (id, timestamp, ts, event_message)
-          VALUES (
-            '${crypto.randomUUID()}',
-            '${row.ts.toISOString()}',
-            '${row.ts.toISOString()}',
-            ${sqlLiteral(row.message)}
-          )
-        `)
+        await this.logsDb.query(
+          'INSERT INTO edge_logs (id, timestamp, ts, event_message) VALUES ($1, $2, $3, $4)',
+          [crypto.randomUUID(), row.ts.toISOString(), row.ts.toISOString(), row.message]
+        )
       }
     }
   }
@@ -191,8 +186,4 @@ export class ProjectInstance {
       region: 'us-east-1',
     }
   }
-}
-
-function sqlLiteral(s: string): string {
-  return `'${s.replace(/'/g, "''")}'`
 }
