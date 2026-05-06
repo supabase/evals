@@ -1,6 +1,6 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "../../apps/framework/harness/types.js";
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
   const checks = [

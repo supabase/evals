@@ -1,4 +1,4 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "../../apps/framework/harness/types.js";
 
 const FUNCTION_NAME = "todo-create";
 const TODO_BODY = "verify edge auth database integration";
@@ -17,11 +17,11 @@ const parseJson = (result: InvokeResult) => {
   }
 };
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ToolScorer = async (ctx) => {
   const checks: Array<{ name: string; ok: boolean }> = [];
 
   try {
-    const { data: signup, error: signupError } = await ctx.client!.auth.signUp({
+    const { data: signup, error: signupError } = await ctx.client.auth.signUp({
       email: `todo-create-${Date.now()}@example.com`,
       password: "secret123",
     });
@@ -33,7 +33,7 @@ const scorer: Scorer = async (ctx) => {
       };
     }
 
-    const missingAuth = (await ctx.mgmt!.backends.edgeFunctions.invoke({
+    const missingAuth = (await ctx.mgmt.backends.edgeFunctions.invoke({
       name: FUNCTION_NAME,
       method: "POST",
       body: { body: TODO_BODY },
@@ -43,7 +43,7 @@ const scorer: Scorer = async (ctx) => {
       ok: missingAuth.status >= 400,
     });
 
-    const inserted = (await ctx.mgmt!.backends.edgeFunctions.invoke({
+    const inserted = (await ctx.mgmt.backends.edgeFunctions.invoke({
       name: FUNCTION_NAME,
       method: "POST",
       headers: {
@@ -61,7 +61,7 @@ const scorer: Scorer = async (ctx) => {
       ok: insertedJson?.body === TODO_BODY || (insertedJson?.todo as any)?.body === TODO_BODY,
     });
 
-    const { data: todos, error: selectError } = await ctx.client!
+    const { data: todos, error: selectError } = await ctx.client
       .from("todos")
       .select("body,user_id")
       .eq("body", TODO_BODY);

@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootPlatformBackend } from "../harness/platform-backend.js";
 import { viteBuild, vitestRun } from "../harness/project-runner.js";
-import type { Scorer, ScorerHandle } from "../harness/types.js";
+import type { ToolScorer, ScorerHandle } from "../harness/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
@@ -17,9 +17,9 @@ const OBSERVE_EVAL = "evals/observe-logs-001-top-error-function";
 const DETECT_EVAL = "evals/detect-security-001-public-table";
 const FRONTEND_EVAL = "evals/design-frontend-001-todos-app";
 
-async function loadScorer(relDir: string): Promise<Scorer> {
+async function loadScorer(relDir: string): Promise<ToolScorer> {
   const mod = await import(pathToFileURL(join(ROOT, relDir, "EVAL.ts")).href);
-  return mod.default as Scorer;
+  return mod.default as ToolScorer;
 }
 
 async function withBackend<T>(

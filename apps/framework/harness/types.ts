@@ -84,15 +84,6 @@ export interface ScorerHandle {
   };
 }
 
-export interface EvalContext {
-  mgmt?: ScorerHandle;
-  client?: SupabaseClient;
-  workspace?: string;
-  projectResult?: ProjectResult;
-  toolCalls: ToolCallRecord[];
-  agentReport?: string;
-}
-
 export interface ToolCallRecord {
   endpoint: string;
   body: Record<string, unknown>;
@@ -101,4 +92,19 @@ export interface ToolCallRecord {
   ts: number;
 }
 
-export type Scorer = (ctx: EvalContext) => Promise<ScoreResult>;
+export interface ToolEvalContext {
+  mgmt: ScorerHandle;
+  client: SupabaseClient;
+  toolCalls: ToolCallRecord[];
+  agentReport?: string;
+}
+
+export interface ProjectEvalContext {
+  workspace: string;
+  projectResult: ProjectResult;
+  toolCalls: ToolCallRecord[];
+  agentReport?: string;
+}
+
+export type ToolScorer = (ctx: ToolEvalContext) => Promise<ScoreResult>;
+export type ProjectScorer = (ctx: ProjectEvalContext) => Promise<ScoreResult>;

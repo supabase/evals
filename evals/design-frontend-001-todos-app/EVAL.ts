@@ -1,6 +1,6 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ProjectScorer } from "../../apps/framework/harness/types.js";
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ProjectScorer = async (ctx) => {
   const { build, vitest } = ctx.projectResult!;
 
   if (!build.ok) {

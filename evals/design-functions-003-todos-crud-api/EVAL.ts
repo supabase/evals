@@ -1,4 +1,4 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "../../apps/framework/harness/types.js";
 
 const FUNCTION_NAME = "todos-api";
 const PASSWORD = "secret123";
@@ -19,12 +19,12 @@ const parseJson = (result: InvokeResult) => {
 
 const rowFrom = (json: Record<string, any> | undefined) => json?.todo ?? json;
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ToolScorer = async (ctx) => {
   const checks: Array<{ name: string; ok: boolean }> = [];
 
   try {
-    const clientA = ctx.client!;
-    const clientB = ctx.mgmt!.backends.projectDb.app.getClient();
+    const clientA = ctx.client;
+    const clientB = ctx.mgmt.backends.projectDb.app.getClient();
 
     const { data: authA, error: authAError } = await clientA.auth.signUp({
       email: `todos-api-a-${Date.now()}@example.com`,
@@ -58,7 +58,7 @@ const scorer: Scorer = async (ctx) => {
       headers?: Record<string, string>;
       body?: unknown;
     }) =>
-      ctx.mgmt!.backends.edgeFunctions.invoke({
+      ctx.mgmt.backends.edgeFunctions.invoke({
         name: FUNCTION_NAME,
         ...input,
       }) as Promise<InvokeResult>;

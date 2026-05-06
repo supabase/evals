@@ -1,4 +1,4 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer, ToolEvalContext } from "../../apps/framework/harness/types.js";
 
 const FUNCTION_NAME = "order-total";
 
@@ -9,11 +9,11 @@ interface InvokeResult {
 }
 
 const invoke = async (
-  ctx: Parameters<Scorer>[0],
+  ctx: ToolEvalContext,
   body: Record<string, unknown> | string | undefined,
   method = "POST"
 ) =>
-  ctx.mgmt!.backends.edgeFunctions.invoke({
+  ctx.mgmt.backends.edgeFunctions.invoke({
     name: FUNCTION_NAME,
     method,
     body,
@@ -27,7 +27,7 @@ const parseJson = (result: InvokeResult) => {
   }
 };
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ToolScorer = async (ctx) => {
   const checks: Array<{ name: string; ok: boolean }> = [];
 
   try {

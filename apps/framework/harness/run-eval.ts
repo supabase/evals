@@ -20,7 +20,8 @@ import type {
   ExperimentConfig,
   EvalCategory,
   EvalManifest,
-  Scorer,
+  ToolScorer,
+  ProjectScorer,
   ScoreResult,
 } from "./types.js";
 
@@ -171,14 +172,13 @@ async function runOne(
   const skills = ev.skills.length ? ev.skills : exp.skills;
   const skillContext = loadSkills(skills);
   const prompt = readFileSync(ev.promptPath, "utf8");
-  const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as Scorer;
-
   let last: ScoreResult = { passed: false, score: 0, notes: "no attempts" };
   let lastToolCalls: unknown[] = [];
   let lastAgentReport = "";
 
   for (let attempt = 1; attempt <= exp.runs; attempt += 1) {
     if (ev.mode === "project") {
+      const scorer: ProjectScorer = (await import(pathToFileURL(ev.evalPath).href)).default;
       const workspace = workspacePath(expName, ev.id, attempt);
       materializeWorkspace(ev, workspace);
       const fileTools = buildFileTools(workspace);
@@ -215,6 +215,7 @@ async function runOne(
     }
 
     // Tool mode: boot platform-lite, connect MCP/executor
+    const scorer: ToolScorer = (await import(pathToFileURL(ev.evalPath).href)).default;
     const projectSeedSql = join(ev.seedDir, "project.sql");
     const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
 

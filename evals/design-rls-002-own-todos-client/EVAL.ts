@@ -1,15 +1,15 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "../../apps/framework/harness/types.js";
 
 const USER_A_EMAIL = "todo-user-a@example.com";
 const USER_B_EMAIL = "todo-user-b@example.com";
 const PASSWORD = "secret123";
 
-const scorer: Scorer = async (ctx) => {
-  const clientA = ctx.client!;
-  const clientB = ctx.mgmt!.backends.projectDb.app.getClient();
+const scorer: ToolScorer = async (ctx) => {
+  const clientA = ctx.client;
+  const clientB = ctx.mgmt.backends.projectDb.app.getClient();
   const checks: Array<{ name: string; ok: boolean }> = [];
   const q = (sql: string) =>
-    ctx.mgmt!.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
+    ctx.mgmt.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
 
   try {
     const { data: authA, error: authAError } = await clientA.auth.signUp({
