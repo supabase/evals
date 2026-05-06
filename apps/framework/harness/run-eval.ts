@@ -36,6 +36,7 @@ const DRY = args.has("--dry");
 const EXPERIMENT_FILTER = readFlag("experiment");
 const MODEL_FILTER = readFlag("model");
 const EVAL_FILTER = readFlag("eval");
+const RUNS = Number(readFlag("runs") ?? 4);
 
 async function loadExperiments() {
   const dir = join(ROOT, "experiments");
@@ -176,7 +177,7 @@ async function runOne(
   let lastToolCalls: unknown[] = [];
   let lastAgentReport = "";
 
-  for (let attempt = 1; attempt <= exp.runs; attempt += 1) {
+  for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === "project") {
       const workspace = workspacePath(expName, ev.id, attempt);
       materializeWorkspace(ev, workspace);
@@ -262,7 +263,7 @@ async function runOne(
     }
   }
 
-  return { ...last, attempts: exp.runs, toolCalls: lastToolCalls, agentReport: lastAgentReport };
+  return { ...last, attempts: RUNS, toolCalls: lastToolCalls, agentReport: lastAgentReport };
 }
 
 function normalizeExperimentName(s: string): string {

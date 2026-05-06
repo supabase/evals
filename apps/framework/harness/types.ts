@@ -24,7 +24,6 @@ export interface ExperimentConfig {
   providerOptions?: Record<string, unknown>;
   skills: string[];
   mode: AgentMode;
-  runs: number;
   earlyExit: boolean;
   timeoutSec: number;
 }

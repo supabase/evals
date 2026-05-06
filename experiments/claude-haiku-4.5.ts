@@ -6,7 +6,6 @@ const config: ExperimentConfig = {
   model: "claude-haiku-4-5",
   skills: ["supabase", "supabase-postgres-best-practices"],
   mode: "mcp",
-  runs: 4,
   earlyExit: true,
   timeoutSec: 720,
 };

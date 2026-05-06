@@ -9,7 +9,6 @@ const config: ExperimentConfig = {
   },
   skills: ["supabase", "supabase-postgres-best-practices"],
   mode: "executor",
-  runs: 4,
   earlyExit: true,
   timeoutSec: 720,
 };

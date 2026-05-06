@@ -9,7 +9,6 @@ const config: ExperimentConfig = {
   },
   skills: ["supabase", "supabase-postgres-best-practices"],
   mode: "mcp",
-  runs: 1,
   earlyExit: true,
   timeoutSec: 720,
 };
