@@ -6,7 +6,6 @@ export type {
   ProjectResult,
   EdgeFunctionsInvokeInput,
   EdgeFunctionsInvokeResult,
-  ScorerHandle,
   ToolEvalContext,
   ProjectEvalContext,
   ToolScorer,

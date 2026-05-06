@@ -4,10 +4,9 @@ const PASSWORD = "secret123";
 
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
-  const clientB = ctx.mgmt.backends.projectDb.app.getClient();
+  const clientB = ctx.getClient();
   const checks: Array<{ name: string; ok: boolean }> = [];
-  const q = (sql: string) =>
-    ctx.mgmt.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
+  const q = ctx.query;
 
   try {
     const { data: authA, error: authAError } = await clientA.auth.signUp({

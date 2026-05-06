@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ManagementApiClient } from "platform-lite";
 
 export type { SupabaseClient };
+export type { ManagementApiClient };
 
 export type EvalResult = {
   experiment: string
@@ -60,22 +62,19 @@ export interface EdgeFunctionsInvokeResult {
   body: string;
 }
 
-export interface ScorerHandle {
-  call: (endpoint: "database.query", body: { query: string }) => Promise<{ rows: unknown[] }>;
-  backends: {
-    projectDb: {
-      client: SupabaseClient;
-      app: { getClient: () => SupabaseClient };
-    };
-    edgeFunctions: {
-      invoke: (input: EdgeFunctionsInvokeInput) => Promise<EdgeFunctionsInvokeResult>;
-    };
-  };
-}
-
 export interface ToolEvalContext {
-  mgmt: ScorerHandle;
+  /** Typed Management API client pointed at the platform-lite server for this eval. */
+  mgmt: ManagementApiClient;
+  /** Project ref — needed as a path param in Management API calls. */
+  ref: string;
+  /** Supabase data-plane client (PostgREST / auth / storage). */
   client: SupabaseClient;
+  /** Create a fresh independent Supabase client (useful for multi-user RLS tests). */
+  getClient: () => SupabaseClient;
+  /** Run a SQL query in-process against the project database. */
+  query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  /** Invoke a deployed edge function in-process. */
+  invokeFunction: (input: EdgeFunctionsInvokeInput) => Promise<EdgeFunctionsInvokeResult>;
   toolCalls: ToolCallRecord[];
   agentReport?: string;
 }

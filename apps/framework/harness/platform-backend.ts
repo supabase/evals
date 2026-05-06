@@ -1,12 +1,11 @@
 import vm from "node:vm";
 import { createHmac } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import ts from "typescript";
-import { createPlatform } from "platform-lite";
-import type { ProjectInstance } from "platform-lite";
+import { createPlatform, createManagementApiClient } from "platform-lite";
+import type { ProjectInstance, ManagementApiClient } from "platform-lite";
 import type {
-  ScorerHandle,
   EdgeFunctionsInvokeInput,
   EdgeFunctionsInvokeResult,
 } from "./types.js";
@@ -20,7 +19,11 @@ export interface PlatformBackend {
   url: string;
   ref: string;
   accessToken: string;
-  scorer: ScorerHandle;
+  mgmt: ManagementApiClient;
+  client: SupabaseClient;
+  getClient: () => SupabaseClient;
+  query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  invokeFunction: (input: EdgeFunctionsInvokeInput) => Promise<EdgeFunctionsInvokeResult>;
   close: () => Promise<void>;
 }
 
@@ -54,37 +57,24 @@ export async function bootPlatformBackend(opts: {
     url: server.url,
     ref,
     accessToken: ACCESS_TOKEN,
-    scorer: buildScorerHandle(instance),
+    mgmt: createManagementApiClient(server.url, ACCESS_TOKEN),
+    client: instance.app.getClient(),
+    getClient: () => instance.app.getClient(),
+    query: async (sql) => {
+      const results = await instance.pglite.exec(sql);
+      // Find the last result set that has named fields — multi-statement queries
+      // (e.g. BEGIN/SET/query/ROLLBACK) return multiple result sets; ROLLBACK
+      // produces an empty one so we skip it.
+      const lastRowSet = [...results].reverse().find(
+        (r) => Array.isArray((r as any).fields) && (r as any).fields.length > 0
+      ) as any;
+      return { rows: (lastRowSet?.rows ?? []) as Record<string, unknown>[] };
+    },
+    invokeFunction: (input) => invokeEdgeFunction(instance, input),
     close: () => server.dispose(),
   };
 }
 
-/**
- * Builds the in-process project access object passed to scorer functions.
- * Scorers call this directly against PGlite rather than over HTTP — both hit
- * the same instance, and the bypass is intentional: if the HTTP route ever
- * adds middleware (logging, RBAC), scorer queries should remain unaffected.
- */
-function buildScorerHandle(instance: ProjectInstance): ScorerHandle {
-  return {
-    call: async (_endpoint, body) => {
-      const results = await instance.pglite.exec(body.query);
-      const lastRowSet = [...results].reverse().find(
-        (r) => Array.isArray((r as any).fields) && (r as any).fields.length > 0
-      ) as any;
-      return { rows: (lastRowSet?.rows ?? []) as unknown[] };
-    },
-    backends: {
-      projectDb: {
-        client: instance.app.getClient(),
-        app: { getClient: () => instance.app.getClient() },
-      },
-      edgeFunctions: {
-        invoke: (input) => invokeEdgeFunction(instance, input),
-      },
-    },
-  };
-}
 
 function parseJsonl(path: string) {
   return readFileSync(path, "utf8")

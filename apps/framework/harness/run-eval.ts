@@ -246,8 +246,12 @@ async function runOne(
         lastToolCalls = run.toolCalls;
         lastAgentReport = run.agentReport;
         last = await (scorer as ToolScorer)({
-          mgmt: backend.scorer,
-          client: backend.scorer.backends.projectDb.client,
+          mgmt: backend.mgmt,
+          ref: backend.ref,
+          client: backend.client,
+          getClient: backend.getClient,
+          query: backend.query,
+          invokeFunction: backend.invokeFunction,
           toolCalls: run.toolCalls,
           agentReport: run.agentReport,
         });

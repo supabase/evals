@@ -24,7 +24,7 @@ const scorer: ToolScorer = async (ctx) => {
 
   try {
     const clientA = ctx.client;
-    const clientB = ctx.mgmt.backends.projectDb.app.getClient();
+    const clientB = ctx.getClient();
 
     const { data: authA, error: authAError } = await clientA.auth.signUp({
       email: `todos-api-a-${Date.now()}@example.com`,
@@ -58,7 +58,7 @@ const scorer: ToolScorer = async (ctx) => {
       headers?: Record<string, string>;
       body?: unknown;
     }) =>
-      ctx.mgmt.backends.edgeFunctions.invoke({
+      ctx.invokeFunction({
         name: FUNCTION_NAME,
         ...input,
       }) as Promise<InvokeResult>;

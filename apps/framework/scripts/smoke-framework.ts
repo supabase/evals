@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootPlatformBackend } from "../harness/platform-backend.js";
 import { viteBuild, vitestRun } from "../harness/project-runner.js";
-import type { ToolScorer, ScorerHandle } from "../harness/types.js";
+import type { ToolScorer } from "../harness/types.js";
+import type { PlatformBackend } from "../harness/platform-backend.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
@@ -22,9 +23,22 @@ async function loadScorer(relDir: string): Promise<ToolScorer> {
   return mod.default as ToolScorer;
 }
 
+function scorerCtx(backend: PlatformBackend, extra?: { agentReport?: string }) {
+  return {
+    mgmt: backend.mgmt,
+    ref: backend.ref,
+    client: backend.client,
+    getClient: backend.getClient,
+    query: backend.query,
+    invokeFunction: backend.invokeFunction,
+    toolCalls: [] as never[],
+    agentReport: extra?.agentReport,
+  };
+}
+
 async function withBackend<T>(
   opts: { projectSeedSql?: string; logsSeedJsonl?: string },
-  fn: (backend: { scorer: ScorerHandle; url: string; ref: string; accessToken: string }) => Promise<T>
+  fn: (backend: PlatformBackend) => Promise<T>
 ): Promise<T> {
   const backend = await bootPlatformBackend(opts);
   try {
@@ -43,13 +57,12 @@ async function smokeDesignEval() {
 
   await withBackend(
     { projectSeedSql: seedPath(DESIGN_EVAL, "project.sql") },
-    async ({ scorer: mgmt }) => {
-      const before = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
+    async (backend) => {
+      const before = await scorer(scorerCtx(backend));
       assert.equal(before.passed, false);
       assert.match(before.notes ?? "", /RLS not enabled/i);
 
-      await mgmt.call("database.query", {
-        query: `
+      await backend.query(`
 ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON memberships TO authenticated;
 GRANT SELECT, INSERT ON notes TO authenticated;
@@ -90,10 +103,9 @@ WITH CHECK (
 CREATE POLICY "authors can delete their own notes"
 ON notes FOR DELETE TO authenticated
 USING (author_id = auth.uid());
-        `,
-      });
+      `);
 
-      const after = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
+      const after = await scorer(scorerCtx(backend));
       assert.equal(after.passed, true, after.notes);
     }
   );
@@ -106,19 +118,17 @@ async function smokeClientRlsEval() {
 
   await withBackend(
     { projectSeedSql: seedPath(CLIENT_RLS_EVAL, "project.sql") },
-    async ({ scorer: mgmt }) => {
-      await mgmt.call("database.query", {
-        query: `
+    async (backend) => {
+      await backend.query(`
 ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "users can read own todos" ON todos FOR SELECT TO authenticated USING (user_id = auth.uid());
 CREATE POLICY "users can insert own todos" ON todos FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 CREATE POLICY "users can update own todos" ON todos FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 CREATE POLICY "users can delete own todos" ON todos FOR DELETE TO authenticated USING (user_id = auth.uid());
-        `,
-      });
+      `);
 
-      const score = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
+      const score = await scorer(scorerCtx(backend));
       assert.equal(score.passed, true, score.notes);
     }
   );
@@ -129,24 +139,24 @@ CREATE POLICY "users can delete own todos" ON todos FOR DELETE TO authenticated 
 async function smokeFunctionsEval() {
   const scorer = await loadScorer(FUNCTIONS_EVAL);
 
-  await withBackend({}, async ({ scorer: mgmt, url, ref, accessToken }) => {
-    const before = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
+  await withBackend({}, async (backend) => {
+    const before = await scorer(scorerCtx(backend));
     assert.equal(before.passed, false);
     assert.match(before.notes ?? "", /function not found/i);
 
-    const deployUrl = `${url}/v1/projects/${ref}/functions/deploy?slug=order-total`;
+    const deployUrl = `${backend.url}/v1/projects/${backend.ref}/functions/deploy?slug=order-total`;
     const form = new FormData();
     form.append("metadata", JSON.stringify({ name: "order-total", verify_jwt: false, entrypoint_path: "index.ts" }));
     form.append("file", new File([ORDER_TOTAL_SOURCE], "index.ts", { type: "application/typescript" }));
 
     const deployRes = await fetch(deployUrl, {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${backend.accessToken}` },
       body: form,
     });
     assert.equal(deployRes.status, 201, `deploy failed: ${await deployRes.text()}`);
 
-    const after = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
+    const after = await scorer(scorerCtx(backend));
     assert.equal(after.passed, true, after.notes);
   });
 
@@ -154,9 +164,8 @@ async function smokeFunctionsEval() {
 }
 
 async function smokeSupaliteClient() {
-  await withBackend({}, async ({ scorer: mgmt }) => {
-    await mgmt.call("database.query", {
-      query: `
+  await withBackend({}, async (backend) => {
+    await backend.query(`
 CREATE TABLE todos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -168,10 +177,9 @@ GRANT SELECT, INSERT ON todos TO authenticated;
 
 CREATE POLICY "users can insert their own todos" ON todos FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 CREATE POLICY "users can read their own todos" ON todos FOR SELECT TO authenticated USING (user_id = auth.uid());
-      `,
-    });
+    `);
 
-    const client = mgmt.backends.projectDb.client;
+    const client = backend.client;
     const email = `smoke-${Date.now()}@example.com`;
     const { data: signup, error: signupError } = await client.auth.signUp({
       email,
@@ -202,21 +210,21 @@ async function smokeEdgeAuthDbEval() {
 
   await withBackend(
     { projectSeedSql: seedPath(EDGE_AUTH_DB_EVAL, "project.sql") },
-    async ({ scorer: mgmt, url, ref, accessToken }) => {
+    async (backend) => {
       // Deploy the function via platform-lite's HTTP management API
-      const deployUrl = `${url}/v1/projects/${ref}/functions/deploy?slug=todo-create`;
+      const deployUrl = `${backend.url}/v1/projects/${backend.ref}/functions/deploy?slug=todo-create`;
       const form = new FormData();
       form.append("metadata", JSON.stringify({ name: "todo-create", verify_jwt: true, entrypoint_path: "index.ts" }));
       form.append("file", new File([TODO_CREATE_SOURCE], "index.ts", { type: "application/typescript" }));
 
       const deployRes = await fetch(deployUrl, {
         method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${backend.accessToken}` },
         body: form,
       });
       assert.equal(deployRes.status, 201, `deploy failed: ${await deployRes.text()}`);
 
-      const score = await scorer({ mgmt, client: mgmt.backends.projectDb.client, toolCalls: [] });
+      const score = await scorer(scorerCtx(backend));
       assert.equal(score.passed, true, score.notes);
     }
   );
@@ -243,13 +251,10 @@ async function smokeObserveEval() {
 
   await withBackend(
     { logsSeedJsonl: seedPath(OBSERVE_EVAL, "logs.jsonl") },
-    async ({ scorer: mgmt }) => {
-      const score = await scorer({
-        mgmt,
-        client: mgmt.backends.projectDb.client,
-        toolCalls: [],
-        agentReport: "stripe-webhook had the most errors with 9 errors out of 50 events.",
-      });
+    async (backend) => {
+      const score = await scorer(
+        scorerCtx(backend, { agentReport: "stripe-webhook had the most errors with 9 errors out of 50 events." })
+      );
       assert.equal(score.passed, true, score.notes);
     }
   );
@@ -265,27 +270,20 @@ async function smokeDetectEval() {
       projectSeedSql: seedPath(DETECT_EVAL, "project.sql"),
       logsSeedJsonl: seedPath(DETECT_EVAL, "logs.jsonl"),
     },
-    async ({ scorer: mgmt }) => {
-      const grant = await mgmt.call("database.query", {
-        query: `
+    async (backend) => {
+      const { rows } = await backend.query(`
 SELECT grantee FROM information_schema.role_table_grants
 WHERE table_name = 'customer_payment_methods' AND privilege_type = 'SELECT'
 ORDER BY grantee;
-        `,
-      }) as { rows: Array<{ grantee: string }> };
-      assert(grant.rows.some((row) => row.grantee === "anon"));
+      `);
+      assert((rows as Array<{ grantee: string }>).some((row) => row.grantee === "anon"));
 
       const report = [
         "customer_payment_methods is exposed to anon.",
         "Fix by REVOKE SELECT ON customer_payment_methods FROM anon and enable row level security.",
       ].join(" ");
 
-      const score = await scorer({
-        mgmt,
-        client: mgmt.backends.projectDb.client,
-        toolCalls: [],
-        agentReport: report,
-      });
+      const score = await scorer(scorerCtx(backend, { agentReport: report }));
       assert.equal(score.passed, true, score.notes);
     }
   );

@@ -17,7 +17,7 @@ ${finish};
 
 const scorer: ToolScorer = async (ctx) => {
   const q = (sql: string) =>
-    ctx.mgmt.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
+    ctx.query(sql);
   const checks: Array<{ name: string; ok: boolean }> = [];
 
   const resetTx = async () => {

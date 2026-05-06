@@ -33,7 +33,7 @@ const scorer: ToolScorer = async (ctx) => {
       };
     }
 
-    const missingAuth = (await ctx.mgmt.backends.edgeFunctions.invoke({
+    const missingAuth = (await ctx.invokeFunction({
       name: FUNCTION_NAME,
       method: "POST",
       body: { body: TODO_BODY },
@@ -43,7 +43,7 @@ const scorer: ToolScorer = async (ctx) => {
       ok: missingAuth.status >= 400,
     });
 
-    const inserted = (await ctx.mgmt.backends.edgeFunctions.invoke({
+    const inserted = (await ctx.invokeFunction({
       name: FUNCTION_NAME,
       method: "POST",
       headers: {
