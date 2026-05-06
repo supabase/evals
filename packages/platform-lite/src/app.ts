@@ -73,7 +73,9 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
 export async function createPlatform(options: AppOptions = {}): Promise<PlatformHandle> {
   const { app, store } = await build(options)
 
-  const dispose = async () => {}
+  const dispose = async () => {
+    await Promise.all([...store.values()].map((p) => p.close()))
+  }
 
   return {
     app,

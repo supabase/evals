@@ -165,6 +165,12 @@ export class ProjectInstance {
     }
   }
 
+  async close(): Promise<void> {
+    await this.#studio?.stop()
+    await this.logsDb.close()
+    await this.pglite?.close()
+  }
+
   get studioUrl(): string | undefined {
     return this.#studio ? `http://localhost:${this.#studio.port}` : undefined
   }
