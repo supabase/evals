@@ -1,4 +1,4 @@
-import type { ToolScorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "eval-types";
 
 const TARGET_USER = "00000000-0000-0000-0000-000000000001";
 

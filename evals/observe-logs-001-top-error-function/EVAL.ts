@@ -1,4 +1,4 @@
-import type { ToolScorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "eval-types";
 
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";

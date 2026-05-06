@@ -1,4 +1,4 @@
-import type { ToolScorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "eval-types";
 
 const FUNCTION_NAME = "todo-create";
 const TODO_BODY = "verify edge auth database integration";

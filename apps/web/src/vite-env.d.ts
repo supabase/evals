@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 declare module "virtual:supabase-eval-results" {
-  import type { EvalResult } from "@supabase-evals/eval-types"
+  import type { EvalResult } from "eval-types"
 
   export type { EvalResult }
 

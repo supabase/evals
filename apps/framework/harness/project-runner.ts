@@ -2,9 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import type { CommandResult, VitestResult } from "./types.js";
-
-export type { CommandResult, VitestResult };
+import type { CommandResult, VitestResult } from "eval-types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");

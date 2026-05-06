@@ -1,4 +1,4 @@
-import type { ToolScorer, ToolEvalContext } from "../../apps/framework/harness/types.js";
+import type { ToolScorer, ToolEvalContext } from "eval-types";
 
 const FUNCTION_NAME = "order-total";
 

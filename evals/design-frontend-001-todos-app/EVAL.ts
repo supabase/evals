@@ -1,7 +1,7 @@
-import type { ProjectScorer } from "../../apps/framework/harness/types.js";
+import type { ProjectScorer } from "eval-types";
 
 const scorer: ProjectScorer = async (ctx) => {
-  const { build, vitest } = ctx.projectResult!;
+  const { build, vitest } = ctx.projectResult;
 
   if (!build.ok) {
     return {
