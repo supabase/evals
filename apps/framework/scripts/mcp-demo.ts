@@ -13,6 +13,7 @@ import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp
 import { openai } from "@ai-sdk/openai";
 import { generateText, stepCountIs } from "ai";
 import { createPlatform } from "platform-lite";
+import { MCP_SERVER_VERSION } from "../harness/mcp-tools.js";
 
 const ACCESS_TOKEN = "demo-token";
 
@@ -43,7 +44,7 @@ console.log(`platform-lite started at ${server.url}`);
 const transport = new StdioMCPTransport({
   command: "npx",
   args: [
-    "@supabase/mcp-server-supabase@0.7.0",
+    `@supabase/mcp-server-supabase@${MCP_SERVER_VERSION}`,
     "--access-token",
     ACCESS_TOKEN,
     "--api-url",

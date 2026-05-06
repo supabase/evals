@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import type { ToolSet } from "ai";
 import type { AgentMode } from "./types.js";
 
-const MCP_SERVER_VERSION = "0.8.1";
+export const MCP_SERVER_VERSION = "0.8.1";
 
 export interface McpToolsHandle {
   tools: ToolSet;
