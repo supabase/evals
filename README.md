@@ -76,6 +76,12 @@ npm install
 cp .env.example .env
 ```
 
+If you cloned without `--recurse-submodules`, initialise the submodule manually:
+
+```bash
+git submodule update --init
+```
+
 Skills come from [supabase/agent-skills](https://github.com/supabase/agent-skills), pinned as a git submodule at `submodules/agent-skills`. The `skills/` directory contains symlinks into the submodule — no separate install step needed.
 
 ## Running
