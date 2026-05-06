@@ -2,35 +2,22 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import type { CommandResult, VitestResult } from "./types.js";
+
+export type { CommandResult, VitestResult };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
 
-export interface CommandResult {
-  ok: boolean;
-  exitCode: number | null;
-  stdout: string;
-  stderr: string;
-}
-
-export interface ProjectRunResult {
-  build: CommandResult;
-  vitest?: CommandResult & {
-    passed?: number;
-    failed?: number;
-    failures?: string[];
-  };
-}
-
-export async function runProjectChecks(workspace: string): Promise<ProjectRunResult> {
-  const build = await runNodeBin(
+export async function viteBuild(workspace: string): Promise<CommandResult> {
+  return runNodeBin(
     join(ROOT, "node_modules", "vite", "bin", "vite.js"),
     ["build"],
     workspace
   );
+}
 
-  if (!build.ok) return { build };
-
+export async function vitestRun(workspace: string): Promise<VitestResult> {
   const reportPath = join(workspace, "vitest-report.json");
   const configPath = join(workspace, "vitest.evals.config.ts");
   const setupDir = join(workspace, ".evals");
@@ -52,21 +39,14 @@ export async function runProjectChecks(workspace: string): Promise<ProjectRunRes
       "",
     ].join("\n")
   );
-  const vitest = await runNodeBin(
+  const result = await runNodeBin(
     join(ROOT, "node_modules", "vitest", "vitest.mjs"),
-    [
-      "run",
-      "--config",
-      configPath,
-      "--reporter=json",
-      `--outputFile=${reportPath}`,
-    ],
+    ["run", "--config", configPath, "--reporter=json", `--outputFile=${reportPath}`],
     workspace,
     { SUPABASE_EVALS_WORKSPACE: workspace }
   );
-
   const parsed = existsSync(reportPath) ? parseVitestReport(reportPath) : undefined;
-  return { build, vitest: { ...vitest, ...parsed, ok: parsed?.ok ?? vitest.ok } };
+  return { ...result, ...parsed, ok: parsed?.ok ?? result.ok };
 }
 
 function setupSource() {
@@ -178,7 +158,7 @@ async function runNodeBin(
 }
 
 function parseVitestReport(path: string):
-  | Pick<NonNullable<ProjectRunResult["vitest"]>, "ok" | "passed" | "failed" | "failures">
+  | Pick<VitestResult, "ok" | "passed" | "failed" | "failures">
   | undefined {
   try {
     const report = JSON.parse(readFileSync(path, "utf8")) as any;

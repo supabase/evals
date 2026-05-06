@@ -4,7 +4,7 @@ const TARGET_USER = "00000000-0000-0000-0000-000000000001";
 
 const scorer: Scorer = async (ctx) => {
   const q = (sql: string) =>
-    ctx.mgmt.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
+    ctx.mgmt!.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
   const checks: Array<{ name: string; ok: boolean }> = [];
 
   try {

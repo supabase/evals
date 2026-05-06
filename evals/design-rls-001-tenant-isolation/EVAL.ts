@@ -18,7 +18,7 @@ ${finish};
 
 const scorer: Scorer = async (ctx) => {
   const q = (sql: string) =>
-    ctx.mgmt.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
+    ctx.mgmt!.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
   const resetTx = async () => {
     try {
       await q("ROLLBACK;");

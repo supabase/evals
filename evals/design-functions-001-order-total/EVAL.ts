@@ -13,7 +13,7 @@ const invoke = async (
   body: Record<string, unknown> | string | undefined,
   method = "POST"
 ) =>
-  ctx.mgmt.backends.edgeFunctions.invoke({
+  ctx.mgmt!.backends.edgeFunctions.invoke({
     name: FUNCTION_NAME,
     method,
     body,

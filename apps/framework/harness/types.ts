@@ -1,5 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export interface CommandResult {
+  ok: boolean;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+export interface VitestResult extends CommandResult {
+  passed?: number;
+  failed?: number;
+  failures?: string[];
+}
+
+export interface ProjectResult {
+  build: CommandResult;
+  vitest?: VitestResult;
+}
+
 export type AgentRuntime = "ai-sdk";
 export type ModelProvider = "anthropic" | "openai";
 export type AgentMode = "mcp" | "executor";
@@ -67,9 +85,10 @@ export interface ScorerHandle {
 }
 
 export interface EvalContext {
-  mgmt: ScorerHandle;
-  client: SupabaseClient;
+  mgmt?: ScorerHandle;
+  client?: SupabaseClient;
   workspace?: string;
+  projectResult?: ProjectResult;
   toolCalls: ToolCallRecord[];
   agentReport?: string;
 }

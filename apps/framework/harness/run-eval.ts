@@ -15,6 +15,7 @@ import { bootPlatformBackend } from "./platform-backend.js";
 import { createMcpTools } from "./mcp-tools.js";
 import { assertCanRunExperiment, runAgent } from "./agent-driver.js";
 import { buildFileTools } from "./file-tools.js";
+import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
   ExperimentConfig,
   EvalCategory,
@@ -195,13 +196,17 @@ async function runOne(
       });
 
       copyWithheldTests(ev, workspace);
+      const build = await viteBuild(workspace);
+      const vitest = build.ok ? await vitestRun(workspace) : undefined;
+
       lastToolCalls = run.toolCalls;
       lastAgentReport = run.agentReport;
       last = await scorer({
         workspace,
+        projectResult: { build, vitest },
         toolCalls: run.toolCalls,
         agentReport: run.agentReport,
-      } as any);
+      });
 
       if (exp.earlyExit && last.passed) {
         return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };

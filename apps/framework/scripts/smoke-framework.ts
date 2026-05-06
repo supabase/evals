@@ -3,7 +3,7 @@ import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootPlatformBackend } from "../harness/platform-backend.js";
-import { runProjectChecks } from "../harness/project-runner.js";
+import { viteBuild, vitestRun } from "../harness/project-runner.js";
 import type { Scorer, ScorerHandle } from "../harness/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -309,9 +309,10 @@ async function smokeProjectEval() {
   );
   writeFileSync(join(workspace, "src", "App.tsx"), GOOD_FRONTEND_APP);
 
-  const result = await runProjectChecks(workspace);
-  assert.equal(result.build.ok, true, result.build.stderr || result.build.stdout);
-  assert.equal(result.vitest?.ok, true, result.vitest?.stderr || result.vitest?.stdout);
+  const build = await viteBuild(workspace);
+  assert.equal(build.ok, true, build.stderr || build.stdout);
+  const vitest = await vitestRun(workspace);
+  assert.equal(vitest.ok, true, vitest.stderr || vitest.stdout);
 
   console.log("PASS project-mode vite/react/supalite scorer");
 }
