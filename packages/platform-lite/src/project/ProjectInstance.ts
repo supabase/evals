@@ -43,6 +43,8 @@ CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
 $$;
 `
 
+// LogRow also carries `source` and `level` fields, but edge_logs doesn't have
+// those columns — they aren't part of the queries evals run against this table.
 const LOGS_BASE_SQL = `
 CREATE TABLE IF NOT EXISTS edge_logs (
   id text,
