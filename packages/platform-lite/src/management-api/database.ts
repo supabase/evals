@@ -1,11 +1,11 @@
-import { Hono } from 'hono'
 import type { ProjectStore } from '../project-store.js'
+import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
 import { extractRows } from './utils.js'
 
-export function createDatabaseRoutes(store: ProjectStore): Hono {
-  const app = new Hono()
+export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
+  const routes = createManagementApiRoutes()
 
-  app.post('/v1/projects/:ref/database/query', async (c) => {
+  routes.post('/v1/projects/:ref/database/query', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -24,14 +24,14 @@ export function createDatabaseRoutes(store: ProjectStore): Hono {
     }
   })
 
-  app.get('/v1/projects/:ref/database/migrations', (c) => {
+  routes.get('/v1/projects/:ref/database/migrations', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
     return c.json(project.migrations)
   })
 
-  app.post('/v1/projects/:ref/database/migrations', async (c) => {
+  routes.post('/v1/projects/:ref/database/migrations', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -51,5 +51,5 @@ export function createDatabaseRoutes(store: ProjectStore): Hono {
     return c.json({ version, name }, 201)
   })
 
-  return app
+  return routes
 }

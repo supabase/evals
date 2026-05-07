@@ -1,6 +1,6 @@
-import { Hono } from 'hono'
 import { ProjectInstance } from '../project/ProjectInstance.js'
 import type { ProjectStore } from '../project-store.js'
+import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
 
 const DEFAULT_ORG = {
   id: 'default-org',
@@ -11,14 +11,14 @@ const DEFAULT_ORG = {
   opt_in_tags: [],
 }
 
-export function createAccountRoutes(store: ProjectStore): Hono {
-  const app = new Hono()
+export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
+  const routes = createManagementApiRoutes()
 
-  app.get('/v1/organizations', (c) => {
+  routes.get('/v1/organizations', (c) => {
     return c.json([DEFAULT_ORG])
   })
 
-  app.get('/v1/organizations/:slug', (c) => {
+  routes.get('/v1/organizations/:slug', (c) => {
     const { slug } = c.req.param()
     if (slug !== DEFAULT_ORG.slug) {
       return c.json({ message: 'Organization not found' }, 404)
@@ -26,19 +26,19 @@ export function createAccountRoutes(store: ProjectStore): Hono {
     return c.json(DEFAULT_ORG)
   })
 
-  app.get('/v1/projects', (c) => {
+  routes.get('/v1/projects', (c) => {
     const projects = Array.from(store.values()).map((p) => p.toProjectDetails())
     return c.json(projects)
   })
 
-  app.get('/v1/projects/:ref', (c) => {
+  routes.get('/v1/projects/:ref', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
     return c.json(project.toProjectDetails())
   })
 
-  app.post('/v1/projects', async (c) => {
+  routes.post('/v1/projects', async (c) => {
     const body = await c.req.json<{ name?: string; region?: string; organization_slug?: string; db_pass?: string }>()
     const ref = generateRef()
     const name = body.name ?? ref
@@ -49,7 +49,7 @@ export function createAccountRoutes(store: ProjectStore): Hono {
     return c.json(instance.toProjectDetails(), 201)
   })
 
-  app.post('/v1/projects/:ref/pause', (c) => {
+  routes.post('/v1/projects/:ref/pause', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -57,7 +57,7 @@ export function createAccountRoutes(store: ProjectStore): Hono {
     return c.json({ message: 'Project paused' })
   })
 
-  app.post('/v1/projects/:ref/restore', (c) => {
+  routes.post('/v1/projects/:ref/restore', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -65,7 +65,7 @@ export function createAccountRoutes(store: ProjectStore): Hono {
     return c.json({ message: 'Project restored' })
   })
 
-  return app
+  return routes
 }
 
 function generateRef(): string {

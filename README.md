@@ -223,8 +223,9 @@ To add an endpoint:
 
 1. Add or update the route module under `packages/platform-lite/src/management-api/`.
 2. Wire the route from `packages/platform-lite/src/app.ts`.
-3. If executor mode needs it, include the route in the filtered OpenAPI surface.
-4. Add tests or smoke coverage showing the endpoint works through the intended agent-facing mode.
+3. Add tests or smoke coverage showing the endpoint works through the intended agent-facing mode.
+
+Routes registered with `createManagementApiRoutes()` are included in Platform Lite's filtered OpenAPI surface automatically when the upstream Supabase Management API spec contains the matching operation. Use the route-local `openApiPath` override only when Hono and OpenAPI parameter names differ.
 
 Backend ideas not yet built:
 

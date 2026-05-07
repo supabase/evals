@@ -2,49 +2,25 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { Hono } from 'hono'
+import type { OpenApiRoute } from './routes.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-
-const IMPLEMENTED_PATHS = [
-  '/v1/organizations',
-  '/v1/organizations/{slug}',
-  '/v1/projects',
-  '/v1/projects/{ref}',
-  '/v1/projects/{ref}/pause',
-  '/v1/projects/{ref}/restore',
-  '/v1/projects/{ref}/database/query',
-  '/v1/projects/{ref}/database/migrations',
-  '/v1/projects/{ref}/functions',
-  '/v1/projects/{ref}/functions/{function_slug}',
-  '/v1/projects/{ref}/functions/{function_slug}/body',
-  '/v1/projects/{ref}/functions/deploy',
-  '/v1/projects/{ref}/analytics/endpoints/logs.all',
-  '/v1/projects/{ref}/advisors/security',
-  '/v1/projects/{ref}/advisors/performance',
-  '/v1/projects/{ref}/api-keys',
-  '/v1/projects/{ref}/api-keys/legacy',
-  '/v1/projects/{ref}/types/typescript',
-]
 
 type OpenApiSpec = {
   paths?: Record<string, unknown>
 } & Record<string, unknown>
 
-let filteredSpec: Record<string, unknown> | null = null
+let spec: OpenApiSpec | null = null
 try {
   const raw = readFileSync(join(__dirname, 'openapi.json'), 'utf-8')
-  const spec = JSON.parse(raw) as OpenApiSpec
-  const paths: Record<string, unknown> = {}
-  for (const path of IMPLEMENTED_PATHS) {
-    if (spec.paths?.[path]) paths[path] = spec.paths[path]
-  }
-  filteredSpec = { ...spec, paths }
+  spec = JSON.parse(raw) as OpenApiSpec
 } catch {
   // openapi.json not yet generated — run: pnpm generate:types
 }
 
-export function createOpenApiRoutes(): Hono {
+export function createOpenApiRoutes(openApiRoutes: readonly OpenApiRoute[]): Hono {
   const app = new Hono()
+  const filteredSpec = spec ? filterSpec(spec, openApiRoutes) : null
 
   app.get('/openapi.json', (c) => {
     if (!filteredSpec) {
@@ -54,4 +30,35 @@ export function createOpenApiRoutes(): Hono {
   })
 
   return app
+}
+
+function filterSpec(spec: OpenApiSpec, openApiRoutes: readonly OpenApiRoute[]): Record<string, unknown> {
+  const paths: Record<string, unknown> = {}
+
+  for (const route of openApiRoutes) {
+    const pathItem = spec.paths?.[route.path]
+    if (!isRecord(pathItem)) continue
+
+    const operation = pathItem[route.method]
+    if (!operation) continue
+
+    const existing = paths[route.path]
+    const filteredPathItem = isRecord(existing) ? existing : copyPathItemMetadata(pathItem)
+    filteredPathItem[route.method] = operation
+    paths[route.path] = filteredPathItem
+  }
+
+  return { ...spec, paths }
+}
+
+function copyPathItemMetadata(pathItem: Record<string, unknown>): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {}
+  for (const key of ['summary', 'description', 'servers', 'parameters'] as const) {
+    if (key in pathItem) metadata[key] = pathItem[key]
+  }
+  return metadata
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

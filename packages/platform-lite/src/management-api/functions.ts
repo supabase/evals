@@ -1,11 +1,11 @@
-import { Hono } from 'hono'
 import type { ProjectStore } from '../project-store.js'
 import type { EdgeFunctionEntry } from '../project/ProjectInstance.js'
+import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
 
-export function createFunctionsRoutes(store: ProjectStore): Hono {
-  const app = new Hono()
+export function createFunctionsRoutes(store: ProjectStore): ManagementApiRoutes {
+  const routes = createManagementApiRoutes()
 
-  app.get('/v1/projects/:ref/functions', (c) => {
+  routes.get('/v1/projects/:ref/functions', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -13,16 +13,18 @@ export function createFunctionsRoutes(store: ProjectStore): Hono {
     return c.json(fns)
   })
 
-  app.get('/v1/projects/:ref/functions/:slug', (c) => {
+  routes.get('/v1/projects/:ref/functions/:slug', (c) => {
     const { ref, slug } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
     const fn = project.functions.get(slug)
     if (!fn) return c.json({ message: 'Function not found' }, 404)
     return c.json(toPublicShape(fn))
+  }, {
+    openApiPath: '/v1/projects/{ref}/functions/{function_slug}',
   })
 
-  app.get('/v1/projects/:ref/functions/:slug/body', (c) => {
+  routes.get('/v1/projects/:ref/functions/:slug/body', (c) => {
     const { ref, slug } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -45,9 +47,11 @@ export function createFunctionsRoutes(store: ProjectStore): Hono {
     return new Response(body, {
       headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
     })
+  }, {
+    openApiPath: '/v1/projects/{ref}/functions/{function_slug}/body',
   })
 
-  app.post('/v1/projects/:ref/functions/deploy', async (c) => {
+  routes.post('/v1/projects/:ref/functions/deploy', async (c) => {
     const { ref } = c.req.param()
     const slug = c.req.query('slug')
     const project = store.get(ref)
@@ -87,7 +91,7 @@ export function createFunctionsRoutes(store: ProjectStore): Hono {
     return c.json(toPublicShape(entry), 201)
   })
 
-  return app
+  return routes
 }
 
 function toFileUrl(path: string): string {

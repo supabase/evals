@@ -1,5 +1,5 @@
-import { Hono } from 'hono'
 import type { ProjectStore } from '../project-store.js'
+import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
 import { extractRows } from './utils.js'
 
 const RLS_DISABLED_SQL = `
@@ -14,10 +14,10 @@ WHERE c.relkind = 'r'
 ORDER BY n.nspname, c.relname
 `
 
-export function createDebuggingRoutes(store: ProjectStore): Hono {
-  const app = new Hono()
+export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes {
+  const routes = createManagementApiRoutes()
 
-  app.get('/v1/projects/:ref/analytics/endpoints/logs.all', async (c) => {
+  routes.get('/v1/projects/:ref/analytics/endpoints/logs.all', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -34,7 +34,7 @@ export function createDebuggingRoutes(store: ProjectStore): Hono {
     }
   })
 
-  app.get('/v1/projects/:ref/advisors/security', async (c) => {
+  routes.get('/v1/projects/:ref/advisors/security', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -62,14 +62,14 @@ export function createDebuggingRoutes(store: ProjectStore): Hono {
     }
   })
 
-  app.get('/v1/projects/:ref/advisors/performance', async (c) => {
+  routes.get('/v1/projects/:ref/advisors/performance', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
     return c.json({ lints: [] })
   })
 
-  return app
+  return routes
 }
 
 function compileLogsSql(sql: string): string {

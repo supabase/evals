@@ -1,12 +1,12 @@
 import { createHmac } from 'node:crypto'
-import { Hono } from 'hono'
 import type { ProjectStore } from '../project-store.js'
+import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
 import { extractRows } from './utils.js'
 
-export function createDevelopmentRoutes(store: ProjectStore): Hono {
-  const app = new Hono()
+export function createDevelopmentRoutes(store: ProjectStore): ManagementApiRoutes {
+  const routes = createManagementApiRoutes()
 
-  app.get('/v1/projects/:ref/studio', async (c) => {
+  routes.get('/v1/projects/:ref/studio', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -19,7 +19,7 @@ export function createDevelopmentRoutes(store: ProjectStore): Hono {
     }
   })
 
-  app.get('/v1/projects/:ref/api-keys', (c) => {
+  routes.get('/v1/projects/:ref/api-keys', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -34,14 +34,14 @@ export function createDevelopmentRoutes(store: ProjectStore): Hono {
     ])
   })
 
-  app.get('/v1/projects/:ref/api-keys/legacy', (c) => {
+  routes.get('/v1/projects/:ref/api-keys/legacy', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
     return c.json({ enabled: true })
   })
 
-  app.get('/v1/projects/:ref/types/typescript', async (c) => {
+  routes.get('/v1/projects/:ref/types/typescript', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
@@ -58,7 +58,7 @@ export function createDevelopmentRoutes(store: ProjectStore): Hono {
     }
   })
 
-  return app
+  return routes
 }
 
 

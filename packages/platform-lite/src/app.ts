@@ -48,7 +48,15 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
 
   const app = new Hono()
 
-  app.route('/', createOpenApiRoutes())
+  const routeBundles = [
+    createAccountRoutes(store),
+    createDatabaseRoutes(store),
+    createFunctionsRoutes(store),
+    createDebuggingRoutes(store),
+    createDevelopmentRoutes(store),
+  ]
+
+  app.route('/', createOpenApiRoutes(routeBundles.flatMap((routes) => routes.openApiRoutes)))
 
   if (accessToken !== undefined) {
     app.use('*', async (c, next) => {
@@ -61,11 +69,9 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
     })
   }
 
-  app.route('/', createAccountRoutes(store))
-  app.route('/', createDatabaseRoutes(store))
-  app.route('/', createFunctionsRoutes(store))
-  app.route('/', createDebuggingRoutes(store))
-  app.route('/', createDevelopmentRoutes(store))
+  for (const routes of routeBundles) {
+    app.route('/', routes.app)
+  }
 
   return { app, store }
 }
