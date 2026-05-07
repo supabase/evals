@@ -1,4 +1,5 @@
 export type LogRow = {
+  id?: string
   ts: Date
   source: string
   level: string

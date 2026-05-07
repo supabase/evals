@@ -3,6 +3,7 @@ import { createPgliteConnection, type PgliteConnection } from 'lite-supa/pglite'
 import { PGlite } from '@electric-sql/pglite'
 import type { LogRow } from '../types.js'
 import { startStudioServer, type StudioServer } from './studio-server.js'
+import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js'
 
 export type Migration = {
   version: string
@@ -41,66 +42,6 @@ $$;
 CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.role', true), '');
 $$;
-`
-
-// LogRow also carries `source` and `level` fields, but edge_logs doesn't have
-// those columns — they aren't part of the queries evals run against this table.
-const LOGS_BASE_SQL = `
-CREATE TABLE IF NOT EXISTS edge_logs (
-  id text,
-  identifier text,
-  timestamp timestamptz NOT NULL DEFAULT now(),
-  ts timestamptz,
-  event_message text,
-  method text,
-  path text,
-  pathname text,
-  search text,
-  status_code integer
-);
-
-CREATE TABLE IF NOT EXISTS auth_logs (
-  id text,
-  identifier text,
-  timestamp timestamptz NOT NULL DEFAULT now(),
-  ts timestamptz,
-  event_message text,
-  level text,
-  msg text,
-  status text,
-  path text,
-  error text
-);
-
-CREATE TABLE IF NOT EXISTS postgres_logs (
-  id text,
-  identifier text,
-  timestamp timestamptz NOT NULL DEFAULT now(),
-  ts timestamptz,
-  event_message text,
-  error_severity text,
-  user_name text,
-  query text,
-  detail text,
-  hint text
-);
-
-CREATE TABLE IF NOT EXISTS function_edge_logs (
-  id text,
-  identifier text,
-  timestamp timestamptz NOT NULL DEFAULT now(),
-  ts timestamptz,
-  event_message text,
-  function_id text,
-  execution_time_ms integer,
-  deployment_id text,
-  version text,
-  status_code integer,
-  method text,
-  pathname text
-);
-
-CREATE VIEW function_logs AS SELECT * FROM function_edge_logs;
 `
 
 export class ProjectInstance {
@@ -154,10 +95,7 @@ export class ProjectInstance {
     await this.logsDb.exec(LOGS_BASE_SQL)
     if (logs?.length) {
       for (const row of logs) {
-        await this.logsDb.query(
-          'INSERT INTO edge_logs (id, timestamp, ts, event_message) VALUES ($1, $2, $3, $4)',
-          [crypto.randomUUID(), row.ts.toISOString(), row.ts.toISOString(), row.message]
-        )
+        await seedLogRow(this.logsDb, row)
       }
     }
   }

@@ -78,6 +78,7 @@ function compileLogsSql(sql: string): string {
   const LOGS_TABLE_PATTERN = /\bfrom\s+(edge_logs|auth_logs|postgres_logs|function_edge_logs|function_logs)\b/i
   const match = compiled.match(LOGS_TABLE_PATTERN)
   const source = (match?.[1]?.toLowerCase() ?? 'edge_logs') as LogsSource
+  const compiledSource = source === 'function_logs' ? 'function_edge_logs' : source
 
   compiled = compiled.replace(/\s+cross\s+join\s+unnest\([^)]+\)\s+as\s+[a-z_]+/gi, '')
   compiled = compiled.replace(/\bdatetime\s*\(\s*([^)]+?)\s*\)/gi, '$1')
@@ -101,6 +102,12 @@ function compileLogsSql(sql: string): string {
       .replace(/\brequest\.pathname\b/gi, 't.pathname')
       .replace(/\bres\.status_code\b/gi, 't.status_code')
       .replace(/\bresponse\.status_code\b/gi, 't.status_code')
+      .replace(/\bmetadata\.function_id\b/gi, 't.function_id')
+      .replace(/\bmetadata\.duration_ms\b/gi, 't.execution_time_ms')
+      .replace(/\bmetadata\.execution_time_ms\b/gi, 't.execution_time_ms')
+      .replace(/\bmetadata\.status_code\b/gi, 't.status_code')
+      .replace(/\bmetadata\.status\b/gi, 't.status_code')
+      .replace(/\bmetadata\.level\b/gi, 't.level')
   }
   if (source === 'auth_logs') {
     compiled = compiled
@@ -115,6 +122,13 @@ function compileLogsSql(sql: string): string {
       .replace(/\bparsed\.error_severity\b/gi, 't.error_severity')
       .replace(/\bparsed\.user_name\b/gi, 't.user_name')
       .replace(/\bparsed\.query\b/gi, 't.query')
+      .replace(/\bparsed\.duration_ms\b/gi, 't.duration_ms')
+      .replace(/\bparsed\.query_hash\b/gi, 't.query_hash')
+      .replace(/\bparsed\.table\b/gi, 't.table_name')
+      .replace(/\bmetadata\.duration_ms\b/gi, 't.duration_ms')
+      .replace(/\bmetadata\.query_hash\b/gi, 't.query_hash')
+      .replace(/\bmetadata\.table\b/gi, 't.table_name')
+      .replace(/\bmetadata\.role\b/gi, 't.role')
   }
   if (source === 'function_edge_logs' || source === 'function_logs') {
     compiled = compiled
@@ -125,12 +139,18 @@ function compileLogsSql(sql: string): string {
       .replace(/\brequest\.method\b/gi, 't.method')
       .replace(/\brequest\.pathname\b/gi, 't.pathname')
       .replace(/\bresponse\.status_code\b/gi, 't.status_code')
+      .replace(/\bmetadata\.function_id\b/gi, 't.function_id')
+      .replace(/\bmetadata\.duration_ms\b/gi, 't.execution_time_ms')
+      .replace(/\bmetadata\.execution_time_ms\b/gi, 't.execution_time_ms')
+      .replace(/\bmetadata\.status_code\b/gi, 't.status_code')
+      .replace(/\bmetadata\.status\b/gi, 't.status_code')
+      .replace(/\bmetadata\.level\b/gi, 't.level')
   }
 
   if (/\bt\./i.test(compiled)) {
-    const aliasPattern = new RegExp(`\\bfrom\\s+${source}\\s+as\\s+t\\b`, 'i')
+    const aliasPattern = new RegExp(`\\bfrom\\s+${compiledSource}\\s+as\\s+t\\b`, 'i')
     if (!aliasPattern.test(compiled)) {
-      compiled = compiled.replace(new RegExp(`\\bfrom\\s+${source}\\b`, 'i'), `from ${source} as t`)
+      compiled = compiled.replace(new RegExp(`\\bfrom\\s+${compiledSource}\\b`, 'i'), `from ${compiledSource} as t`)
     }
   }
 

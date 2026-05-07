@@ -32,26 +32,33 @@ pnpm build
 ### Standalone server
 
 ```ts
-import { createApp, listen } from 'supabox-lite'
+import { createPlatform } from 'platform-lite'
 
-const app = await createApp({ seedDir: './fixtures/example' })
-await listen(app, { port: 3001 })
+const platform = await createPlatform({ seedDir: './fixtures/example' })
+await platform.listen({ port: 3001 })
 ```
 
 ### Embedded in tests (no port, no network)
 
 ```ts
-import { createApp } from 'supabox-lite'
+import { createPlatform } from 'platform-lite'
 
-const app = await createApp({
+const platform = await createPlatform({
   projects: [{
     ref: 'test-project',
     sql: `CREATE TABLE todos (id uuid PRIMARY KEY, body text);`,
-    logs: [{ ts: new Date(), source: 'edge-function', level: 'error', message: 'failed' }]
+    logs: [{
+      id: 'fn-1',
+      ts: new Date(),
+      source: 'edge-function',
+      level: 'error',
+      message: 'failed',
+      metadata: { function_id: 'stripe-webhook', status: 500, duration_ms: 180 }
+    }]
   }]
 })
 
-const res = await app.request('/v1/projects/test-project/database/query', {
+const res = await platform.app.request('/v1/projects/test-project/database/query', {
   method: 'POST',
   body: JSON.stringify({ query: 'SELECT * FROM todos' }),
   headers: { 'Content-Type': 'application/json' }
@@ -66,13 +73,13 @@ const res = await app.request('/v1/projects/test-project/database/query', {
 fixtures/
 └── my-project/
     ├── project.sql     # SQL executed on boot
-    └── logs.jsonl      # one JSON object per line: { ts, source, level, message }
+    └── logs.jsonl      # one JSON object per line: { id?, ts, source, level, message, metadata? }
 ```
 
 ### Programmatic (`projects`)
 
 ```ts
-await createApp({
+await createPlatform({
   projects: [{ ref: 'my-project', sql: 'CREATE TABLE ...', logs: [...] }]
 })
 ```

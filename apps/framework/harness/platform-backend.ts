@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import ts from "typescript";
 import { createPlatform, createManagementApiClient } from "platform-lite";
-import type { ProjectInstance, ManagementApiClient } from "platform-lite";
+import type { ProjectInstance, ManagementApiClient, LogRow } from "platform-lite";
 import type {
   EdgeFunctionsInvokeInput,
   EdgeFunctionsInvokeResult,
@@ -76,22 +76,26 @@ export async function bootPlatformBackend(opts: {
 }
 
 
-function parseJsonl(path: string) {
+function parseJsonl(path: string): LogRow[] {
   return readFileSync(path, "utf8")
     .split("\n")
     .filter((l) => l.trim())
     .map((line) => {
       const obj = JSON.parse(line) as {
+        id?: string;
         ts?: string;
         source?: string;
         level?: string;
         message?: string;
+        metadata?: Record<string, unknown>;
       };
       return {
+        id: obj.id,
         ts: obj.ts ? new Date(obj.ts) : new Date(),
         source: obj.source ?? "unknown",
         level: obj.level ?? "info",
         message: obj.message ?? "",
+        metadata: obj.metadata,
       };
     });
 }

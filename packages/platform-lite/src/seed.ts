@@ -29,12 +29,21 @@ export async function loadSeedDir(dir: string): Promise<ProjectSeed[]> {
         .split('\n')
         .filter((line) => line.trim())
         .map((line) => {
-          const obj = JSON.parse(line) as { ts?: string; source?: string; level?: string; message?: string }
+          const obj = JSON.parse(line) as {
+            id?: string
+            ts?: string
+            source?: string
+            level?: string
+            message?: string
+            metadata?: Record<string, unknown>
+          }
           return {
+            id: obj.id,
             ts: obj.ts ? new Date(obj.ts) : new Date(),
             source: obj.source ?? 'unknown',
             level: obj.level ?? 'info',
             message: obj.message ?? '',
+            metadata: obj.metadata,
           } satisfies LogRow
         })
     } catch {
