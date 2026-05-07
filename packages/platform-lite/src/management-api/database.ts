@@ -16,7 +16,7 @@ export function createDatabaseRoutes(store: ProjectStore): Hono {
     try {
       const result = parameters?.length
         ? await project.pglite.query(query, parameters)
-        : await project.app.connection.exec(query)
+        : await project.pglite.exec(query)
       return c.json(extractRows(result))
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -53,4 +53,3 @@ export function createDatabaseRoutes(store: ProjectStore): Hono {
 
   return app
 }
-

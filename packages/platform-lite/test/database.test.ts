@@ -25,6 +25,26 @@ describe('database', () => {
     expect(data[0].body).toBe('hello')
   })
 
+  it('returns rows from the last SELECT in multi-statement SQL', async () => {
+    const app = await createTestApp([{ ref: 'multi-statement-proj' }])
+
+    const { status, data } = await request<Array<{ n: number }>>(
+      app,
+      'POST',
+      '/v1/projects/multi-statement-proj/database/query',
+      {
+        query: `
+          BEGIN;
+          SELECT 1::int AS n;
+          ROLLBACK;
+        `,
+      }
+    )
+
+    expect(status).toBe(200)
+    expect(data).toEqual([{ n: 1 }])
+  })
+
   it('records migration and re-applies on re-list', async () => {
     const app = await createTestApp([{ ref: 'mig-proj' }])
 
