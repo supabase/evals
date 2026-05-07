@@ -205,6 +205,16 @@ CREATE POLICY "users can read their own todos" ON todos FOR SELECT TO authentica
   console.log("PASS supalite auth + supabase-js client");
 }
 
+async function smokePlatformBackendClose() {
+  const backend = await bootPlatformBackend({});
+  await backend.query("select 1 as n");
+  await backend.close();
+  await assert.rejects(() => backend.query("select 1 as n"));
+  await backend.close();
+
+  console.log("PASS platform backend close disposes platform");
+}
+
 async function smokeEdgeAuthDbEval() {
   const scorer = await loadScorer(EDGE_AUTH_DB_EVAL);
 
@@ -320,6 +330,7 @@ async function main() {
   await smokeClientRlsEval();
   await smokeFunctionsEval();
   await smokeSupaliteClient();
+  await smokePlatformBackendClose();
   await smokeEdgeAuthDbEval();
   await smokeLogsSeeding();
   await smokeObserveEval();

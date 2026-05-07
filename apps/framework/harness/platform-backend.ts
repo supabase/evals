@@ -4,7 +4,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import ts from "typescript";
 import { createPlatform, createManagementApiClient } from "platform-lite";
-import type { ProjectInstance, ManagementApiClient, LogRow } from "platform-lite";
+import type {
+  ProjectInstance,
+  ManagementApiClient,
+  LogRow,
+  PlatformHandle,
+  ServerHandle,
+} from "platform-lite";
 import type {
   EdgeFunctionsInvokeInput,
   EdgeFunctionsInvokeResult,
@@ -46,33 +52,68 @@ export async function bootPlatformBackend(opts: {
     projects: [{ sql, logs }],
   });
 
-  const server = await platform.listen();
+  let server: ServerHandle | undefined;
 
-  const refs = platform.refs();
-  if (refs.length === 0) throw new Error("platform backend: no projects");
-  const ref = refs[0];
-  const instance = platform.getProject(ref)!;
+  try {
+    server = await platform.listen();
 
-  return {
-    url: server.url,
-    ref,
-    accessToken: ACCESS_TOKEN,
-    mgmt: createManagementApiClient(server.url, ACCESS_TOKEN),
-    client: instance.app.getClient(),
-    getClient: () => instance.app.getClient(),
-    query: async (sql) => {
-      const results = await instance.pglite.exec(sql);
-      // Find the last result set that has named fields — multi-statement queries
-      // (e.g. BEGIN/SET/query/ROLLBACK) return multiple result sets; ROLLBACK
-      // produces an empty one so we skip it.
-      const lastRowSet = [...results].reverse().find(
-        (r) => Array.isArray((r as any).fields) && (r as any).fields.length > 0
-      ) as any;
-      return { rows: (lastRowSet?.rows ?? []) as Record<string, unknown>[] };
-    },
-    invokeFunction: (input) => invokeEdgeFunction(instance, input),
-    close: () => server.dispose(),
-  };
+    const refs = platform.refs();
+    if (refs.length === 0) throw new Error("platform backend: no projects");
+    const ref = refs[0];
+    const instance = platform.getProject(ref)!;
+
+    let closed = false;
+
+    return {
+      url: server.url,
+      ref,
+      accessToken: ACCESS_TOKEN,
+      mgmt: createManagementApiClient(server.url, ACCESS_TOKEN),
+      client: instance.app.getClient(),
+      getClient: () => instance.app.getClient(),
+      query: async (sql) => {
+        const results = await instance.pglite.exec(sql);
+        // Find the last result set that has named fields — multi-statement queries
+        // (e.g. BEGIN/SET/query/ROLLBACK) return multiple result sets; ROLLBACK
+        // produces an empty one so we skip it.
+        const lastRowSet = [...results].reverse().find(
+          (r) => Array.isArray((r as any).fields) && (r as any).fields.length > 0
+        ) as any;
+        return { rows: (lastRowSet?.rows ?? []) as Record<string, unknown>[] };
+      },
+      invokeFunction: (input) => invokeEdgeFunction(instance, input),
+      close: async () => {
+        if (closed) return;
+        closed = true;
+        await closePlatformResources(platform, server);
+      },
+    };
+  } catch (err) {
+    await closePlatformResources(platform, server);
+    throw err;
+  }
+}
+
+
+async function closePlatformResources(
+  platform: PlatformHandle,
+  server?: ServerHandle
+): Promise<void> {
+  const errors: unknown[] = [];
+
+  for (const dispose of [server?.dispose.bind(server), platform.dispose.bind(platform)]) {
+    if (!dispose) continue;
+    try {
+      await dispose();
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) {
+    throw new AggregateError(errors, "failed to close platform backend resources");
+  }
 }
 
 
