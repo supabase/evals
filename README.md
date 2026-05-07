@@ -16,7 +16,7 @@ flowchart LR
 | --- | --- | --- |
 | **Design** | Can the agent write good Supabase code, either directly through tool evals or in project evals that connect Supabase to a frontend? | SQL/HTTP/client tests against final state, or Vite/Vitest project checks |
 | **Deploy** | Can the agent follow Supabase deployment structure: declarative schemas, migrations, CLI tooling, management API flows? | Mock management API / future CLI state matches expected |
-| **Observe** | Can the agent query project and observability data so it has the right facts and context? | Report contains planted identifiers, counts, rates, or context derived from `database.query` / `logs.all` |
+| **Observe** | Can the agent query project and observability data so it has the right facts and context? | Report contains planted identifiers, counts, rates, or context derived from the available project data |
 | **Detect** | Can the agent combine observability data and optional project state/code to identify an issue? | Report names the planted root cause and proposes a concrete fix |
 | **Resolve** | Can the agent take findings and apply or propose a working fix in SQL or code? | Re-run probes against the post-fix state; issue clears without breaking expected access |
 
@@ -25,8 +25,8 @@ flowchart LR
 ```
 experiments/      one file per (agent, model)
 skills/           skills installed from supabase/agent-skills
-shims/            mock mgmt-api dispatcher + backends (supalite, PGlite logs, recorders)
-harness/          runner + agent driver + tool surface
+packages/platform-lite/  fake Supabase platform + Management API
+harness/          runner + agent driver + MCP/executor tool wiring
 evals/            eval tasks, each self-contained
 results/          written per (model x eval) pair
 ```
@@ -35,25 +35,30 @@ results/          written per (model x eval) pair
 
 | Mode | How it is detected | Agent surface | Scoring |
 | --- | --- | --- | --- |
-| **Tool eval** | Default eval shape (`PROMPT.md`, `EVAL.ts`, optional `seed/`) | Mock management API tools (`database.query`, `logs.all`, `functions.deploy`, ...) | Scorer uses `ctx.mgmt`, `ctx.client`, and/or `ctx.agentReport` |
+| **Tool eval** | Default eval shape (`PROMPT.md`, `EVAL.ts`, optional `seed/`) | The configured experiment mode's full platform tool surface, backed by `platform-lite` | Scorer uses `ctx.mgmt`, `ctx.client`, `ctx.query`, `ctx.invokeFunction`, and/or `ctx.agentReport` |
 | **Project eval** | Eval has `app/package.json` and `app/src/` | File tools scoped to a copied workspace (`files_list`, `files_read`, `files_write`, `files_edit`) | Scorer runs `vite build` + withheld Vitest/RTL tests against supalite |
 
 Project eval app contents are copied per attempt to `results/<experiment>/<eval-id>/attempt-<n>/workspace/`. The agent edits only that copy. `EVAL.ts` and `tests/` are withheld during the agent turn and copied in before scoring.
 
 ## Tool Surface
 
-Tool eval agents use mock management API endpoints. Tool names mirror real Supabase management API paths where possible:
+Tool eval agents are given the full tool surface for the experiment mode:
+
+- `mcp` mode starts `@supabase/mcp-server-supabase` pointed at the `platform-lite` Management API.
+- `executor` mode starts the executor MCP server against the `platform-lite` OpenAPI spec.
+
+Prompts should describe the user outcome, not prescribe a specific framework tool. The eval should verify that the agent routes to useful tools from the available surface.
+
+Key platform capabilities are backed by these `platform-lite` routes:
 
 | Tool | Real mgmt-api endpoint | Backed by |
 | --- | --- | --- |
-| `database.query` | `POST /v1/projects/{ref}/database/query` | supalite project DB ([shims/project-db.ts](shims/project-db.ts)) |
-| `logs.all` | `GET /v1/projects/{ref}/analytics/endpoints/logs.all` | PGlite logs DB ([shims/logs-db.ts](shims/logs-db.ts)) |
-| `functions.deploy` | `POST /v1/projects/{ref}/functions/deploy` | in-memory Edge Functions runtime ([shims/edge-functions.ts](shims/edge-functions.ts)) |
-| `functions.list` | `GET /v1/projects/{ref}/functions` | in-memory Edge Functions runtime ([shims/edge-functions.ts](shims/edge-functions.ts)) |
+| Database SQL | `POST /v1/projects/{ref}/database/query` | supalite project DB |
+| Log analytics | `GET /v1/projects/{ref}/analytics/endpoints/logs.all` | PGlite logs DB |
+| Edge Function deployment | `POST /v1/projects/{ref}/functions/deploy` | in-memory Edge Functions runtime |
+| Edge Function listing/body fetch | `GET /v1/projects/{ref}/functions...` | in-memory Edge Functions runtime |
 
-Per-eval tool allowlists live in `tools.json`. Narrow them aggressively. Design RLS evals usually get only `database.query`; Observe log evals get only `logs.all`; Resolve evals get exactly the tools needed to apply the fix.
-
-The project DB is a single supalite App backed by PGlite. `database.query`, scorers using `ctx.client`, and deployed Edge Functions using `@supabase/supabase-js` all target that same project state. Logs remain separate: `logs.all` queries a standalone PGlite table seeded from `seed/logs.jsonl`.
+The project DB is a single supalite App backed by PGlite. Management API SQL calls, scorers using `ctx.client`, and deployed Edge Functions using `@supabase/supabase-js` all target that same project state. Logs remain separate: log analytics queries a standalone PGlite table seeded from `seed/logs.jsonl`.
 
 ## Project Eval File Tools
 
@@ -88,7 +93,7 @@ Skills come from [supabase/agent-skills](https://github.com/supabase/agent-skill
 
 ```bash
 npm run check       # typecheck + credential-free framework smoke
-npm run eval:dry    # discovery + tool plan
+npm run eval:dry    # discovery + execution plan
 npm run eval        # all (model x eval) pairs that haven't run
 npm run eval:force  # re-run everything
 npm run eval:smoke  # one eval per category per experiment
@@ -101,7 +106,7 @@ npm run eval:dry -- --experiment openai-gpt-5.4-mini
 npm run eval -- --model gpt-5.4-mini
 ```
 
-`scripts/smoke-framework.ts` exercises the dispatcher, tool surface, sample seeds, supabase-js auth/data calls against supalite, and sample scorers without needing an API key. Agent-backed runs require `ANTHROPIC_API_KEY` for Anthropic experiments and `OPENAI_API_KEY` for OpenAI experiments.
+`scripts/smoke-framework.ts` exercises platform-lite, sample seeds, supabase-js auth/data calls against supalite, and sample scorers without needing an API key. Agent-backed runs require `ANTHROPIC_API_KEY` for Anthropic experiments and `OPENAI_API_KEY` for OpenAI experiments.
 
 ## Adding An Eval
 
@@ -146,18 +151,17 @@ resolve-performance-001-slow-query-index/
 Every eval contains:
 
 1. `PROMPT.md` — the only task description the agent sees. Be concrete about success criteria, but do not leak exact scorer assertions.
-2. `EVAL.ts` — default-export a `Scorer` from [harness/types.ts](harness/types.ts). Return `{ passed, score, notes }`.
-3. `tools.json` — tool eval allowlist. Empty or missing means the experiment defaults apply, but evals should usually narrow this explicitly.
-4. `skills.json` — skills from [skills/MANIFEST.md](skills/MANIFEST.md). Empty array means experiment defaults.
-5. Optional `seed/project.sql` — applied to a fresh supalite project DB.
-6. Optional `seed/logs.jsonl` — one JSON object per line with columns `id`, `ts`, `source`, `level`, `message?`, `metadata`.
+2. `EVAL.ts` — default-export a `ToolScorer` or `ProjectScorer` from [harness/types.ts](harness/types.ts). Return `{ passed, score, notes }`.
+3. `skills.json` — skills to include from the `skills/` directory. Empty array means experiment defaults.
+4. Optional `seed/project.sql` — applied to a fresh supalite project DB.
+5. Optional `seed/logs.jsonl` — one JSON object per line with columns `id`, `ts`, `source`, `level`, `message?`, `metadata`.
 
 Common scoring patterns:
 
 | Pattern | Use for | Context |
 | --- | --- | --- |
-| DB state assertion | Design DB/RLS, Resolve SQL | `ctx.mgmt.call("database.query", { query })` |
-| Supabase client assertion | RLS, Auth, Data API, Edge Functions | `ctx.client` plus additional clients from `ctx.mgmt.backends.projectDb.app.getClient()` |
+| DB state assertion | Design DB/RLS, Resolve SQL | `ctx.query(sql)` |
+| Supabase client assertion | RLS, Auth, Data API, Edge Functions | `ctx.client` plus additional clients from `ctx.getClient()` |
 | Report assertion | Observe, Detect | `ctx.agentReport` |
 | Project checks | Frontend / full app | `ctx.workspace`, then `runProjectChecks(ctx.workspace)` |
 
@@ -213,23 +217,23 @@ To test changes to a skill before they're merged upstream, check out a branch in
 
 ## Adding A Management API Endpoint
 
-Endpoints are registered in [shims/management-api.ts](shims/management-api.ts). Once registered, an endpoint is exposed to the agent subject to per-eval allowlists and callable from scorers via `ctx.mgmt.call(...)`.
+Endpoints are implemented in `packages/platform-lite/src/management-api/`. Once implemented and exposed through the selected MCP mode, they are available to agents as part of the full platform tool surface and callable from scorers via `ctx.mgmt`.
 
 To add an endpoint:
 
-1. Add the endpoint name to the `Endpoint` union in [shims/management-api.ts](shims/management-api.ts).
-2. Register a handler in `register()` with an HTTP path, description, input schema, and handler.
-3. If needed, add a backend under `shims/` and wire it through `bootMgmtApi`.
-4. Add it to specific eval `tools.json` files or to experiment defaults.
+1. Add or update the route module under `packages/platform-lite/src/management-api/`.
+2. Wire the route from `packages/platform-lite/src/app.ts`.
+3. If executor mode needs it, include the route in the filtered OpenAPI surface.
+4. Add tests or smoke coverage showing the endpoint works through the intended agent-facing mode.
 
 Backend ideas not yet built:
 
 - `database.query_stats` for Observe/Detect/Resolve performance evals.
 - `database.indexes` as a convenience over `pg_indexes`.
 - `cli.run` for future Deploy evals.
-- Secrets, Storage, Auth config, and Realtime shims.
+- Secrets, Storage, Auth config, and Realtime endpoints.
 
-Add at most one new shim per PR. Each shim is a long-lived contract.
+Add at most one new endpoint family per PR. Each platform route is a long-lived contract.
 
 ## Adding A Model / Experiment
 
@@ -239,17 +243,16 @@ Create `experiments/<model-id>.ts` and default-export an `ExperimentConfig`:
 - `provider`: `anthropic` or `openai`.
 - `model`: model id passed to that provider.
 - `providerOptions`: optional provider-specific options.
-- `defaultSkills`: skills loaded for every eval unless the eval narrows them.
-- `defaultTools`: management API endpoint allowlist unless the eval narrows it.
+- `skills`: skills loaded for every eval unless the eval provides its own `skills.json`.
 - `runs`, `earlyExit`, `timeoutSec`: retry and timeout behavior.
 
 Variants use the suffix convention `<model-id>--<variant>.ts`.
 
 ## For Agents Extending This Suite
 
-- Do not invent manifest fields. Discovery is directory naming + `skills.json` + `tools.json` + files in `seed/`.
+- Do not invent manifest fields. Discovery is directory naming + `skills.json` + files in `seed/`.
 - Do not author skills locally. Skills live upstream in `supabase/agent-skills`.
-- Do not bypass the management API dispatcher in tool evals. If the agent needs a capability, model it as an endpoint.
+- Do not bypass platform-lite in tool evals. If the agent needs a capability, model it as a Management API endpoint.
 - Do not leak scorer assertions into `PROMPT.md`.
 - Plant deterministic identifiers in Observe/Detect seeds: table names, `query_hash`, function ids, exact counts.
 - Keep Resolve evals behavior-driven. The scorer should verify the issue is actually fixed.
@@ -263,7 +266,7 @@ Variants use the suffix convention `<model-id>--<variant>.ts`.
 | Experiment configs | done |
 | Sample evals (Design / Observe / Detect / Resolve) | done |
 | Skills wired to supabase/agent-skills | done |
-| Mgmt-api dispatcher (`database.query`, `logs.all`, `functions.deploy`, `functions.list`) | done |
+| platform-lite Management API + MCP/executor integration | done |
 | supalite project DB (PostgREST + GoTrue + PGlite backend) | done |
 | PGlite logs DB | done |
 | In-memory Edge Functions runtime with supabase-js bridge | done |
@@ -275,9 +278,9 @@ Variants use the suffix convention `<model-id>--<variant>.ts`.
 | Detect category | done (security + reliability evals) |
 | Resolve category | done (security + performance evals) |
 | Notify category | removed |
-| Notifications shim/endpoint | removed |
+| Notifications endpoint | removed |
 | Deploy category | not started |
 | `claude-code` subprocess driver | not started |
 | Secrets / Storage / Auth-config endpoints | not started |
-| Realtime shim | not started |
+| Realtime endpoint | not started |
 | Results export script | not started |

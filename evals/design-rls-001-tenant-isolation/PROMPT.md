@@ -3,7 +3,7 @@
 You are working on a Supabase project for a multi-tenant SaaS app.
 
 The schema has two tables — `notes` and `memberships` — already created and
-seeded. Inspect them via the `database.query` tool if you need to.
+seeded. Inspect the project state if you need to.
 
 ```sql
 -- notes
@@ -20,5 +20,5 @@ Add the RLS policies needed so that authenticated users can:
    `author_id = auth.uid()`.
 3. `UPDATE` and `DELETE` only their own notes.
 
-Apply the migration via the `database.query` tool. End your turn when you
-believe the policies are in place.
+Apply the required database changes. End your turn when you believe the
+policies are in place.

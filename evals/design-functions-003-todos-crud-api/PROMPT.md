@@ -35,6 +35,5 @@ Return JSON errors for missing auth (`401`), unsupported methods (`405`),
 invalid JSON (`400`), invalid UUID path params (`400`), invalid query params
 (`400`), and database failures.
 
-Use the `functions.deploy` tool to deploy the function with slug `todos-api`.
-Pass the implementation as a single `index.ts` source string in the `file`
-array, with function metadata in `metadata`.
+Deploy the function with slug `todos-api`. The deployed source should be a
+single `index.ts` file.

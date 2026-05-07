@@ -8,4 +8,4 @@ Report:
 - The exact error count
 - The total event count for that function in the same window
 
-Use only the `logs.all` tool.
+Use the available project observability data to answer.

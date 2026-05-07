@@ -30,6 +30,5 @@ Implement this behavior:
 6. Return `200` JSON with `subtotal_cents`, `discount_cents`, `tax_cents`, and
    `total_cents`.
 
-Use the `functions.deploy` tool to deploy the function with slug `order-total`.
-Pass the implementation as a single `index.ts` source string in the `file`
-array, with function metadata in `metadata`.
+Deploy the function with slug `order-total`. The deployed source should be a
+single `index.ts` file.
