@@ -82,8 +82,9 @@ export async function createPlatform(options: AppOptions = {}): Promise<Platform
     getProject: (ref) => store.get(ref),
     refs: () => [...store.keys()],
     listen: async (options) => {
-      const { port, close } = await listen(app, options)
-      const url = `http://localhost:${port}`
+      const { port, hostname, close } = await listen(app, options)
+      const urlHost = hostname === '0.0.0.0' ? 'localhost' : hostname
+      const url = `http://${urlHost}:${port}`
       const serverDispose = async () => { close() }
       return {
         url,

@@ -6,13 +6,17 @@ import { extractRows } from './utils.js'
 export function createDevelopmentRoutes(store: ProjectStore): Hono {
   const app = new Hono()
 
-  app.get('/v1/projects/:ref/studio', (c) => {
+  app.get('/v1/projects/:ref/studio', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
-    const url = project.studioUrl
-    if (!url) return c.json({ message: 'Studio not available' }, 503)
-    return c.json({ url })
+    try {
+      const url = await project.getStudioUrl()
+      return c.json({ url })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return c.json({ message }, 503)
+    }
   })
 
   app.get('/v1/projects/:ref/api-keys', (c) => {

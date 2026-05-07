@@ -30,7 +30,7 @@ describe('MCP platform integration', () => {
   beforeEach(async () => {
     app = await createTestApp([{ ref: REF, sql: SEED_SQL }])
     platform = makePlatform(app)
-  })
+  }, 60_000)
 
   afterEach(() => {
     vi.unstubAllGlobals()

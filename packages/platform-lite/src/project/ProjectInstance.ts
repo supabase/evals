@@ -90,8 +90,6 @@ export class ProjectInstance {
       await this.app.connection.exec(sql)
     }
 
-    this.#studio = await startStudioServer(this.app)
-
     await this.logsDb.exec(LOGS_BASE_SQL)
     if (logs?.length) {
       for (const row of logs) {
@@ -107,7 +105,12 @@ export class ProjectInstance {
   }
 
   get studioUrl(): string | undefined {
-    return this.#studio ? `http://localhost:${this.#studio.port}` : undefined
+    return this.#studio ? `http://127.0.0.1:${this.#studio.port}` : undefined
+  }
+
+  async getStudioUrl(): Promise<string> {
+    this.#studio ??= await startStudioServer(this.app)
+    return `http://127.0.0.1:${this.#studio.port}`
   }
 
   get jwtSecret(): string {

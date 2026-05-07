@@ -34,7 +34,7 @@ export function startStudioServer(app: App): Promise<StudioServer> {
     .all('*', (c) => app.fetch(c.req.raw))
 
   return new Promise<StudioServer>((resolve, reject) => {
-    const httpServer = serve({ fetch: hono.fetch, port: 0 }, (info) => {
+    const httpServer = serve({ fetch: hono.fetch, port: 0, hostname: '127.0.0.1' }, (info) => {
       resolve({
         port: info.port,
         stop: () => new Promise<void>((res) => httpServer.close(() => res())),
