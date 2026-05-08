@@ -10,22 +10,8 @@ export type {
   ProjectEvalContext,
   ToolScorer,
   ProjectScorer,
-} from "eval-types";
-
-export type AgentRuntime = "ai-sdk";
-export type ModelProvider = "anthropic" | "openai";
-export type AgentMode = "mcp" | "executor";
-
-export interface ExperimentConfig {
-  agent: AgentRuntime;
-  provider: ModelProvider;
-  model: string;
-  providerOptions?: Record<string, unknown>;
-  skills: string[];
-  mode: AgentMode;
-  earlyExit: boolean;
-  timeoutSec: number;
-}
+  ExperimentConfig,
+} from "@supabase-evals/core";
 
 export type EvalCategory = "design" | "deploy" | "observe" | "detect" | "resolve";
 export type EvalMode = "tool" | "project";

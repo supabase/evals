@@ -1,0 +1,749 @@
+import vm from "node:vm";
+import { createHmac } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createMCPClient } from "@ai-sdk/mcp";
+import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
+import { generateText, stepCountIs, type JSONValue, type LanguageModel, type ToolSet } from "ai";
+import ts from "typescript";
+import {
+  createManagementApiClient,
+  createPlatform,
+  type ManagementApiClient,
+  type PlatformHandle,
+  type ProjectInstance,
+  type ServerHandle,
+} from "@supabase-evals/platform-lite";
+
+export type { SupabaseClient };
+export type { ManagementApiClient };
+
+export type EvalResult = {
+  experiment: string;
+  eval: string;
+  passed: boolean;
+  score?: number;
+  notes?: string;
+  prompt?: string;
+  promptSourcePath?: string;
+  attempts?: number;
+  sourcePath: string;
+};
+
+export interface ScoreResult {
+  passed: boolean;
+  score: number;
+  notes?: string;
+}
+
+export interface ToolCallRecord {
+  endpoint: string;
+  body: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
+  ts: number;
+}
+
+export interface CommandResult {
+  ok: boolean;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+export interface VitestResult extends CommandResult {
+  passed?: number;
+  failed?: number;
+  failures?: string[];
+}
+
+export interface ProjectResult {
+  build: CommandResult;
+  vitest?: VitestResult;
+}
+
+export interface EdgeFunctionsInvokeInput {
+  name: string;
+  method?: string;
+  path?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+}
+
+export interface EdgeFunctionsInvokeResult {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface ToolScoringContext {
+  /** Typed Management API client pointed at the platform-lite server for this eval. */
+  mgmt: ManagementApiClient;
+  /** Project ref — needed as a path param in Management API calls. */
+  ref: string;
+  /** Supabase data-plane client (PostgREST / auth / storage). */
+  client: SupabaseClient;
+  /** Create a fresh independent Supabase client (useful for multi-user RLS tests). */
+  getClient: () => SupabaseClient;
+  /** Run a SQL query in-process against the project database. */
+  query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  /** Invoke a deployed edge function in-process. */
+  invokeFunction: (input: EdgeFunctionsInvokeInput) => Promise<EdgeFunctionsInvokeResult>;
+}
+
+export interface ToolEvalContext extends ToolScoringContext {
+  toolCalls: ToolCallRecord[];
+  agentReport?: string;
+}
+
+export interface ProjectEvalContext {
+  workspace: string;
+  projectResult: ProjectResult;
+  toolCalls: ToolCallRecord[];
+  agentReport?: string;
+}
+
+export type ToolScorer = (ctx: ToolEvalContext) => Promise<ScoreResult>;
+export type ProjectScorer = (ctx: ProjectEvalContext) => Promise<ScoreResult>;
+
+export type AgentRunArgs = {
+  systemPrompt: string;
+  userPrompt: string;
+  tools: ToolSet;
+  timeoutSec: number;
+};
+
+export type AgentRunResult = {
+  agentReport: string;
+  toolCalls: ToolCallRecord[];
+  steps: number;
+  stoppedReason: string;
+};
+
+export type AgentHarness = {
+  id: string;
+  modelId: string;
+  assertReady(): void;
+  run(args: AgentRunArgs): Promise<AgentRunResult>;
+};
+
+export type ExperimentConfig = {
+  agent: AgentHarness;
+  runtime: EvalRuntime;
+  skills: string[];
+};
+
+export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
+  return config;
+}
+
+export type AiSdkProviderOptions = Record<string, Record<string, JSONValue>>;
+
+export function aiSdkAgent(options: {
+  model: Exclude<LanguageModel, string>;
+  providerOptions?: AiSdkProviderOptions;
+}): AgentHarness {
+  return {
+    id: "ai-sdk",
+    modelId: options.model.modelId,
+    assertReady() {
+      assertProviderReady(options.model.provider);
+    },
+    async run(args) {
+      assertProviderReady(options.model.provider);
+      const toolCalls: ToolCallRecord[] = [];
+
+      const result = await generateText({
+        model: options.model,
+        system: args.systemPrompt,
+        prompt: args.userPrompt,
+        tools: args.tools,
+        stopWhen: stepCountIs(MAX_STEPS),
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        timeout: { totalMs: args.timeoutSec * 1000 },
+        providerOptions: withProviderDefaults(options.model.provider, options.providerOptions),
+        experimental_onToolCallFinish: (event) => {
+          toolCalls.push({
+            endpoint: event.toolCall.toolName,
+            body: isRecord(event.toolCall.input) ? event.toolCall.input : {},
+            result: event.output,
+            ts: Date.now(),
+          });
+        },
+      });
+
+      return {
+        agentReport: result.text.trim(),
+        toolCalls,
+        steps: result.steps.length,
+        stoppedReason: result.steps.length >= MAX_STEPS ? "max_steps" : result.finishReason,
+      };
+    },
+  };
+}
+
+export type EvalRuntime = {
+  id: string;
+  startSession(args: EvalSessionArgs): Promise<EvalSession>;
+};
+
+export type EvalSessionArgs = {
+  projectSeedSql?: string;
+  logsSeedJsonl?: string;
+};
+
+export type EvalSession = {
+  tools: ToolSet;
+  promptAddendum?: string;
+  scoringContext: ToolScoringContext;
+  close(): Promise<void>;
+};
+
+export type McpServerContext = {
+  port: number;
+  accessToken: string;
+};
+
+export type McpToolsHandle = {
+  tools: ToolSet;
+  close(): Promise<void>;
+};
+
+export type McpServerConfig = {
+  id: string;
+  promptAddendum?: string;
+  createAiSdkTools(context: McpServerContext): Promise<McpToolsHandle>;
+};
+
+export function platformLiteRuntime(options: { mcpServers: McpServerConfig[] }): EvalRuntime {
+  return {
+    id: "platform-lite",
+    async startSession(args) {
+      const backend = await bootPlatformBackend(args);
+      const handles: McpToolsHandle[] = [];
+
+      try {
+        for (const mcpServer of options.mcpServers) {
+          handles.push(
+            await mcpServer.createAiSdkTools({
+              port: Number(new URL(backend.url).port),
+              accessToken: backend.accessToken,
+            })
+          );
+        }
+
+        return {
+          tools: mergeToolSets(handles.map((handle) => handle.tools)),
+          promptAddendum: options.mcpServers
+            .map((mcpServer) => mcpServer.promptAddendum)
+            .filter(isNonEmptyString)
+            .join("\n\n") || undefined,
+          scoringContext: {
+            mgmt: backend.mgmt,
+            ref: backend.ref,
+            client: backend.client,
+            getClient: backend.getClient,
+            query: backend.query,
+            invokeFunction: backend.invokeFunction,
+          },
+          close: async () => {
+            const errors: unknown[] = [];
+            for (const handle of handles) {
+              try {
+                await handle.close();
+              } catch (err) {
+                errors.push(err);
+              }
+            }
+            try {
+              await backend.close();
+            } catch (err) {
+              errors.push(err);
+            }
+            throwIfCloseErrors(errors, "failed to close eval session resources");
+          },
+        };
+      } catch (err) {
+        const closeErrors: unknown[] = [];
+        for (const handle of handles) {
+          try {
+            await handle.close();
+          } catch (closeErr) {
+            closeErrors.push(closeErr);
+          }
+        }
+        try {
+          await backend.close();
+        } catch (closeErr) {
+          closeErrors.push(closeErr);
+        }
+        if (closeErrors.length > 0) {
+          throw new AggregateError([err, ...closeErrors], "failed to start eval session");
+        }
+        throw err;
+      }
+    },
+  };
+}
+
+export function supabaseMcpServer(options: {
+  features?: string[];
+  version?: string;
+} = {}): McpServerConfig {
+  const features = options.features ?? ["account", "database", "development", "debugging", "functions"];
+  const version = options.version ?? MCP_SERVER_VERSION;
+
+  return {
+    id: "supabase-mcp",
+    async createAiSdkTools({ port, accessToken }) {
+      const transport = new StdioMCPTransport({
+        command: "npx",
+        args: [
+          `@supabase/mcp-server-supabase@${version}`,
+          "--access-token",
+          accessToken,
+          "--api-url",
+          `http://localhost:${port}`,
+          "--features",
+          features.join(","),
+        ],
+        stderr: "ignore",
+      });
+      const mcp = await createMCPClient({ transport });
+      const tools = await mcp.tools();
+      return { tools, close: () => mcp.close() };
+    },
+  };
+}
+
+export function executorMcpServer(): McpServerConfig {
+  return {
+    id: "executor-mcp",
+    promptAddendum:
+      "When execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept.",
+    async createAiSdkTools({ port, accessToken }) {
+      const scopeDir = mkdtempSync(join(tmpdir(), "eval-executor-scope-"));
+      const dataDir = mkdtempSync(join(tmpdir(), "eval-executor-data-"));
+
+      writeFileSync(
+        join(scopeDir, "executor.jsonc"),
+        JSON.stringify({
+          sources: [
+            {
+              kind: "openapi",
+              namespace: "platform",
+              spec: `http://localhost:${port}/openapi.json`,
+              baseUrl: `http://localhost:${port}`,
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
+          ],
+        })
+      );
+
+      const transport = new StdioMCPTransport({
+        command: "executor",
+        args: ["mcp", "--scope", scopeDir],
+        env: { ...process.env, EXECUTOR_DATA_DIR: dataDir },
+        stderr: "ignore",
+      });
+
+      const mcp = await createMCPClient({ transport });
+      const tools = await mcp.tools();
+      return {
+        tools,
+        close: async () => {
+          const errors: unknown[] = [];
+          try {
+            await mcp.close();
+          } catch (err) {
+            errors.push(err);
+          }
+          for (const dir of [scopeDir, dataDir]) {
+            try {
+              rmSync(dir, { recursive: true, force: true });
+            } catch (err) {
+              errors.push(err);
+            }
+          }
+          throwIfCloseErrors(errors, "failed to close executor MCP resources");
+        },
+      };
+    },
+  };
+}
+
+export const ACCESS_TOKEN = "eval-token";
+export const MCP_SERVER_VERSION = "0.8.1";
+
+export interface PlatformBackend {
+  url: string;
+  ref: string;
+  accessToken: string;
+  mgmt: ManagementApiClient;
+  client: SupabaseClient;
+  getClient: () => SupabaseClient;
+  query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  invokeFunction: (input: EdgeFunctionsInvokeInput) => Promise<EdgeFunctionsInvokeResult>;
+  close: () => Promise<void>;
+}
+
+export async function bootPlatformBackend(opts: {
+  projectSeedSql?: string;
+  logsSeedJsonl?: string;
+}): Promise<PlatformBackend> {
+  const sql =
+    opts.projectSeedSql && existsSync(opts.projectSeedSql)
+      ? readFileSync(opts.projectSeedSql, "utf8")
+      : undefined;
+
+  const logs =
+    opts.logsSeedJsonl && existsSync(opts.logsSeedJsonl)
+      ? parseJsonl(opts.logsSeedJsonl)
+      : undefined;
+
+  const platform = await createPlatform({
+    accessToken: ACCESS_TOKEN,
+    projects: [{ sql, logs }],
+  });
+
+  let server: ServerHandle | undefined;
+
+  try {
+    server = await platform.listen();
+
+    const refs = platform.refs();
+    if (refs.length === 0) throw new Error("platform backend: no projects");
+    const ref = refs[0];
+    const instance = platform.getProject(ref);
+    if (!instance) throw new Error(`platform backend: project missing: ${ref}`);
+
+    let closed = false;
+
+    return {
+      url: server.url,
+      ref,
+      accessToken: ACCESS_TOKEN,
+      mgmt: createManagementApiClient(server.url, ACCESS_TOKEN),
+      client: instance.app.getClient(),
+      getClient: () => instance.app.getClient(),
+      query: async (sql) => {
+        const results = await instance.pglite.exec(sql);
+        const lastRowSet = [...results].reverse().find(hasNamedFields);
+        return { rows: toRecordRows(lastRowSet?.rows) };
+      },
+      invokeFunction: (input) => invokeEdgeFunction(instance, input),
+      close: async () => {
+        if (closed) return;
+        closed = true;
+        await closePlatformResources(platform, server);
+      },
+    };
+  } catch (err) {
+    await closePlatformResources(platform, server);
+    throw err;
+  }
+}
+
+const MAX_STEPS = 30;
+const MAX_OUTPUT_TOKENS = 4096;
+const RUNTIME_URL = "http://supabase-evals.local";
+
+function assertProviderReady(provider: string): void {
+  if (provider.startsWith("openai") && !process.env.OPENAI_API_KEY) {
+    throw new Error("Missing OpenAI credentials. Set OPENAI_API_KEY before running OpenAI evals.");
+  }
+  if (provider.startsWith("anthropic") && !process.env.ANTHROPIC_API_KEY) {
+    throw new Error("Missing Anthropic credentials. Set ANTHROPIC_API_KEY before running Anthropic evals.");
+  }
+}
+
+function withProviderDefaults(
+  provider: string,
+  options: AiSdkProviderOptions = {}
+): AiSdkProviderOptions | undefined {
+  const merged = provider.startsWith("openai")
+    ? { ...options, openai: withOpenAiZdrDefaults(options.openai) }
+    : options;
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
+function withOpenAiZdrDefaults(options: Record<string, JSONValue> = {}): Record<string, JSONValue> {
+  const rawInclude = options.include;
+  const include = Array.isArray(rawInclude) ? rawInclude.filter(isString) : [];
+  return {
+    ...options,
+    store: options.store ?? false,
+    include: include.includes("reasoning.encrypted_content")
+      ? include
+      : [...include, "reasoning.encrypted_content"],
+  };
+}
+
+async function closePlatformResources(
+  platform: PlatformHandle,
+  server?: ServerHandle
+): Promise<void> {
+  const errors: unknown[] = [];
+
+  for (const dispose of [server?.dispose.bind(server), platform.dispose.bind(platform)]) {
+    if (!dispose) continue;
+    try {
+      await dispose();
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+
+  throwIfCloseErrors(errors, "failed to close platform backend resources");
+}
+
+type LogRow = {
+  id?: string;
+  ts: Date;
+  source: string;
+  level: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+};
+
+function parseJsonl(path: string): LogRow[] {
+  return readFileSync(path, "utf8")
+    .split("\n")
+    .filter((line) => line.trim())
+    .map(parseLogLine);
+}
+
+function parseLogLine(line: string): LogRow {
+  const obj = JSON.parse(line);
+  const record = isRecord(obj) ? obj : {};
+  const ts = typeof record.ts === "string" ? new Date(record.ts) : new Date();
+  return {
+    id: typeof record.id === "string" ? record.id : undefined,
+    ts,
+    source: typeof record.source === "string" ? record.source : "unknown",
+    level: typeof record.level === "string" ? record.level : "info",
+    message: typeof record.message === "string" ? record.message : "",
+    metadata: isRecord(record.metadata) ? record.metadata : undefined,
+  };
+}
+
+function generateAnonKey(ref: string, jwtSecret: string): string {
+  const b64url = (s: string) => Buffer.from(s).toString("base64url");
+  const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const body = b64url(
+    JSON.stringify({
+      role: "anon",
+      iss: "supabase-lite",
+      ref,
+      iat: Math.floor(Date.now() / 1000),
+      exp: 9999999999,
+    })
+  );
+  const sig = createHmac("sha256", jwtSecret)
+    .update(`${header}.${body}`)
+    .digest("base64url");
+  return `${header}.${body}.${sig}`;
+}
+
+async function invokeEdgeFunction(
+  instance: ProjectInstance,
+  input: EdgeFunctionsInvokeInput
+): Promise<EdgeFunctionsInvokeResult> {
+  const fn = instance.functions.get(input.name);
+  if (!fn) throw new Error(`edge function not found: ${input.name}`);
+  const source = fn.files[0]?.content;
+  if (!source) throw new Error(`edge function ${input.name} has no source`);
+
+  const anonKey = generateAnonKey(instance.ref, instance.jwtSecret);
+  const projectFetch = (req: Request) => instance.app.fetch(req);
+  const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
+  const handler = compileEdgeFunction(source, RUNTIME_URL, anonKey, runtimeFetch);
+
+  const method = (input.method ?? "POST").toUpperCase();
+  const headers = new Headers(input.headers ?? {});
+  const hasBody =
+    method !== "GET" && method !== "HEAD" && input.body !== undefined;
+  const bodyStr =
+    typeof input.body === "string"
+      ? input.body
+      : input.body === undefined
+        ? undefined
+        : JSON.stringify(input.body);
+
+  if (bodyStr !== undefined && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
+  const response = await Promise.resolve(
+    handler(
+      new Request(
+        `https://project-ref.functions.supabase.co/${input.name}${input.path ?? ""}`,
+        { method, headers, body: hasBody ? bodyStr : undefined }
+      )
+    )
+  );
+  if (!(response instanceof Response)) {
+    throw new Error(`edge function ${input.name} did not return a Response`);
+  }
+
+  return {
+    status: response.status,
+    headers: Object.fromEntries(response.headers.entries()),
+    body: await response.text(),
+  };
+}
+
+type EdgeHandler = (req: Request) => unknown;
+
+function createRuntimeFetch(
+  runtimeUrl: string,
+  projectFetch: (req: Request) => Promise<Response>
+): typeof fetch {
+  const origin = new URL(runtimeUrl).origin;
+  return async (input, init) => {
+    const req = new Request(input, init);
+    const reqOrigin = new URL(req.url).origin;
+    if (reqOrigin === origin || reqOrigin === "http://localhost") {
+      return projectFetch(req);
+    }
+    return fetch(req);
+  };
+}
+
+function compileEdgeFunction(
+  source: string,
+  url: string,
+  anonKey: string,
+  runtimeFetch: typeof fetch
+): EdgeHandler {
+  const js = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
+  }).outputText;
+
+  let denoServeHandler: EdgeHandler | undefined;
+  const exports: Record<string, unknown> = {};
+  const moduleState: { exports: Record<string, unknown> } = { exports };
+
+  const requireFromSandbox = (specifier: string) => {
+    if (specifier === "@supabase/supabase-js") {
+      return {
+        createClient: (
+          u: string,
+          k: string,
+          opts: Parameters<typeof createClient>[2] = {}
+        ) =>
+          createClient(u, k, {
+            ...opts,
+            global: { ...opts?.global, fetch: runtimeFetch },
+          }),
+      };
+    }
+    throw new Error(`edge function import not supported: ${specifier}`);
+  };
+
+  const sandbox = {
+    Deno: {
+      serve: (optOrHandler: unknown, maybeHandler?: unknown) => {
+        const handler = typeof optOrHandler === "function" ? optOrHandler : maybeHandler;
+        if (typeof handler !== "function") {
+          throw new Error("Deno.serve requires a handler");
+        }
+        denoServeHandler = (req) => handler(req);
+      },
+      env: {
+        get: (key: string) =>
+          key === "SUPABASE_URL"
+            ? url
+            : key === "SUPABASE_ANON_KEY"
+              ? anonKey
+              : undefined,
+      },
+    },
+    fetch: runtimeFetch,
+    Request,
+    Response,
+    Headers,
+    URL,
+    URLSearchParams,
+    Blob,
+    FormData,
+    TextDecoder,
+    TextEncoder,
+    atob,
+    btoa,
+    crypto,
+    console: { log: () => undefined, warn: () => undefined, error: () => undefined },
+    exports,
+    module: moduleState,
+    require: requireFromSandbox,
+  };
+
+  vm.runInNewContext(js, sandbox, { timeout: 100, displayErrors: true });
+
+  const handler =
+    denoServeHandler ??
+    functionToEdgeHandler(moduleState.exports.default) ??
+    functionToEdgeHandler(exports.default);
+
+  if (!handler) {
+    throw new Error(
+      "edge function must call Deno.serve(handler) or export a default handler"
+    );
+  }
+
+  return handler;
+}
+
+function functionToEdgeHandler(value: unknown): EdgeHandler | undefined {
+  if (typeof value !== "function") return undefined;
+  return (req) => value(req);
+}
+
+type QueryResultWithFields = {
+  fields: unknown[];
+  rows?: unknown;
+};
+
+function hasNamedFields(value: unknown): value is QueryResultWithFields {
+  return isRecord(value) && Array.isArray(value.fields) && value.fields.length > 0;
+}
+
+function toRecordRows(rows: unknown): Record<string, unknown>[] {
+  return Array.isArray(rows) ? rows.filter(isRecord) : [];
+}
+
+function mergeToolSets(toolSets: ToolSet[]): ToolSet {
+  const merged: ToolSet = {};
+  for (const toolSet of toolSets) {
+    for (const [name, tool] of Object.entries(toolSet)) {
+      if (name in merged) {
+        throw new Error(`duplicate tool name from MCP servers: ${name}`);
+      }
+      merged[name] = tool;
+    }
+  }
+  return merged;
+}
+
+function throwIfCloseErrors(errors: unknown[], message: string): void {
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, message);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}

@@ -1,17 +1,18 @@
-import type { ExperimentConfig } from "../apps/framework/harness/types.js";
+import { openai } from "@ai-sdk/openai";
+import { aiSdkAgent, defineExperiment, platformLiteRuntime, supabaseMcpServer } from "@supabase-evals/core";
 
-const config: ExperimentConfig = {
-  agent: "ai-sdk",
-  provider: "openai",
-  model: "gpt-5.5",
-  providerOptions: {
-    reasoningEffort: "medium",
-    textVerbosity: "low",
-  },
+export default defineExperiment({
+  agent: aiSdkAgent({
+    model: openai("gpt-5.5"),
+    providerOptions: {
+      openai: {
+        reasoningEffort: "medium",
+        textVerbosity: "low",
+      },
+    },
+  }),
+  runtime: platformLiteRuntime({
+    mcpServers: [supabaseMcpServer()],
+  }),
   skills: ["supabase", "supabase-postgres-best-practices"],
-  mode: "mcp",
-  earlyExit: true,
-  timeoutSec: 720,
-};
-
-export default config;
+});

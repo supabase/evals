@@ -1,4 +1,4 @@
-import type { ToolScorer } from "eval-types";
+import type { ToolScorer } from "@supabase-evals/core";
 
 const ORG_A = "11111111-1111-1111-1111-111111111111";
 const USER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";

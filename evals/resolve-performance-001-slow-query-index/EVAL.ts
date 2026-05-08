@@ -1,4 +1,4 @@
-import type { ToolScorer } from "eval-types";
+import type { ToolScorer } from "@supabase-evals/core";
 
 const TARGET_USER = "00000000-0000-0000-0000-000000000001";
 

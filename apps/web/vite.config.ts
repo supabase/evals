@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
-import type { EvalResult } from "eval-types"
+import type { EvalResult } from "@supabase-evals/core"
 
 const RESULTS_MODULE_ID = "virtual:supabase-eval-results"
 const RESOLVED_RESULTS_MODULE_ID = `\0${RESULTS_MODULE_ID}`

@@ -11,9 +11,6 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { bootPlatformBackend } from "./platform-backend.js";
-import { createMcpTools } from "./mcp-tools.js";
-import { assertCanRunExperiment, runAgent } from "./agent-driver.js";
 import { buildFileTools } from "./file-tools.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
@@ -37,6 +34,8 @@ const EXPERIMENT_FILTER = readFlag("experiment");
 const MODEL_FILTER = readFlag("model");
 const EVAL_FILTER = readFlag("eval");
 const RUNS = Number(readFlag("runs") ?? 4);
+const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
+const STOP_ON_PASS = !args.has("--run-all-attempts");
 
 async function loadExperiments() {
   const dir = join(ROOT, "experiments");
@@ -145,7 +144,7 @@ function copyWithheldTests(ev: EvalManifest, workspace: string) {
   }
 }
 
-function buildSystemPrompt(mode: "mcp" | "executor" | "project", skillContext: string): string {
+function buildSystemPrompt(mode: "tool" | "project", skillContext: string, addendum?: string): string {
   const base =
     mode === "project"
       ? "You are an agent solving a Supabase frontend project eval task. " +
@@ -156,12 +155,8 @@ function buildSystemPrompt(mode: "mcp" | "executor" | "project", skillContext: s
         "When you are done, end your turn with a short summary of what you did " +
         "(or for audit tasks, your findings).";
 
-  const executorNote =
-    mode === "executor"
-      ? "\n\nWhen execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept."
-      : "";
-
-  return skillContext ? `${base}${executorNote}\n\n${skillContext}` : `${base}${executorNote}`;
+  const blocks = [base, addendum, skillContext].filter(Boolean);
+  return blocks.join("\n\n");
 }
 
 async function runOne(
@@ -184,15 +179,11 @@ async function runOne(
       const fileTools = buildFileTools(workspace);
       const systemPrompt = buildSystemPrompt("project", skillContext);
 
-      const run = await runAgent({
-        agent: exp.agent,
-        provider: exp.provider,
-        model: exp.model,
-        providerOptions: exp.providerOptions,
+      const run = await exp.agent.run({
         systemPrompt,
         userPrompt: prompt,
         tools: fileTools,
-        timeoutSec: exp.timeoutSec,
+        timeoutSec: TIMEOUT_SEC,
       });
 
       copyWithheldTests(ev, workspace);
@@ -208,62 +199,43 @@ async function runOne(
         agentReport: run.agentReport,
       });
 
-      if (exp.earlyExit && last.passed) {
+      if (STOP_ON_PASS && last.passed) {
         return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
       }
       continue;
     }
 
-    // Tool mode: boot platform-lite, connect MCP/executor
+    // Tool mode: boot runtime, expose MCP tools, run agent, score result.
     const projectSeedSql = join(ev.seedDir, "project.sql");
     const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
 
-    const backend = await bootPlatformBackend({
+    const session = await exp.runtime.startSession({
       projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
       logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
     });
 
     try {
-      const { tools, close: closeMcp } = await createMcpTools(
-        exp.mode,
-        Number(new URL(backend.url).port),
-        backend.accessToken
-      );
+      const systemPrompt = buildSystemPrompt("tool", skillContext, session.promptAddendum);
+      const run = await exp.agent.run({
+        systemPrompt,
+        userPrompt: prompt,
+        tools: session.tools,
+        timeoutSec: TIMEOUT_SEC,
+      });
 
-      try {
-        const systemPrompt = buildSystemPrompt(exp.mode, skillContext);
-        const run = await runAgent({
-          agent: exp.agent,
-          provider: exp.provider,
-          model: exp.model,
-          providerOptions: exp.providerOptions,
-          systemPrompt,
-          userPrompt: prompt,
-          tools,
-          timeoutSec: exp.timeoutSec,
-        });
+      lastToolCalls = run.toolCalls;
+      lastAgentReport = run.agentReport;
+      last = await (scorer as ToolScorer)({
+        ...session.scoringContext,
+        toolCalls: run.toolCalls,
+        agentReport: run.agentReport,
+      });
 
-        lastToolCalls = run.toolCalls;
-        lastAgentReport = run.agentReport;
-        last = await (scorer as ToolScorer)({
-          mgmt: backend.mgmt,
-          ref: backend.ref,
-          client: backend.client,
-          getClient: backend.getClient,
-          query: backend.query,
-          invokeFunction: backend.invokeFunction,
-          toolCalls: run.toolCalls,
-          agentReport: run.agentReport,
-        });
-
-        if (exp.earlyExit && last.passed) {
-          return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
-        }
-      } finally {
-        await closeMcp();
+      if (STOP_ON_PASS && last.passed) {
+        return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
       }
     } finally {
-      await backend.close();
+      await session.close();
     }
   }
 
@@ -277,7 +249,7 @@ function normalizeExperimentName(s: string): string {
 async function main() {
   const experiments = (await loadExperiments()).filter(({ name, config }) => {
     if (EXPERIMENT_FILTER && name !== normalizeExperimentName(EXPERIMENT_FILTER)) return false;
-    if (MODEL_FILTER && config.model !== MODEL_FILTER) return false;
+    if (MODEL_FILTER && config.agent.modelId !== MODEL_FILTER) return false;
     return true;
   });
   if (EXPERIMENT_FILTER || MODEL_FILTER) {
@@ -292,7 +264,10 @@ async function main() {
     }
   }
   const evals = discoverEvals();
-  console.log(`${experiments.length} experiment(s), ${evals.length} eval(s)`);
+  console.log(
+    `${experiments.length} experiment(s), ${evals.length} eval(s), ` +
+      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`
+  );
 
   const filtered = SMOKE
     ? Object.values(
@@ -312,7 +287,7 @@ async function main() {
   for (const { name, config } of experiments) {
     if (!DRY) {
       try {
-        assertCanRunExperiment(config);
+        config.agent.assertReady();
       } catch (e) {
         console.error(`SKIP ${name} (${e instanceof Error ? e.message : String(e)})`);
         continue;
@@ -328,7 +303,7 @@ async function main() {
         console.log(
           ev.mode === "project"
             ? `PLAN ${name} x ${ev.id}  mode=project tools=files.*`
-            : `PLAN ${name} x ${ev.id}  mode=${config.mode} model=${config.model}`
+            : `PLAN ${name} x ${ev.id}  runtime=${config.runtime.id} model=${config.agent.modelId}`
         );
         continue;
       }

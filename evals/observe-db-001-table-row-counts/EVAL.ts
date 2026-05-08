@@ -1,4 +1,4 @@
-import type { ToolScorer } from "eval-types";
+import type { ToolScorer } from "@supabase-evals/core";
 
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";

@@ -1,4 +1,4 @@
-import type { ToolScorer } from "eval-types";
+import type { ToolScorer } from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todos-api";
 const PASSWORD = "secret123";

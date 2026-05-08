@@ -1,4 +1,4 @@
-import type { ToolScorer } from "eval-types";
+import type { ToolScorer } from "@supabase-evals/core";
 
 const USER_A_EMAIL = "todo-user-a@example.com";
 const USER_B_EMAIL = "todo-user-b@example.com";

@@ -1,4 +1,4 @@
-import type { ProjectScorer } from "eval-types";
+import type { ProjectScorer } from "@supabase-evals/core";
 
 const scorer: ProjectScorer = async (ctx) => {
   const { build, vitest } = ctx.projectResult;

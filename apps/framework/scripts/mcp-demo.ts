@@ -12,7 +12,7 @@ import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
 import { openai } from "@ai-sdk/openai";
 import { generateText, stepCountIs } from "ai";
-import { createPlatform } from "platform-lite";
+import { createPlatform } from "@supabase-evals/platform-lite";
 import { MCP_SERVER_VERSION } from "../harness/mcp-tools.js";
 
 const ACCESS_TOKEN = "demo-token";

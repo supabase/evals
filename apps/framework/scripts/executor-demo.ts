@@ -17,7 +17,7 @@ import { generateText, stepCountIs } from "ai"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createPlatform } from "platform-lite"
+import { createPlatform } from "@supabase-evals/platform-lite"
 
 const ACCESS_TOKEN = "demo-token"
 

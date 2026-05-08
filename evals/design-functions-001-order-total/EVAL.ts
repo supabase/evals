@@ -1,4 +1,4 @@
-import type { ToolScorer, ToolEvalContext } from "eval-types";
+import type { ToolScorer, ToolEvalContext } from "@supabase-evals/core";
 
 const FUNCTION_NAME = "order-total";
 
