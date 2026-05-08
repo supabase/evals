@@ -20,8 +20,6 @@ export function createFunctionsRoutes(store: ProjectStore): ManagementApiRoutes 
     const fn = project.functions.get(slug)
     if (!fn) return c.json({ message: 'Function not found' }, 404)
     return c.json(toPublicShape(fn))
-  }, {
-    openApiPath: '/v1/projects/{ref}/functions/{function_slug}',
   })
 
   routes.get('/v1/projects/:ref/functions/:slug/body', (c) => {
@@ -47,8 +45,6 @@ export function createFunctionsRoutes(store: ProjectStore): ManagementApiRoutes 
     return new Response(body, {
       headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
     })
-  }, {
-    openApiPath: '/v1/projects/{ref}/functions/{function_slug}/body',
   })
 
   routes.post('/v1/projects/:ref/functions/deploy', async (c) => {

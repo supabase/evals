@@ -56,7 +56,7 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
     createDevelopmentRoutes(store),
   ]
 
-  app.route('/', createOpenApiRoutes(routeBundles.flatMap((routes) => routes.openApiRoutes)))
+  app.route('/', createOpenApiRoutes())
 
   if (accessToken !== undefined) {
     app.use('*', async (c, next) => {
