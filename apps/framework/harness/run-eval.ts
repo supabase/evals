@@ -89,14 +89,9 @@ function discoverEvals(): EvalManifest[] {
       promptPath: join(evalDir, "PROMPT.md"),
       evalPath: join(evalDir, "EVAL.ts"),
       seedDir: join(evalDir, "seed"),
-      skills: readJsonIfExists<string[]>(join(evalDir, "skills.json")) ?? [],
     });
   }
   return out;
-}
-
-function readJsonIfExists<T>(p: string): T | undefined {
-  return existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as T) : undefined;
 }
 
 function loadSkills(skillNames: string[]): string {
@@ -164,8 +159,7 @@ async function runOne(
   exp: ExperimentConfig,
   ev: EvalManifest
 ): Promise<ScoreResult & { attempts: number; toolCalls: unknown[]; agentReport: string }> {
-  const skills = ev.skills.length ? ev.skills : exp.skills;
-  const skillContext = loadSkills(skills);
+  const skillContext = loadSkills(exp.skills);
   const prompt = readFileSync(ev.promptPath, "utf8");
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as ProjectScorer | ToolScorer;
   let last: ScoreResult = { passed: false, score: 0, notes: "no attempts" };

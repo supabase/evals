@@ -27,5 +27,4 @@ export interface EvalManifest {
   promptPath: string;
   evalPath: string;
   seedDir: string;
-  skills: string[];
 }
