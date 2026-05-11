@@ -213,7 +213,7 @@ async function runOne(
       const run = await exp.agent.run({
         systemPrompt,
         userPrompt: prompt,
-        tools: session.tools,
+        mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
 

@@ -111,7 +111,8 @@ export type ProjectScorer = (ctx: ProjectEvalContext) => Promise<ScoreResult>;
 export type AgentRunArgs = {
   systemPrompt: string;
   userPrompt: string;
-  tools: ToolSet;
+  tools?: ToolSet;
+  mcpServers?: Record<string, McpServerConfig>;
   timeoutSec: number;
 };
 
@@ -153,33 +154,39 @@ export function aiSdkAgent(options: {
     },
     async run(args) {
       assertProviderReady(options.model.provider);
+      const mcpHandles = args.mcpServers ? await createAiSdkTools(args.mcpServers) : [];
       const toolCalls: ToolCallRecord[] = [];
+      const tools = args.tools ?? mergeToolSets(mcpHandles.map((handle) => handle.tools));
 
-      const result = await generateText({
-        model: options.model,
-        system: args.systemPrompt,
-        prompt: args.userPrompt,
-        tools: args.tools,
-        stopWhen: stepCountIs(MAX_STEPS),
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-        timeout: { totalMs: args.timeoutSec * 1000 },
-        providerOptions: withProviderDefaults(options.model.provider, options.providerOptions),
-        experimental_onToolCallFinish: (event) => {
-          toolCalls.push({
-            endpoint: event.toolCall.toolName,
-            body: isRecord(event.toolCall.input) ? event.toolCall.input : {},
-            result: event.output,
-            ts: Date.now(),
-          });
-        },
-      });
+      try {
+        const result = await generateText({
+          model: options.model,
+          system: args.systemPrompt,
+          prompt: args.userPrompt,
+          tools,
+          stopWhen: stepCountIs(MAX_STEPS),
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          timeout: { totalMs: args.timeoutSec * 1000 },
+          providerOptions: withProviderDefaults(options.model.provider, options.providerOptions),
+          experimental_onToolCallFinish: (event) => {
+            toolCalls.push({
+              endpoint: event.toolCall.toolName,
+              body: isRecord(event.toolCall.input) ? event.toolCall.input : {},
+              result: event.output,
+              ts: Date.now(),
+            });
+          },
+        });
 
-      return {
-        agentReport: result.text.trim(),
-        toolCalls,
-        steps: result.steps.length,
-        stoppedReason: result.steps.length >= MAX_STEPS ? "max_steps" : result.finishReason,
-      };
+        return {
+          agentReport: result.text.trim(),
+          toolCalls,
+          steps: result.steps.length,
+          stoppedReason: result.steps.length >= MAX_STEPS ? "max_steps" : result.finishReason,
+        };
+      } finally {
+        await closeMcpHandles(mcpHandles);
+      }
     },
   };
 }
@@ -195,47 +202,62 @@ export type EvalSessionArgs = {
 };
 
 export type EvalSession = {
-  tools: ToolSet;
+  mcpServers: Record<string, McpServerConfig>;
   promptAddendum?: string;
   scoringContext: ToolScoringContext;
   close(): Promise<void>;
 };
 
-export type McpServerContext = {
-  port: number;
+export type PlatformLiteMcpContext = {
+  apiUrl: string;
   accessToken: string;
 };
 
-export type McpToolsHandle = {
+export type McpServerConfig = {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+};
+
+type ResolvedMcpServer = {
+  config: McpServerConfig;
+  cleanup?: () => Promise<void>;
+};
+
+type McpClientHandle = {
   tools: ToolSet;
   close(): Promise<void>;
 };
 
-export type McpServerConfig = {
-  id: string;
+export type McpServerDefinition = {
+  name: string;
   promptAddendum?: string;
-  createAiSdkTools(context: McpServerContext): Promise<McpToolsHandle>;
+  createConfig(context: PlatformLiteMcpContext): Promise<ResolvedMcpServer>;
 };
 
-export function platformLiteRuntime(options: { mcpServers: McpServerConfig[] }): EvalRuntime {
+export function platformLiteRuntime(options: { mcpServers: McpServerDefinition[] }): EvalRuntime {
   return {
     id: "platform-lite",
     async startSession(args) {
       const backend = await bootPlatformBackend(args);
-      const handles: McpToolsHandle[] = [];
+      const mcpServers: Record<string, McpServerConfig> = {};
+      const cleanupFns: Array<() => Promise<void>> = [];
 
       try {
         for (const mcpServer of options.mcpServers) {
-          handles.push(
-            await mcpServer.createAiSdkTools({
-              port: Number(new URL(backend.url).port),
-              accessToken: backend.accessToken,
-            })
-          );
+          if (mcpServer.name in mcpServers) {
+            throw new Error(`duplicate MCP server name: ${mcpServer.name}`);
+          }
+          const resolved = await mcpServer.createConfig({
+            apiUrl: backend.url,
+            accessToken: backend.accessToken,
+          });
+          mcpServers[mcpServer.name] = resolved.config;
+          if (resolved.cleanup) cleanupFns.push(resolved.cleanup);
         }
 
         return {
-          tools: mergeToolSets(handles.map((handle) => handle.tools)),
+          mcpServers,
           promptAddendum: options.mcpServers
             .map((mcpServer) => mcpServer.promptAddendum)
             .filter(isNonEmptyString)
@@ -250,9 +272,9 @@ export function platformLiteRuntime(options: { mcpServers: McpServerConfig[] }):
           },
           close: async () => {
             const errors: unknown[] = [];
-            for (const handle of handles) {
+            for (const cleanup of cleanupFns) {
               try {
-                await handle.close();
+                await cleanup();
               } catch (err) {
                 errors.push(err);
               }
@@ -267,9 +289,9 @@ export function platformLiteRuntime(options: { mcpServers: McpServerConfig[] }):
         };
       } catch (err) {
         const closeErrors: unknown[] = [];
-        for (const handle of handles) {
+        for (const cleanup of cleanupFns) {
           try {
-            await handle.close();
+            await cleanup();
           } catch (closeErr) {
             closeErrors.push(closeErr);
           }
@@ -291,39 +313,37 @@ export function platformLiteRuntime(options: { mcpServers: McpServerConfig[] }):
 export function supabaseMcpServer(options: {
   features?: string[];
   version?: string;
-} = {}): McpServerConfig {
+} = {}): McpServerDefinition {
   const features = options.features ?? ["account", "database", "development", "debugging", "functions"];
   const version = options.version ?? MCP_SERVER_VERSION;
 
   return {
-    id: "supabase-mcp",
-    async createAiSdkTools({ port, accessToken }) {
-      const transport = new StdioMCPTransport({
-        command: "npx",
-        args: [
-          `@supabase/mcp-server-supabase@${version}`,
-          "--access-token",
-          accessToken,
-          "--api-url",
-          `http://localhost:${port}`,
-          "--features",
-          features.join(","),
-        ],
-        stderr: "ignore",
-      });
-      const mcp = await createMCPClient({ transport });
-      const tools = await mcp.tools();
-      return { tools, close: () => mcp.close() };
+    name: "supabase-mcp",
+    async createConfig({ apiUrl, accessToken }) {
+      return {
+        config: {
+          command: "npx",
+          args: [
+            `@supabase/mcp-server-supabase@${version}`,
+            "--access-token",
+            accessToken,
+            "--api-url",
+            apiUrl,
+            "--features",
+            features.join(","),
+          ],
+        },
+      };
     },
   };
 }
 
-export function executorMcpServer(): McpServerConfig {
+export function executorMcpServer(): McpServerDefinition {
   return {
-    id: "executor-mcp",
+    name: "executor-mcp",
     promptAddendum:
       "When execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept.",
-    async createAiSdkTools({ port, accessToken }) {
+    async createConfig({ apiUrl, accessToken }) {
       const scopeDir = mkdtempSync(join(tmpdir(), "eval-executor-scope-"));
       const dataDir = mkdtempSync(join(tmpdir(), "eval-executor-data-"));
 
@@ -334,32 +354,22 @@ export function executorMcpServer(): McpServerConfig {
             {
               kind: "openapi",
               namespace: "platform",
-              spec: `http://localhost:${port}/openapi.json`,
-              baseUrl: `http://localhost:${port}`,
+              spec: `${apiUrl}/openapi.json`,
+              baseUrl: apiUrl,
               headers: { Authorization: `Bearer ${accessToken}` },
             },
           ],
         })
       );
 
-      const transport = new StdioMCPTransport({
-        command: "executor",
-        args: ["mcp", "--scope", scopeDir],
-        env: { ...process.env, EXECUTOR_DATA_DIR: dataDir },
-        stderr: "ignore",
-      });
-
-      const mcp = await createMCPClient({ transport });
-      const tools = await mcp.tools();
       return {
-        tools,
-        close: async () => {
+        config: {
+          command: "executor",
+          args: ["mcp", "--scope", scopeDir],
+          env: { EXECUTOR_DATA_DIR: dataDir },
+        },
+        cleanup: async () => {
           const errors: unknown[] = [];
-          try {
-            await mcp.close();
-          } catch (err) {
-            errors.push(err);
-          }
           for (const dir of [scopeDir, dataDir]) {
             try {
               rmSync(dir, { recursive: true, force: true });
@@ -467,6 +477,51 @@ function withProviderDefaults(
     ? { ...options, openai: withOpenAiZdrDefaults(options.openai) }
     : options;
   return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
+async function createAiSdkTools(
+  mcpServers: Record<string, McpServerConfig>
+): Promise<McpClientHandle[]> {
+  const handles: McpClientHandle[] = [];
+
+  try {
+    for (const server of Object.values(mcpServers)) {
+      const transport = new StdioMCPTransport({
+        command: server.command,
+        args: server.args,
+        env: { ...definedEnv(process.env), ...server.env },
+        stderr: "ignore",
+      });
+      const mcp = await createMCPClient({ transport });
+      const tools = await mcp.tools();
+      handles.push({ tools, close: () => mcp.close() });
+    }
+  } catch (err) {
+    await closeMcpHandles(handles);
+    throw err;
+  }
+
+  return handles;
+}
+
+async function closeMcpHandles(handles: McpClientHandle[]): Promise<void> {
+  const errors: unknown[] = [];
+  for (const handle of handles) {
+    try {
+      await handle.close();
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+  throwIfCloseErrors(errors, "failed to close MCP clients");
+}
+
+function definedEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
 }
 
 function withOpenAiZdrDefaults(options: Record<string, JSONValue> = {}): Record<string, JSONValue> {
