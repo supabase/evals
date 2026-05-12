@@ -2,29 +2,43 @@
 
 Lightweight in-process Supabase platform exposing the real Management API HTTP interface, backed by PGlite. No Docker required.
 
-## Requirements
-
-```sh
-mise install
-```
-
 ## Setup
 
 ```sh
-pnpm install
-pnpm generate:types
+npm install
+npm run generate:types
 ```
 
 ## Dev
 
 ```sh
-pnpm dev
+npm run dev
 ```
+
+## Playground
+
+The `playground/` directory is a scratch workspace for manually testing the
+local platform-lite server though local MCP clients.
+
+With the development server running:
+
+```sh
+npm run dev
+```
+
+Open another shell and launch Claude from the playground directory:
+
+```sh
+cd playground
+claude
+```
+
+Now you can call tools like `execute_sql` against your supabase lite seed project(s).
 
 ## Build
 
 ```sh
-pnpm build
+npm run build -w @supabase-evals/platform-lite
 ```
 
 ## Usage
@@ -35,7 +49,7 @@ pnpm build
 import { createPlatform } from 'platform-lite'
 
 const platform = await createPlatform({ seedDir: './fixtures/example' })
-await platform.listen({ port: 3001 })
+await platform.listen({ port: 7070 })
 ```
 
 ### Embedded in tests (no port, no network)
@@ -100,6 +114,6 @@ cp .env.example .env
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `PORT` | no | `3001` | Port to listen on |
+| `PORT` | no | `7070` | Port to listen on |
 | `ACCESS_TOKEN` | no | _(none)_ | Enforce a specific bearer token; omit to disable auth |
 | `SEED_DIR` | no | `./seed` | Directory of project seed folders to load on boot |
