@@ -6,19 +6,6 @@ import { extractRows } from './utils.js'
 export function createDevelopmentRoutes(store: ProjectStore): ManagementApiRoutes {
   const routes = createManagementApiRoutes()
 
-  routes.get('/v1/projects/:ref/studio', async (c) => {
-    const { ref } = c.req.param()
-    const project = store.get(ref)
-    if (!project) return c.json({ message: 'Project not found' }, 404)
-    try {
-      const url = await project.getStudioUrl()
-      return c.json({ url })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return c.json({ message }, 503)
-    }
-  })
-
   routes.get('/v1/projects/:ref/api-keys', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)

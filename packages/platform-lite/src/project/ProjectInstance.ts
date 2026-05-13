@@ -2,7 +2,6 @@ import { App, getAuthSchemaSql } from 'lite-supa'
 import { createPgliteConnection, type PgliteConnection } from 'lite-supa/pglite'
 import { PGlite } from '@electric-sql/pglite'
 import type { LogRow } from '../types.js'
-import { startStudioServer, type StudioServer } from './studio-server.js'
 import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js'
 
 export type Migration = {
@@ -55,7 +54,6 @@ export class ProjectInstance {
   migrations: Migration[]
   functions: Map<string, EdgeFunctionEntry>
   createdAt: string
-  #studio?: StudioServer
 
   constructor(ref: string, name: string, organizationId: string) {
     this.ref = ref
@@ -99,18 +97,8 @@ export class ProjectInstance {
   }
 
   async close(): Promise<void> {
-    await this.#studio?.stop()
     await this.logsDb.close()
     await this.pglite?.close()
-  }
-
-  get studioUrl(): string | undefined {
-    return this.#studio ? `http://127.0.0.1:${this.#studio.port}` : undefined
-  }
-
-  async getStudioUrl(): Promise<string> {
-    this.#studio ??= await startStudioServer(this.app)
-    return `http://127.0.0.1:${this.#studio.port}`
   }
 
   get jwtSecret(): string {

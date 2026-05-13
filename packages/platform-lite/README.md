@@ -9,6 +9,11 @@ npm install
 npm run generate:types
 ```
 
+`generate:types` fetches the upstream Supabase Management API OpenAPI spec,
+generates `src/management-api/types.ts` from that full contract, and writes a
+filtered `src/management-api/openapi.json` that only advertises the Management
+API routes currently implemented by platform-lite.
+
 ## Dev
 
 ```sh

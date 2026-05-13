@@ -14,7 +14,7 @@ try {
   const raw = readFileSync(join(__dirname, 'openapi.json'), 'utf-8')
   spec = JSON.parse(raw) as OpenApiSpec
 } catch {
-  // openapi.json not yet generated — run: pnpm generate:types
+  // openapi.json not yet generated. Run: npm run generate:types
 }
 
 export function createOpenApiRoutes(): Hono {
@@ -22,7 +22,13 @@ export function createOpenApiRoutes(): Hono {
 
   app.get('/openapi.json', (c) => {
     if (!spec) {
-      return c.json({ error: 'OpenAPI spec not generated. Run: pnpm generate:types' }, 503)
+      return c.json(
+        {
+          error:
+            'OpenAPI spec not generated. Run: npm run generate:types',
+        },
+        503,
+      )
     }
     return c.json(spec)
   })
