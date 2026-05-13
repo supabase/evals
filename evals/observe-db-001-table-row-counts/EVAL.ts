@@ -1,6 +1,6 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "@supabase-evals/core";
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
   const checks = [
     { name: "reported users count", ok: /users[\s\S]{0,80}\b12\b/i.test(report) },

@@ -1,7 +1,17 @@
 /// <reference types="vite/client" />
 
 declare module "virtual:supabase-eval-results" {
-  import type { EvalResult } from "@supabase-evals/eval-types"
+  type EvalResult = {
+    experiment: string
+    eval: string
+    passed: boolean
+    score?: number
+    notes?: string
+    prompt?: string
+    promptSourcePath?: string
+    attempts?: number
+    sourcePath: string
+  }
 
   export type { EvalResult }
 

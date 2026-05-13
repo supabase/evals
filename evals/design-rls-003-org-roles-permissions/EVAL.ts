@@ -1,4 +1,4 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "@supabase-evals/core";
 
 const ORG_A = "11111111-1111-1111-1111-111111111111";
 const ORG_B = "22222222-2222-2222-2222-222222222222";
@@ -15,9 +15,9 @@ ${body}
 ${finish};
 `;
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ToolScorer = async (ctx) => {
   const q = (sql: string) =>
-    ctx.mgmt.call("database.query", { query: sql }) as Promise<{ rows: any[] }>;
+    ctx.query(sql);
   const checks: Array<{ name: string; ok: boolean }> = [];
 
   const resetTx = async () => {

@@ -1,21 +1,16 @@
-import { runProjectChecks } from "../../apps/framework/harness/project-runner.js";
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ProjectScorer } from "@supabase-evals/core";
 
-const scorer: Scorer = async (ctx) => {
-  if (!ctx.workspace) {
-    return { passed: false, score: 0, notes: "project eval missing workspace" };
-  }
+const scorer: ProjectScorer = async (ctx) => {
+  const { build, vitest } = ctx.projectResult;
 
-  const result = await runProjectChecks(ctx.workspace);
-  if (!result.build.ok) {
+  if (!build.ok) {
     return {
       passed: false,
       score: 0,
-      notes: `vite build failed:\n${trimOutput(result.build.stderr || result.build.stdout)}`,
+      notes: `vite build failed:\n${trimOutput(build.stderr || build.stdout)}`,
     };
   }
 
-  const vitest = result.vitest;
   if (!vitest) {
     return { passed: false, score: 0.25, notes: "vitest did not run" };
   }

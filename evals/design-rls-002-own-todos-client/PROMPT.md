@@ -18,5 +18,5 @@ Add the RLS policies needed so that authenticated users can:
 3. `UPDATE` only their own todos.
 4. `DELETE` only their own todos.
 
-Apply the migration via the `database.query` tool. End your turn when you
-believe the policies are in place.
+Apply the required database changes. End your turn when you believe the
+policies are in place.

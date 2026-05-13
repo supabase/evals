@@ -1,9 +1,9 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "@supabase-evals/core";
 
 // Planted issue: `customer_payment_methods` is GRANTed to anon and has no RLS.
 // The agent must name this specific table in its final report.
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
   const checks = [

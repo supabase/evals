@@ -1,4 +1,4 @@
-import type { Scorer } from "../../apps/framework/harness/types.js";
+import type { ToolScorer } from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todo-create";
 const TODO_BODY = "verify edge auth database integration";
@@ -17,7 +17,7 @@ const parseJson = (result: InvokeResult) => {
   }
 };
 
-const scorer: Scorer = async (ctx) => {
+const scorer: ToolScorer = async (ctx) => {
   const checks: Array<{ name: string; ok: boolean }> = [];
 
   try {
@@ -33,7 +33,7 @@ const scorer: Scorer = async (ctx) => {
       };
     }
 
-    const missingAuth = (await ctx.mgmt.backends.edgeFunctions.invoke({
+    const missingAuth = (await ctx.invokeFunction({
       name: FUNCTION_NAME,
       method: "POST",
       body: { body: TODO_BODY },
@@ -43,7 +43,7 @@ const scorer: Scorer = async (ctx) => {
       ok: missingAuth.status >= 400,
     });
 
-    const inserted = (await ctx.mgmt.backends.edgeFunctions.invoke({
+    const inserted = (await ctx.invokeFunction({
       name: FUNCTION_NAME,
       method: "POST",
       headers: {

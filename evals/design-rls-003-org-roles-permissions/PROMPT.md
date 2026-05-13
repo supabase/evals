@@ -24,5 +24,5 @@ Add the RLS policies and database logic needed for authenticated users:
 5. Deletes should be soft deletes by setting `deleted_at`; do not hard-delete rows.
 6. Every insert, update, and soft-delete should write a row to `document_audit` with the acting user.
 
-Apply the migration via the `database.query` tool. End your turn when you
-believe the policies and audit behavior are in place.
+Apply the required database changes. End your turn when you believe the
+policies and audit behavior are in place.

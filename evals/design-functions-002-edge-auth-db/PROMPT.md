@@ -16,6 +16,5 @@ The function must:
 7. Return a non-2xx JSON error for missing auth, invalid JSON, missing body, or
   insert/select failures.
 
-Use the `functions.deploy` tool to deploy the function with slug `todo-create`.
-Pass the implementation as a single `index.ts` source string in the `file`
-array, with function metadata in `metadata`.
+Deploy the function with slug `todo-create`. The deployed source should be a
+single `index.ts` file.

@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "
 import { dirname, relative, resolve, sep } from "node:path";
 import { mkdirSync } from "node:fs";
 import { jsonSchema, tool, type ToolSet } from "ai";
-import type { FileEndpoint, ToolCallRecord } from "./types.js";
+import type { FileEndpoint } from "./types.js";
 
 export const FILE_ENDPOINTS: FileEndpoint[] = [
   "files.list",
@@ -11,29 +11,8 @@ export const FILE_ENDPOINTS: FileEndpoint[] = [
   "files.edit",
 ];
 
-export function buildFileTools(
-  workspace: string,
-  toolCalls?: ToolCallRecord[]
-): ToolSet {
+export function buildFileTools(workspace: string): ToolSet {
   const root = resolve(workspace);
-
-  const record = async <T>(
-    endpoint: FileEndpoint,
-    body: Record<string, unknown>,
-    fn: () => Promise<T> | T
-  ): Promise<T> => {
-    const rec: ToolCallRecord = { endpoint, body, ts: Date.now() };
-    try {
-      const result = await fn();
-      rec.result = result;
-      toolCalls?.push(rec);
-      return result;
-    } catch (error) {
-      rec.error = error instanceof Error ? error.message : String(error);
-      toolCalls?.push(rec);
-      throw error;
-    }
-  };
 
   return {
     files_list: tool({
@@ -45,23 +24,22 @@ export function buildFileTools(
           path: { type: "string", description: "Optional relative directory path." },
         },
       }),
-      execute: async (input) =>
-        record("files.list", (input as Record<string, unknown>) ?? {}, () => {
-          const p = resolveWorkspacePath(root, String((input as any)?.path ?? "."));
-          if (!existsSync(p)) return { entries: [] };
-          if (!statSync(p).isDirectory()) {
-            throw new Error("files.list path must be a directory");
-          }
-          return {
-            entries: readdirSync(p)
-              .map((entry) => {
-                const full = resolve(p, entry);
-                const type = statSync(full).isDirectory() ? "dir" : "file";
-                return { path: relative(root, full), type };
-              })
-              .sort((a, b) => a.path.localeCompare(b.path)),
-          };
-        }),
+      execute: async (input) => {
+        const p = resolveWorkspacePath(root, String((input as any)?.path ?? "."));
+        if (!existsSync(p)) return { entries: [] };
+        if (!statSync(p).isDirectory()) {
+          throw new Error("files.list path must be a directory");
+        }
+        return {
+          entries: readdirSync(p)
+            .map((entry) => {
+              const full = resolve(p, entry);
+              const type = statSync(full).isDirectory() ? "dir" : "file";
+              return { path: relative(root, full), type };
+            })
+            .sort((a, b) => a.path.localeCompare(b.path)),
+        };
+      },
     }),
     files_read: tool({
       description: "Read a UTF-8 text file from the project workspace.",
@@ -72,12 +50,11 @@ export function buildFileTools(
         },
         required: ["path"],
       }),
-      execute: async (input) =>
-        record("files.read", (input as Record<string, unknown>) ?? {}, () => {
-          const p = resolveWorkspacePath(root, String((input as any)?.path ?? ""));
-          if (!statSync(p).isFile()) throw new Error("files.read path must be a file");
-          return { contents: readFileSync(p, "utf8") };
-        }),
+      execute: async (input) => {
+        const p = resolveWorkspacePath(root, String((input as any)?.path ?? ""));
+        if (!statSync(p).isFile()) throw new Error("files.read path must be a file");
+        return { contents: readFileSync(p, "utf8") };
+      },
     }),
     files_write: tool({
       description:
@@ -90,13 +67,12 @@ export function buildFileTools(
         },
         required: ["path", "contents"],
       }),
-      execute: async (input) =>
-        record("files.write", (input as Record<string, unknown>) ?? {}, () => {
-          const p = resolveWorkspacePath(root, String((input as any)?.path ?? ""));
-          mkdirSync(dirname(p), { recursive: true });
-          writeFileSync(p, String((input as any)?.contents ?? ""));
-          return { ok: true };
-        }),
+      execute: async (input) => {
+        const p = resolveWorkspacePath(root, String((input as any)?.path ?? ""));
+        mkdirSync(dirname(p), { recursive: true });
+        writeFileSync(p, String((input as any)?.contents ?? ""));
+        return { ok: true };
+      },
     }),
     files_edit: tool({
       description:
@@ -110,20 +86,19 @@ export function buildFileTools(
         },
         required: ["path", "old_string", "new_string"],
       }),
-      execute: async (input) =>
-        record("files.edit", (input as Record<string, unknown>) ?? {}, () => {
-          const p = resolveWorkspacePath(root, String((input as any)?.path ?? ""));
-          const oldString = String((input as any)?.old_string ?? "");
-          const newString = String((input as any)?.new_string ?? "");
-          const contents = readFileSync(p, "utf8");
-          const first = contents.indexOf(oldString);
-          if (first === -1) throw new Error("old_string was not found");
-          if (contents.indexOf(oldString, first + oldString.length) !== -1) {
-            throw new Error("old_string must be unique in the file");
-          }
-          writeFileSync(p, contents.replace(oldString, newString));
-          return { ok: true };
-        }),
+      execute: async (input) => {
+        const p = resolveWorkspacePath(root, String((input as any)?.path ?? ""));
+        const oldString = String((input as any)?.old_string ?? "");
+        const newString = String((input as any)?.new_string ?? "");
+        const contents = readFileSync(p, "utf8");
+        const first = contents.indexOf(oldString);
+        if (first === -1) throw new Error("old_string was not found");
+        if (contents.indexOf(oldString, first + oldString.length) !== -1) {
+          throw new Error("old_string must be unique in the file");
+        }
+        writeFileSync(p, contents.replace(oldString, newString));
+        return { ok: true };
+      },
     }),
   };
 }
