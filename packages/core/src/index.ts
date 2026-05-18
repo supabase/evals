@@ -1,8 +1,9 @@
 import vm from "node:vm";
 import { createHmac } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
@@ -16,6 +17,12 @@ import {
   type ProjectInstance,
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
+
+const EXECUTOR_BIN = join(
+  dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
+  "bin",
+  "executor"
+);
 
 export type { SupabaseClient };
 export type { ManagementApiClient };
@@ -364,8 +371,8 @@ export function executorMcpServer(): McpServerDefinition {
 
       return {
         config: {
-          command: "executor",
-          args: ["mcp", "--scope", scopeDir],
+          command: process.execPath,
+          args: [EXECUTOR_BIN, "mcp", "--scope", scopeDir],
           env: { EXECUTOR_DATA_DIR: dataDir },
         },
         cleanup: async () => {
