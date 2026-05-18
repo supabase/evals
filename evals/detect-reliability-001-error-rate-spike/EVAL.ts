@@ -1,5 +1,19 @@
 import type { ToolScorer } from "@supabase-evals/core";
 
+function reportedErrorRateAboveFivePercent(report: string): boolean {
+  const percentMatches = report.matchAll(/\b(\d+(?:\.\d+)?)\s*%/g);
+  const hasPercentAboveFive = Array.from(percentMatches).some((match) => Number(match[1]) > 5);
+  if (hasPercentAboveFive) return true;
+
+  const decimalMatches = report.matchAll(/\b0\.(\d+)\b/g);
+  const hasDecimalAboveFivePercent = Array.from(decimalMatches).some(
+    (match) => Number(`0.${match[1]}`) > 0.05
+  );
+  if (hasDecimalAboveFivePercent) return true;
+
+  return /\b3\s*(?:errors?\s*)?(?:\/|out of)\s*20\b/i.test(report);
+}
+
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
@@ -7,10 +21,7 @@ const scorer: ToolScorer = async (ctx) => {
     { name: "named the affected function", ok: /process-payment/i.test(report) },
     {
       name: "reported an error rate above 5%",
-      ok:
-        /\b(1[5-9]|[2-9]\d)%\b/.test(report) ||
-        /\b0\.(1[5-9]|[2-9]\d)\b/.test(report) ||
-        /\b3\s*(?:\/|out of)\s*20\b/i.test(report),
+      ok: reportedErrorRateAboveFivePercent(report),
     },
     {
       name: "described the rate as elevated",

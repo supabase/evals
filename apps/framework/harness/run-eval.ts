@@ -158,13 +158,16 @@ async function runOne(
   expName: string,
   exp: ExperimentConfig,
   ev: EvalManifest
-): Promise<ScoreResult & { attempts: number; toolCalls: unknown[]; agentReport: string }> {
+): Promise<
+  ScoreResult & { attempts: number; toolCalls: unknown[]; agentReport: string; stoppedReason: string }
+> {
   const skillContext = loadSkills(exp.skills);
   const prompt = readFileSync(ev.promptPath, "utf8");
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as ProjectScorer | ToolScorer;
   let last: ScoreResult = { passed: false, score: 0, notes: "no attempts" };
   let lastToolCalls: unknown[] = [];
   let lastAgentReport = "";
+  let lastStoppedReason = "not_started";
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === "project") {
@@ -186,6 +189,7 @@ async function runOne(
 
       lastToolCalls = run.toolCalls;
       lastAgentReport = run.agentReport;
+      lastStoppedReason = run.stoppedReason;
       last = await (scorer as ProjectScorer)({
         workspace,
         projectResult: { build, vitest },
@@ -194,7 +198,13 @@ async function runOne(
       });
 
       if (STOP_ON_PASS && last.passed) {
-        return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
+        return {
+          ...last,
+          attempts: attempt,
+          toolCalls: run.toolCalls,
+          agentReport: run.agentReport,
+          stoppedReason: run.stoppedReason,
+        };
       }
       continue;
     }
@@ -219,6 +229,7 @@ async function runOne(
 
       lastToolCalls = run.toolCalls;
       lastAgentReport = run.agentReport;
+      lastStoppedReason = run.stoppedReason;
       last = await (scorer as ToolScorer)({
         ...session.scoringContext,
         toolCalls: run.toolCalls,
@@ -226,14 +237,26 @@ async function runOne(
       });
 
       if (STOP_ON_PASS && last.passed) {
-        return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
+        return {
+          ...last,
+          attempts: attempt,
+          toolCalls: run.toolCalls,
+          agentReport: run.agentReport,
+          stoppedReason: run.stoppedReason,
+        };
       }
     } finally {
       await session.close();
     }
   }
 
-  return { ...last, attempts: RUNS, toolCalls: lastToolCalls, agentReport: lastAgentReport };
+  return {
+    ...last,
+    attempts: RUNS,
+    toolCalls: lastToolCalls,
+    agentReport: lastAgentReport,
+    stoppedReason: lastStoppedReason,
+  };
 }
 
 function normalizeExperimentName(s: string): string {
