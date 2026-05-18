@@ -357,9 +357,11 @@ export function executorMcpServer(): McpServerDefinition {
     async createConfig({ apiUrl, accessToken }) {
       const scopeDir = mkdtempSync(join(tmpdir(), "eval-executor-scope-"));
       const dataDir = mkdtempSync(join(tmpdir(), "eval-executor-data-"));
+      // Keep source registration isolated from any user daemon already listening on 4788.
       const daemonUrl = `http://localhost:${await getAvailablePort()}`;
 
       try {
+        // executor.jsonc#sources is no longer replayed; see https://github.com/RhysSullivan/executor/pull/807.
         await addExecutorOpenApiSource({
           scopeDir,
           dataDir,
@@ -397,7 +399,6 @@ async function addExecutorOpenApiSource(input: {
   namespace: string;
   headers: Record<string, string>;
 }) {
-  const env = executorEnv(input.dataDir);
   const sourceConfig = {
     scope: executorScopeId(input.scopeDir),
     spec: input.spec,
@@ -420,10 +421,10 @@ async function addExecutorOpenApiSource(input: {
       "--base-url",
       input.daemonUrl,
     ],
-    { env }
+    { env: executorEnv(input.dataDir) }
   );
 
-  const executionId = stdout.match(/executionId:\s*(\S+)/)?.[1];
+  const executionId = extractExecutorExecutionId(stdout);
   if (!executionId) return;
 
   await execFileAsync(
@@ -433,16 +434,16 @@ async function addExecutorOpenApiSource(input: {
       "resume",
       "--execution-id",
       executionId,
-      "--base-url",
-      input.daemonUrl,
       "--action",
       "accept",
       "--content",
       "{}",
       "--scope",
       input.scopeDir,
+      "--base-url",
+      input.daemonUrl,
     ],
-    { env }
+    { env: executorEnv(input.dataDir) }
   );
 }
 
@@ -450,7 +451,7 @@ async function cleanupExecutorResources(input: {
   scopeDir: string;
   dataDir: string;
   daemonUrl: string;
-}) {
+}): Promise<void> {
   const errors: unknown[] = [];
   try {
     await execFileAsync(
@@ -474,6 +475,10 @@ async function cleanupExecutorResources(input: {
 
 function executorEnv(dataDir: string): Record<string, string> {
   return { ...definedEnv(process.env), EXECUTOR_DATA_DIR: dataDir };
+}
+
+function extractExecutorExecutionId(stdout: string): string | undefined {
+  return stdout.match(/(?:^|\s)executionId:\s*(\S+)/)?.[1];
 }
 
 function executorScopeId(scopeDir: string): string {
