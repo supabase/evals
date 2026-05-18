@@ -573,7 +573,9 @@ export async function bootPlatformBackend(opts: {
   }
 }
 
-const MAX_STEPS = 30;
+// Executor-backed API calls may require a separate resume step after the
+// initial tool call, so mutation-heavy evals need more headroom than direct MCP.
+const MAX_STEPS = 60;
 const MAX_OUTPUT_TOKENS = 4096;
 const RUNTIME_URL = "http://supabase-evals.local";
 
