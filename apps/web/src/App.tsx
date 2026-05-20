@@ -1,6 +1,6 @@
 import rawResults, { type EvalResult } from "virtual:supabase-eval-results"
-import { useState, type ReactNode } from "react"
-import { CopyIcon } from "lucide-react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
+import { CheckIcon, CopyIcon } from "lucide-react"
 
 import {
   Accordion,
@@ -16,6 +16,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { HeroGridPattern } from "@/components/hero-grid-pattern"
 import { cn } from "@/lib/utils"
@@ -54,6 +55,7 @@ const JOURNEY_STAGES = [
 ] as const
 
 const CLI_COMMAND = "npx skills add supabase/agent-skills"
+const DOCS_URL = "https://github.com/supabase-org/supabase-evals"
 const UNASSIGNED_PRODUCT = "__unassigned_product__"
 
 type JourneyStage = (typeof JOURNEY_STAGES)[number]["id"]
@@ -827,17 +829,54 @@ function SupabaseLogo() {
   )
 }
 
+const COPY_FEEDBACK_MS = 2000
+
 function CopyCommandButton() {
+  const [copied, setCopied] = useState(false)
+  const resetTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current !== null) {
+        window.clearTimeout(resetTimeoutRef.current)
+      }
+    }
+  }, [])
+
   return (
     <button
       type="button"
-      className="hidden w-fit items-center justify-between gap-4 rounded-md border bg-muted/25 px-3 py-2 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:flex"
-      onClick={() => void navigator.clipboard.writeText(CLI_COMMAND)}
-      aria-label={`Copy ${CLI_COMMAND}`}
+      className="flex w-fit items-center justify-between gap-4 rounded-md border bg-muted/25 px-3 py-2 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      onClick={() => {
+        void navigator.clipboard.writeText(CLI_COMMAND)
+        setCopied(true)
+        if (resetTimeoutRef.current !== null) {
+          window.clearTimeout(resetTimeoutRef.current)
+        }
+        resetTimeoutRef.current = window.setTimeout(() => {
+          setCopied(false)
+          resetTimeoutRef.current = null
+        }, COPY_FEEDBACK_MS)
+      }}
+      aria-label={copied ? "Copied" : `Copy ${CLI_COMMAND}`}
     >
       <span className="truncate">{CLI_COMMAND}</span>
-      <CopyIcon className="size-3.5 shrink-0" />
+      {copied ? (
+        <CheckIcon className="size-3.5 shrink-0" aria-hidden />
+      ) : (
+        <CopyIcon className="size-3.5 shrink-0" aria-hidden />
+      )}
     </button>
+  )
+}
+
+function ReadDocsButton() {
+  return (
+    <Button variant="outline" asChild>
+      <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
+        Read docs
+      </a>
+    </Button>
   )
 }
 
@@ -865,9 +904,12 @@ export function App() {
                   Back to Supabase
                 </span>
               </a>
-              <CopyCommandButton />
+              <div className="hidden items-center gap-2 sm:flex">
+                <CopyCommandButton />
+                <ReadDocsButton />
               </div>
             </div>
+          </div>
           <header className="border-b border-border">
             <HeroGridPattern height={200} />
             <div className="w-full py-12 sm:pt-16 sm:pb-14 md:pt-20 md:pb-16 lg:pt-28 lg:pb-20 xl:pt-32">
