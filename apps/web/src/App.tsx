@@ -1,6 +1,6 @@
 import rawResults, { type EvalResult } from "virtual:supabase-eval-results"
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { CheckIcon, CopyIcon } from "lucide-react"
+import { CheckIcon, CopyIcon, XIcon } from "lucide-react"
 
 import {
   Accordion,
@@ -321,6 +321,44 @@ function EvalMetadataRow({
   )
 }
 
+function ResultDetails({ notes }: { notes: string }) {
+  return (
+    <div className="flex flex-col gap-1 leading-relaxed text-foreground">
+      {notes.split("\n").map((line, index) => {
+        const match = /^(PASS|FAIL)\s+(.*)$/.exec(line)
+
+        if (!match) {
+          return (
+            <p key={`${index}-${line}`} className="whitespace-pre-wrap">
+              {line}
+            </p>
+          )
+        }
+
+        const [, status, detail] = match
+        const passed = status === "PASS"
+        const StatusIcon = passed ? CheckIcon : XIcon
+
+        return (
+          <div key={`${index}-${line}`} className="flex items-start gap-2">
+            <StatusIcon
+              className={cn(
+                "mt-0.5 size-4 shrink-0",
+                passed
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-red-600 dark:text-red-400"
+              )}
+              aria-hidden
+            />
+            <span className="sr-only">{passed ? "Pass" : "Fail"}: </span>
+            <span className="min-w-0 whitespace-pre-wrap">{detail}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function getPassRateClass(passRate: number) {
   if (passRate < 50) {
     return "text-red-600 dark:text-red-400"
@@ -366,35 +404,35 @@ function getTimelineGroups(
   if (groupBy === "model") {
     return sortGroupsByPassRate(
       experiments
-      .map((experiment) => {
-        const experimentResults = getExperimentResults(
-          experiment,
-          sourceResults
-        )
-        const bars = JOURNEY_STAGES.map((stage) => ({
-          label: stage.label,
-          summary: getExperimentStageSummary(
+        .map((experiment) => {
+          const experimentResults = getExperimentResults(
             experiment,
-            stage.id,
-            experimentResults
-          ),
-        })).filter((bar) => bar.summary.total > 0)
-        const passed = experimentResults.filter(
-          (result) => result.passed
-        ).length
+            sourceResults
+          )
+          const bars = JOURNEY_STAGES.map((stage) => ({
+            label: stage.label,
+            summary: getExperimentStageSummary(
+              experiment,
+              stage.id,
+              experimentResults
+            ),
+          })).filter((bar) => bar.summary.total > 0)
+          const passed = experimentResults.filter(
+            (result) => result.passed
+          ).length
 
-        return {
-          id: experiment,
-          label: formatGroupLabel(formatExperiment(experiment)),
-          meta: formatPassPercentage(passed, experimentResults.length),
-          passRate: experimentResults.length
-            ? Math.round((passed / experimentResults.length) * 100)
-            : 0,
-          sourceResults: experimentResults,
-          bars,
-        }
-      })
-      .filter((group) => group.sourceResults.length > 0)
+          return {
+            id: experiment,
+            label: formatGroupLabel(formatExperiment(experiment)),
+            meta: formatPassPercentage(passed, experimentResults.length),
+            passRate: experimentResults.length
+              ? Math.round((passed / experimentResults.length) * 100)
+              : 0,
+            sourceResults: experimentResults,
+            bars,
+          }
+        })
+        .filter((group) => group.sourceResults.length > 0)
     )
   }
 
@@ -530,9 +568,7 @@ function TimelineGroupRow({
     >
       <div className="sticky top-4 z-10 flex min-w-0 flex-col gap-3 self-start pb-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className={groupHeadingClassName}>
-            {group.label}
-          </h2>
+          <h2 className={groupHeadingClassName}>{group.label}</h2>
           {group.passRate != null ? (
             <p
               className={cn(
@@ -664,9 +700,7 @@ function ExperimentSheet({
               key={stage.id}
               className="grid grid-cols-1 gap-3 border-t pt-5 sm:grid-cols-[9rem_1fr] sm:items-baseline"
             >
-              <h2 className={groupHeadingClassName}>
-                {stage.label}
-              </h2>
+              <h2 className={groupHeadingClassName}>{stage.label}</h2>
               <div className="flex min-w-0 flex-col gap-5">
                 {stageGroups.map((group) => (
                   <div
@@ -743,11 +777,7 @@ function ExperimentSheet({
                               {result.notes ? (
                                 <EvalMetadataRow
                                   label="Result details"
-                                  value={
-                                    <p className="leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                                      {result.notes}
-                                    </p>
-                                  }
+                                  value={<ResultDetails notes={result.notes} />}
                                 />
                               ) : null}
                               {result.prompt ? (
@@ -919,7 +949,7 @@ export function App() {
                   "flex flex-col gap-10 md:gap-12 lg:flex-row lg:items-end lg:justify-between lg:gap-16"
                 )}
               >
-                <div className="flex min-w-0 max-w-2xl flex-col gap-8 sm:gap-10">
+                <div className="flex max-w-2xl min-w-0 flex-col gap-8 sm:gap-10">
                   <h1 className="font-heading text-3xl leading-[1.05] font-light tracking-[-0.03em] sm:text-4xl lg:text-5xl xl:text-6xl">
                     <span className="block text-foreground">
                       Evaluating agents across
