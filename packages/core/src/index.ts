@@ -1,14 +1,12 @@
 import vm from "node:vm";
-import { createHmac } from "node:crypto";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
+import { createHash, createHmac } from "node:crypto";
+import { execFile } from "node:child_process";
+import { createServer } from "node:net";
+import { promisify } from "node:util";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
@@ -29,6 +27,13 @@ import {
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
 import type { EvalProduct, EvalStage } from "./eval-metadata.js";
+
+const EXECUTOR_BIN = join(
+  dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
+  "bin",
+  "executor"
+);
+const execFileAsync = promisify(execFile);
 
 export type { SupabaseClient };
 export type { ManagementApiClient };
@@ -401,42 +406,148 @@ export function executorMcpServer(): McpServerDefinition {
     async createConfig({ apiUrl, accessToken }) {
       const scopeDir = mkdtempSync(join(tmpdir(), "eval-executor-scope-"));
       const dataDir = mkdtempSync(join(tmpdir(), "eval-executor-data-"));
+      // Keep source registration isolated from any user daemon already listening on 4788.
+      const daemonUrl = `http://localhost:${await getAvailablePort()}`;
 
-      writeFileSync(
-        join(scopeDir, "executor.jsonc"),
-        JSON.stringify({
-          sources: [
-            {
-              kind: "openapi",
-              namespace: "platform",
-              spec: `${apiUrl}/openapi.json`,
-              baseUrl: apiUrl,
-              headers: { Authorization: `Bearer ${accessToken}` },
-            },
-          ],
-        }),
-      );
+      try {
+        // executor.jsonc#sources is no longer replayed; see https://github.com/RhysSullivan/executor/pull/807.
+        await addExecutorOpenApiSource({
+          scopeDir,
+          dataDir,
+          daemonUrl,
+          spec: `${apiUrl}/openapi.json`,
+          baseUrl: apiUrl,
+          namespace: "platform",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      } catch (err) {
+        await cleanupExecutorResources({ scopeDir, dataDir, daemonUrl });
+        throw err;
+      }
 
       return {
         config: {
-          command: "executor",
-          args: ["mcp", "--scope", scopeDir],
+          command: process.execPath,
+          args: [EXECUTOR_BIN, "mcp", "--scope", scopeDir],
           env: { EXECUTOR_DATA_DIR: dataDir },
         },
         cleanup: async () => {
-          const errors: unknown[] = [];
-          for (const dir of [scopeDir, dataDir]) {
-            try {
-              rmSync(dir, { recursive: true, force: true });
-            } catch (err) {
-              errors.push(err);
-            }
-          }
-          throwIfCloseErrors(errors, "failed to close executor MCP resources");
+          await cleanupExecutorResources({ scopeDir, dataDir, daemonUrl });
         },
       };
     },
   };
+}
+
+async function addExecutorOpenApiSource(input: {
+  scopeDir: string;
+  dataDir: string;
+  daemonUrl: string;
+  spec: string;
+  baseUrl: string;
+  namespace: string;
+  headers: Record<string, string>;
+}) {
+  const sourceConfig = {
+    scope: executorScopeId(input.scopeDir),
+    spec: input.spec,
+    namespace: input.namespace,
+    baseUrl: input.baseUrl,
+    headers: input.headers,
+  };
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [
+      EXECUTOR_BIN,
+      "call",
+      "executor",
+      "openapi",
+      "addSource",
+      JSON.stringify(sourceConfig),
+      "--scope",
+      input.scopeDir,
+      "--base-url",
+      input.daemonUrl,
+    ],
+    { env: executorEnv(input.dataDir) }
+  );
+
+  const executionId = extractExecutorExecutionId(stdout);
+  if (!executionId) return;
+
+  await execFileAsync(
+    process.execPath,
+    [
+      EXECUTOR_BIN,
+      "resume",
+      "--execution-id",
+      executionId,
+      "--action",
+      "accept",
+      "--content",
+      "{}",
+      "--scope",
+      input.scopeDir,
+      "--base-url",
+      input.daemonUrl,
+    ],
+    { env: executorEnv(input.dataDir) }
+  );
+}
+
+async function cleanupExecutorResources(input: {
+  scopeDir: string;
+  dataDir: string;
+  daemonUrl: string;
+}): Promise<void> {
+  const errors: unknown[] = [];
+  try {
+    await execFileAsync(
+      process.execPath,
+      [EXECUTOR_BIN, "daemon", "stop", "--base-url", input.daemonUrl],
+      { env: executorEnv(input.dataDir) }
+    );
+  } catch (err) {
+    errors.push(err);
+  }
+
+  for (const dir of [input.scopeDir, input.dataDir]) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+  throwIfCloseErrors(errors, "failed to close executor MCP resources");
+}
+
+function executorEnv(dataDir: string): Record<string, string> {
+  return { ...definedEnv(process.env), EXECUTOR_DATA_DIR: dataDir };
+}
+
+function extractExecutorExecutionId(stdout: string): string | undefined {
+  return stdout.match(/(?:^|\s)executionId:\s*(\S+)/)?.[1];
+}
+
+function executorScopeId(scopeDir: string): string {
+  const folder = basename(scopeDir) || scopeDir;
+  const hash = createHash("sha256").update(scopeDir).digest("hex").slice(0, 8);
+  return `${folder}-${hash}`;
+}
+
+async function getAvailablePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close(() => {
+        if (typeof address === "object" && address) resolve(address.port);
+        else reject(new Error("failed to allocate executor daemon port"));
+      });
+    });
+  });
 }
 
 export const ACCESS_TOKEN = "eval-token";
@@ -513,7 +624,9 @@ export async function bootPlatformBackend(opts: {
   }
 }
 
-const MAX_STEPS = 30;
+// Executor-backed API calls may require a separate resume step after the
+// initial tool call, so mutation-heavy evals need more headroom than direct MCP.
+const MAX_STEPS = 60;
 const MAX_OUTPUT_TOKENS = 4096;
 const RUNTIME_URL = "http://supabase-evals.local";
 
