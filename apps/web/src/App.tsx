@@ -568,7 +568,7 @@ function TimelineGroupRow({
         "grid grid-cols-1 gap-4 lg:grid-cols-[26rem_minmax(0,1fr)] lg:gap-8"
       )}
     >
-      <div className="sticky top-4 z-10 flex min-w-0 flex-col gap-3 self-start pb-4">
+      <div className="sticky top-20 z-10 flex min-w-0 flex-col gap-3 self-start pb-4">
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className={groupHeadingClassName}>{group.label}</h2>
           {group.passRate != null ? (
