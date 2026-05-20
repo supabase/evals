@@ -1,3 +1,14 @@
+---
+stage: design
+product:
+  - database
+  - auth
+topic:
+  - rls
+  - permissions
+  - security
+---
+
 # Organization Document RLS
 
 You are working on a Supabase project for a multi-tenant document app.

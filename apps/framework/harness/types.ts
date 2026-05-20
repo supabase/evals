@@ -1,3 +1,9 @@
+import type {
+  EvalMetadata,
+  EvalProduct,
+  EvalStage,
+} from "@supabase-evals/core/eval-metadata";
+
 export type {
   ScoreResult,
   ToolCallRecord,
@@ -12,16 +18,26 @@ export type {
   ProjectScorer,
   ExperimentConfig,
 } from "@supabase-evals/core";
+export type {
+  EvalMetadata,
+  EvalProduct,
+  EvalStage,
+} from "@supabase-evals/core/eval-metadata";
 
-export type EvalCategory = "design" | "deploy" | "observe" | "detect" | "resolve";
 export type EvalMode = "tool" | "project";
-export type FileEndpoint = "files.list" | "files.read" | "files.write" | "files.edit";
+export type FileEndpoint =
+  | "files.list"
+  | "files.read"
+  | "files.write"
+  | "files.edit";
 
 export interface EvalManifest {
   id: string;
   mode: EvalMode;
-  category: EvalCategory;
-  subcategory?: string;
+  metadata: EvalMetadata;
+  stage: EvalStage;
+  product: EvalProduct[];
+  topic: string[];
   dir: string;
   appDir?: string;
   promptPath: string;

@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import type { EvalResult } from "@supabase-evals/core"
+import { parseEvalMarkdown } from "../../packages/core/src/eval-metadata"
 
 const RESULTS_MODULE_ID = "virtual:supabase-eval-results"
 const RESOLVED_RESULTS_MODULE_ID = `\0${RESULTS_MODULE_ID}`
@@ -22,8 +23,11 @@ function readPrompt(evalsDir: string, evalId: string) {
     return undefined
   }
 
+  const parsed = parseEvalMarkdown(readFileSync(promptPath, "utf8"), promptPath)
+
   return {
-    prompt: readFileSync(promptPath, "utf8").trim(),
+    ...parsed.metadata,
+    prompt: parsed.body,
     promptSourcePath: path.relative(REPO_ROOT, promptPath),
   }
 }
@@ -33,7 +37,9 @@ function readResultFile(
   sourcePath: string,
   evalsDir: string
 ): EvalResult | null {
-  const parsed = JSON.parse(readFileSync(filePath, "utf8")) as Partial<EvalResult>
+  const parsed = JSON.parse(
+    readFileSync(filePath, "utf8")
+  ) as Partial<EvalResult>
 
   if (!parsed.experiment || !parsed.eval) {
     return null
@@ -44,6 +50,9 @@ function readResultFile(
   return {
     experiment: parsed.experiment,
     eval: parsed.eval,
+    stage: promptData?.stage ?? parsed.stage,
+    product: promptData?.product ?? parsed.product,
+    topic: promptData?.topic ?? parsed.topic,
     passed: Boolean(parsed.passed),
     score: typeof parsed.score === "number" ? parsed.score : undefined,
     notes: typeof parsed.notes === "string" ? parsed.notes : undefined,
@@ -63,7 +72,9 @@ function loadEvalResults() {
   }
 
   return readdirSync(resultsDir)
-    .filter((experiment) => !experiment.startsWith(".") && !experiment.startsWith("_"))
+    .filter(
+      (experiment) => !experiment.startsWith(".") && !experiment.startsWith("_")
+    )
     .flatMap((experiment) => {
       const experimentDir = path.join(resultsDir, experiment)
 
@@ -101,7 +112,10 @@ function loadEvalResults() {
         return result ? [result] : []
       })
     })
-    .sort((a, b) => a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval))
+    .sort(
+      (a, b) =>
+        a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval)
+    )
 }
 
 function evalResultsPlugin() {

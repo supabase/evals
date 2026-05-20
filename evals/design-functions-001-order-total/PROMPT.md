@@ -1,3 +1,12 @@
+---
+stage: design
+product:
+  - functions
+topic:
+  - edge-functions
+  - api
+---
+
 # Order Total Edge Function
 
 Create a Supabase Edge Function named `order-total`.

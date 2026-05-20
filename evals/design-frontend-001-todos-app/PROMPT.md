@@ -1,3 +1,15 @@
+---
+stage: design
+product:
+  - database
+  - auth
+  - sdk
+topic:
+  - frontend
+  - rls
+  - supabase-js
+---
+
 # Authenticated Todos Frontend
 
 Build the missing Supabase integration for this Vite + React todos app.

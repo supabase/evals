@@ -11,11 +11,11 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { parseEvalMarkdown } from "@supabase-evals/core/eval-metadata";
 import { buildFileTools } from "./file-tools.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
   ExperimentConfig,
-  EvalCategory,
   EvalManifest,
   ToolScorer,
   ProjectScorer,
@@ -42,7 +42,10 @@ async function loadExperiments() {
   const out: Array<{ name: string; config: ExperimentConfig }> = [];
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
     const mod = await import(pathToFileURL(join(dir, f)).href);
-    out.push({ name: f.replace(/\.ts$/, ""), config: mod.default as ExperimentConfig });
+    out.push({
+      name: f.replace(/\.ts$/, ""),
+      config: mod.default as ExperimentConfig,
+    });
   }
   return out;
 }
@@ -71,23 +74,27 @@ function discoverEvals(): EvalManifest[] {
     const evalDir = join(dir, id);
     if (!statSync(evalDir).isDirectory()) continue;
     const appDir = join(evalDir, "app");
+    const promptPath = join(evalDir, "PROMPT.md");
+    const evalPath = join(evalDir, "EVAL.ts");
+    const metadata = parseEvalMarkdown(
+      readFileSync(promptPath, "utf8"),
+      `evals/${id}/PROMPT.md`,
+    ).metadata;
     const isProject =
-      existsSync(join(appDir, "package.json")) && existsSync(join(appDir, "src"));
+      existsSync(join(appDir, "package.json")) &&
+      existsSync(join(appDir, "src"));
     const mode = isProject ? "project" : "tool";
-    const parts = id.split("-");
-    if (parts.length < 4 || /^\d+$/.test(parts[1])) {
-      throw new Error(`eval id must be <category>-<subcategory>-<NNN>-<slug>: ${id}`);
-    }
-    const [category, subcategory] = parts;
     out.push({
       id,
       mode,
-      category: category as EvalCategory,
-      subcategory,
+      metadata,
+      stage: metadata.stage,
+      product: metadata.product,
+      topic: metadata.topic,
       dir: evalDir,
       appDir: isProject ? appDir : undefined,
-      promptPath: join(evalDir, "PROMPT.md"),
-      evalPath: join(evalDir, "EVAL.ts"),
+      promptPath,
+      evalPath,
       seedDir: join(evalDir, "seed"),
     });
   }
@@ -98,10 +105,11 @@ function loadSkills(skillNames: string[]): string {
   const blocks: string[] = [];
   for (const name of skillNames) {
     const p = join(ROOT, "skills", name, "SKILL.md");
-    if (existsSync(p)) blocks.push(`# Skill: ${name}\n\n${readFileSync(p, "utf8")}`);
+    if (existsSync(p))
+      blocks.push(`# Skill: ${name}\n\n${readFileSync(p, "utf8")}`);
     else
       blocks.push(
-        `# Skill: ${name}\n\n(not found — ensure submodule is initialised: \`git submodule update --init\`)`
+        `# Skill: ${name}\n\n(not found — ensure submodule is initialised: \`git submodule update --init\`)`,
       );
   }
   return blocks.join("\n\n---\n\n");
@@ -114,7 +122,14 @@ function resultPath(modelName: string, ev: Pick<EvalManifest, "id" | "mode">) {
 }
 
 function workspacePath(modelName: string, evalId: string, attempt: number) {
-  return join(ROOT, "results", modelName, evalId, `attempt-${attempt}`, "workspace");
+  return join(
+    ROOT,
+    "results",
+    modelName,
+    evalId,
+    `attempt-${attempt}`,
+    "workspace",
+  );
 }
 
 function materializeWorkspace(ev: EvalManifest, workspace: string) {
@@ -128,7 +143,7 @@ function materializeWorkspace(ev: EvalManifest, workspace: string) {
       "VITE_SUPABASE_URL=http://supabase-evals.local",
       "VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key",
       "",
-    ].join("\n")
+    ].join("\n"),
   );
 }
 
@@ -139,7 +154,11 @@ function copyWithheldTests(ev: EvalManifest, workspace: string) {
   }
 }
 
-function buildSystemPrompt(mode: "tool" | "project", skillContext: string, addendum?: string): string {
+function buildSystemPrompt(
+  mode: "tool" | "project",
+  skillContext: string,
+  addendum?: string,
+): string {
   const base =
     mode === "project"
       ? "You are an agent solving a Supabase frontend project eval task. " +
@@ -157,11 +176,18 @@ function buildSystemPrompt(mode: "tool" | "project", skillContext: string, adden
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
-  ev: EvalManifest
-): Promise<ScoreResult & { attempts: number; toolCalls: unknown[]; agentReport: string }> {
+  ev: EvalManifest,
+): Promise<
+  ScoreResult & { attempts: number; toolCalls: unknown[]; agentReport: string }
+> {
   const skillContext = loadSkills(exp.skills);
-  const prompt = readFileSync(ev.promptPath, "utf8");
-  const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as ProjectScorer | ToolScorer;
+  const prompt = parseEvalMarkdown(
+    readFileSync(ev.promptPath, "utf8"),
+    ev.promptPath,
+  ).body;
+  const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
+    | ProjectScorer
+    | ToolScorer;
   let last: ScoreResult = { passed: false, score: 0, notes: "no attempts" };
   let lastToolCalls: unknown[] = [];
   let lastAgentReport = "";
@@ -194,7 +220,12 @@ async function runOne(
       });
 
       if (STOP_ON_PASS && last.passed) {
-        return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
+        return {
+          ...last,
+          attempts: attempt,
+          toolCalls: run.toolCalls,
+          agentReport: run.agentReport,
+        };
       }
       continue;
     }
@@ -209,7 +240,11 @@ async function runOne(
     });
 
     try {
-      const systemPrompt = buildSystemPrompt("tool", skillContext, session.promptAddendum);
+      const systemPrompt = buildSystemPrompt(
+        "tool",
+        skillContext,
+        session.promptAddendum,
+      );
       const run = await exp.agent.run({
         systemPrompt,
         userPrompt: prompt,
@@ -226,14 +261,24 @@ async function runOne(
       });
 
       if (STOP_ON_PASS && last.passed) {
-        return { ...last, attempts: attempt, toolCalls: run.toolCalls, agentReport: run.agentReport };
+        return {
+          ...last,
+          attempts: attempt,
+          toolCalls: run.toolCalls,
+          agentReport: run.agentReport,
+        };
       }
     } finally {
       await session.close();
     }
   }
 
-  return { ...last, attempts: RUNS, toolCalls: lastToolCalls, agentReport: lastAgentReport };
+  return {
+    ...last,
+    attempts: RUNS,
+    toolCalls: lastToolCalls,
+    agentReport: lastAgentReport,
+  };
 }
 
 function normalizeExperimentName(s: string): string {
@@ -242,7 +287,11 @@ function normalizeExperimentName(s: string): string {
 
 async function main() {
   const experiments = (await loadExperiments()).filter(({ name, config }) => {
-    if (EXPERIMENT_FILTER && name !== normalizeExperimentName(EXPERIMENT_FILTER)) return false;
+    if (
+      EXPERIMENT_FILTER &&
+      name !== normalizeExperimentName(EXPERIMENT_FILTER)
+    )
+      return false;
     if (MODEL_FILTER && config.agent.modelId !== MODEL_FILTER) return false;
     return true;
   });
@@ -260,15 +309,15 @@ async function main() {
   const evals = discoverEvals();
   console.log(
     `${experiments.length} experiment(s), ${evals.length} eval(s), ` +
-      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`
+      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
   );
 
   const filtered = SMOKE
     ? Object.values(
         evals.reduce<Record<string, EvalManifest>>((acc, e) => {
-          acc[e.category] ??= e;
+          acc[e.stage] ??= e;
           return acc;
-        }, {})
+        }, {}),
       )
     : EVAL_FILTER
       ? evals.filter((e) => e.id === EVAL_FILTER)
@@ -283,7 +332,9 @@ async function main() {
       try {
         config.agent.assertReady();
       } catch (e) {
-        console.error(`SKIP ${name} (${e instanceof Error ? e.message : String(e)})`);
+        console.error(
+          `SKIP ${name} (${e instanceof Error ? e.message : String(e)})`,
+        );
         continue;
       }
     }
@@ -296,8 +347,8 @@ async function main() {
       if (DRY) {
         console.log(
           ev.mode === "project"
-            ? `PLAN ${name} x ${ev.id}  mode=project tools=files.*`
-            : `PLAN ${name} x ${ev.id}  runtime=${config.runtime.id} model=${config.agent.modelId}`
+            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} mode=project tools=files.*`
+            : `PLAN ${name} x ${ev.id}  stage=${ev.stage} runtime=${config.runtime.id} model=${config.agent.modelId}`,
         );
         continue;
       }
@@ -305,18 +356,29 @@ async function main() {
       try {
         const res = await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
-        writeFileSync(out, JSON.stringify({ experiment: name, eval: ev.id, ...res }, null, 2));
+        writeFileSync(
+          out,
+          JSON.stringify(
+            { experiment: name, eval: ev.id, ...ev.metadata, ...res },
+            null,
+            2,
+          ),
+        );
         console.log(
-          `  -> ${res.passed ? "PASS" : "FAIL"} (score ${res.score.toFixed(2)}, attempts ${res.attempts})`
+          `  -> ${res.passed ? "PASS" : "FAIL"} (score ${res.score.toFixed(2)}, attempts ${res.attempts})`,
         );
       } catch (e) {
-        console.error(`  -> ERROR ${e instanceof Error ? e.message : String(e)}`);
+        console.error(
+          `  -> ERROR ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     }
   }
 }
 
-main().then(() => process.exit(0)).catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

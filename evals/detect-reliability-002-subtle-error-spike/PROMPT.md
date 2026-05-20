@@ -1,3 +1,13 @@
+---
+stage: detect
+product:
+  - functions
+topic:
+  - reliability
+  - observability
+  - logs
+---
+
 # Subtle Reliability Spike
 
 Audit recent edge-function logs for any reliability issue worth a human's
