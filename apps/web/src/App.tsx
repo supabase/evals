@@ -55,7 +55,9 @@ const JOURNEY_STAGES = [
 ] as const
 
 const CLI_COMMAND = "npx skills add supabase/agent-skills"
-const DOCS_URL = "https://github.com/supabase-org/supabase-evals"
+const DOCS_URL = "https://supabase.com/docs/guides/ai-tools/plugins"
+const CREATE_PROJECT_URL = "https://supabase.com/dashboard/new"
+const WEBSITE_URL = "https://supabase.com"
 const UNASSIGNED_PRODUCT = "__unassigned_product__"
 
 type JourneyStage = (typeof JOURNEY_STAGES)[number]["id"]
@@ -808,10 +810,10 @@ function ExperimentSheet({
   )
 }
 
-function SupabaseLogo() {
+function SupabaseLogo({ className }: { className?: string } = {}) {
   return (
     <svg
-      className="h-6 w-auto"
+      className={cn("h-6 w-auto", className)}
       viewBox="0 0 109 113"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -902,11 +904,55 @@ function CopyCommandButton() {
 
 function ReadDocsButton() {
   return (
-    <Button variant="outline" asChild>
+    <Button variant="secondary" asChild>
       <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
-        Read docs
+        AI Tools
       </a>
     </Button>
+  )
+}
+
+function FooterCta() {
+  const [patternReplayKey, setPatternReplayKey] = useState(0)
+
+  return (
+    <footer
+      className="bg-card text-center"
+      onMouseEnter={() => setPatternReplayKey((key) => key + 1)}
+    >
+      <div className="px-6 py-24 sm:py-28 lg:py-36">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-8">
+          <SupabaseLogo className="h-8" />
+          <h2 className="font-heading text-2xl leading-[1.05] font-light tracking-[-0.03em] sm:text-3xl lg:text-4xl xl:text-5xl">
+            <span className="block text-foreground">Set your agent free</span>
+            <span className="block text-muted-foreground">
+              with a Supabase project
+            </span>
+          </h2>
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            <Button asChild>
+              <a
+                href={CREATE_PROJECT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Create Project
+              </a>
+            </Button>
+            <Button variant="secondary" asChild>
+              <a href={WEBSITE_URL} target="_blank" rel="noopener noreferrer">
+                Learn more
+              </a>
+            </Button>
+          </div>
+        </div>
+      </div>
+      <HeroGridPattern
+        height={200}
+        color="var(--muted)"
+        replayKey={patternReplayKey}
+      />
+    </footer>
   )
 }
 
@@ -1008,6 +1054,7 @@ export function App() {
               </div>
             )}
           </div>
+          <FooterCta />
         </>
       ) : (
         <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">

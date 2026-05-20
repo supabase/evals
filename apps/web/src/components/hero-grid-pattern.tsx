@@ -20,6 +20,10 @@ export type HeroGridPatternProps = {
   ditherPitchPx?: number
   /** CSS pixel size of each dot */
   ditherDotPx?: number
+  /** Canvas fill color for the generated pattern */
+  color?: string
+  /** Change this value to replay the intro pattern rotation */
+  replayKey?: number
   className?: string
 }
 
@@ -35,6 +39,8 @@ export function HeroGridPattern({
   dither = false,
   ditherPitchPx = 4,
   ditherDotPx = 1,
+  color,
+  replayKey,
   className,
 }: HeroGridPatternProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -74,6 +80,10 @@ export function HeroGridPattern({
 
     return () => window.clearTimeout(timeoutId)
   }, [variationIndex, settledIndex])
+
+  useEffect(() => {
+    setVariationIndex(0)
+  }, [replayKey])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -134,7 +144,7 @@ export function HeroGridPattern({
     <div
       ref={wrapperRef}
       className={cn("w-full overflow-hidden text-primary", className)}
-      style={{ height }}
+      style={{ height, color }}
       aria-hidden
     >
       <canvas
