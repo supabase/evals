@@ -22,8 +22,6 @@ export type HeroGridPatternProps = {
   ditherDotPx?: number
   /** Canvas fill color for the generated pattern */
   color?: string
-  /** Change this value to replay the intro pattern rotation */
-  replayKey?: number
   className?: string
 }
 
@@ -31,6 +29,10 @@ const BASE_COLS = 48
 const DEFAULT_ROWS = 7
 const INTRO_VARIATIONS = 10
 const INTRO_INTERVAL_MS = 200
+const INTRO_SEEDS = Array.from(
+  { length: INTRO_VARIATIONS },
+  () => Math.floor(Math.random() * 0xffffffff)
+)
 
 export function HeroGridPattern({
   height = 200,
@@ -40,7 +42,6 @@ export function HeroGridPattern({
   ditherPitchPx = 4,
   ditherDotPx = 1,
   color,
-  replayKey,
   className,
 }: HeroGridPatternProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -49,25 +50,16 @@ export function HeroGridPattern({
   const cornerRadius = cornerRadiusProp ?? Math.min(5, cellSize * 0.14)
   const [variationIndex, setVariationIndex] = useState(0)
 
-  const seeds = useMemo(
-    () =>
-      Array.from(
-        { length: INTRO_VARIATIONS },
-        () => Math.floor(Math.random() * 0xffffffff)
-      ),
-    []
-  )
-
   const baseGrids = useMemo(() => {
     const rows = Math.max(3, Math.round(height / cellSize))
-    return seeds.map((seed) =>
+    return INTRO_SEEDS.map((seed) =>
       generateGridPattern({
         cols: BASE_COLS,
         rows,
         seed,
       })
     )
-  }, [cellSize, height, seeds])
+  }, [cellSize, height])
 
   const settledIndex = INTRO_VARIATIONS - 1
 
@@ -82,17 +74,13 @@ export function HeroGridPattern({
   }, [variationIndex, settledIndex])
 
   useEffect(() => {
-    setVariationIndex(0)
-  }, [replayKey])
-
-  useEffect(() => {
     const canvas = canvasRef.current
     const wrapper = wrapperRef.current
     if (!canvas || !wrapper) return
 
     const activeIndex = Math.min(variationIndex, settledIndex)
     const baseGrid = baseGrids[activeIndex]
-    const seed = seeds[activeIndex]
+    const seed = INTRO_SEEDS[activeIndex]
 
     const paint = () => {
       const fillStyle =
@@ -129,7 +117,6 @@ export function HeroGridPattern({
     return () => observer.disconnect()
   }, [
     baseGrids,
-    seeds,
     variationIndex,
     settledIndex,
     cellSize,

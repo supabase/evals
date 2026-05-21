@@ -948,9 +948,9 @@ function FooterCta() {
         </div>
       </div>
       <HeroGridPattern
+        key={patternReplayKey}
         height={200}
         color="var(--muted)"
-        replayKey={patternReplayKey}
       />
     </footer>
   )
