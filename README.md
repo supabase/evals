@@ -114,25 +114,14 @@ npm run eval -- --model gpt-5.4-mini
 Create a directory named:
 
 ```
-evals/<category>-<subcategory>-<NNN>-<slug>/
+evals/<short-id>/
 ```
 
 Rules:
 
-- `<category>` must be one of `design`, `deploy`, `observe`, `detect`, `resolve`.
-- `<subcategory>` is always required, lowercase, and must not start with the numeric sequence.
-- `<NNN>` is a zero-padded 3-digit number, unique within `<category>-<subcategory>`.
-- `<slug>` is kebab-case and short, usually around three words.
-
-Approved subcategories:
-
-| Category | Subcategories |
-| --- | --- |
-| `design` | `rls`, `functions`, `frontend`, `storage`, `auth`, `realtime`, `db` |
-| `deploy` | `cli`, `api`, `schema`, `migrations`, `secrets` |
-| `observe` | `logs`, `db`, `perf`, `usage` |
-| `detect` | `security`, `performance`, `reliability`, `cost` |
-| `resolve` | `security`, `performance`, `reliability`, `frontend`, `db` |
+- The directory id must be unique, stable, lowercase, and kebab-case.
+- Prefer `<stage>-<primary-topic>-<NNN>-<slug>` for human readability.
+- Discovery and filtering do not infer metadata from the directory id. Define `stage`, `product`, and `topic` in `PROMPT.md` frontmatter.
 
 Examples:
 
@@ -151,10 +140,28 @@ resolve-performance-001-slow-query-index/
 
 Every eval contains:
 
-1. `PROMPT.md` — the only task description the agent sees. Be concrete about success criteria, but do not leak exact scorer assertions.
+1. `PROMPT.md` — frontmatter metadata plus the only task description the agent sees. Be concrete about success criteria, but do not leak exact scorer assertions.
 2. `EVAL.ts` — default-export a `ToolScorer` or `ProjectScorer` from `@supabase-evals/core`. Return `{ passed, score, notes }`.
 3. Optional `seed/project.sql` — applied to a fresh supalite project DB.
 4. Optional `seed/logs.jsonl` — one JSON object per line with columns `id`, `ts`, `source`, `level`, `message?`, `metadata`.
+
+`PROMPT.md` frontmatter is required and drives eval discovery and site filters:
+
+```md
+---
+stage: design
+product:
+  - database
+  - auth
+topic:
+  - rls
+  - security
+---
+```
+
+`stage` must be one of `design`, `deploy`, `observe`, `detect`, or `resolve`.
+`product` must contain one or more of `database`, `storage`, `auth`, `data api`, `sdk`, `realtime`, `functions`, `cli`, `docs`, or `self-hosted`.
+`topic` is a free-form list of lowercase tags such as `rls`, `supabase-js`, `migration`, `schema`, `performance`, `reliability`, or `security`.
 
 Common scoring patterns:
 

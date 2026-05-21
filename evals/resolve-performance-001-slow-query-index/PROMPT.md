@@ -1,3 +1,13 @@
+---
+stage: resolve
+product:
+  - database
+topic:
+  - performance
+  - indexing
+  - logs
+---
+
 # Slow Recent Events Query
 
 Investigate recent slow queries in the project logs and apply the most

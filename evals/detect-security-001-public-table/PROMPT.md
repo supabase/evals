@@ -1,3 +1,13 @@
+---
+stage: detect
+product:
+  - database
+topic:
+  - security
+  - rls
+  - observability
+---
+
 # Audit this Supabase project for security issues
 
 You have access to the project's database schema and recent logs.

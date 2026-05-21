@@ -10,7 +10,13 @@ import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
-import { generateText, stepCountIs, type JSONValue, type LanguageModel, type ToolSet } from "ai";
+import {
+  generateText,
+  stepCountIs,
+  type JSONValue,
+  type LanguageModel,
+  type ToolSet,
+} from "ai";
 import ts from "typescript";
 import {
   createManagementApiClient,
@@ -20,6 +26,7 @@ import {
   type ProjectInstance,
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
+import type { EvalProduct, EvalStage } from "./eval-metadata.js";
 
 const EXECUTOR_BIN = join(
   dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
@@ -30,10 +37,24 @@ const execFileAsync = promisify(execFile);
 
 export type { SupabaseClient };
 export type { ManagementApiClient };
+export {
+  EVAL_PRODUCTS,
+  EVAL_STAGES,
+  parseEvalMarkdown,
+} from "./eval-metadata.js";
+export type {
+  EvalMetadata,
+  EvalProduct,
+  EvalStage,
+  ParsedEvalMarkdown,
+} from "./eval-metadata.js";
 
 export type EvalResult = {
   experiment: string;
   eval: string;
+  stage?: EvalStage;
+  product?: EvalProduct[];
+  topic?: string[];
   passed: boolean;
   score?: number;
   notes?: string;
@@ -101,7 +122,9 @@ export interface ToolScoringContext {
   /** Run a SQL query in-process against the project database. */
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
   /** Invoke a deployed edge function in-process. */
-  invokeFunction: (input: EdgeFunctionsInvokeInput) => Promise<EdgeFunctionsInvokeResult>;
+  invokeFunction: (
+    input: EdgeFunctionsInvokeInput,
+  ) => Promise<EdgeFunctionsInvokeResult>;
 }
 
 export interface ToolEvalContext extends ToolScoringContext {
@@ -165,9 +188,12 @@ export function aiSdkAgent(options: {
     },
     async run(args) {
       assertProviderReady(options.model.provider);
-      const mcpHandles = args.mcpServers ? await createAiSdkTools(args.mcpServers) : [];
+      const mcpHandles = args.mcpServers
+        ? await createAiSdkTools(args.mcpServers)
+        : [];
       const toolCalls: ToolCallRecord[] = [];
-      const tools = args.tools ?? mergeToolSets(mcpHandles.map((handle) => handle.tools));
+      const tools =
+        args.tools ?? mergeToolSets(mcpHandles.map((handle) => handle.tools));
 
       try {
         const result = await generateText({
@@ -178,7 +204,10 @@ export function aiSdkAgent(options: {
           stopWhen: stepCountIs(MAX_STEPS),
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           timeout: { totalMs: args.timeoutSec * 1000 },
-          providerOptions: withProviderDefaults(options.model.provider, options.providerOptions),
+          providerOptions: withProviderDefaults(
+            options.model.provider,
+            options.providerOptions,
+          ),
           experimental_onToolCallFinish: (event) => {
             toolCalls.push({
               endpoint: event.toolCall.toolName,
@@ -193,7 +222,10 @@ export function aiSdkAgent(options: {
           agentReport: result.text.trim(),
           toolCalls,
           steps: result.steps.length,
-          stoppedReason: result.steps.length >= MAX_STEPS ? "max_steps" : result.finishReason,
+          stoppedReason:
+            result.steps.length >= MAX_STEPS
+              ? "max_steps"
+              : result.finishReason,
         };
       } finally {
         await closeMcpHandles(mcpHandles);
@@ -246,7 +278,9 @@ export type McpServerDefinition = {
   createConfig(context: PlatformLiteMcpContext): Promise<ResolvedMcpServer>;
 };
 
-export function platformLiteRuntime(options: { mcpServers: McpServerDefinition[] }): EvalRuntime {
+export function platformLiteRuntime(options: {
+  mcpServers: McpServerDefinition[];
+}): EvalRuntime {
   return {
     id: "platform-lite",
     async startSession(args) {
@@ -269,10 +303,11 @@ export function platformLiteRuntime(options: { mcpServers: McpServerDefinition[]
 
         return {
           mcpServers,
-          promptAddendum: options.mcpServers
-            .map((mcpServer) => mcpServer.promptAddendum)
-            .filter(isNonEmptyString)
-            .join("\n\n") || undefined,
+          promptAddendum:
+            options.mcpServers
+              .map((mcpServer) => mcpServer.promptAddendum)
+              .filter(isNonEmptyString)
+              .join("\n\n") || undefined,
           scoringContext: {
             mgmt: backend.mgmt,
             ref: backend.ref,
@@ -295,7 +330,10 @@ export function platformLiteRuntime(options: { mcpServers: McpServerDefinition[]
             } catch (err) {
               errors.push(err);
             }
-            throwIfCloseErrors(errors, "failed to close eval session resources");
+            throwIfCloseErrors(
+              errors,
+              "failed to close eval session resources",
+            );
           },
         };
       } catch (err) {
@@ -313,7 +351,10 @@ export function platformLiteRuntime(options: { mcpServers: McpServerDefinition[]
           closeErrors.push(closeErr);
         }
         if (closeErrors.length > 0) {
-          throw new AggregateError([err, ...closeErrors], "failed to start eval session");
+          throw new AggregateError(
+            [err, ...closeErrors],
+            "failed to start eval session",
+          );
         }
         throw err;
       }
@@ -321,11 +362,19 @@ export function platformLiteRuntime(options: { mcpServers: McpServerDefinition[]
   };
 }
 
-export function supabaseMcpServer(options: {
-  features?: string[];
-  version?: string;
-} = {}): McpServerDefinition {
-  const features = options.features ?? ["account", "database", "development", "debugging", "functions"];
+export function supabaseMcpServer(
+  options: {
+    features?: string[];
+    version?: string;
+  } = {},
+): McpServerDefinition {
+  const features = options.features ?? [
+    "account",
+    "database",
+    "development",
+    "debugging",
+    "functions",
+  ];
   const version = options.version ?? MCP_SERVER_VERSION;
 
   return {
@@ -512,7 +561,9 @@ export interface PlatformBackend {
   client: SupabaseClient;
   getClient: () => SupabaseClient;
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
-  invokeFunction: (input: EdgeFunctionsInvokeInput) => Promise<EdgeFunctionsInvokeResult>;
+  invokeFunction: (
+    input: EdgeFunctionsInvokeInput,
+  ) => Promise<EdgeFunctionsInvokeResult>;
   close: () => Promise<void>;
 }
 
@@ -581,16 +632,20 @@ const RUNTIME_URL = "http://supabase-evals.local";
 
 function assertProviderReady(provider: string): void {
   if (provider.startsWith("openai") && !process.env.OPENAI_API_KEY) {
-    throw new Error("Missing OpenAI credentials. Set OPENAI_API_KEY before running OpenAI evals.");
+    throw new Error(
+      "Missing OpenAI credentials. Set OPENAI_API_KEY before running OpenAI evals.",
+    );
   }
   if (provider.startsWith("anthropic") && !process.env.ANTHROPIC_API_KEY) {
-    throw new Error("Missing Anthropic credentials. Set ANTHROPIC_API_KEY before running Anthropic evals.");
+    throw new Error(
+      "Missing Anthropic credentials. Set ANTHROPIC_API_KEY before running Anthropic evals.",
+    );
   }
 }
 
 function withProviderDefaults(
   provider: string,
-  options: AiSdkProviderOptions = {}
+  options: AiSdkProviderOptions = {},
 ): AiSdkProviderOptions | undefined {
   const merged = provider.startsWith("openai")
     ? { ...options, openai: withOpenAiZdrDefaults(options.openai) }
@@ -599,7 +654,7 @@ function withProviderDefaults(
 }
 
 async function createAiSdkTools(
-  mcpServers: Record<string, McpServerConfig>
+  mcpServers: Record<string, McpServerConfig>,
 ): Promise<McpClientHandle[]> {
   const handles: McpClientHandle[] = [];
 
@@ -643,7 +698,9 @@ function definedEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   return result;
 }
 
-function withOpenAiZdrDefaults(options: Record<string, JSONValue> = {}): Record<string, JSONValue> {
+function withOpenAiZdrDefaults(
+  options: Record<string, JSONValue> = {},
+): Record<string, JSONValue> {
   const rawInclude = options.include;
   const include = Array.isArray(rawInclude) ? rawInclude.filter(isString) : [];
   return {
@@ -657,11 +714,14 @@ function withOpenAiZdrDefaults(options: Record<string, JSONValue> = {}): Record<
 
 async function closePlatformResources(
   platform: PlatformHandle,
-  server?: ServerHandle
+  server?: ServerHandle,
 ): Promise<void> {
   const errors: unknown[] = [];
 
-  for (const dispose of [server?.dispose.bind(server), platform.dispose.bind(platform)]) {
+  for (const dispose of [
+    server?.dispose.bind(server),
+    platform.dispose.bind(platform),
+  ]) {
     if (!dispose) continue;
     try {
       await dispose();
@@ -713,7 +773,7 @@ function generateAnonKey(ref: string, jwtSecret: string): string {
       ref,
       iat: Math.floor(Date.now() / 1000),
       exp: 9999999999,
-    })
+    }),
   );
   const sig = createHmac("sha256", jwtSecret)
     .update(`${header}.${body}`)
@@ -723,7 +783,7 @@ function generateAnonKey(ref: string, jwtSecret: string): string {
 
 async function invokeEdgeFunction(
   instance: ProjectInstance,
-  input: EdgeFunctionsInvokeInput
+  input: EdgeFunctionsInvokeInput,
 ): Promise<EdgeFunctionsInvokeResult> {
   const fn = instance.functions.get(input.name);
   if (!fn) throw new Error(`edge function not found: ${input.name}`);
@@ -733,7 +793,12 @@ async function invokeEdgeFunction(
   const anonKey = generateAnonKey(instance.ref, instance.jwtSecret);
   const projectFetch = (req: Request) => instance.app.fetch(req);
   const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
-  const handler = compileEdgeFunction(source, RUNTIME_URL, anonKey, runtimeFetch);
+  const handler = compileEdgeFunction(
+    source,
+    RUNTIME_URL,
+    anonKey,
+    runtimeFetch,
+  );
 
   const method = (input.method ?? "POST").toUpperCase();
   const headers = new Headers(input.headers ?? {});
@@ -754,9 +819,9 @@ async function invokeEdgeFunction(
     handler(
       new Request(
         `https://project-ref.functions.supabase.co/${input.name}${input.path ?? ""}`,
-        { method, headers, body: hasBody ? bodyStr : undefined }
-      )
-    )
+        { method, headers, body: hasBody ? bodyStr : undefined },
+      ),
+    ),
   );
   if (!(response instanceof Response)) {
     throw new Error(`edge function ${input.name} did not return a Response`);
@@ -773,7 +838,7 @@ type EdgeHandler = (req: Request) => unknown;
 
 function createRuntimeFetch(
   runtimeUrl: string,
-  projectFetch: (req: Request) => Promise<Response>
+  projectFetch: (req: Request) => Promise<Response>,
 ): typeof fetch {
   const origin = new URL(runtimeUrl).origin;
   return async (input, init) => {
@@ -790,7 +855,7 @@ function compileEdgeFunction(
   source: string,
   url: string,
   anonKey: string,
-  runtimeFetch: typeof fetch
+  runtimeFetch: typeof fetch,
 ): EdgeHandler {
   const js = ts.transpileModule(source, {
     compilerOptions: {
@@ -810,7 +875,7 @@ function compileEdgeFunction(
         createClient: (
           u: string,
           k: string,
-          opts: Parameters<typeof createClient>[2] = {}
+          opts: Parameters<typeof createClient>[2] = {},
         ) =>
           createClient(u, k, {
             ...opts,
@@ -824,7 +889,8 @@ function compileEdgeFunction(
   const sandbox = {
     Deno: {
       serve: (optOrHandler: unknown, maybeHandler?: unknown) => {
-        const handler = typeof optOrHandler === "function" ? optOrHandler : maybeHandler;
+        const handler =
+          typeof optOrHandler === "function" ? optOrHandler : maybeHandler;
         if (typeof handler !== "function") {
           throw new Error("Deno.serve requires a handler");
         }
@@ -852,7 +918,11 @@ function compileEdgeFunction(
     atob,
     btoa,
     crypto,
-    console: { log: () => undefined, warn: () => undefined, error: () => undefined },
+    console: {
+      log: () => undefined,
+      warn: () => undefined,
+      error: () => undefined,
+    },
     exports,
     module: moduleState,
     require: requireFromSandbox,
@@ -867,7 +937,7 @@ function compileEdgeFunction(
 
   if (!handler) {
     throw new Error(
-      "edge function must call Deno.serve(handler) or export a default handler"
+      "edge function must call Deno.serve(handler) or export a default handler",
     );
   }
 
@@ -885,7 +955,9 @@ type QueryResultWithFields = {
 };
 
 function hasNamedFields(value: unknown): value is QueryResultWithFields {
-  return isRecord(value) && Array.isArray(value.fields) && value.fields.length > 0;
+  return (
+    isRecord(value) && Array.isArray(value.fields) && value.fields.length > 0
+  );
 }
 
 function toRecordRows(rows: unknown): Record<string, unknown>[] {

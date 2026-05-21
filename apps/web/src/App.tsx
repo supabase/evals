@@ -1,6 +1,6 @@
 import rawResults, { type EvalResult } from "virtual:supabase-eval-results"
-import { useState } from "react"
-import { CopyIcon, InfoIcon } from "lucide-react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
+import { CheckIcon, CopyIcon, XIcon } from "lucide-react"
 
 import {
   Accordion,
@@ -16,13 +16,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { HeroGridPattern } from "@/components/hero-grid-pattern"
 import { cn } from "@/lib/utils"
 
 const JOURNEY_STAGES = [
@@ -59,12 +55,19 @@ const JOURNEY_STAGES = [
 ] as const
 
 const CLI_COMMAND = "npx skills add supabase/agent-skills"
+const DOCS_URL = "https://supabase.com/docs/guides/ai-tools/plugins"
+const CREATE_PROJECT_URL = "https://supabase.com/dashboard/new"
+const WEBSITE_URL = "https://supabase.com"
+const UNASSIGNED_PRODUCT = "__unassigned_product__"
 
 type JourneyStage = (typeof JOURNEY_STAGES)[number]["id"]
+type GroupBy = "stage" | "model" | "product"
 
-type ParsedResult = EvalResult & {
+type ParsedResult = Omit<EvalResult, "product" | "topic"> & {
   category: JourneyStage | "unknown"
-  subcategory: string
+  product: string[]
+  topic: string[]
+  primaryCategory: string
 }
 
 type ExperimentStageSummary = {
@@ -75,10 +78,44 @@ type ExperimentStageSummary = {
 }
 
 type ExperimentStageGroup = {
-  subcategory: string
+  category: string
   passed: number
   results: ParsedResult[]
   total: number
+}
+
+type ChartBar = {
+  label: string
+  summary: ExperimentStageSummary
+}
+
+function getBarPassRate(bar: ChartBar) {
+  const { passed, total } = bar.summary
+  return total ? Math.round((passed / total) * 100) : 0
+}
+
+function sortBarsByScore(bars: ChartBar[]) {
+  return [...bars].sort((a, b) => {
+    const scoreDelta = getBarPassRate(b) - getBarPassRate(a)
+    return scoreDelta || a.label.localeCompare(b.label)
+  })
+}
+
+function sortGroupsByPassRate(groups: TimelineGroup[]) {
+  return [...groups].sort((a, b) => {
+    const scoreDelta = (b.passRate ?? 0) - (a.passRate ?? 0)
+    return scoreDelta || a.label.localeCompare(b.label)
+  })
+}
+
+type TimelineGroup = {
+  description?: string
+  id: string
+  label: string
+  meta: string
+  passRate?: number
+  sourceResults: ParsedResult[]
+  bars: ChartBar[]
 }
 
 const stageIndex = new Map(
@@ -86,13 +123,17 @@ const stageIndex = new Map(
 )
 
 function parseResult(result: EvalResult): ParsedResult {
-  const [category, subcategory = "uncategorized"] = result.eval.split("-")
+  const category = result.stage ?? "unknown"
   const isKnownStage = JOURNEY_STAGES.some((stage) => stage.id === category)
+  const product = result.product ?? []
+  const topic = result.topic ?? []
 
   return {
     ...result,
     category: isKnownStage ? (category as JourneyStage) : "unknown",
-    subcategory,
+    product,
+    topic,
+    primaryCategory: topic[0] ?? "uncategorized",
   }
 }
 
@@ -108,28 +149,33 @@ function sortResults(a: ParsedResult, b: ParsedResult) {
 
   return (
     categoryDelta ||
-    a.subcategory.localeCompare(b.subcategory) ||
+    a.primaryCategory.localeCompare(b.primaryCategory) ||
     a.eval.localeCompare(b.eval)
   )
 }
 
 const sortedResults = [...results].sort(sortResults)
-
-function getStageResults(category: JourneyStage) {
-  return sortedResults.filter((result) => result.category === category)
+function getStageResults(
+  category: JourneyStage,
+  sourceResults = sortedResults
+) {
+  return sourceResults.filter((result) => result.category === category)
 }
 
-function getExperimentResults(experiment: string) {
-  return sortedResults.filter((result) => result.experiment === experiment)
+function getExperimentResults(
+  experiment: string,
+  sourceResults = sortedResults
+) {
+  return sourceResults.filter((result) => result.experiment === experiment)
 }
 
 function getExperimentStageSummary(
   experiment: string,
-  category: JourneyStage
+  category: JourneyStage,
+  sourceResults = sortedResults
 ): ExperimentStageSummary {
-  const stageResults = results.filter(
-    (result) =>
-      result.experiment === experiment && result.category === category
+  const stageResults = sourceResults.filter(
+    (result) => result.experiment === experiment && result.category === category
   )
 
   return {
@@ -140,8 +186,11 @@ function getExperimentStageSummary(
   }
 }
 
-function getExperimentOverallSummary(experiment: string): ExperimentStageSummary {
-  const experimentResults = getExperimentResults(experiment)
+function getExperimentOverallSummary(
+  experiment: string,
+  sourceResults = sortedResults
+): ExperimentStageSummary {
+  const experimentResults = getExperimentResults(experiment, sourceResults)
 
   return {
     experiment,
@@ -153,31 +202,32 @@ function getExperimentOverallSummary(experiment: string): ExperimentStageSummary
 
 function getExperimentStageGroups(
   experiment: string,
-  category: JourneyStage
+  category: JourneyStage,
+  sourceResults = sortedResults
 ): ExperimentStageGroup[] {
-  const stageResults = getExperimentResults(experiment).filter(
+  const stageResults = getExperimentResults(experiment, sourceResults).filter(
     (result) => result.category === category
   )
   const groupedResults = new Map<string, ParsedResult[]>()
 
   for (const result of stageResults) {
-    const existing = groupedResults.get(result.subcategory)
+    const existing = groupedResults.get(result.primaryCategory)
 
     if (existing) {
       existing.push(result)
     } else {
-      groupedResults.set(result.subcategory, [result])
+      groupedResults.set(result.primaryCategory, [result])
     }
   }
 
   return Array.from(groupedResults.entries())
-    .map(([subcategory, results]) => ({
-      subcategory,
+    .map(([category, results]) => ({
+      category,
       passed: results.filter((result) => result.passed).length,
       results,
       total: results.length,
     }))
-    .sort((a, b) => a.subcategory.localeCompare(b.subcategory))
+    .sort((a, b) => a.category.localeCompare(b.category))
 }
 
 function formatExperiment(experiment: string) {
@@ -185,6 +235,21 @@ function formatExperiment(experiment: string) {
     .replace(/^openai-/, "OpenAI ")
     .replace(/^claude-/, "Claude ")
     .replaceAll("-", " ")
+}
+
+function formatTagLabel(value: string) {
+  return value
+    .split(" ")
+    .map((part) => (part.length <= 3 ? part.toUpperCase() : part))
+    .join(" ")
+}
+
+function formatProductLabel(value: string) {
+  if (value === UNASSIGNED_PRODUCT) {
+    return "Unassigned"
+  }
+
+  return formatTagLabel(value)
 }
 
 function formatExperimentParts(experiment: string) {
@@ -204,40 +269,6 @@ function formatExperimentParts(experiment: string) {
   }
 }
 
-function getExperimentProvider(experiment: string) {
-  const [provider = ""] = experiment.split("-")
-  return provider
-}
-
-function getProviderBarClasses(experiment: string) {
-  const provider = getExperimentProvider(experiment)
-
-  if (provider === "openai") {
-    return {
-      track: "bg-white/20",
-      fill: "bg-white",
-      hoverFill: "group-hover:bg-white/90",
-      label: "text-background",
-    }
-  }
-
-  if (provider === "claude" || provider === "anthropic") {
-    return {
-      track: "bg-[rgb(217,119,87)]/20",
-      fill: "bg-[rgb(217,119,87)]",
-      hoverFill: "group-hover:bg-[rgb(217,119,87)]/90",
-      label: "text-foreground",
-    }
-  }
-
-  return {
-    track: "bg-sky-500/18",
-    fill: "bg-sky-500",
-    hoverFill: "group-hover:bg-sky-400",
-    label: "text-foreground",
-  }
-}
-
 function formatEvalName(evalId: string, includeSubcategory = true) {
   const [, subcategory, sequence, ...slug] = evalId.split("-")
   const readableSlug = slug.join(" ")
@@ -251,72 +282,370 @@ function formatEvalName(evalId: string, includeSubcategory = true) {
     : `${sequence}: ${readableSlug}`
 }
 
-function StageBar({ summary }: { summary: ExperimentStageSummary }) {
-  const height = summary.total ? `${(summary.passed / summary.total) * 100}%` : "0%"
-  const failed = summary.total - summary.passed
-  const providerBarClasses = getProviderBarClasses(summary.experiment)
-  const passRate = summary.total
-    ? Math.round((summary.passed / summary.total) * 100)
-    : 0
+function formatPassPercentage(passed: number, total: number) {
+  return total ? `${Math.round((passed / total) * 100)}%` : "0%"
+}
 
+function formatGroupLabel(label: string) {
+  return label ? `${label[0].toUpperCase()}${label.slice(1)}` : label
+}
+
+const pageContainerClassName =
+  "mx-auto w-full max-w-screen-2xl px-6 sm:px-8 md:px-12 lg:px-8 xl:px-24"
+
+const groupHeadingClassName =
+  "font-heading text-[24px] leading-[33px] font-normal tracking-[-0.16px] text-foreground"
+
+const subgroupLabelClassName =
+  "rounded-md px-2 py-1 font-mono text-xs font-normal uppercase tracking-wide text-muted-foreground"
+
+const subgroupMetaClassName =
+  "mr-3 shrink-0 font-mono text-xs tracking-wide text-muted-foreground"
+
+const evalMetaGridClassName =
+  "grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-x-4 gap-y-4 text-xs"
+
+const evalMetaLabelClassName =
+  "w-[6.5rem] shrink-0 text-muted-foreground capitalize"
+
+function EvalMetadataRow({
+  label,
+  value,
+}: {
+  label: string
+  value: ReactNode
+}) {
   return (
-    <div className="min-w-7 flex-1">
-      <Tooltip>
-        <Sheet>
-          <TooltipTrigger asChild>
-            <SheetTrigger asChild>
-              <button
-                type="button"
-                className="group relative z-10 flex h-full w-full items-stretch text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={`${formatExperiment(summary.experiment)} passed ${summary.passed} of ${summary.total} ${summary.category} evals`}
-              >
-                <div
-                  className={cn(
-                    "relative flex h-full min-w-7 w-full items-end overflow-hidden",
-                    providerBarClasses.track
-                  )}
-                >
-                  {failed > 0 ? (
-                    <div
-                      className="absolute top-0 right-0 left-0 bg-muted/50"
-                      style={{ height: `${(failed / summary.total) * 100}%` }}
-                    />
-                  ) : null}
-                  <div
-                    className={cn(
-                      "w-full transition-all",
-                      providerBarClasses.fill,
-                      providerBarClasses.hoverFill
-                    )}
-                    style={{ height }}
-                  />
-                  <span
-                    className={cn(
-                      "pointer-events-none absolute inset-0 flex items-center justify-end pb-2 text-right font-mono text-[11px] leading-none font-medium [writing-mode:vertical-rl]",
-                      providerBarClasses.label
-                    )}
-                  >
-                    {formatExperiment(summary.experiment)}
-                  </span>
-                </div>
-              </button>
-            </SheetTrigger>
-          </TooltipTrigger>
-          <ExperimentSheet experiment={summary.experiment} />
-        </Sheet>
-        <TooltipContent side="top" align="center" className="text-center">
-          <div className="font-medium text-foreground">
-            {formatExperiment(summary.experiment)}
+    <>
+      <dt className={evalMetaLabelClassName}>{label}</dt>
+      <dd className="min-w-0 text-left text-foreground">{value}</dd>
+    </>
+  )
+}
+
+function ResultDetails({ notes }: { notes: string }) {
+  return (
+    <div className="flex flex-col gap-1 leading-relaxed text-foreground">
+      {notes.split("\n").map((line, index) => {
+        const match = /^(PASS|FAIL)\s+(.*)$/.exec(line)
+
+        if (!match) {
+          return (
+            <p key={`${index}-${line}`} className="whitespace-pre-wrap">
+              {line}
+            </p>
+          )
+        }
+
+        const [, status, detail] = match
+        const passed = status === "PASS"
+        const StatusIcon = passed ? CheckIcon : XIcon
+
+        return (
+          <div key={`${index}-${line}`} className="flex items-start gap-2">
+            <StatusIcon
+              className={cn(
+                "mt-0.5 size-4 shrink-0",
+                passed
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-red-600 dark:text-red-400"
+              )}
+              aria-hidden
+            />
+            <span className="sr-only">{passed ? "Pass" : "Fail"}: </span>
+            <span className="min-w-0 whitespace-pre-wrap">{detail}</span>
           </div>
-          <div className="text-muted-foreground">{passRate}% passed</div>
-        </TooltipContent>
-      </Tooltip>
+        )
+      })}
     </div>
   )
 }
 
-function ExperimentSheet({ experiment }: { experiment: string }) {
-  const experimentResults = getExperimentResults(experiment)
+function getPassRateClass(passRate: number) {
+  if (passRate < 50) {
+    return "text-red-600 dark:text-red-400"
+  }
+
+  if (passRate < 80) {
+    return "text-amber-600 dark:text-amber-400"
+  }
+
+  return "text-emerald-600 dark:text-emerald-400"
+}
+
+function getProductKeys(sourceResults: ParsedResult[]) {
+  const keys = new Set<string>()
+
+  for (const result of sourceResults) {
+    if (result.product.length) {
+      result.product.forEach((product) => keys.add(product))
+    } else {
+      keys.add(UNASSIGNED_PRODUCT)
+    }
+  }
+
+  return Array.from(keys).sort((a, b) => {
+    if (a === UNASSIGNED_PRODUCT) return 1
+    if (b === UNASSIGNED_PRODUCT) return -1
+    return a.localeCompare(b)
+  })
+}
+
+function getProductResults(product: string, sourceResults: ParsedResult[]) {
+  return sourceResults.filter((result) =>
+    product === UNASSIGNED_PRODUCT
+      ? result.product.length === 0
+      : result.product.includes(product)
+  )
+}
+
+function getTimelineGroups(
+  groupBy: GroupBy,
+  sourceResults: ParsedResult[]
+): TimelineGroup[] {
+  if (groupBy === "model") {
+    return sortGroupsByPassRate(
+      experiments
+        .map((experiment) => {
+          const experimentResults = getExperimentResults(
+            experiment,
+            sourceResults
+          )
+          const bars = JOURNEY_STAGES.map((stage) => ({
+            label: stage.label,
+            summary: getExperimentStageSummary(
+              experiment,
+              stage.id,
+              experimentResults
+            ),
+          })).filter((bar) => bar.summary.total > 0)
+          const passed = experimentResults.filter(
+            (result) => result.passed
+          ).length
+
+          return {
+            id: experiment,
+            label: formatGroupLabel(formatExperiment(experiment)),
+            meta: formatPassPercentage(passed, experimentResults.length),
+            passRate: experimentResults.length
+              ? Math.round((passed / experimentResults.length) * 100)
+              : 0,
+            sourceResults: experimentResults,
+            bars,
+          }
+        })
+        .filter((group) => group.sourceResults.length > 0)
+    )
+  }
+
+  if (groupBy === "product") {
+    return getProductKeys(sourceResults).map((product) => {
+      const productResults = getProductResults(product, sourceResults)
+      const bars = sortBarsByScore(
+        experiments
+          .map((experiment) => ({
+            label: formatExperiment(experiment),
+            summary: getExperimentOverallSummary(experiment, productResults),
+          }))
+          .filter((bar) => bar.summary.total > 0)
+      )
+      const passed = productResults.filter((result) => result.passed).length
+
+      return {
+        id: product,
+        label: formatGroupLabel(formatProductLabel(product)),
+        meta: formatPassPercentage(passed, productResults.length),
+        sourceResults: productResults,
+        bars,
+      }
+    })
+  }
+
+  return JOURNEY_STAGES.map((stage) => {
+    const stageResults = getStageResults(stage.id, sourceResults)
+    const bars = sortBarsByScore(
+      experiments
+        .map((experiment) => ({
+          label: formatExperiment(experiment),
+          summary: getExperimentStageSummary(
+            experiment,
+            stage.id,
+            sourceResults
+          ),
+        }))
+        .filter((bar) => bar.summary.total > 0)
+    )
+    const passed = stageResults.filter((result) => result.passed).length
+
+    return {
+      description: stage.description,
+      id: stage.id,
+      label: formatGroupLabel(stage.label),
+      meta: formatPassPercentage(passed, stageResults.length),
+      sourceResults,
+      bars,
+    }
+  })
+}
+
+function SummaryBar({
+  label,
+  sourceResults,
+  summary,
+  interactive = true,
+}: {
+  label: string
+  sourceResults: ParsedResult[]
+  summary: ExperimentStageSummary
+  interactive?: boolean
+}) {
+  const passRate = summary.total
+    ? Math.round((summary.passed / summary.total) * 100)
+    : 0
+  const width = `${passRate}%`
+
+  const bar = (
+    <div
+      className={cn(
+        "group flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 text-left outline-none",
+        interactive &&
+          "transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+      )}
+    >
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <span className="truncate font-mono text-sm font-normal text-foreground">
+          {label}
+        </span>
+        <span className="shrink-0 font-mono text-sm font-normal text-muted-foreground">
+          {passRate}%
+        </span>
+      </div>
+      <div className="h-[3px] w-full bg-foreground/20">
+        <div
+          className="h-full bg-foreground transition-all group-hover:bg-foreground/90"
+          style={{ width }}
+        />
+      </div>
+    </div>
+  )
+
+  if (!interactive) {
+    return bar
+  }
+
+  return (
+    <Sheet>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          className="w-full text-left outline-none"
+          aria-label={`${label}: ${formatExperiment(summary.experiment)} passed ${summary.passed} of ${summary.total} evals`}
+        >
+          {bar}
+        </button>
+      </SheetTrigger>
+      <ExperimentSheet
+        experiment={summary.experiment}
+        sourceResults={sourceResults}
+      />
+    </Sheet>
+  )
+}
+
+function TimelineGroupRow({
+  group,
+  groupBy,
+}: {
+  group: TimelineGroup
+  groupBy: GroupBy
+}) {
+  const isModelGroup = groupBy === "model" && group.passRate != null
+
+  const rowContent = (
+    <div
+      className={cn(
+        pageContainerClassName,
+        "grid grid-cols-1 gap-4 lg:grid-cols-[26rem_minmax(0,1fr)] lg:gap-8"
+      )}
+    >
+      <div className="sticky top-20 z-10 flex min-w-0 flex-col gap-3 self-start pb-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className={groupHeadingClassName}>{group.label}</h2>
+          {group.passRate != null ? (
+            <p
+              className={cn(
+                "text-2xl leading-none font-light tracking-[-0.02em]",
+                getPassRateClass(group.passRate)
+              )}
+            >
+              {group.meta}
+            </p>
+          ) : null}
+        </div>
+        {group.description ? (
+          <p className="text-sm leading-5 text-muted-foreground">
+            {group.description}
+          </p>
+        ) : null}
+      </div>
+      <div className="min-w-0">
+        <div className="flex min-w-0 flex-col gap-2">
+          {group.bars.length ? (
+            group.bars.map((bar) => (
+              <SummaryBar
+                key={`${group.id}-${bar.summary.experiment}-${bar.summary.category}-${bar.label}`}
+                label={bar.label}
+                sourceResults={group.sourceResults}
+                summary={bar.summary}
+                interactive={!isModelGroup}
+              />
+            ))
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              No results
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  if (!isModelGroup) {
+    return (
+      <section className="w-full border-b border-border py-10 md:py-12">
+        {rowContent}
+      </section>
+    )
+  }
+
+  return (
+    <Sheet>
+      <section className="relative w-full border-b border-border py-10 transition-colors hover:bg-muted/50 md:py-12">
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            className="absolute inset-0 z-10 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`${group.label} model row`}
+          />
+        </SheetTrigger>
+        {rowContent}
+      </section>
+      <ExperimentSheet
+        experiment={group.id}
+        sourceResults={group.sourceResults}
+      />
+    </Sheet>
+  )
+}
+
+function ExperimentSheet({
+  experiment,
+  sourceResults,
+}: {
+  experiment: string
+  sourceResults: ParsedResult[]
+}) {
+  const experimentResults = getExperimentResults(experiment, sourceResults)
   const passed = experimentResults.filter((result) => result.passed).length
   const experimentName = formatExperimentParts(experiment)
   const [isScrolled, setIsScrolled] = useState(false)
@@ -358,7 +687,11 @@ function ExperimentSheet({ experiment }: { experiment: string }) {
           const stageResults = experimentResults.filter(
             (result) => result.category === stage.id
           )
-          const stageGroups = getExperimentStageGroups(experiment, stage.id)
+          const stageGroups = getExperimentStageGroups(
+            experiment,
+            stage.id,
+            sourceResults
+          )
 
           if (!stageResults.length) {
             return null
@@ -369,35 +702,33 @@ function ExperimentSheet({ experiment }: { experiment: string }) {
               key={stage.id}
               className="grid grid-cols-1 gap-3 border-t pt-5 sm:grid-cols-[9rem_1fr] sm:items-baseline"
             >
-              <h2 className="font-heading text-xl leading-none font-light tracking-[-0.02em] text-foreground">
-                {stage.label}
-              </h2>
+              <h2 className={groupHeadingClassName}>{stage.label}</h2>
               <div className="flex min-w-0 flex-col gap-5">
                 {stageGroups.map((group) => (
                   <div
-                    key={group.subcategory}
+                    key={group.category}
                     className="flex min-w-0 flex-col gap-2"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="rounded-md px-2 py-1 font-sans text-xs font-normal capitalize tracking-wide text-muted-foreground">
-                        {group.subcategory}
+                      <h3 className={subgroupLabelClassName}>
+                        {group.category}
                       </h3>
-                      <span className="text-xs text-muted-foreground">
+                      <span className={subgroupMetaClassName}>
                         {group.passed}/{group.total}
                       </span>
                     </div>
                     <Accordion type="single" collapsible className="min-w-0">
                       {group.results.map((result) => (
-                          <AccordionItem key={result.eval} value={result.eval}>
+                        <AccordionItem key={result.eval} value={result.eval}>
                           <AccordionTrigger>
                             <div className="flex w-full min-w-0 flex-1 flex-col gap-2">
                               <div className="flex items-start justify-between gap-3">
-                                <span className="min-w-0 leading-snug font-normal">
+                                <span className="min-w-0 font-mono text-sm leading-snug font-normal">
                                   {formatEvalName(result.eval, false)}
                                 </span>
                                 <span
                                   className={cn(
-                                    "shrink-0 text-xs",
+                                    "shrink-0 font-mono text-xs tracking-wide",
                                     result.passed
                                       ? "text-emerald-600 dark:text-emerald-400"
                                       : "text-red-600 dark:text-red-400"
@@ -416,55 +747,54 @@ function ExperimentSheet({ experiment }: { experiment: string }) {
                               />
                             </div>
                           </AccordionTrigger>
-                          <AccordionContent className="flex flex-col gap-4">
-                            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                              <div>
-                                <dt className="font-mono tracking-wide text-muted-foreground uppercase">
-                                  score
-                                </dt>
-                                <dd className="text-foreground">
-                                  {result.score ?? "-"}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="font-mono tracking-wide text-muted-foreground uppercase">
-                                  attempts
-                                </dt>
-                                <dd className="text-foreground">
-                                  {result.attempts ?? "-"}
-                                </dd>
-                              </div>
-                              <div className="col-span-2">
-                                <dt className="font-mono tracking-wide text-muted-foreground uppercase">
-                                  source
-                                </dt>
-                                <dd className="truncate text-foreground">
-                                  {result.sourcePath}
-                                </dd>
-                              </div>
+                          <AccordionContent
+                            animated={false}
+                            className="flex flex-col gap-4"
+                          >
+                            <dl className={evalMetaGridClassName}>
+                              <EvalMetadataRow
+                                label="Score"
+                                value={result.score ?? "-"}
+                              />
+                              <EvalMetadataRow
+                                label="Attempts"
+                                value={result.attempts ?? "-"}
+                              />
+                              <EvalMetadataRow
+                                label="Source"
+                                value={
+                                  <span className="truncate">
+                                    {result.sourcePath}
+                                  </span>
+                                }
+                              />
+                              <EvalMetadataRow
+                                label="Product"
+                                value={result.product.join(", ") || "-"}
+                              />
+                              <EvalMetadataRow
+                                label="Topic"
+                                value={result.topic.join(", ") || "-"}
+                              />
+                              {result.notes ? (
+                                <EvalMetadataRow
+                                  label="Result details"
+                                  value={<ResultDetails notes={result.notes} />}
+                                />
+                              ) : null}
+                              {result.prompt ? (
+                                <EvalMetadataRow
+                                  label="Prompt"
+                                  value={
+                                    <div className="rounded-md border bg-muted/35">
+                                      <pre className="max-h-56 overflow-auto px-3 py-2 leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                                        {result.prompt}
+                                      </pre>
+                                    </div>
+                                  }
+                                />
+                              ) : null}
                             </dl>
-                            {result.notes ? (
-                              <div className="flex flex-col gap-1.5">
-                                <div className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                                  Result details
-                                </div>
-                                <p className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                                  {result.notes}
-                                </p>
-                              </div>
-                            ) : null}
-                            {result.prompt ? (
-                              <div className="flex flex-col gap-1.5">
-                                <div className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                                  Prompt
-                                </div>
-                                <div className="rounded-md border bg-muted/35">
-                                  <pre className="max-h-56 overflow-auto px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                                    {result.prompt}
-                                  </pre>
-                                </div>
-                              </div>
-                            ) : null}
                           </AccordionContent>
                         </AccordionItem>
                       ))}
@@ -480,115 +810,10 @@ function ExperimentSheet({ experiment }: { experiment: string }) {
   )
 }
 
-function TimelineStage({ stage }: { stage: (typeof JOURNEY_STAGES)[number] }) {
-  const stageResults = getStageResults(stage.id)
-  const evalLineCount = new Set(stageResults.map((result) => result.eval)).size
-  const summaries = experiments
-    .map((experiment) => getExperimentStageSummary(experiment, stage.id))
-    .filter((summary) => summary.total > 0)
-
-  return (
-    <section className="group/stage flex min-w-fit flex-1 flex-col border-r last:border-r-0">
-      <div className="relative overflow-hidden border-b px-4 py-3">
-        <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent_0,transparent_7px,var(--border)_7px,var(--border)_8px)] opacity-35" />
-        <div className="relative flex items-center justify-between gap-3">
-          <h2 className="text-sm font-medium">{stage.label}</h2>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                aria-label={`About the ${stage.label} stage`}
-              >
-                <InfoIcon className="size-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right" align="center">
-              {stage.description}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </div>
-
-      <div className="relative flex min-w-fit flex-1 items-stretch gap-2 overflow-visible px-4">
-        <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover/stage:opacity-100">
-          {Array.from({ length: evalLineCount }).map((_, index) => (
-            <div
-              key={index}
-              className="absolute inset-x-0 border-t border-border/50"
-              style={{
-                top: `${100 - ((index + 1) / evalLineCount) * 100}%`,
-              }}
-            />
-          ))}
-        </div>
-        {summaries.length ? (
-          summaries.map((summary) => (
-            <StageBar
-              key={`${summary.experiment}-${summary.category}`}
-              summary={summary}
-            />
-          ))
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            No results
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
-
-function TimelineByModel() {
-  const summaries = experiments
-    .map((experiment) => getExperimentOverallSummary(experiment))
-    .filter((summary) => summary.total > 0)
-  const totalEvalCount = new Set(sortedResults.map((result) => result.eval)).size
-
-  return (
-    <section className="group/stage flex min-w-full flex-1 flex-col">
-      <div className="relative overflow-hidden border-b px-4 py-3">
-        <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent_0,transparent_7px,var(--border)_7px,var(--border)_8px)] opacity-35" />
-        <div className="relative flex items-center justify-between gap-3">
-          <h2 className="text-sm font-medium">Model totals</h2>
-          <span className="text-xs text-muted-foreground">
-            Across all {totalEvalCount} evals
-          </span>
-        </div>
-      </div>
-      <div className="relative flex min-w-[900px] flex-1 items-stretch gap-2 overflow-visible px-4">
-        <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover/stage:opacity-100">
-          {Array.from({ length: totalEvalCount }).map((_, index) => (
-            <div
-              key={index}
-              className="absolute inset-x-0 border-t border-border/50"
-              style={{
-                top: `${100 - ((index + 1) / totalEvalCount) * 100}%`,
-              }}
-            />
-          ))}
-        </div>
-        {summaries.length ? (
-          summaries.map((summary) => (
-            <StageBar
-              key={`${summary.experiment}-${summary.category}`}
-              summary={summary}
-            />
-          ))
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            No results
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
-
-function SupabaseLogo() {
+function SupabaseLogo({ className }: { className?: string } = {}) {
   return (
     <svg
-      className="h-6 w-auto"
+      className={cn("h-6 w-auto", className)}
       viewBox="0 0 109 113"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -636,29 +861,116 @@ function SupabaseLogo() {
   )
 }
 
+const COPY_FEEDBACK_MS = 2000
+
 function CopyCommandButton() {
+  const [copied, setCopied] = useState(false)
+  const resetTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current !== null) {
+        window.clearTimeout(resetTimeoutRef.current)
+      }
+    }
+  }, [])
+
   return (
     <button
       type="button"
-      className="hidden w-fit items-center justify-between gap-4 rounded-md border bg-muted/25 px-3 py-2 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:flex"
-      onClick={() => void navigator.clipboard.writeText(CLI_COMMAND)}
-      aria-label={`Copy ${CLI_COMMAND}`}
+      className="flex w-fit items-center justify-between gap-4 rounded-md border bg-muted/25 px-3 py-2 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      onClick={() => {
+        void navigator.clipboard.writeText(CLI_COMMAND)
+        setCopied(true)
+        if (resetTimeoutRef.current !== null) {
+          window.clearTimeout(resetTimeoutRef.current)
+        }
+        resetTimeoutRef.current = window.setTimeout(() => {
+          setCopied(false)
+          resetTimeoutRef.current = null
+        }, COPY_FEEDBACK_MS)
+      }}
+      aria-label={copied ? "Copied" : `Copy ${CLI_COMMAND}`}
     >
       <span className="truncate">{CLI_COMMAND}</span>
-      <CopyIcon className="size-3.5 shrink-0" />
+      {copied ? (
+        <CheckIcon className="size-3.5 shrink-0" aria-hidden />
+      ) : (
+        <CopyIcon className="size-3.5 shrink-0" aria-hidden />
+      )}
     </button>
   )
 }
 
-export function App() {
-  const [timelineView, setTimelineView] = useState<"stage" | "model">("stage")
+function ReadDocsButton() {
+  return (
+    <Button variant="secondary" asChild>
+      <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
+        AI Tools
+      </a>
+    </Button>
+  )
+}
+
+function FooterCta() {
+  const [patternReplayKey, setPatternReplayKey] = useState(0)
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <main className="flex h-svh flex-col bg-background text-foreground">
-        {results.length ? (
-          <>
-            <div className="flex w-full shrink-0 items-center justify-between border-b border-dotted px-6 py-3 sm:px-8 md:px-12 lg:px-16 xl:px-24">
+    <footer
+      className="bg-card text-center"
+      onMouseEnter={() => setPatternReplayKey((key) => key + 1)}
+    >
+      <div className="px-6 py-24 sm:py-28 lg:py-36">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-8">
+          <SupabaseLogo className="h-8" />
+          <h2 className="font-heading text-2xl leading-[1.05] font-light tracking-[-0.03em] sm:text-3xl lg:text-4xl xl:text-5xl">
+            <span className="block text-foreground">Set your agent free</span>
+            <span className="block text-muted-foreground">
+              with a Supabase project
+            </span>
+          </h2>
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            <Button asChild>
+              <a
+                href={CREATE_PROJECT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Create Project
+              </a>
+            </Button>
+            <Button variant="secondary" asChild>
+              <a href={WEBSITE_URL} target="_blank" rel="noopener noreferrer">
+                Learn more
+              </a>
+            </Button>
+          </div>
+        </div>
+      </div>
+      <HeroGridPattern
+        key={patternReplayKey}
+        height={200}
+        color="var(--muted)"
+      />
+    </footer>
+  )
+}
+
+export function App() {
+  const [groupBy, setGroupBy] = useState<GroupBy>("stage")
+  const timelineGroups = getTimelineGroups(groupBy, sortedResults)
+
+  return (
+    <main className="min-h-svh bg-background text-foreground">
+      {results.length ? (
+        <>
+          <div className="sticky top-0 z-50 border-b border-dotted bg-background">
+            <div
+              className={cn(
+                pageContainerClassName,
+                "flex items-center justify-between py-3"
+              )}
+            >
               <a
                 href="https://supabase.com"
                 className="group/logo flex w-fit items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -668,57 +980,88 @@ export function App() {
                   Back to Supabase
                 </span>
               </a>
-              <CopyCommandButton />
+              <div className="hidden items-center gap-2 sm:flex">
+                <CopyCommandButton />
+                <ReadDocsButton />
+              </div>
             </div>
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="grid w-full shrink-0 grid-cols-1 gap-6 px-6 py-12 sm:px-8 sm:pt-16 sm:pb-14 md:px-12 md:pt-20 md:pb-16 lg:grid-cols-[1fr_0.95fr] lg:px-16 lg:pt-28 lg:pb-20 xl:px-24 xl:pt-32">
-                <h1 className="font-heading text-3xl leading-none font-light tracking-[-0.02em] sm:text-4xl lg:text-5xl">
-                  <span className="block">Evaluating agents across</span>
-                  <span className="block text-muted-foreground">
-                    the Supabase journey.
-                  </span>
-                </h1>
-                <div className="flex max-w-[544px] flex-col gap-4 self-end lg:justify-self-end">
-                  <p className="text-sm leading-5 tracking-[-0.011em] text-muted-foreground">
-                    We evaluate model experiments against each stage of the
-                    Supabase developer journey, from designing application
-                    primitives through observing behavior, detecting issues, and
-                    resolving production problems with the right project
-                    context.
-                  </p>
+          </div>
+          <header className="border-b border-border">
+            <HeroGridPattern height={200} />
+            <div className="w-full py-12 sm:pt-16 sm:pb-14 md:pt-20 md:pb-16 lg:pt-28 lg:pb-20 xl:pt-32">
+              <div
+                className={cn(
+                  pageContainerClassName,
+                  "flex flex-col gap-10 md:gap-12 lg:flex-row lg:items-end lg:justify-between lg:gap-16"
+                )}
+              >
+                <div className="flex max-w-2xl min-w-0 flex-col gap-8 sm:gap-10">
+                  <h1 className="font-heading text-3xl leading-[1.05] font-light tracking-[-0.03em] sm:text-4xl lg:text-5xl xl:text-6xl">
+                    <span className="block text-foreground">
+                      Evaluating agents across
+                    </span>
+                    <span className="block text-muted-foreground">
+                      the Supabase journey.
+                    </span>
+                  </h1>
                   <ToggleGroup
                     type="single"
-                    value={timelineView}
+                    variant="outline"
+                    value={groupBy}
                     onValueChange={(value) => {
-                      if (value === "stage" || value === "model") {
-                        setTimelineView(value)
+                      if (
+                        value === "stage" ||
+                        value === "model" ||
+                        value === "product"
+                      ) {
+                        setGroupBy(value)
                       }
                     }}
                     className="w-fit"
                   >
-                    <ToggleGroupItem value="stage">Group by stage</ToggleGroupItem>
-                    <ToggleGroupItem value="model">Group by model</ToggleGroupItem>
+                    <ToggleGroupItem value="stage">
+                      Group by stage
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="model">
+                      Group by model
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="product">
+                      Group by product
+                    </ToggleGroupItem>
                   </ToggleGroup>
                 </div>
-              </div>
-              <div className="flex min-h-0 flex-1 overflow-x-auto border-y bg-muted/25">
-                {timelineView === "stage" ? (
-                  JOURNEY_STAGES.map((stage) => (
-                    <TimelineStage key={stage.id} stage={stage} />
-                  ))
-                ) : (
-                  <TimelineByModel />
-                )}
+                <p className="max-w-xl text-base leading-6 tracking-[-0.011em] text-pretty text-muted-foreground lg:max-w-2xl lg:flex-1 lg:pb-1">
+                  We evaluate model experiments against each stage of the
+                  Supabase developer journey, from designing application
+                  primitives through observing behavior, detecting issues, and
+                  resolving production problems with the right project context.
+                </p>
               </div>
             </div>
-          </>
-        ) : (
-          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
-            No result files found in the repo results directory.
+          </header>
+          <div className="flex flex-col">
+            {timelineGroups.length ? (
+              timelineGroups.map((group) => (
+                <TimelineGroupRow
+                  key={group.id}
+                  group={group}
+                  groupBy={groupBy}
+                />
+              ))
+            ) : (
+              <div className="grid min-h-72 place-items-center px-6 text-center text-sm text-muted-foreground">
+                No results match the selected filters.
+              </div>
+            )}
           </div>
-        )}
-      </main>
-    </TooltipProvider>
+          <FooterCta />
+        </>
+      ) : (
+        <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
+          No result files found in the repo results directory.
+        </div>
+      )}
+    </main>
   )
 }
 

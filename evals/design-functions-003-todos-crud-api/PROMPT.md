@@ -1,3 +1,15 @@
+---
+stage: design
+product:
+  - functions
+  - database
+  - sdk
+topic:
+  - edge-functions
+  - supabase-js
+  - crud
+---
+
 # Todos CRUD Edge Function
 
 Create a Supabase Edge Function named `todos-api`.

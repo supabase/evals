@@ -4,6 +4,9 @@ declare module "virtual:supabase-eval-results" {
   type EvalResult = {
     experiment: string
     eval: string
+    stage?: "design" | "deploy" | "observe" | "detect" | "resolve"
+    product?: string[]
+    topic?: string[]
     passed: boolean
     score?: number
     notes?: string
