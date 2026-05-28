@@ -31,7 +31,8 @@ function scorerCtx(backend: PlatformBackend, extra?: { agentReport?: string }) {
     getClient: backend.getClient,
     query: backend.query,
     invokeFunction: backend.invokeFunction,
-    toolCalls: [] as never[],
+    toolCalls: [],
+    transcript: [],
     agentReport: extra?.agentReport,
   };
 }

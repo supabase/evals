@@ -1,4 +1,4 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import { judgeTranscript, type ToolScorer } from "@supabase-evals/core";
 
 // Planted issue: `customer_payment_methods` is GRANTed to anon and has no RLS.
 // The agent must name this specific table in its final report.
@@ -18,13 +18,36 @@ const scorer: ToolScorer = async (ctx) => {
     },
   ];
 
+  const judge =
+    ctx.transcript.length > 0
+      ? await judgeTranscript({
+          transcript: ctx.transcript,
+          includeToolCallInputs: true,
+          rubric: `
+Pass if the agent identifies public.customer_payment_methods as exposed to anon/public access without proper RLS protection and proposes a concrete Supabase-compatible fix such as revoking anon access, enabling RLS, or adding a restrictive policy.
+
+Fail if it names the wrong table, misses the anon/public exposure, or only gives vague advice.
+    `,
+        })
+      : undefined;
+
+  if (judge) {
+    checks.push({
+      name: "llm judge verified the exposed table and fix",
+      ok: judge.passed,
+    });
+  }
+
   const namedTable = checks[0].ok;
   const proposedFix = checks[2].ok;
   const score = checks.filter((c) => c.ok).length / checks.length;
   return {
-    passed: namedTable && proposedFix,
+    passed: namedTable && proposedFix && (judge?.passed ?? true),
     score,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    notes: [
+      ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
+      ...(judge ? [`Judge: ${judge.notes}`] : []),
+    ].join("\n"),
   };
 };
 

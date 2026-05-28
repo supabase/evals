@@ -1,6 +1,6 @@
 import rawResults, { type EvalResult } from "virtual:supabase-eval-results"
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { CheckIcon, CopyIcon, XIcon } from "lucide-react"
+import { BotIcon, CheckIcon, CopyIcon, XIcon } from "lucide-react"
 
 import {
   Accordion,
@@ -324,10 +324,31 @@ function EvalMetadataRow({
 }
 
 function ResultDetails({ notes }: { notes: string }) {
+  const lines = notes.split("\n")
+
   return (
     <div className="flex flex-col gap-1 leading-relaxed text-foreground">
-      {notes.split("\n").map((line, index) => {
+      {lines.map((line, index) => {
         const match = /^(PASS|FAIL)\s+(.*)$/.exec(line)
+
+        if (line.startsWith("Judge:")) {
+          return (
+            <details
+              key={`${index}-${line}`}
+              className="ml-6 text-muted-foreground"
+            >
+              <summary className="cursor-pointer text-xs uppercase tracking-wide">
+                <span className="inline-flex items-center gap-1.5">
+                  <BotIcon className="size-3.5 text-muted-foreground/70" />
+                  Judge notes
+                </span>
+              </summary>
+              <p className="mt-1 whitespace-pre-wrap text-foreground">
+                {line.replace(/^Judge:\s*/, "")}
+              </p>
+            </details>
+          )
+        }
 
         if (!match) {
           return (
@@ -353,7 +374,9 @@ function ResultDetails({ notes }: { notes: string }) {
               aria-hidden
             />
             <span className="sr-only">{passed ? "Pass" : "Fail"}: </span>
-            <span className="min-w-0 whitespace-pre-wrap">{detail}</span>
+            <span className="min-w-0 whitespace-pre-wrap">
+              {detail.replace(/\bllm judge\s+/i, "")}
+            </span>
           </div>
         )
       })}
