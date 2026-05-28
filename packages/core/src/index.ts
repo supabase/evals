@@ -247,7 +247,7 @@ const judgeOutputSchema = z.object({
 const DEFAULT_JUDGE_MODEL = openai("gpt-5.5");
 const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   openai: {
-    reasoningEffort: "medium",
+    reasoningEffort: "low",
     textVerbosity: "low",
   },
 };
