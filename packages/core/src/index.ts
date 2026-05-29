@@ -78,19 +78,6 @@ export type CheckResult = {
   notes?: string;
 };
 
-export function check(
-  name: string,
-  passed: boolean,
-  notes?: string,
-): CheckResult {
-  return {
-    type: "deterministic",
-    name,
-    passed,
-    notes,
-  };
-}
-
 export type TranscriptPart =
   | {
       type: "message";

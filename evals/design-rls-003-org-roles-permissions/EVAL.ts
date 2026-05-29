@@ -1,8 +1,4 @@
-import {
-  check,
-  type CheckResult,
-  type ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const ORG_A = "11111111-1111-1111-1111-111111111111";
 const ORG_B = "22222222-2222-2222-2222-222222222222";
@@ -71,7 +67,7 @@ VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
       viewerInsertBlocked = true;
       await resetTx();
     }
-    checks.push(check("viewer cannot insert", viewerInsertBlocked));
+    checks.push({ type: "deterministic", name: "viewer cannot insert", passed: viewerInsertBlocked });
 
     const { rows: editorInsert } = await q(
       asUser(
@@ -84,7 +80,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push(check("editor can insert own org document", editorInsert.length === 1));
+    checks.push({ type: "deterministic", name: "editor can insert own org document", passed: editorInsert.length === 1 });
 
     const { rows: editorOwnUpdate } = await q(
       asUser(
@@ -98,7 +94,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push(check("editor can update own document", editorOwnUpdate.length === 1));
+    checks.push({ type: "deterministic", name: "editor can update own document", passed: editorOwnUpdate.length === 1 });
 
     const { rows: editorUpdatesAdmin } = await q(
       asUser(
@@ -151,7 +147,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push(check("admin cannot affect another org", adminCrossOrg.length === 0));
+    checks.push({ type: "deterministic", name: "admin cannot affect another org", passed: adminCrossOrg.length === 0 });
 
     let orgReassignmentBlocked = false;
     try {

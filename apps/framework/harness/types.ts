@@ -24,7 +24,6 @@ export type {
   ExperimentConfig,
 } from "@supabase-evals/core";
 export {
-  check,
   judge,
   serializeTranscript,
 } from "@supabase-evals/core";

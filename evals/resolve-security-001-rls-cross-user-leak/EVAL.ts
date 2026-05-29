@@ -1,8 +1,4 @@
-import {
-  check,
-  type CheckResult,
-  type ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const PASSWORD = "secret123";
 
@@ -55,7 +51,7 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'notes';`
     );
-    checks.push(check("RLS still enabled on notes", rls[0]?.relrowsecurity === true));
+    checks.push({ type: "deterministic", name: "RLS still enabled on notes", passed: rls[0]?.relrowsecurity === true });
 
     const { data: aNotes, error: aNotesError } = await clientA
       .from("notes")

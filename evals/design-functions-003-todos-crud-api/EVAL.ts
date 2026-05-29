@@ -1,8 +1,4 @@
-import {
-  check,
-  type CheckResult,
-  type ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todos-api";
 const PASSWORD = "secret123";
@@ -75,21 +71,21 @@ const scorer: ToolScorer = async (ctx) => {
     const authHeadersB = { authorization: `Bearer ${authB.session.access_token}` };
 
     const missingAuth = await invoke({ method: "GET" });
-    checks.push(check("rejects missing auth", missingAuth.status === 401));
+    checks.push({ type: "deterministic", name: "rejects missing auth", passed: missingAuth.status === 401 });
 
     const badLimit = await invoke({
       method: "GET",
       path: "?limit=200",
       headers: authHeadersA,
     });
-    checks.push(check("rejects invalid limit", badLimit.status === 400));
+    checks.push({ type: "deterministic", name: "rejects invalid limit", passed: badLimit.status === 400 });
 
     const invalidJson = await invoke({
       method: "POST",
       headers: authHeadersA,
       body: "{",
     });
-    checks.push(check("rejects invalid JSON", invalidJson.status === 400));
+    checks.push({ type: "deterministic", name: "rejects invalid JSON", passed: invalidJson.status === 400 });
 
     const created = await invoke({
       method: "POST",
@@ -137,7 +133,7 @@ const scorer: ToolScorer = async (ctx) => {
       headers: authHeadersA,
       body: { done: true },
     });
-    checks.push(check("rejects invalid UUID", invalidUuid.status === 400));
+    checks.push({ type: "deterministic", name: "rejects invalid UUID", passed: invalidUuid.status === 400 });
 
     const patchOtherUser = await invoke({
       method: "PATCH",

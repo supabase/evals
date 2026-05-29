@@ -1,8 +1,4 @@
-import {
-  check,
-  type CheckResult,
-  type ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const TARGET_USER = "00000000-0000-0000-0000-000000000001";
 
@@ -52,7 +48,7 @@ INSERT INTO events (user_id, kind, payload)
 VALUES ('${TARGET_USER}', 'insert_probe', '{"ok": true}'::jsonb)
 RETURNING id;
     `);
-    checks.push(check("inserts still work", inserted.length === 1));
+    checks.push({ type: "deterministic", name: "inserts still work", passed: inserted.length === 1 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({

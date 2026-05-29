@@ -1,8 +1,4 @@
-import {
-  check,
-  type CheckResult,
-  type ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const USER_A_EMAIL = "todo-user-a@example.com";
 const USER_B_EMAIL = "todo-user-b@example.com";
@@ -57,7 +53,7 @@ INSERT INTO todos (user_id, body, done) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'todos';`
     );
-    checks.push(check("RLS enabled on todos", rls[0]?.relrowsecurity === true));
+    checks.push({ type: "deterministic", name: "RLS enabled on todos", passed: rls[0]?.relrowsecurity === true });
 
     const { data: aTodos, error: aTodosError } = await clientA
       .from("todos")
