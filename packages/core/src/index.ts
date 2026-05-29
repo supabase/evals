@@ -96,7 +96,6 @@ export type TranscriptPart =
       type: "message";
       role: "system" | "user" | "assistant";
       content: string;
-      ts: number;
     }
   | {
       type: "tool_call";
@@ -104,7 +103,6 @@ export type TranscriptPart =
       input: Record<string, unknown>;
       output?: unknown;
       error?: string;
-      ts: number;
     };
 
 export type TranscriptSerializationOptions = {
@@ -315,18 +313,8 @@ export function aiSdkAgent(options: {
         : [];
       const toolCalls: ToolCallRecord[] = [];
       const transcript: TranscriptPart[] = [
-        {
-          type: "message",
-          role: "system",
-          content: args.systemPrompt,
-          ts: Date.now(),
-        },
-        {
-          type: "message",
-          role: "user",
-          content: args.userPrompt,
-          ts: Date.now(),
-        },
+        { type: "message", role: "system", content: args.systemPrompt },
+        { type: "message", role: "user", content: args.userPrompt },
       ];
       const tools =
         args.tools ?? mergeToolSets(mcpHandles.map((handle) => handle.tools));
@@ -345,33 +333,61 @@ export function aiSdkAgent(options: {
             options.providerOptions,
           ),
           experimental_onToolCallFinish: (event) => {
-            const input = isRecord(event.toolCall.input)
-              ? event.toolCall.input
-              : {};
-            const toolCall = {
+            toolCalls.push({
               endpoint: event.toolCall.toolName,
-              body: input,
+              body: isRecord(event.toolCall.input) ? event.toolCall.input : {},
               result: event.output,
               ts: Date.now(),
-            };
-            toolCalls.push(toolCall);
-            transcript.push({
-              type: "tool_call",
-              name: toolCall.endpoint,
-              input: toolCall.body,
-              output: toolCall.result,
-              ts: toolCall.ts,
             });
           },
         });
 
+        // Build the transcript from every step's content so the judge sees
+        // all user-facing assistant text, not just the final step's text.
+        const toolOutputs = new Map<
+          string,
+          { output?: unknown; error?: string }
+        >();
+        for (const step of result.steps) {
+          for (const part of step.content) {
+            if (part.type === "tool-result") {
+              toolOutputs.set(part.toolCallId, { output: part.output });
+            } else if (part.type === "tool-error") {
+              toolOutputs.set(part.toolCallId, {
+                error:
+                  part.error instanceof Error
+                    ? part.error.message
+                    : String(part.error),
+              });
+            }
+          }
+        }
+
+        for (const step of result.steps) {
+          for (const part of step.content) {
+            if (part.type === "text") {
+              const content = part.text.trim();
+              if (content) {
+                transcript.push({
+                  type: "message",
+                  role: "assistant",
+                  content,
+                });
+              }
+            } else if (part.type === "tool-call") {
+              const resolved = toolOutputs.get(part.toolCallId);
+              transcript.push({
+                type: "tool_call",
+                name: part.toolName,
+                input: isRecord(part.input) ? part.input : {},
+                output: resolved?.output,
+                error: resolved?.error,
+              });
+            }
+          }
+        }
+
         const agentReport = result.text.trim();
-        transcript.push({
-          type: "message",
-          role: "assistant",
-          content: agentReport,
-          ts: Date.now(),
-        });
 
         return {
           agentReport,
