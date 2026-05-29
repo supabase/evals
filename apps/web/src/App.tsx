@@ -785,7 +785,7 @@ function ExperimentSheet({
                               />
                               {result.checks?.length ? (
                                 <EvalMetadataRow
-                                  label="Checks"
+                                  label="Result details"
                                   value={
                                     <ResultChecks
                                       checks={result.checks}
