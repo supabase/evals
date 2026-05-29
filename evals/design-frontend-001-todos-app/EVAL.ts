@@ -6,7 +6,7 @@ const scorer: ProjectScorer = async (ctx) => {
   if (!build.ok) {
     return {
       passed: false,
-      assertions: [
+      checks: [
         {
           type: "deterministic",
           name: "vite build passed",
@@ -20,13 +20,13 @@ const scorer: ProjectScorer = async (ctx) => {
   if (!vitest) {
     return {
       passed: false,
-      assertions: [{ type: "deterministic", name: "vitest ran", passed: false }],
+      checks: [{ type: "deterministic", name: "vitest ran", passed: false }],
     };
   }
 
   return {
     passed: vitest.ok,
-    assertions: [
+    checks: [
       { type: "deterministic", name: "vite build passed", passed: true },
       {
         type: "deterministic",

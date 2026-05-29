@@ -59,7 +59,7 @@ export type EvalResult = {
   product?: EvalProduct[];
   topic?: string[];
   passed: boolean;
-  assertions?: AssertionResult[];
+  checks?: CheckResult[];
   prompt?: string;
   promptSourcePath?: string;
   attempts?: number;
@@ -68,21 +68,21 @@ export type EvalResult = {
 
 export interface ScoreResult {
   passed: boolean;
-  assertions?: AssertionResult[];
+  checks?: CheckResult[];
 }
 
-export type AssertionResult = {
+export type CheckResult = {
   type: "deterministic" | "llm";
   name: string;
   passed: boolean;
   notes?: string;
 };
 
-export function assertion(
+export function check(
   name: string,
   passed: boolean,
   notes?: string,
-): AssertionResult {
+): CheckResult {
   return {
     type: "deterministic",
     name,

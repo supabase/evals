@@ -1,6 +1,6 @@
 import {
   judgeTranscript,
-  type AssertionResult,
+  type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -10,7 +10,7 @@ import {
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
-  const assertions: AssertionResult[] = [
+  const checks: CheckResult[] = [
     { type: "deterministic", name: "named the vulnerable table", passed: /customer_payment_methods/i.test(report) },
     { type: "deterministic", name: "mentioned the anon role", passed: /\banon\b/i.test(report) },
     {
@@ -37,7 +37,7 @@ Fail if it names the wrong table, misses the anon/public exposure, or only gives
       : undefined;
 
   if (judge) {
-    assertions.push({
+    checks.push({
       type: "llm",
       name: "verified the exposed table and fix",
       passed: judge.passed,
@@ -45,11 +45,11 @@ Fail if it names the wrong table, misses the anon/public exposure, or only gives
     });
   }
 
-  const namedTable = assertions[0]?.passed === true;
-  const proposedFix = assertions[2]?.passed === true;
+  const namedTable = checks[0]?.passed === true;
+  const proposedFix = checks[2]?.passed === true;
   return {
     passed: namedTable && proposedFix && (judge?.passed ?? true),
-    assertions,
+    checks,
   };
 };
 

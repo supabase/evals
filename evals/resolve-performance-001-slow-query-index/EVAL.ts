@@ -1,6 +1,6 @@
 import {
-  assertion,
-  type AssertionResult,
+  check,
+  type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -9,7 +9,7 @@ const TARGET_USER = "00000000-0000-0000-0000-000000000001";
 const scorer: ToolScorer = async (ctx) => {
   const q = (sql: string) =>
     ctx.query(sql);
-  const assertions: AssertionResult[] = [];
+  const checks: CheckResult[] = [];
 
   try {
     const { rows: indexes } = await q(`
@@ -22,7 +22,7 @@ WHERE schemaname = 'public'
       const def = row.indexdef;
       return typeof def === "string" && /ON\s+(?:public\.)?events\s+.*\(\s*user_id\s*,\s*created_at/i.test(def);
     });
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "created index covering user_id and created_at",
       passed: hasCoveringIndex,
@@ -36,12 +36,12 @@ ORDER BY created_at DESC
 LIMIT 50;
     `);
     const plan = planRows.map((row) => Object.values(row).join(" ")).join("\n");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "query plan uses an index",
       passed: /(Index Scan|Index Only Scan|Bitmap Index Scan)/i.test(plan),
     });
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "query plan avoids sequential scan on events",
       passed: !/Seq Scan on events/i.test(plan),
@@ -52,10 +52,10 @@ INSERT INTO events (user_id, kind, payload)
 VALUES ('${TARGET_USER}', 'insert_probe', '{"ok": true}'::jsonb)
 RETURNING id;
     `);
-    assertions.push(assertion("inserts still work", inserted.length === 1));
+    checks.push(check("inserts still work", inserted.length === 1));
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        assertions.push({
+        checks.push({
       type: "deterministic",
       name: "scorer evaluated performance fix",
       passed: false,
@@ -63,13 +63,13 @@ RETURNING id;
     });
     return {
       passed: false,
-      assertions,
+      checks,
     };
   }
 
     return {
-    passed: assertions.every((assertion) => assertion.passed),
-    assertions,
+    passed: checks.every((check) => check.passed),
+    checks,
   };
 };
 

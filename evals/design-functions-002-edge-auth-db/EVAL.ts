@@ -1,6 +1,6 @@
 import {
-  assertion,
-  type AssertionResult,
+  check,
+  type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -22,7 +22,7 @@ const parseJson = (result: InvokeResult) => {
 };
 
 const scorer: ToolScorer = async (ctx) => {
-  const assertions: AssertionResult[] = [];
+  const checks: CheckResult[] = [];
 
   try {
     const { data: signup, error: signupError } = await ctx.client.auth.signUp({
@@ -32,7 +32,7 @@ const scorer: ToolScorer = async (ctx) => {
     if (signupError || !signup.user || !signup.session?.access_token) {
       return {
         passed: false,
-        assertions: [
+        checks: [
           {
             type: "deterministic",
             name: "created auth session",
@@ -48,7 +48,7 @@ const scorer: ToolScorer = async (ctx) => {
       method: "POST",
       body: { body: TODO_BODY },
     })) as InvokeResult;
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "rejects missing auth",
       passed: missingAuth.status >= 400,
@@ -63,12 +63,12 @@ const scorer: ToolScorer = async (ctx) => {
       body: { body: TODO_BODY },
     })) as InvokeResult;
     const insertedJson = parseJson(inserted);
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "authenticated request succeeds",
       passed: inserted.status === 201 || inserted.status === 200,
     });
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "returns inserted todo body",
       passed: insertedJson?.body === TODO_BODY || (insertedJson?.todo as any)?.body === TODO_BODY,
@@ -78,7 +78,7 @@ const scorer: ToolScorer = async (ctx) => {
       .from("todos")
       .select("body,user_id")
       .eq("body", TODO_BODY);
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "row exists through supabase-js",
       passed:
@@ -90,7 +90,7 @@ const scorer: ToolScorer = async (ctx) => {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        assertions.push({
+        checks.push({
       type: "deterministic",
       name: `scorer evaluated ${FUNCTION_NAME}`,
       passed: false,
@@ -98,14 +98,14 @@ const scorer: ToolScorer = async (ctx) => {
     });
     return {
       passed: false,
-      assertions,
+      checks,
     };
   }
 
-  const passed = assertions.every((assertion) => assertion.passed);
+  const passed = checks.every((check) => check.passed);
     return {
     passed,
-    assertions,
+    checks,
   };
 };
 

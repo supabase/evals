@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
-import type { EvalResult, AssertionResult } from "@supabase-evals/core"
+import type { EvalResult, CheckResult } from "@supabase-evals/core"
 import { parseEvalMarkdown } from "../../packages/core/src/eval-metadata"
 
 const RESULTS_MODULE_ID = "virtual:supabase-eval-results"
@@ -54,7 +54,7 @@ function readResultFile(
     product: promptData?.product ?? parsed.product,
     topic: promptData?.topic ?? parsed.topic,
     passed: Boolean(parsed.passed),
-    assertions: readAssertions(parsed.assertions),
+    checks: readChecks(parsed.checks),
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
     attempts: typeof parsed.attempts === "number" ? parsed.attempts : undefined,
@@ -66,20 +66,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
 }
 
-function readAssertions(value: unknown): AssertionResult[] | undefined {
+function readChecks(value: unknown): CheckResult[] | undefined {
   if (!Array.isArray(value)) {
     return undefined
   }
 
-  const assertions = value.flatMap((item) => {
-    const assertion = readAssertion(item)
-    return assertion ? [assertion] : []
+  const checks = value.flatMap((item) => {
+    const check = readCheck(item)
+    return check ? [check] : []
   })
 
-  return assertions.length > 0 ? assertions : undefined
+  return checks.length > 0 ? checks : undefined
 }
 
-function readAssertion(value: unknown): AssertionResult | undefined {
+function readCheck(value: unknown): CheckResult | undefined {
   if (!isRecord(value)) {
     return undefined
   }

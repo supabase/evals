@@ -1,6 +1,6 @@
 import {
-  assertion,
-  type AssertionResult,
+  check,
+  type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -11,7 +11,7 @@ const PASSWORD = "secret123";
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
-  const assertions: AssertionResult[] = [];
+  const checks: CheckResult[] = [];
   const q = ctx.query;
 
   try {
@@ -34,7 +34,7 @@ const scorer: ToolScorer = async (ctx) => {
     ) {
       return {
         passed: false,
-        assertions: [
+        checks: [
           {
             type: "deterministic",
             name: "created auth sessions",
@@ -57,13 +57,13 @@ INSERT INTO todos (user_id, body, done) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'todos';`
     );
-    assertions.push(assertion("RLS enabled on todos", rls[0]?.relrowsecurity === true));
+    checks.push(check("RLS enabled on todos", rls[0]?.relrowsecurity === true));
 
     const { data: aTodos, error: aTodosError } = await clientA
       .from("todos")
       .select("body,user_id")
       .order("body");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user A sees only own todos",
       passed:
@@ -77,7 +77,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .from("todos")
       .select("id")
       .eq("body", "a private todo");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user B cannot read user A todos",
       passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
@@ -88,7 +88,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .insert({ body: "a client insert" })
       .select("body,user_id")
       .single();
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user A can insert own todo through supabase-js",
       passed:
@@ -103,7 +103,7 @@ INSERT INTO todos (user_id, body, done) VALUES
         .insert({ user_id: userAId, body: "b spoofed as a" })
         .select("id")
     );
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user B cannot insert todo for user A",
       passed: Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
@@ -114,7 +114,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .update({ done: true })
       .eq("body", "a private todo")
       .select("body,done");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user A can update own todo",
       passed: !ownUpdateError && ownUpdate?.length === 1 && ownUpdate[0]?.done === true,
@@ -125,7 +125,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .update({ body: "b changed a todo" })
       .eq("body", "a done todo")
       .select("id");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user B cannot update user A todo",
       passed: Boolean(crossUpdateError) || !crossUpdate || crossUpdate.length === 0,
@@ -136,7 +136,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .delete()
       .eq("body", "b private todo")
       .select("id");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user B can delete own todo",
       passed: !ownDeleteError && ownDelete?.length === 1,
@@ -147,14 +147,14 @@ INSERT INTO todos (user_id, body, done) VALUES
       .delete()
       .eq("body", "a done todo")
       .select("id");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user B cannot delete user A todo",
       passed: Boolean(crossDeleteError) || !crossDelete || crossDelete.length === 0,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        assertions.push({
+        checks.push({
       type: "deterministic",
       name: "scorer evaluated client RLS behavior",
       passed: false,
@@ -162,14 +162,14 @@ INSERT INTO todos (user_id, body, done) VALUES
     });
     return {
       passed: false,
-      assertions,
+      checks,
     };
   }
 
-  const passed = assertions.every((assertion) => assertion.passed);
+  const passed = checks.every((check) => check.passed);
     return {
     passed,
-    assertions,
+    checks,
   };
 };
 

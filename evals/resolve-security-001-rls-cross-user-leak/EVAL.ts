@@ -1,6 +1,6 @@
 import {
-  assertion,
-  type AssertionResult,
+  check,
+  type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -9,7 +9,7 @@ const PASSWORD = "secret123";
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
-  const assertions: AssertionResult[] = [];
+  const checks: CheckResult[] = [];
   const q = ctx.query;
 
   try {
@@ -32,7 +32,7 @@ const scorer: ToolScorer = async (ctx) => {
     ) {
       return {
         passed: false,
-        assertions: [
+        checks: [
           {
             type: "deterministic",
             name: "created auth sessions",
@@ -55,13 +55,13 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'notes';`
     );
-    assertions.push(assertion("RLS still enabled on notes", rls[0]?.relrowsecurity === true));
+    checks.push(check("RLS still enabled on notes", rls[0]?.relrowsecurity === true));
 
     const { data: aNotes, error: aNotesError } = await clientA
       .from("notes")
       .select("body,user_id")
       .order("body");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user A reads only own note",
       passed:
@@ -75,7 +75,7 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .from("notes")
       .select("id")
       .eq("body", "a private note");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user B cannot read user A note",
       passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
@@ -86,7 +86,7 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .update({ body: "a updated note" })
       .eq("body", "a private note")
       .select("body,user_id");
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "user A can still update own note",
       passed:
@@ -109,7 +109,7 @@ FROM notes
 WHERE body IN ('b private note', 'stolen by reassignment')
 ORDER BY body;
     `);
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "WITH CHECK prevents user_id reassignment",
       passed:
@@ -119,7 +119,7 @@ ORDER BY body;
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        assertions.push({
+        checks.push({
       type: "deterministic",
       name: "scorer evaluated RLS fix",
       passed: false,
@@ -127,13 +127,13 @@ ORDER BY body;
     });
     return {
       passed: false,
-      assertions,
+      checks,
     };
   }
 
     return {
-    passed: assertions.every((assertion) => assertion.passed),
-    assertions,
+    passed: checks.every((check) => check.passed),
+    checks,
   };
 };
 

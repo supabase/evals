@@ -37,8 +37,8 @@ function scorerCtx(backend: PlatformBackend, extra?: { agentReport?: string }) {
   };
 }
 
-function assertionsMessage(result: { assertions?: unknown[] }) {
-  return JSON.stringify(result.assertions ?? []);
+function checksMessage(result: { checks?: unknown[] }) {
+  return JSON.stringify(result.checks ?? []);
 }
 
 async function withBackend<T>(
@@ -66,10 +66,10 @@ async function smokeDesignEval() {
       const before = await scorer(scorerCtx(backend));
       assert.equal(before.passed, false);
       assert(
-        before.assertions?.some(
-          (assertion) =>
-            assertion.name === "RLS enabled on notes" &&
-            assertion.passed === false
+        before.checks?.some(
+          (check) =>
+            check.name === "RLS enabled on notes" &&
+            check.passed === false
         )
       );
 
@@ -117,7 +117,7 @@ USING (author_id = auth.uid());
       `);
 
       const after = await scorer(scorerCtx(backend));
-      assert.equal(after.passed, true, assertionsMessage(after));
+      assert.equal(after.passed, true, checksMessage(after));
     }
   );
 
@@ -140,7 +140,7 @@ CREATE POLICY "users can delete own todos" ON todos FOR DELETE TO authenticated 
       `);
 
       const result = await scorer(scorerCtx(backend));
-      assert.equal(result.passed, true, assertionsMessage(result));
+      assert.equal(result.passed, true, checksMessage(result));
     }
   );
 
@@ -153,7 +153,7 @@ async function smokeFunctionsEval() {
   await withBackend({}, async (backend) => {
     const before = await scorer(scorerCtx(backend));
     assert.equal(before.passed, false);
-    assert.match(assertionsMessage(before), /function not found/i);
+    assert.match(checksMessage(before), /function not found/i);
 
     const deployUrl = `${backend.url}/v1/projects/${backend.ref}/functions/deploy?slug=order-total`;
     const form = new FormData();
@@ -168,7 +168,7 @@ async function smokeFunctionsEval() {
     assert.equal(deployRes.status, 201, `deploy failed: ${await deployRes.text()}`);
 
     const after = await scorer(scorerCtx(backend));
-    assert.equal(after.passed, true, assertionsMessage(after));
+    assert.equal(after.passed, true, checksMessage(after));
   });
 
   console.log("PASS functions scorer + edge-functions dispatcher");
@@ -246,7 +246,7 @@ async function smokeEdgeAuthDbEval() {
       assert.equal(deployRes.status, 201, `deploy failed: ${await deployRes.text()}`);
 
       const result = await scorer(scorerCtx(backend));
-      assert.equal(result.passed, true, assertionsMessage(result));
+      assert.equal(result.passed, true, checksMessage(result));
     }
   );
 
@@ -276,7 +276,7 @@ async function smokeObserveEval() {
       const result = await scorer(
         scorerCtx(backend, { agentReport: "stripe-webhook had the most errors with 9 errors out of 50 events." })
       );
-      assert.equal(result.passed, true, assertionsMessage(result));
+      assert.equal(result.passed, true, checksMessage(result));
     }
   );
 
@@ -305,7 +305,7 @@ ORDER BY grantee;
       ].join(" ");
 
       const result = await scorer(scorerCtx(backend, { agentReport: report }));
-      assert.equal(result.passed, true, assertionsMessage(result));
+      assert.equal(result.passed, true, checksMessage(result));
     }
   );
 

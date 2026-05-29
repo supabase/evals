@@ -1,12 +1,12 @@
 import {
-  assertion,
-  type AssertionResult,
+  check,
+  type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
-  const assertions: AssertionResult[] = [
+  const checks: CheckResult[] = [
     { type: "deterministic", name: "named stripe-webhook", passed: /stripe-webhook/i.test(report) },
     {
       type: "deterministic",
@@ -21,9 +21,9 @@ const scorer: ToolScorer = async (ctx) => {
   ];
   const flagsWrongFunction =
     /(auth-callback|image-resize|daily-digest)/i.test(report) &&
-    assertions[0]?.passed !== true;
+    checks[0]?.passed !== true;
   if (flagsWrongFunction) {
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "did not flag a non-planted function",
       passed: false,
@@ -31,8 +31,8 @@ const scorer: ToolScorer = async (ctx) => {
   }
 
   return {
-    passed: !flagsWrongFunction && assertions.every((assertion) => assertion.passed),
-    assertions,
+    passed: !flagsWrongFunction && checks.every((check) => check.passed),
+    checks,
   };
 };
 

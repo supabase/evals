@@ -1,6 +1,6 @@
 import {
-  assertion,
-  type AssertionResult,
+  check,
+  type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -22,7 +22,7 @@ ${finish};
 const scorer: ToolScorer = async (ctx) => {
   const q = (sql: string) =>
     ctx.query(sql);
-  const assertions: AssertionResult[] = [];
+  const checks: CheckResult[] = [];
 
   const resetTx = async () => {
     try {
@@ -36,7 +36,7 @@ const scorer: ToolScorer = async (ctx) => {
     const { rows: rls } = await q(
       `SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('documents', 'document_audit');`
     );
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "RLS enabled on documents",
       passed: rls.some((row) => row.relname === "documents" && row.relrowsecurity === true),
@@ -48,7 +48,7 @@ const scorer: ToolScorer = async (ctx) => {
         `SELECT title FROM documents ORDER BY title;`
       )
     );
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "viewer sees active org documents only",
       passed:
@@ -71,7 +71,7 @@ VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
       viewerInsertBlocked = true;
       await resetTx();
     }
-    assertions.push(assertion("viewer cannot insert", viewerInsertBlocked));
+    checks.push(check("viewer cannot insert", viewerInsertBlocked));
 
     const { rows: editorInsert } = await q(
       asUser(
@@ -84,7 +84,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    assertions.push(assertion("editor can insert own org document", editorInsert.length === 1));
+    checks.push(check("editor can insert own org document", editorInsert.length === 1));
 
     const { rows: editorOwnUpdate } = await q(
       asUser(
@@ -98,7 +98,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    assertions.push(assertion("editor can update own document", editorOwnUpdate.length === 1));
+    checks.push(check("editor can update own document", editorOwnUpdate.length === 1));
 
     const { rows: editorUpdatesAdmin } = await q(
       asUser(
@@ -112,7 +112,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "editor cannot update another user's document",
       passed: editorUpdatesAdmin.length === 0,
@@ -130,7 +130,7 @@ WHERE id = '10000000-0000-0000-0000-000000000001';
     const { rows: adminSoftDelete } = await q(
       `SELECT id, deleted_at FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`
     );
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "admin delete soft-deletes document in org",
       passed:
@@ -151,7 +151,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    assertions.push(assertion("admin cannot affect another org", adminCrossOrg.length === 0));
+    checks.push(check("admin cannot affect another org", adminCrossOrg.length === 0));
 
     let orgReassignmentBlocked = false;
     try {
@@ -172,7 +172,7 @@ RETURNING id;
       orgReassignmentBlocked = true;
       await resetTx();
     }
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "WITH CHECK blocks editor from moving document to another org",
       passed: orgReassignmentBlocked,
@@ -192,7 +192,7 @@ RETURNING id;
     const { rows: auditRows } = await q(
       `SELECT actor_id, document_id FROM document_audit WHERE document_id = '10000000-0000-0000-0000-000000000002';`
     );
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "write creates audit row with acting user",
       passed:
@@ -205,7 +205,7 @@ RETURNING id;
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        assertions.push({
+        checks.push({
       type: "deterministic",
       name: "scorer evaluated org role RLS",
       passed: false,
@@ -213,13 +213,13 @@ RETURNING id;
     });
     return {
       passed: false,
-      assertions,
+      checks,
     };
   }
 
     return {
-    passed: assertions.every((assertion) => assertion.passed),
-    assertions,
+    passed: checks.every((check) => check.passed),
+    checks,
   };
 };
 

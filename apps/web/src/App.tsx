@@ -70,7 +70,7 @@ type ParsedResult = Omit<EvalResult, "product" | "topic"> & {
   primaryCategory: string
 }
 
-type AssertionResult = NonNullable<ParsedResult["assertions"]>[number]
+type CheckResult = NonNullable<ParsedResult["checks"]>[number]
 
 type ExperimentStageSummary = {
   experiment: string
@@ -325,43 +325,43 @@ function EvalMetadataRow({
   )
 }
 
-function ResultAssertions({ assertions }: { assertions: AssertionResult[] }) {
+function ResultChecks({ checks }: { checks: CheckResult[] }) {
   return (
     <div className="flex flex-col gap-1 leading-relaxed text-foreground">
-      {assertions.map((assertion, index) => {
-        const StatusIcon = assertion.passed ? CheckIcon : XIcon
+      {checks.map((check, index) => {
+        const StatusIcon = check.passed ? CheckIcon : XIcon
 
         return (
-          <div key={`${index}-${assertion.type}-${assertion.name}`}>
+          <div key={`${index}-${check.type}-${check.name}`}>
             <div className="flex items-start gap-2">
               <StatusIcon
                 className={cn(
                   "mt-0.5 size-4 shrink-0",
-                  assertion.passed
+                  check.passed
                     ? "text-emerald-600 dark:text-emerald-400"
                     : "text-red-600 dark:text-red-400"
                 )}
                 aria-hidden
               />
               <span className="sr-only">
-                {assertion.passed ? "Pass" : "Fail"}:{" "}
+                {check.passed ? "Pass" : "Fail"}:{" "}
               </span>
               <span className="min-w-0 whitespace-pre-wrap">
-                {assertion.name}
+                {check.name}
               </span>
             </div>
-            {assertion.notes ? (
+            {check.notes ? (
               <details className="mt-1 ml-6 text-muted-foreground">
                 <summary className="cursor-pointer text-xs uppercase tracking-wide">
                   <span className="inline-flex items-center gap-1.5">
-                    {assertion.type === "llm" ? (
+                    {check.type === "llm" ? (
                       <BotIcon className="size-3.5 text-muted-foreground/70" />
                     ) : null}
-                    {assertion.type === "llm" ? "Judge notes" : "Notes"}
+                    {check.type === "llm" ? "Judge notes" : "Notes"}
                   </span>
                 </summary>
                 <p className="mt-1 whitespace-pre-wrap text-foreground">
-                  {assertion.notes}
+                  {check.notes}
                 </p>
               </details>
             ) : null}
@@ -783,12 +783,12 @@ function ExperimentSheet({
                                 label="Topic"
                                 value={result.topic.join(", ") || "-"}
                               />
-                              {result.assertions?.length ? (
+                              {result.checks?.length ? (
                                 <EvalMetadataRow
-                                  label="Assertions"
+                                  label="Checks"
                                   value={
-                                    <ResultAssertions
-                                      assertions={result.assertions}
+                                    <ResultChecks
+                                      checks={result.checks}
                                     />
                                   }
                                 />

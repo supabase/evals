@@ -1,6 +1,6 @@
 import {
-  assertion,
-  type AssertionResult,
+  check,
+  type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -24,7 +24,7 @@ const parseJson = (result: InvokeResult) => {
 const rowFrom = (json: Record<string, any> | undefined) => json?.todo ?? json;
 
 const scorer: ToolScorer = async (ctx) => {
-  const assertions: AssertionResult[] = [];
+  const checks: CheckResult[] = [];
 
   try {
     const clientA = ctx.client;
@@ -49,7 +49,7 @@ const scorer: ToolScorer = async (ctx) => {
     ) {
       return {
         passed: false,
-        assertions: [
+        checks: [
           {
             type: "deterministic",
             name: "created auth sessions",
@@ -75,21 +75,21 @@ const scorer: ToolScorer = async (ctx) => {
     const authHeadersB = { authorization: `Bearer ${authB.session.access_token}` };
 
     const missingAuth = await invoke({ method: "GET" });
-    assertions.push(assertion("rejects missing auth", missingAuth.status === 401));
+    checks.push(check("rejects missing auth", missingAuth.status === 401));
 
     const badLimit = await invoke({
       method: "GET",
       path: "?limit=200",
       headers: authHeadersA,
     });
-    assertions.push(assertion("rejects invalid limit", badLimit.status === 400));
+    checks.push(check("rejects invalid limit", badLimit.status === 400));
 
     const invalidJson = await invoke({
       method: "POST",
       headers: authHeadersA,
       body: "{",
     });
-    assertions.push(assertion("rejects invalid JSON", invalidJson.status === 400));
+    checks.push(check("rejects invalid JSON", invalidJson.status === 400));
 
     const created = await invoke({
       method: "POST",
@@ -97,7 +97,7 @@ const scorer: ToolScorer = async (ctx) => {
       body: { body: "buy milk", done: false },
     });
     const createdRow = rowFrom(parseJson(created));
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "creates todo for authenticated user",
       passed:
@@ -120,7 +120,7 @@ const scorer: ToolScorer = async (ctx) => {
     });
     const listJson = parseJson(listDone);
     const todos = Array.isArray(listJson) ? listJson : listJson?.todos;
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "filters todos by done",
       passed:
@@ -137,7 +137,7 @@ const scorer: ToolScorer = async (ctx) => {
       headers: authHeadersA,
       body: { done: true },
     });
-    assertions.push(assertion("rejects invalid UUID", invalidUuid.status === 400));
+    checks.push(check("rejects invalid UUID", invalidUuid.status === 400));
 
     const patchOtherUser = await invoke({
       method: "PATCH",
@@ -145,7 +145,7 @@ const scorer: ToolScorer = async (ctx) => {
       headers: authHeadersB,
       body: { body: "stolen" },
     });
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "returns 404 when patching another user's todo",
       passed: patchOtherUser.status === 404,
@@ -158,7 +158,7 @@ const scorer: ToolScorer = async (ctx) => {
       body: { done: true },
     });
     const ownPatchRow = rowFrom(parseJson(ownPatch));
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "updates own todo",
       passed: ownPatch.status === 200 && ownPatchRow?.id === createdRow?.id && ownPatchRow?.done === true,
@@ -169,7 +169,7 @@ const scorer: ToolScorer = async (ctx) => {
       path: `/${createdRow?.id}`,
       headers: authHeadersB,
     });
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "returns 404 when deleting another user's todo",
       passed: deleteOtherUser.status === 404,
@@ -180,14 +180,14 @@ const scorer: ToolScorer = async (ctx) => {
       path: `/${createdRow?.id}`,
       headers: authHeadersA,
     });
-    assertions.push({
+    checks.push({
       type: "deterministic",
       name: "deletes own todo",
       passed: ownDelete.status === 200 && parseJson(ownDelete)?.deleted === true,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        assertions.push({
+        checks.push({
       type: "deterministic",
       name: `scorer evaluated ${FUNCTION_NAME}`,
       passed: false,
@@ -195,13 +195,13 @@ const scorer: ToolScorer = async (ctx) => {
     });
     return {
       passed: false,
-      assertions,
+      checks,
     };
   }
 
     return {
-    passed: assertions.every((assertion) => assertion.passed),
-    assertions,
+    passed: checks.every((check) => check.passed),
+    checks,
   };
 };
 
