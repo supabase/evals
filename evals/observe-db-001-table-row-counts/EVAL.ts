@@ -1,8 +1,4 @@
-import {
-  check,
-  type CheckResult,
-  type ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
@@ -12,7 +8,7 @@ const scorer: ToolScorer = async (ctx) => {
     { type: "deterministic", name: "reported events count", passed: /events[\s\S]{0,80}\b453\b/i.test(report) },
   ];
 
-    return {
+  return {
     passed: checks.every((check) => check.passed),
     checks,
   };

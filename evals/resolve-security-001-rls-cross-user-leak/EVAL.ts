@@ -119,7 +119,7 @@ ORDER BY body;
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        checks.push({
+    checks.push({
       type: "deterministic",
       name: "scorer evaluated RLS fix",
       passed: false,
@@ -131,7 +131,7 @@ ORDER BY body;
     };
   }
 
-    return {
+  return {
     passed: checks.every((check) => check.passed),
     checks,
   };

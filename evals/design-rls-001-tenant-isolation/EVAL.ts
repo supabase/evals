@@ -118,7 +118,7 @@ const scorer: ToolScorer = async (ctx) => {
     checks.push(check("non-member cannot delete org A note", crossDelete.length === 0));
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        checks.push({
+    checks.push({
       type: "deterministic",
       name: "scorer evaluated policy behavior",
       passed: false,
@@ -131,7 +131,7 @@ const scorer: ToolScorer = async (ctx) => {
   }
 
   const passed = checks.every((check) => check.passed);
-    return {
+  return {
     passed,
     checks,
   };

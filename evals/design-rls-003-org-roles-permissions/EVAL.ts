@@ -205,7 +205,7 @@ RETURNING id;
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        checks.push({
+    checks.push({
       type: "deterministic",
       name: "scorer evaluated org role RLS",
       passed: false,
@@ -217,7 +217,7 @@ RETURNING id;
     };
   }
 
-    return {
+  return {
     passed: checks.every((check) => check.passed),
     checks,
   };

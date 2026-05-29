@@ -187,7 +187,7 @@ const scorer: ToolScorer = async (ctx) => {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        checks.push({
+    checks.push({
       type: "deterministic",
       name: `scorer evaluated ${FUNCTION_NAME}`,
       passed: false,
@@ -199,7 +199,7 @@ const scorer: ToolScorer = async (ctx) => {
     };
   }
 
-    return {
+  return {
     passed: checks.every((check) => check.passed),
     checks,
   };

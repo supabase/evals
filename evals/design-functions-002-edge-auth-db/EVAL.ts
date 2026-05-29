@@ -1,8 +1,4 @@
-import {
-  check,
-  type CheckResult,
-  type ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todo-create";
 const TODO_BODY = "verify edge auth database integration";
@@ -90,7 +86,7 @@ const scorer: ToolScorer = async (ctx) => {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        checks.push({
+    checks.push({
       type: "deterministic",
       name: `scorer evaluated ${FUNCTION_NAME}`,
       passed: false,
@@ -103,7 +99,7 @@ const scorer: ToolScorer = async (ctx) => {
   }
 
   const passed = checks.every((check) => check.passed);
-    return {
+  return {
     passed,
     checks,
   };

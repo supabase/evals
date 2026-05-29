@@ -247,7 +247,7 @@ async function runOne(
       continue;
     }
 
-    // Tool mode: boot runtime, expose MCP tools, run agent, evaluate result.
+    // Tool mode: boot runtime, expose MCP tools, run agent, score result.
     const projectSeedSql = join(ev.seedDir, "project.sql");
     const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
 

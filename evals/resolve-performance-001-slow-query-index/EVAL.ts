@@ -55,7 +55,7 @@ RETURNING id;
     checks.push(check("inserts still work", inserted.length === 1));
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        checks.push({
+    checks.push({
       type: "deterministic",
       name: "scorer evaluated performance fix",
       passed: false,
@@ -67,7 +67,7 @@ RETURNING id;
     };
   }
 
-    return {
+  return {
     passed: checks.every((check) => check.passed),
     checks,
   };

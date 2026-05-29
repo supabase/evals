@@ -1,8 +1,4 @@
-import {
-  check,
-  type CheckResult,
-  type ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 function reportedErrorRateAboveFivePercent(report: string): boolean {
   const percentMatches = report.matchAll(/\b(\d+(?:\.\d+)?)\s*%/g);

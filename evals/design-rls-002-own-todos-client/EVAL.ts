@@ -154,7 +154,7 @@ INSERT INTO todos (user_id, body, done) VALUES
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-        checks.push({
+    checks.push({
       type: "deterministic",
       name: "scorer evaluated client RLS behavior",
       passed: false,
@@ -167,7 +167,7 @@ INSERT INTO todos (user_id, body, done) VALUES
   }
 
   const passed = checks.every((check) => check.passed);
-    return {
+  return {
     passed,
     checks,
   };
