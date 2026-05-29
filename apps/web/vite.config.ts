@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
-import type { EvalResult } from "@supabase-evals/core"
+import type { EvalResult, AssertionResult } from "@supabase-evals/core"
 import { parseEvalMarkdown } from "../../packages/core/src/eval-metadata"
 
 const RESULTS_MODULE_ID = "virtual:supabase-eval-results"
@@ -54,12 +54,54 @@ function readResultFile(
     product: promptData?.product ?? parsed.product,
     topic: promptData?.topic ?? parsed.topic,
     passed: Boolean(parsed.passed),
-    score: typeof parsed.score === "number" ? parsed.score : undefined,
-    notes: typeof parsed.notes === "string" ? parsed.notes : undefined,
+    assertions: readAssertions(parsed.assertions),
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
     attempts: typeof parsed.attempts === "number" ? parsed.attempts : undefined,
     sourcePath,
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function readAssertions(value: unknown): AssertionResult[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  const assertions = value.flatMap((item) => {
+    const assertion = readAssertion(item)
+    return assertion ? [assertion] : []
+  })
+
+  return assertions.length > 0 ? assertions : undefined
+}
+
+function readAssertion(value: unknown): AssertionResult | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const type = value.type
+  const name = value.name
+  const passed = value.passed
+  const notes = value.notes
+
+  if (
+    (type !== "deterministic" && type !== "llm") ||
+    typeof name !== "string" ||
+    typeof passed !== "boolean"
+  ) {
+    return undefined
+  }
+
+  return {
+    type,
+    name,
+    passed,
+    notes: typeof notes === "string" ? notes : undefined,
   }
 }
 

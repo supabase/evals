@@ -1,4 +1,7 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  assertion,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todo-create";
 const TODO_BODY = "verify edge auth database integration";
@@ -28,8 +31,14 @@ const scorer: ToolScorer = async (ctx) => {
     if (signupError || !signup.user || !signup.session?.access_token) {
       return {
         passed: false,
-        score: 0,
-        notes: `could not create auth session: ${signupError?.message ?? "missing session"}`,
+        assertions: [
+          {
+            type: "deterministic",
+            name: "created auth session",
+            passed: false,
+            notes: signupError?.message ?? "missing session",
+          },
+        ],
       };
     }
 
@@ -76,21 +85,24 @@ const scorer: ToolScorer = async (ctx) => {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    const assertions = checks.map((c) => assertion(c.name, c.ok));
+    assertions.push({
+      type: "deterministic",
+      name: `scorer evaluated ${FUNCTION_NAME}`,
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 4,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate ${FUNCTION_NAME}: ${msg}`,
-      ].join("\n"),
+      assertions,
     };
   }
 
   const passed = checks.every((c) => c.ok);
+  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
     passed,
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    assertions,
   };
 };
 

@@ -1,4 +1,7 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  assertion,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
@@ -14,11 +17,10 @@ const scorer: ToolScorer = async (ctx) => {
     },
   ];
 
-  const score = checks.filter((c) => c.ok).length / checks.length;
+  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
     passed: checks.every((c) => c.ok),
-    score,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    assertions,
   };
 };
 

@@ -1,4 +1,7 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  assertion,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const USER_A_EMAIL = "todo-user-a@example.com";
 const USER_B_EMAIL = "todo-user-b@example.com";
@@ -30,10 +33,14 @@ const scorer: ToolScorer = async (ctx) => {
     ) {
       return {
         passed: false,
-        score: 0,
-        notes: `could not create auth sessions: ${
-          authAError?.message ?? authBError?.message ?? "missing session"
-        }`,
+        assertions: [
+          {
+            type: "deterministic",
+            name: "created auth sessions",
+            passed: false,
+            notes: authAError?.message ?? authBError?.message ?? "missing session",
+          },
+        ],
       };
     }
     const userAId = authA.user.id;
@@ -138,21 +145,24 @@ INSERT INTO todos (user_id, body, done) VALUES
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    const assertions = checks.map((c) => assertion(c.name, c.ok));
+    assertions.push({
+      type: "deterministic",
+      name: "scorer evaluated client RLS behavior",
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 9,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate client RLS behavior: ${msg}`,
-      ].join("\n"),
+      assertions,
     };
   }
 
   const passed = checks.every((c) => c.ok);
+  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
     passed,
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    assertions,
   };
 };
 

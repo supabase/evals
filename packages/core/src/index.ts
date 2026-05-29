@@ -59,8 +59,7 @@ export type EvalResult = {
   product?: EvalProduct[];
   topic?: string[];
   passed: boolean;
-  score?: number;
-  notes?: string;
+  assertions?: AssertionResult[];
   prompt?: string;
   promptSourcePath?: string;
   attempts?: number;
@@ -69,8 +68,27 @@ export type EvalResult = {
 
 export interface ScoreResult {
   passed: boolean;
-  score: number;
+  assertions?: AssertionResult[];
+}
+
+export type AssertionResult = {
+  type: "deterministic" | "llm";
+  name: string;
+  passed: boolean;
   notes?: string;
+};
+
+export function assertion(
+  name: string,
+  passed: boolean,
+  notes?: string,
+): AssertionResult {
+  return {
+    type: "deterministic",
+    name,
+    passed,
+    notes,
+  };
 }
 
 export type TranscriptPart =
@@ -101,7 +119,10 @@ export interface JudgeInput extends TranscriptSerializationOptions {
   rubric: string;
 }
 
-export type JudgeResult = ScoreResult;
+export interface JudgeResult {
+  passed: boolean;
+  notes?: string;
+}
 
 export interface ToolCallRecord {
   endpoint: string;
@@ -273,7 +294,6 @@ export async function judgeTranscript(input: JudgeInput): Promise<JudgeResult> {
 
   return {
     passed: output.passed,
-    score: output.passed ? 1 : 0,
     notes: output.notes,
   };
 }

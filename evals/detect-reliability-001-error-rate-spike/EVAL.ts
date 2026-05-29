@@ -1,4 +1,7 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  assertion,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 function reportedErrorRateAboveFivePercent(report: string): boolean {
   const percentMatches = report.matchAll(/\b(\d+(?:\.\d+)?)\s*%/g);
@@ -33,11 +36,10 @@ const scorer: ToolScorer = async (ctx) => {
     },
   ];
 
-  const score = checks.filter((c) => c.ok).length / checks.length;
+  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
     passed: checks[0].ok && checks[1].ok && checks[2].ok,
-    score,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    assertions,
   };
 };
 

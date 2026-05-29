@@ -1,4 +1,7 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  assertion,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
@@ -14,15 +17,18 @@ const scorer: ToolScorer = async (ctx) => {
     },
   ];
   const flagsWrongFunction = /(auth-callback|image-resize|daily-digest)/i.test(report) && !checks[0].ok;
-  const score = flagsWrongFunction ? 0 : checks.filter((c) => c.ok).length / checks.length;
+  const assertions = checks.map((c) => assertion(c.name, c.ok));
+  if (flagsWrongFunction) {
+    assertions.push({
+      type: "deterministic",
+      name: "did not flag a non-planted function",
+      passed: false,
+    });
+  }
 
   return {
     passed: !flagsWrongFunction && checks.every((c) => c.ok),
-    score,
-    notes: [
-      ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-      flagsWrongFunction ? "FAIL flagged a non-planted function" : undefined,
-    ].filter(Boolean).join("\n"),
+    assertions,
   };
 };
 

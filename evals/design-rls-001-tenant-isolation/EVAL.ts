@@ -1,4 +1,7 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  assertion,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const ORG_A = "11111111-1111-1111-1111-111111111111";
 const USER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -31,7 +34,10 @@ const scorer: ToolScorer = async (ctx) => {
     `SELECT relrowsecurity FROM pg_class WHERE relname = 'notes';`
   );
   if (!rls[0]?.relrowsecurity) {
-    return { passed: false, score: 0, notes: "RLS not enabled on notes" };
+    return {
+      passed: false,
+      assertions: [{ type: "deterministic", name: "RLS enabled on notes", passed: false }],
+    };
   }
 
   const checks: Array<{ name: string; ok: boolean }> = [];
@@ -111,19 +117,24 @@ const scorer: ToolScorer = async (ctx) => {
     checks.push({ name: "non-member cannot delete org A note", ok: crossDelete.length === 0 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    const assertions = checks.map((c) => assertion(c.name, c.ok));
+    assertions.push({
+      type: "deterministic",
+      name: "scorer evaluated policy behavior",
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: 0,
-      notes: `scorer could not evaluate policy behavior: ${msg}`,
+      assertions,
     };
   }
 
   const passed = checks.every((c) => c.ok);
-  const score = checks.filter((c) => c.ok).length / checks.length;
+  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
     passed,
-    score,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    assertions,
   };
 };
 

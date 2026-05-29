@@ -1,4 +1,8 @@
-import type { ToolScorer, ToolEvalContext } from "@supabase-evals/core";
+import {
+  type AssertionResult,
+  type ToolEvalContext,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const FUNCTION_NAME = "order-total";
 
@@ -28,19 +32,31 @@ const parseJson = (result: InvokeResult) => {
 };
 
 const scorer: ToolScorer = async (ctx) => {
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const assertions: AssertionResult[] = [];
 
   try {
     const methodCheck = await invoke(ctx, undefined, "GET");
-    checks.push({ name: "rejects non-POST requests", ok: methodCheck.status === 405 });
+    assertions.push({
+      type: "deterministic",
+      name: "rejects non-POST requests",
+      passed: methodCheck.status === 405,
+    });
 
     const invalidJson = await invoke(ctx, "{");
-    checks.push({ name: "rejects invalid JSON", ok: invalidJson.status === 400 });
+    assertions.push({
+      type: "deterministic",
+      name: "rejects invalid JSON",
+      passed: invalidJson.status === 400,
+    });
 
     const invalidItem = await invoke(ctx, {
       items: [{ sku: "bad", unit_price_cents: 0, quantity: 1 }],
     });
-    checks.push({ name: "rejects invalid item values", ok: invalidItem.status === 400 });
+    assertions.push({
+      type: "deterministic",
+      name: "rejects invalid item values",
+      passed: invalidItem.status === 400,
+    });
 
     const welcome = await invoke(ctx, {
       items: [
@@ -51,9 +67,10 @@ const scorer: ToolScorer = async (ctx) => {
       coupon: "WELCOME10",
     });
     const welcomeJson = parseJson(welcome);
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "calculates WELCOME10 totals",
-      ok:
+      passed:
         welcome.status === 200 &&
         welcomeJson?.subtotal_cents === 3450 &&
         welcomeJson?.discount_cents === 345 &&
@@ -67,9 +84,10 @@ const scorer: ToolScorer = async (ctx) => {
       coupon: "WELCOME10",
     });
     const enterpriseJson = parseJson(enterprise);
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "chooses enterprise discount over capped coupon",
-      ok:
+      passed:
         enterprise.status === 200 &&
         enterpriseJson?.subtotal_cents === 25000 &&
         enterpriseJson?.discount_cents === 3750 &&
@@ -83,9 +101,10 @@ const scorer: ToolScorer = async (ctx) => {
       coupon: "WELCOME10",
     });
     const cappedCouponJson = parseJson(cappedCoupon);
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "caps WELCOME10 discount at 2000 cents",
-      ok:
+      passed:
         cappedCoupon.status === 200 &&
         cappedCouponJson?.subtotal_cents === 50000 &&
         cappedCouponJson?.discount_cents === 2000 &&
@@ -94,22 +113,22 @@ const scorer: ToolScorer = async (ctx) => {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    assertions.push({
+      type: "deterministic",
+      name: `scorer could invoke ${FUNCTION_NAME}`,
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 6,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not invoke ${FUNCTION_NAME}: ${msg}`,
-      ].join("\n"),
+      assertions,
     };
   }
 
-  const passed = checks.every((c) => c.ok);
-  const score = checks.filter((c) => c.ok).length / checks.length;
+  const passed = assertions.every((assertion) => assertion.passed);
   return {
     passed,
-    score,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    assertions,
   };
 };
 

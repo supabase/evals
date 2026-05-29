@@ -70,6 +70,8 @@ type ParsedResult = Omit<EvalResult, "product" | "topic"> & {
   primaryCategory: string
 }
 
+type AssertionResult = NonNullable<ParsedResult["assertions"]>[number]
+
 type ExperimentStageSummary = {
   experiment: string
   category: JourneyStage | "overall"
@@ -323,60 +325,46 @@ function EvalMetadataRow({
   )
 }
 
-function ResultDetails({ notes }: { notes: string }) {
-  const lines = notes.split("\n")
-
+function ResultAssertions({ assertions }: { assertions: AssertionResult[] }) {
   return (
     <div className="flex flex-col gap-1 leading-relaxed text-foreground">
-      {lines.map((line, index) => {
-        const match = /^(PASS|FAIL)\s+(.*)$/.exec(line)
-
-        if (line.startsWith("Judge:")) {
-          return (
-            <details
-              key={`${index}-${line}`}
-              className="ml-6 text-muted-foreground"
-            >
-              <summary className="cursor-pointer text-xs uppercase tracking-wide">
-                <span className="inline-flex items-center gap-1.5">
-                  <BotIcon className="size-3.5 text-muted-foreground/70" />
-                  Judge notes
-                </span>
-              </summary>
-              <p className="mt-1 whitespace-pre-wrap text-foreground">
-                {line.replace(/^Judge:\s*/, "")}
-              </p>
-            </details>
-          )
-        }
-
-        if (!match) {
-          return (
-            <p key={`${index}-${line}`} className="whitespace-pre-wrap">
-              {line}
-            </p>
-          )
-        }
-
-        const [, status, detail] = match
-        const passed = status === "PASS"
-        const StatusIcon = passed ? CheckIcon : XIcon
+      {assertions.map((assertion, index) => {
+        const StatusIcon = assertion.passed ? CheckIcon : XIcon
 
         return (
-          <div key={`${index}-${line}`} className="flex items-start gap-2">
-            <StatusIcon
-              className={cn(
-                "mt-0.5 size-4 shrink-0",
-                passed
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-red-400"
-              )}
-              aria-hidden
-            />
-            <span className="sr-only">{passed ? "Pass" : "Fail"}: </span>
-            <span className="min-w-0 whitespace-pre-wrap">
-              {detail.replace(/\bllm judge\s+/i, "")}
-            </span>
+          <div key={`${index}-${assertion.type}-${assertion.name}`}>
+            <div className="flex items-start gap-2">
+              <StatusIcon
+                className={cn(
+                  "mt-0.5 size-4 shrink-0",
+                  assertion.passed
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-red-600 dark:text-red-400"
+                )}
+                aria-hidden
+              />
+              <span className="sr-only">
+                {assertion.passed ? "Pass" : "Fail"}:{" "}
+              </span>
+              <span className="min-w-0 whitespace-pre-wrap">
+                {assertion.name}
+              </span>
+            </div>
+            {assertion.notes ? (
+              <details className="mt-1 ml-6 text-muted-foreground">
+                <summary className="cursor-pointer text-xs uppercase tracking-wide">
+                  <span className="inline-flex items-center gap-1.5">
+                    {assertion.type === "llm" ? (
+                      <BotIcon className="size-3.5 text-muted-foreground/70" />
+                    ) : null}
+                    {assertion.type === "llm" ? "Judge notes" : "Notes"}
+                  </span>
+                </summary>
+                <p className="mt-1 whitespace-pre-wrap text-foreground">
+                  {assertion.notes}
+                </p>
+              </details>
+            ) : null}
           </div>
         )
       })}
@@ -776,10 +764,6 @@ function ExperimentSheet({
                           >
                             <dl className={evalMetaGridClassName}>
                               <EvalMetadataRow
-                                label="Score"
-                                value={result.score ?? "-"}
-                              />
-                              <EvalMetadataRow
                                 label="Attempts"
                                 value={result.attempts ?? "-"}
                               />
@@ -799,10 +783,14 @@ function ExperimentSheet({
                                 label="Topic"
                                 value={result.topic.join(", ") || "-"}
                               />
-                              {result.notes ? (
+                              {result.assertions?.length ? (
                                 <EvalMetadataRow
-                                  label="Result details"
-                                  value={<ResultDetails notes={result.notes} />}
+                                  label="Assertions"
+                                  value={
+                                    <ResultAssertions
+                                      assertions={result.assertions}
+                                    />
+                                  }
                                 />
                               ) : null}
                               {result.prompt ? (

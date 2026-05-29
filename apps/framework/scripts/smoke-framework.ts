@@ -37,6 +37,10 @@ function scorerCtx(backend: PlatformBackend, extra?: { agentReport?: string }) {
   };
 }
 
+function assertionsMessage(result: { assertions?: unknown[] }) {
+  return JSON.stringify(result.assertions ?? []);
+}
+
 async function withBackend<T>(
   opts: { projectSeedSql?: string; logsSeedJsonl?: string },
   fn: (backend: PlatformBackend) => Promise<T>
@@ -61,7 +65,13 @@ async function smokeDesignEval() {
     async (backend) => {
       const before = await scorer(scorerCtx(backend));
       assert.equal(before.passed, false);
-      assert.match(before.notes ?? "", /RLS not enabled/i);
+      assert(
+        before.assertions?.some(
+          (assertion) =>
+            assertion.name === "RLS enabled on notes" &&
+            assertion.passed === false
+        )
+      );
 
       await backend.query(`
 ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
@@ -107,7 +117,7 @@ USING (author_id = auth.uid());
       `);
 
       const after = await scorer(scorerCtx(backend));
-      assert.equal(after.passed, true, after.notes);
+      assert.equal(after.passed, true, assertionsMessage(after));
     }
   );
 
@@ -129,8 +139,8 @@ CREATE POLICY "users can update own todos" ON todos FOR UPDATE TO authenticated 
 CREATE POLICY "users can delete own todos" ON todos FOR DELETE TO authenticated USING (user_id = auth.uid());
       `);
 
-      const score = await scorer(scorerCtx(backend));
-      assert.equal(score.passed, true, score.notes);
+      const result = await scorer(scorerCtx(backend));
+      assert.equal(result.passed, true, assertionsMessage(result));
     }
   );
 
@@ -143,7 +153,7 @@ async function smokeFunctionsEval() {
   await withBackend({}, async (backend) => {
     const before = await scorer(scorerCtx(backend));
     assert.equal(before.passed, false);
-    assert.match(before.notes ?? "", /function not found/i);
+    assert.match(assertionsMessage(before), /function not found/i);
 
     const deployUrl = `${backend.url}/v1/projects/${backend.ref}/functions/deploy?slug=order-total`;
     const form = new FormData();
@@ -158,7 +168,7 @@ async function smokeFunctionsEval() {
     assert.equal(deployRes.status, 201, `deploy failed: ${await deployRes.text()}`);
 
     const after = await scorer(scorerCtx(backend));
-    assert.equal(after.passed, true, after.notes);
+    assert.equal(after.passed, true, assertionsMessage(after));
   });
 
   console.log("PASS functions scorer + edge-functions dispatcher");
@@ -235,8 +245,8 @@ async function smokeEdgeAuthDbEval() {
       });
       assert.equal(deployRes.status, 201, `deploy failed: ${await deployRes.text()}`);
 
-      const score = await scorer(scorerCtx(backend));
-      assert.equal(score.passed, true, score.notes);
+      const result = await scorer(scorerCtx(backend));
+      assert.equal(result.passed, true, assertionsMessage(result));
     }
   );
 
@@ -263,10 +273,10 @@ async function smokeObserveEval() {
   await withBackend(
     { logsSeedJsonl: seedPath(OBSERVE_EVAL, "logs.jsonl") },
     async (backend) => {
-      const score = await scorer(
+      const result = await scorer(
         scorerCtx(backend, { agentReport: "stripe-webhook had the most errors with 9 errors out of 50 events." })
       );
-      assert.equal(score.passed, true, score.notes);
+      assert.equal(result.passed, true, assertionsMessage(result));
     }
   );
 
@@ -294,8 +304,8 @@ ORDER BY grantee;
         "Fix by REVOKE SELECT ON customer_payment_methods FROM anon and enable row level security.",
       ].join(" ");
 
-      const score = await scorer(scorerCtx(backend, { agentReport: report }));
-      assert.equal(score.passed, true, score.notes);
+      const result = await scorer(scorerCtx(backend, { agentReport: report }));
+      assert.equal(result.passed, true, assertionsMessage(result));
     }
   );
 

@@ -1,6 +1,13 @@
 /// <reference types="vite/client" />
 
 declare module "virtual:supabase-eval-results" {
+  type AssertionResult = {
+    type: "deterministic" | "llm"
+    name: string
+    passed: boolean
+    notes?: string
+  }
+
   type EvalResult = {
     experiment: string
     eval: string
@@ -8,8 +15,7 @@ declare module "virtual:supabase-eval-results" {
     product?: string[]
     topic?: string[]
     passed: boolean
-    score?: number
-    notes?: string
+    assertions?: AssertionResult[]
     prompt?: string
     promptSourcePath?: string
     attempts?: number

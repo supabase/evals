@@ -1,4 +1,7 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  assertion,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const PASSWORD = "secret123";
 
@@ -28,10 +31,14 @@ const scorer: ToolScorer = async (ctx) => {
     ) {
       return {
         passed: false,
-        score: 0,
-        notes: `could not create auth sessions: ${
-          authAError?.message ?? authBError?.message ?? "missing session"
-        }`,
+        assertions: [
+          {
+            type: "deterministic",
+            name: "created auth sessions",
+            passed: false,
+            notes: authAError?.message ?? authBError?.message ?? "missing session",
+          },
+        ],
       };
     }
 
@@ -107,20 +114,23 @@ ORDER BY body;
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    const assertions = checks.map((c) => assertion(c.name, c.ok));
+    assertions.push({
+      type: "deterministic",
+      name: "scorer evaluated RLS fix",
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 5,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate RLS fix: ${msg}`,
-      ].join("\n"),
+      assertions,
     };
   }
 
+  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
     passed: checks.every((c) => c.ok),
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    assertions,
   };
 };
 

@@ -1,4 +1,7 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  assertion,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const ORG_A = "11111111-1111-1111-1111-111111111111";
 const ORG_B = "22222222-2222-2222-2222-222222222222";
@@ -195,20 +198,23 @@ RETURNING id;
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    const assertions = checks.map((c) => assertion(c.name, c.ok));
+    assertions.push({
+      type: "deterministic",
+      name: "scorer evaluated org role RLS",
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 10,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate org role RLS: ${msg}`,
-      ].join("\n"),
+      assertions,
     };
   }
 
+  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
     passed: checks.every((c) => c.ok),
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    assertions,
   };
 };
 

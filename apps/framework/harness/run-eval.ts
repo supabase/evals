@@ -195,7 +195,10 @@ async function runOne(
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ProjectScorer
     | ToolScorer;
-  let last: ScoreResult = { passed: false, score: 0, notes: "no attempts" };
+  let last: ScoreResult = {
+    passed: false,
+    assertions: [{ type: "deterministic", name: "ran at least one attempt", passed: false }],
+  };
   let lastToolCalls: unknown[] = [];
   let lastTranscript: TranscriptPart[] = [];
   let lastAgentReport = "";
@@ -244,7 +247,7 @@ async function runOne(
       continue;
     }
 
-    // Tool mode: boot runtime, expose MCP tools, run agent, score result.
+    // Tool mode: boot runtime, expose MCP tools, run agent, evaluate result.
     const projectSeedSql = join(ev.seedDir, "project.sql");
     const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
 
@@ -386,7 +389,7 @@ async function main() {
           ),
         );
         console.log(
-          `  -> ${res.passed ? "PASS" : "FAIL"} (score ${res.score.toFixed(2)}, attempts ${res.attempts})`,
+          `  -> ${res.passed ? "PASS" : "FAIL"} (attempts ${res.attempts})`,
         );
       } catch (e) {
         console.error(

@@ -1,4 +1,8 @@
-import { judgeTranscript, type ToolScorer } from "@supabase-evals/core";
+import {
+  judgeTranscript,
+  type AssertionResult,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 // Planted issue: `customer_payment_methods` is GRANTed to anon and has no RLS.
 // The agent must name this specific table in its final report.
@@ -31,23 +35,26 @@ Fail if it names the wrong table, misses the anon/public exposure, or only gives
         })
       : undefined;
 
+  const assertions: AssertionResult[] = checks.map((check) => ({
+    type: "deterministic",
+    name: check.name,
+    passed: check.ok,
+  }));
+
   if (judge) {
-    checks.push({
-      name: "llm judge verified the exposed table and fix",
-      ok: judge.passed,
+    assertions.push({
+      type: "llm",
+      name: "verified the exposed table and fix",
+      passed: judge.passed,
+      notes: judge.notes,
     });
   }
 
   const namedTable = checks[0].ok;
   const proposedFix = checks[2].ok;
-  const score = checks.filter((c) => c.ok).length / checks.length;
   return {
     passed: namedTable && proposedFix && (judge?.passed ?? true),
-    score,
-    notes: [
-      ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-      ...(judge ? [`Judge: ${judge.notes}`] : []),
-    ].join("\n"),
+    assertions,
   };
 };
 
