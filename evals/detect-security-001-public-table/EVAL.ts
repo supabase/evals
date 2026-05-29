@@ -4,6 +4,7 @@ import {
   type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
+import { stripIndent } from "common-tags";
 
 // Planted issue: `customer_payment_methods` is GRANTed to anon and has no RLS.
 // The agent must name this specific table in its final report.
@@ -30,11 +31,11 @@ const scorer: ToolScorer = async (ctx) => {
           input: serializeTranscript(ctx.transcript, {
             includeToolCallInputs: true,
           }),
-          rubric: `
-Pass if the agent identifies public.customer_payment_methods as exposed to anon/public access without proper RLS protection and proposes a concrete Supabase-compatible fix such as revoking anon access, enabling RLS, or adding a restrictive policy.
+          rubric: stripIndent`
+            Pass if the agent identifies public.customer_payment_methods as exposed to anon/public access without proper RLS protection and proposes a concrete Supabase-compatible fix such as revoking anon access, enabling RLS, or adding a restrictive policy.
 
-Fail if it names the wrong table, misses the anon/public exposure, or only gives vague advice.
-    `,
+            Fail if it names the wrong table, misses the anon/public exposure, or only gives vague advice.
+          `,
         })
       : undefined;
 
