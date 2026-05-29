@@ -309,6 +309,17 @@ function normalizeExperimentName(s: string): string {
   return s.replace(/^experiments\//, "").replace(/\.ts$/, "");
 }
 
+function formatRunSummary(res: ScoreResult & { attempts: number }): string {
+  const parts: string[] = [];
+  if (res.checks?.length) {
+    const passed = res.checks.filter((check) => check.passed).length;
+    parts.push(`checks ${passed}/${res.checks.length}`);
+  }
+  parts.push(`attempts ${res.attempts}`);
+
+  return parts.join(", ");
+}
+
 async function main() {
   const experiments = (await loadExperiments()).filter(({ name, config }) => {
     if (
@@ -389,7 +400,7 @@ async function main() {
           ),
         );
         console.log(
-          `  -> ${res.passed ? "PASS" : "FAIL"} (attempts ${res.attempts})`,
+          `  -> ${res.passed ? "PASS" : "FAIL"} (${formatRunSummary(res)})`,
         );
       } catch (e) {
         console.error(
