@@ -25,7 +25,8 @@ export type {
 } from "@supabase-evals/core";
 export {
   check,
-  judgeTranscript,
+  judge,
+  serializeTranscript,
 } from "@supabase-evals/core";
 export type {
   EvalMetadata,

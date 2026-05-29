@@ -110,10 +110,10 @@ export type TranscriptSerializationOptions = {
   includeToolCallOutputs?: boolean;
 };
 
-export interface JudgeInput extends TranscriptSerializationOptions {
+export interface JudgeInput {
   model?: Exclude<LanguageModel, string>;
   providerOptions?: AiSdkProviderOptions;
-  transcript: TranscriptPart[];
+  input: string;
   rubric: string;
 }
 
@@ -271,20 +271,16 @@ const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   },
 };
 
-export async function judgeTranscript(input: JudgeInput): Promise<JudgeResult> {
-  const model = input.model ?? DEFAULT_JUDGE_MODEL;
+export async function judge(args: JudgeInput): Promise<JudgeResult> {
+  const model = args.model ?? DEFAULT_JUDGE_MODEL;
   const providerOptions =
-    input.providerOptions ?? DEFAULT_JUDGE_PROVIDER_OPTIONS;
+    args.providerOptions ?? DEFAULT_JUDGE_PROVIDER_OPTIONS;
   assertProviderReady(model.provider);
-  const transcript = serializeTranscript(input.transcript, {
-    includeToolCallInputs: input.includeToolCallInputs,
-    includeToolCallOutputs: input.includeToolCallOutputs,
-  });
   const { output } = await generateText({
     model,
     system:
       "You are a strict eval judge. Return only the requested structured judgment.",
-    prompt: ["Rubric:", input.rubric, "", "Transcript:", transcript].join("\n"),
+    prompt: ["Rubric:", args.rubric, "", "Input:", args.input].join("\n"),
     output: Output.object({ schema: judgeOutputSchema }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     providerOptions: withProviderDefaults(model.provider, providerOptions),

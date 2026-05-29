@@ -1,5 +1,6 @@
 import {
-  judgeTranscript,
+  judge,
+  serializeTranscript,
   type CheckResult,
   type ToolScorer,
 } from "@supabase-evals/core";
@@ -23,11 +24,12 @@ const scorer: ToolScorer = async (ctx) => {
     },
   ];
 
-  const judge =
+  const verdict =
     ctx.transcript.length > 0
-      ? await judgeTranscript({
-          transcript: ctx.transcript,
-          includeToolCallInputs: true,
+      ? await judge({
+          input: serializeTranscript(ctx.transcript, {
+            includeToolCallInputs: true,
+          }),
           rubric: `
 Pass if the agent identifies public.customer_payment_methods as exposed to anon/public access without proper RLS protection and proposes a concrete Supabase-compatible fix such as revoking anon access, enabling RLS, or adding a restrictive policy.
 
@@ -36,19 +38,19 @@ Fail if it names the wrong table, misses the anon/public exposure, or only gives
         })
       : undefined;
 
-  if (judge) {
+  if (verdict) {
     checks.push({
       type: "llm",
       name: "verified the exposed table and fix",
-      passed: judge.passed,
-      notes: judge.notes,
+      passed: verdict.passed,
+      notes: verdict.notes,
     });
   }
 
   const namedTable = checks[0]?.passed === true;
   const proposedFix = checks[2]?.passed === true;
   return {
-    passed: namedTable && proposedFix && (judge?.passed ?? true),
+    passed: namedTable && proposedFix && (verdict?.passed ?? true),
     checks,
   };
 };
