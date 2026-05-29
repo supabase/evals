@@ -1,5 +1,6 @@
 import {
   assertion,
+  type AssertionResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -21,7 +22,7 @@ ${finish};
 const scorer: ToolScorer = async (ctx) => {
   const q = (sql: string) =>
     ctx.query(sql);
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const assertions: AssertionResult[] = [];
 
   const resetTx = async () => {
     try {
@@ -35,9 +36,10 @@ const scorer: ToolScorer = async (ctx) => {
     const { rows: rls } = await q(
       `SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('documents', 'document_audit');`
     );
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "RLS enabled on documents",
-      ok: rls.some((row) => row.relname === "documents" && row.relrowsecurity === true),
+      passed: rls.some((row) => row.relname === "documents" && row.relrowsecurity === true),
     });
 
     const { rows: viewerReads } = await q(
@@ -46,9 +48,10 @@ const scorer: ToolScorer = async (ctx) => {
         `SELECT title FROM documents ORDER BY title;`
       )
     );
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "viewer sees active org documents only",
-      ok:
+      passed:
         viewerReads.length === 2 &&
         viewerReads.map((row) => row.title).join(",") === "Admin plan,Editor draft",
     });
@@ -68,7 +71,7 @@ VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
       viewerInsertBlocked = true;
       await resetTx();
     }
-    checks.push({ name: "viewer cannot insert", ok: viewerInsertBlocked });
+    assertions.push(assertion("viewer cannot insert", viewerInsertBlocked));
 
     const { rows: editorInsert } = await q(
       asUser(
@@ -81,7 +84,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ name: "editor can insert own org document", ok: editorInsert.length === 1 });
+    assertions.push(assertion("editor can insert own org document", editorInsert.length === 1));
 
     const { rows: editorOwnUpdate } = await q(
       asUser(
@@ -95,7 +98,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ name: "editor can update own document", ok: editorOwnUpdate.length === 1 });
+    assertions.push(assertion("editor can update own document", editorOwnUpdate.length === 1));
 
     const { rows: editorUpdatesAdmin } = await q(
       asUser(
@@ -109,9 +112,10 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "editor cannot update another user's document",
-      ok: editorUpdatesAdmin.length === 0,
+      passed: editorUpdatesAdmin.length === 0,
     });
 
     await q(
@@ -126,9 +130,10 @@ WHERE id = '10000000-0000-0000-0000-000000000001';
     const { rows: adminSoftDelete } = await q(
       `SELECT id, deleted_at FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`
     );
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "admin delete soft-deletes document in org",
-      ok:
+      passed:
         adminSoftDelete.length === 1 &&
         adminSoftDelete[0]?.id === "10000000-0000-0000-0000-000000000001" &&
         Boolean(adminSoftDelete[0]?.deleted_at),
@@ -146,7 +151,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ name: "admin cannot affect another org", ok: adminCrossOrg.length === 0 });
+    assertions.push(assertion("admin cannot affect another org", adminCrossOrg.length === 0));
 
     let orgReassignmentBlocked = false;
     try {
@@ -167,9 +172,10 @@ RETURNING id;
       orgReassignmentBlocked = true;
       await resetTx();
     }
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "WITH CHECK blocks editor from moving document to another org",
-      ok: orgReassignmentBlocked,
+      passed: orgReassignmentBlocked,
     });
 
     const { rows: auditedUpdate } = await q(
@@ -186,9 +192,10 @@ RETURNING id;
     const { rows: auditRows } = await q(
       `SELECT actor_id, document_id FROM document_audit WHERE document_id = '10000000-0000-0000-0000-000000000002';`
     );
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "write creates audit row with acting user",
-      ok:
+      passed:
         auditedUpdate.length === 1 &&
         auditRows.some(
           (row) =>
@@ -198,8 +205,7 @@ RETURNING id;
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    const assertions = checks.map((c) => assertion(c.name, c.ok));
-    assertions.push({
+        assertions.push({
       type: "deterministic",
       name: "scorer evaluated org role RLS",
       passed: false,
@@ -211,9 +217,8 @@ RETURNING id;
     };
   }
 
-  const assertions = checks.map((c) => assertion(c.name, c.ok));
-  return {
-    passed: checks.every((c) => c.ok),
+    return {
+    passed: assertions.every((assertion) => assertion.passed),
     assertions,
   };
 };

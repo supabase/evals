@@ -1,25 +1,27 @@
 import {
   assertion,
+  type AssertionResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
-  const checks = [
-    { name: "named stripe-webhook", ok: /stripe-webhook/i.test(report) },
+  const assertions: AssertionResult[] = [
+    { type: "deterministic", name: "named stripe-webhook", passed: /stripe-webhook/i.test(report) },
     {
+      type: "deterministic",
       name: "reported 9 errors",
-      ok: /\b9\b/.test(report),
+      passed: /\b9\b/.test(report),
     },
     {
+      type: "deterministic",
       name: "reported 50 total events",
-      ok: /\b50\b/.test(report) || /\b9\s*\/\s*50\b/.test(report),
+      passed: /\b50\b/.test(report) || /\b9\s*\/\s*50\b/.test(report),
     },
   ];
 
-  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
-    passed: checks.every((c) => c.ok),
+    passed: assertions.every((assertion) => assertion.passed),
     assertions,
   };
 };

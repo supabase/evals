@@ -1,5 +1,6 @@
 import {
   assertion,
+  type AssertionResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -10,7 +11,7 @@ const PASSWORD = "secret123";
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const assertions: AssertionResult[] = [];
   const q = ctx.query;
 
   try {
@@ -56,15 +57,16 @@ INSERT INTO todos (user_id, body, done) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'todos';`
     );
-    checks.push({ name: "RLS enabled on todos", ok: rls[0]?.relrowsecurity === true });
+    assertions.push(assertion("RLS enabled on todos", rls[0]?.relrowsecurity === true));
 
     const { data: aTodos, error: aTodosError } = await clientA
       .from("todos")
       .select("body,user_id")
       .order("body");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user A sees only own todos",
-      ok:
+      passed:
         !aTodosError &&
         aTodos?.length === 2 &&
         aTodos.every((todo) => todo.user_id === userAId) &&
@@ -75,9 +77,10 @@ INSERT INTO todos (user_id, body, done) VALUES
       .from("todos")
       .select("id")
       .eq("body", "a private todo");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user B cannot read user A todos",
-      ok: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
+      passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
     });
 
     const { data: ownInsert, error: ownInsertError } = await clientA
@@ -85,9 +88,10 @@ INSERT INTO todos (user_id, body, done) VALUES
       .insert({ body: "a client insert" })
       .select("body,user_id")
       .single();
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user A can insert own todo through supabase-js",
-      ok:
+      passed:
         !ownInsertError &&
         ownInsert?.body === "a client insert" &&
         ownInsert.user_id === userAId,
@@ -99,9 +103,10 @@ INSERT INTO todos (user_id, body, done) VALUES
         .insert({ user_id: userAId, body: "b spoofed as a" })
         .select("id")
     );
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user B cannot insert todo for user A",
-      ok: Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
+      passed: Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
     });
 
     const { data: ownUpdate, error: ownUpdateError } = await clientA
@@ -109,9 +114,10 @@ INSERT INTO todos (user_id, body, done) VALUES
       .update({ done: true })
       .eq("body", "a private todo")
       .select("body,done");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user A can update own todo",
-      ok: !ownUpdateError && ownUpdate?.length === 1 && ownUpdate[0]?.done === true,
+      passed: !ownUpdateError && ownUpdate?.length === 1 && ownUpdate[0]?.done === true,
     });
 
     const { data: crossUpdate, error: crossUpdateError } = await clientB
@@ -119,9 +125,10 @@ INSERT INTO todos (user_id, body, done) VALUES
       .update({ body: "b changed a todo" })
       .eq("body", "a done todo")
       .select("id");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user B cannot update user A todo",
-      ok: Boolean(crossUpdateError) || !crossUpdate || crossUpdate.length === 0,
+      passed: Boolean(crossUpdateError) || !crossUpdate || crossUpdate.length === 0,
     });
 
     const { data: ownDelete, error: ownDeleteError } = await clientB
@@ -129,9 +136,10 @@ INSERT INTO todos (user_id, body, done) VALUES
       .delete()
       .eq("body", "b private todo")
       .select("id");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user B can delete own todo",
-      ok: !ownDeleteError && ownDelete?.length === 1,
+      passed: !ownDeleteError && ownDelete?.length === 1,
     });
 
     const { data: crossDelete, error: crossDeleteError } = await clientB
@@ -139,14 +147,14 @@ INSERT INTO todos (user_id, body, done) VALUES
       .delete()
       .eq("body", "a done todo")
       .select("id");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user B cannot delete user A todo",
-      ok: Boolean(crossDeleteError) || !crossDelete || crossDelete.length === 0,
+      passed: Boolean(crossDeleteError) || !crossDelete || crossDelete.length === 0,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    const assertions = checks.map((c) => assertion(c.name, c.ok));
-    assertions.push({
+        assertions.push({
       type: "deterministic",
       name: "scorer evaluated client RLS behavior",
       passed: false,
@@ -158,9 +166,8 @@ INSERT INTO todos (user_id, body, done) VALUES
     };
   }
 
-  const passed = checks.every((c) => c.ok);
-  const assertions = checks.map((c) => assertion(c.name, c.ok));
-  return {
+  const passed = assertions.every((assertion) => assertion.passed);
+    return {
     passed,
     assertions,
   };

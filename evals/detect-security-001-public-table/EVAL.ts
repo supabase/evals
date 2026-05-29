@@ -10,12 +10,13 @@ import {
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
-  const checks = [
-    { name: "named the vulnerable table", ok: /customer_payment_methods/i.test(report) },
-    { name: "mentioned the anon role",    ok: /\banon\b/i.test(report) },
+  const assertions: AssertionResult[] = [
+    { type: "deterministic", name: "named the vulnerable table", passed: /customer_payment_methods/i.test(report) },
+    { type: "deterministic", name: "mentioned the anon role", passed: /\banon\b/i.test(report) },
     {
+      type: "deterministic",
       name: "proposed a concrete fix",
-      ok:
+      passed:
         /enable\s+row\s+level\s+security/i.test(report) ||
         /CREATE\s+POLICY/i.test(report) ||
         /REVOKE\s+.*\s+FROM\s+anon/i.test(report),
@@ -35,12 +36,6 @@ Fail if it names the wrong table, misses the anon/public exposure, or only gives
         })
       : undefined;
 
-  const assertions: AssertionResult[] = checks.map((check) => ({
-    type: "deterministic",
-    name: check.name,
-    passed: check.ok,
-  }));
-
   if (judge) {
     assertions.push({
       type: "llm",
@@ -50,8 +45,8 @@ Fail if it names the wrong table, misses the anon/public exposure, or only gives
     });
   }
 
-  const namedTable = checks[0].ok;
-  const proposedFix = checks[2].ok;
+  const namedTable = assertions[0]?.passed === true;
+  const proposedFix = assertions[2]?.passed === true;
   return {
     passed: namedTable && proposedFix && (judge?.passed ?? true),
     assertions,

@@ -1,5 +1,6 @@
 import {
   assertion,
+  type AssertionResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -21,7 +22,7 @@ const parseJson = (result: InvokeResult) => {
 };
 
 const scorer: ToolScorer = async (ctx) => {
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const assertions: AssertionResult[] = [];
 
   try {
     const { data: signup, error: signupError } = await ctx.client.auth.signUp({
@@ -47,9 +48,10 @@ const scorer: ToolScorer = async (ctx) => {
       method: "POST",
       body: { body: TODO_BODY },
     })) as InvokeResult;
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "rejects missing auth",
-      ok: missingAuth.status >= 400,
+      passed: missingAuth.status >= 400,
     });
 
     const inserted = (await ctx.invokeFunction({
@@ -61,22 +63,25 @@ const scorer: ToolScorer = async (ctx) => {
       body: { body: TODO_BODY },
     })) as InvokeResult;
     const insertedJson = parseJson(inserted);
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "authenticated request succeeds",
-      ok: inserted.status === 201 || inserted.status === 200,
+      passed: inserted.status === 201 || inserted.status === 200,
     });
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "returns inserted todo body",
-      ok: insertedJson?.body === TODO_BODY || (insertedJson?.todo as any)?.body === TODO_BODY,
+      passed: insertedJson?.body === TODO_BODY || (insertedJson?.todo as any)?.body === TODO_BODY,
     });
 
     const { data: todos, error: selectError } = await ctx.client
       .from("todos")
       .select("body,user_id")
       .eq("body", TODO_BODY);
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "row exists through supabase-js",
-      ok:
+      passed:
         !selectError &&
         Array.isArray(todos) &&
         todos.length === 1 &&
@@ -85,8 +90,7 @@ const scorer: ToolScorer = async (ctx) => {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    const assertions = checks.map((c) => assertion(c.name, c.ok));
-    assertions.push({
+        assertions.push({
       type: "deterministic",
       name: `scorer evaluated ${FUNCTION_NAME}`,
       passed: false,
@@ -98,9 +102,8 @@ const scorer: ToolScorer = async (ctx) => {
     };
   }
 
-  const passed = checks.every((c) => c.ok);
-  const assertions = checks.map((c) => assertion(c.name, c.ok));
-  return {
+  const passed = assertions.every((assertion) => assertion.passed);
+    return {
     passed,
     assertions,
   };

@@ -1,5 +1,6 @@
 import {
   assertion,
+  type AssertionResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -8,7 +9,7 @@ const TARGET_USER = "00000000-0000-0000-0000-000000000001";
 const scorer: ToolScorer = async (ctx) => {
   const q = (sql: string) =>
     ctx.query(sql);
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const assertions: AssertionResult[] = [];
 
   try {
     const { rows: indexes } = await q(`
@@ -21,9 +22,10 @@ WHERE schemaname = 'public'
       const def = row.indexdef;
       return typeof def === "string" && /ON\s+(?:public\.)?events\s+.*\(\s*user_id\s*,\s*created_at/i.test(def);
     });
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "created index covering user_id and created_at",
-      ok: hasCoveringIndex,
+      passed: hasCoveringIndex,
     });
 
     const { rows: planRows } = await q(`
@@ -34,13 +36,15 @@ ORDER BY created_at DESC
 LIMIT 50;
     `);
     const plan = planRows.map((row) => Object.values(row).join(" ")).join("\n");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "query plan uses an index",
-      ok: /(Index Scan|Index Only Scan|Bitmap Index Scan)/i.test(plan),
+      passed: /(Index Scan|Index Only Scan|Bitmap Index Scan)/i.test(plan),
     });
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "query plan avoids sequential scan on events",
-      ok: !/Seq Scan on events/i.test(plan),
+      passed: !/Seq Scan on events/i.test(plan),
     });
 
     const { rows: inserted } = await q(`
@@ -48,11 +52,10 @@ INSERT INTO events (user_id, kind, payload)
 VALUES ('${TARGET_USER}', 'insert_probe', '{"ok": true}'::jsonb)
 RETURNING id;
     `);
-    checks.push({ name: "inserts still work", ok: inserted.length === 1 });
+    assertions.push(assertion("inserts still work", inserted.length === 1));
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    const assertions = checks.map((c) => assertion(c.name, c.ok));
-    assertions.push({
+        assertions.push({
       type: "deterministic",
       name: "scorer evaluated performance fix",
       passed: false,
@@ -64,9 +67,8 @@ RETURNING id;
     };
   }
 
-  const assertions = checks.map((c) => assertion(c.name, c.ok));
-  return {
-    passed: checks.every((c) => c.ok),
+    return {
+    passed: assertions.every((assertion) => assertion.passed),
     assertions,
   };
 };

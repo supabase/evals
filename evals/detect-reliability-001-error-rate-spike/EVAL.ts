@@ -1,5 +1,6 @@
 import {
   assertion,
+  type AssertionResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -20,25 +21,27 @@ function reportedErrorRateAboveFivePercent(report: string): boolean {
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
-  const checks = [
-    { name: "named the affected function", ok: /process-payment/i.test(report) },
+  const assertions: AssertionResult[] = [
+    { type: "deterministic", name: "named the affected function", passed: /process-payment/i.test(report) },
     {
+      type: "deterministic",
       name: "reported an error rate above 5%",
-      ok: reportedErrorRateAboveFivePercent(report),
+      passed: reportedErrorRateAboveFivePercent(report),
     },
     {
+      type: "deterministic",
       name: "described the rate as elevated",
-      ok: /(spike|elevated|abnormal|exceeds|high error rate|concerning)/i.test(report),
+      passed: /(spike|elevated|abnormal|exceeds|high error rate|concerning)/i.test(report),
     },
     {
+      type: "deterministic",
       name: "proposed a concrete next step",
-      ok: /(investigate|rollback|inspect|trace|mitigate|check|review)/i.test(report),
+      passed: /(investigate|rollback|inspect|trace|mitigate|check|review)/i.test(report),
     },
   ];
 
-  const assertions = checks.map((c) => assertion(c.name, c.ok));
   return {
-    passed: checks[0].ok && checks[1].ok && checks[2].ok,
+    passed: assertions[0]?.passed === true && assertions[1]?.passed === true && assertions[2]?.passed === true,
     assertions,
   };
 };

@@ -1,5 +1,6 @@
 import {
   assertion,
+  type AssertionResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -8,7 +9,7 @@ const PASSWORD = "secret123";
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const assertions: AssertionResult[] = [];
   const q = ctx.query;
 
   try {
@@ -54,15 +55,16 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'notes';`
     );
-    checks.push({ name: "RLS still enabled on notes", ok: rls[0]?.relrowsecurity === true });
+    assertions.push(assertion("RLS still enabled on notes", rls[0]?.relrowsecurity === true));
 
     const { data: aNotes, error: aNotesError } = await clientA
       .from("notes")
       .select("body,user_id")
       .order("body");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user A reads only own note",
-      ok:
+      passed:
         !aNotesError &&
         aNotes?.length === 1 &&
         aNotes[0]?.body === "a private note" &&
@@ -73,9 +75,10 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .from("notes")
       .select("id")
       .eq("body", "a private note");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user B cannot read user A note",
-      ok: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
+      passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
     });
 
     const { data: ownUpdate, error: ownUpdateError } = await clientA
@@ -83,9 +86,10 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .update({ body: "a updated note" })
       .eq("body", "a private note")
       .select("body,user_id");
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "user A can still update own note",
-      ok:
+      passed:
         !ownUpdateError &&
         ownUpdate?.length === 1 &&
         ownUpdate[0]?.body === "a updated note" &&
@@ -105,17 +109,17 @@ FROM notes
 WHERE body IN ('b private note', 'stolen by reassignment')
 ORDER BY body;
     `);
-    checks.push({
+    assertions.push({
+      type: "deterministic",
       name: "WITH CHECK prevents user_id reassignment",
-      ok:
+      passed:
         reassignedRows.length === 1 &&
         reassignedRows[0]?.body === "b private note" &&
         reassignedRows[0]?.user_id === userBId,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    const assertions = checks.map((c) => assertion(c.name, c.ok));
-    assertions.push({
+        assertions.push({
       type: "deterministic",
       name: "scorer evaluated RLS fix",
       passed: false,
@@ -127,9 +131,8 @@ ORDER BY body;
     };
   }
 
-  const assertions = checks.map((c) => assertion(c.name, c.ok));
-  return {
-    passed: checks.every((c) => c.ok),
+    return {
+    passed: assertions.every((assertion) => assertion.passed),
     assertions,
   };
 };

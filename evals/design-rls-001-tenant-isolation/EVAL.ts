@@ -1,5 +1,6 @@
 import {
   assertion,
+  type AssertionResult,
   type ToolScorer,
 } from "@supabase-evals/core";
 
@@ -40,15 +41,15 @@ const scorer: ToolScorer = async (ctx) => {
     };
   }
 
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const assertions: AssertionResult[] = [];
   try {
     const { rows: aReads } = await q(asUser(USER_A, `SELECT count(*)::int AS n FROM notes;`));
-    checks.push({ name: "tenant A sees only org A notes (n=2)", ok: aReads[0]?.n === 2 });
+    assertions.push(assertion("tenant A sees only org A notes (n=2)", aReads[0]?.n === 2));
 
     const { rows: bCross } = await q(
       asUser(USER_B, `SELECT count(*)::int AS n FROM notes WHERE org_id = '${ORG_A}';`)
     );
-    checks.push({ name: "tenant B blocked from org A reads", ok: bCross[0]?.n === 0 });
+    assertions.push(assertion("tenant B blocked from org A reads", bCross[0]?.n === 0));
 
     let insertBlocked = false;
     try {
@@ -60,7 +61,7 @@ const scorer: ToolScorer = async (ctx) => {
       insertBlocked = true;
       await resetTx();
     }
-    checks.push({ name: "insert into non-member org blocked", ok: insertBlocked });
+    assertions.push(assertion("insert into non-member org blocked", insertBlocked));
 
     const { rows: ownUpdate } = await q(
       asUser(
@@ -74,7 +75,7 @@ const scorer: ToolScorer = async (ctx) => {
         "ROLLBACK"
       )
     );
-    checks.push({ name: "author can update own note", ok: ownUpdate.length === 1 });
+    assertions.push(assertion("author can update own note", ownUpdate.length === 1));
 
     const { rows: crossUpdate } = await q(
       asUser(
@@ -88,7 +89,7 @@ const scorer: ToolScorer = async (ctx) => {
         "ROLLBACK"
       )
     );
-    checks.push({ name: "non-member cannot update org A note", ok: crossUpdate.length === 0 });
+    assertions.push(assertion("non-member cannot update org A note", crossUpdate.length === 0));
 
     const { rows: ownDelete } = await q(
       asUser(
@@ -101,7 +102,7 @@ const scorer: ToolScorer = async (ctx) => {
         "ROLLBACK"
       )
     );
-    checks.push({ name: "author can delete own note", ok: ownDelete.length === 1 });
+    assertions.push(assertion("author can delete own note", ownDelete.length === 1));
 
     const { rows: crossDelete } = await q(
       asUser(
@@ -114,11 +115,10 @@ const scorer: ToolScorer = async (ctx) => {
         "ROLLBACK"
       )
     );
-    checks.push({ name: "non-member cannot delete org A note", ok: crossDelete.length === 0 });
+    assertions.push(assertion("non-member cannot delete org A note", crossDelete.length === 0));
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    const assertions = checks.map((c) => assertion(c.name, c.ok));
-    assertions.push({
+        assertions.push({
       type: "deterministic",
       name: "scorer evaluated policy behavior",
       passed: false,
@@ -130,9 +130,8 @@ const scorer: ToolScorer = async (ctx) => {
     };
   }
 
-  const passed = checks.every((c) => c.ok);
-  const assertions = checks.map((c) => assertion(c.name, c.ok));
-  return {
+  const passed = assertions.every((assertion) => assertion.passed);
+    return {
     passed,
     assertions,
   };
