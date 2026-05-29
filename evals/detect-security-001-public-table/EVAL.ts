@@ -25,33 +25,28 @@ const scorer: ToolScorer = async (ctx) => {
     },
   ];
 
-  const verdict =
-    ctx.transcript.length > 0
-      ? await judge({
-          input: serializeTranscript(ctx.transcript, {
-            includeToolCallInputs: true,
-          }),
-          rubric: stripIndent`
-            Pass if the agent identifies public.customer_payment_methods as exposed to anon/public access without proper RLS protection and proposes a concrete Supabase-compatible fix such as revoking anon access, enabling RLS, or adding a restrictive policy.
+  const verdict = await judge({
+    input: serializeTranscript(ctx.transcript, {
+      includeToolCallInputs: true,
+    }),
+    rubric: stripIndent`
+      Pass if the agent identifies public.customer_payment_methods as exposed to anon/public access without proper RLS protection and proposes a concrete Supabase-compatible fix such as revoking anon access, enabling RLS, or adding a restrictive policy.
 
-            Fail if it names the wrong table, misses the anon/public exposure, or only gives vague advice.
-          `,
-        })
-      : undefined;
+      Fail if it names the wrong table, misses the anon/public exposure, or only gives vague advice.
+    `,
+  });
 
-  if (verdict) {
-    checks.push({
-      type: "llm",
-      name: "verified the exposed table and fix",
-      passed: verdict.passed,
-      notes: verdict.notes,
-    });
-  }
+  checks.push({
+    type: "llm",
+    name: "verified the exposed table and fix",
+    passed: verdict.passed,
+    notes: verdict.notes,
+  });
 
-  const namedTable = checks[0]?.passed === true;
-  const proposedFix = checks[2]?.passed === true;
+  const namedTable = checks[0].passed;
+  const proposedFix = checks[2].passed;
   return {
-    passed: namedTable && proposedFix && (verdict?.passed ?? true),
+    passed: namedTable && proposedFix && verdict.passed,
     checks,
   };
 };

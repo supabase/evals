@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootPlatformBackend } from "../harness/platform-backend.js";
 import { viteBuild, vitestRun } from "../harness/project-runner.js";
-import type { ToolScorer } from "../harness/types.js";
+import type { ToolScorer, TranscriptPart } from "../harness/types.js";
 import type { PlatformBackend } from "../harness/platform-backend.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,7 +23,10 @@ async function loadScorer(relDir: string): Promise<ToolScorer> {
   return mod.default as ToolScorer;
 }
 
-function scorerCtx(backend: PlatformBackend, extra?: { agentReport?: string }) {
+function scorerCtx(
+  backend: PlatformBackend,
+  extra?: { agentReport?: string; transcript?: TranscriptPart[] }
+) {
   return {
     mgmt: backend.mgmt,
     ref: backend.ref,
@@ -32,7 +35,7 @@ function scorerCtx(backend: PlatformBackend, extra?: { agentReport?: string }) {
     query: backend.query,
     invokeFunction: backend.invokeFunction,
     toolCalls: [],
-    transcript: [],
+    transcript: extra?.transcript ?? [],
     agentReport: extra?.agentReport,
   };
 }
@@ -304,7 +307,14 @@ ORDER BY grantee;
         "Fix by REVOKE SELECT ON customer_payment_methods FROM anon and enable row level security.",
       ].join(" ");
 
-      const result = await scorer(scorerCtx(backend, { agentReport: report }));
+      // The judge reads the transcript, so surface the report as assistant text.
+      const transcript: TranscriptPart[] = [
+        { type: "message", role: "assistant", content: report },
+      ];
+
+      const result = await scorer(
+        scorerCtx(backend, { agentReport: report, transcript })
+      );
       assert.equal(result.passed, true, checksMessage(result));
     }
   );
