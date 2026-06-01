@@ -72,10 +72,10 @@ export interface ScoreResult {
 }
 
 export type CheckResult = {
-  type: "deterministic" | "llm";
   name: string;
   passed: boolean;
   notes?: string;
+  judgeNotes?: string;
 };
 
 export type TranscriptPart =

@@ -330,9 +330,11 @@ function ResultChecks({ checks }: { checks: CheckResult[] }) {
     <div className="flex flex-col gap-1 leading-relaxed text-foreground">
       {checks.map((check, index) => {
         const StatusIcon = check.passed ? CheckIcon : XIcon
+        const notes = check.judgeNotes ?? check.notes
+        const hasJudgeNotes = check.judgeNotes !== undefined
 
         return (
-          <div key={`${index}-${check.type}-${check.name}`}>
+          <div key={`${index}-${check.name}`}>
             <div className="flex items-start gap-2">
               <StatusIcon
                 className={cn(
@@ -350,18 +352,18 @@ function ResultChecks({ checks }: { checks: CheckResult[] }) {
                 {check.name}
               </span>
             </div>
-            {check.notes ? (
+            {notes ? (
               <details className="mt-1 ml-6 text-muted-foreground">
                 <summary className="cursor-pointer text-xs uppercase tracking-wide">
                   <span className="inline-flex items-center gap-1.5">
-                    {check.type === "llm" ? (
+                    {hasJudgeNotes ? (
                       <BotIcon className="size-3.5 text-muted-foreground/70" />
                     ) : null}
-                    {check.type === "llm" ? "Judge notes" : "Notes"}
+                    {hasJudgeNotes ? "Judge notes" : "Notes"}
                   </span>
                 </summary>
                 <p className="mt-1 whitespace-pre-wrap text-foreground">
-                  {check.notes}
+                  {notes}
                 </p>
               </details>
             ) : null}

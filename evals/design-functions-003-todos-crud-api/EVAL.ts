@@ -47,7 +47,6 @@ const scorer: ToolScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            type: "deterministic",
             name: "created auth sessions",
             passed: false,
             notes: authAError?.message ?? authBError?.message ?? "missing session",
@@ -71,21 +70,21 @@ const scorer: ToolScorer = async (ctx) => {
     const authHeadersB = { authorization: `Bearer ${authB.session.access_token}` };
 
     const missingAuth = await invoke({ method: "GET" });
-    checks.push({ type: "deterministic", name: "rejects missing auth", passed: missingAuth.status === 401 });
+    checks.push({ name: "rejects missing auth", passed: missingAuth.status === 401 });
 
     const badLimit = await invoke({
       method: "GET",
       path: "?limit=200",
       headers: authHeadersA,
     });
-    checks.push({ type: "deterministic", name: "rejects invalid limit", passed: badLimit.status === 400 });
+    checks.push({ name: "rejects invalid limit", passed: badLimit.status === 400 });
 
     const invalidJson = await invoke({
       method: "POST",
       headers: authHeadersA,
       body: "{",
     });
-    checks.push({ type: "deterministic", name: "rejects invalid JSON", passed: invalidJson.status === 400 });
+    checks.push({ name: "rejects invalid JSON", passed: invalidJson.status === 400 });
 
     const created = await invoke({
       method: "POST",
@@ -94,7 +93,6 @@ const scorer: ToolScorer = async (ctx) => {
     });
     const createdRow = rowFrom(parseJson(created));
     checks.push({
-      type: "deterministic",
       name: "creates todo for authenticated user",
       passed:
         created.status === 201 &&
@@ -117,7 +115,6 @@ const scorer: ToolScorer = async (ctx) => {
     const listJson = parseJson(listDone);
     const todos = Array.isArray(listJson) ? listJson : listJson?.todos;
     checks.push({
-      type: "deterministic",
       name: "filters todos by done",
       passed:
         listDone.status === 200 &&
@@ -133,7 +130,7 @@ const scorer: ToolScorer = async (ctx) => {
       headers: authHeadersA,
       body: { done: true },
     });
-    checks.push({ type: "deterministic", name: "rejects invalid UUID", passed: invalidUuid.status === 400 });
+    checks.push({ name: "rejects invalid UUID", passed: invalidUuid.status === 400 });
 
     const patchOtherUser = await invoke({
       method: "PATCH",
@@ -142,7 +139,6 @@ const scorer: ToolScorer = async (ctx) => {
       body: { body: "stolen" },
     });
     checks.push({
-      type: "deterministic",
       name: "returns 404 when patching another user's todo",
       passed: patchOtherUser.status === 404,
     });
@@ -155,7 +151,6 @@ const scorer: ToolScorer = async (ctx) => {
     });
     const ownPatchRow = rowFrom(parseJson(ownPatch));
     checks.push({
-      type: "deterministic",
       name: "updates own todo",
       passed: ownPatch.status === 200 && ownPatchRow?.id === createdRow?.id && ownPatchRow?.done === true,
     });
@@ -166,7 +161,6 @@ const scorer: ToolScorer = async (ctx) => {
       headers: authHeadersB,
     });
     checks.push({
-      type: "deterministic",
       name: "returns 404 when deleting another user's todo",
       passed: deleteOtherUser.status === 404,
     });
@@ -177,14 +171,12 @@ const scorer: ToolScorer = async (ctx) => {
       headers: authHeadersA,
     });
     checks.push({
-      type: "deterministic",
       name: "deletes own todo",
       passed: ownDelete.status === 200 && parseJson(ownDelete)?.deleted === true,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      type: "deterministic",
       name: `scorer evaluated ${FUNCTION_NAME}`,
       passed: false,
       notes: msg,

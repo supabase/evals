@@ -19,7 +19,6 @@ WHERE schemaname = 'public'
       return typeof def === "string" && /ON\s+(?:public\.)?events\s+.*\(\s*user_id\s*,\s*created_at/i.test(def);
     });
     checks.push({
-      type: "deterministic",
       name: "created index covering user_id and created_at",
       passed: hasCoveringIndex,
     });
@@ -33,12 +32,10 @@ LIMIT 50;
     `);
     const plan = planRows.map((row) => Object.values(row).join(" ")).join("\n");
     checks.push({
-      type: "deterministic",
       name: "query plan uses an index",
       passed: /(Index Scan|Index Only Scan|Bitmap Index Scan)/i.test(plan),
     });
     checks.push({
-      type: "deterministic",
       name: "query plan avoids sequential scan on events",
       passed: !/Seq Scan on events/i.test(plan),
     });
@@ -48,11 +45,10 @@ INSERT INTO events (user_id, kind, payload)
 VALUES ('${TARGET_USER}', 'insert_probe', '{"ok": true}'::jsonb)
 RETURNING id;
     `);
-    checks.push({ type: "deterministic", name: "inserts still work", passed: inserted.length === 1 });
+    checks.push({ name: "inserts still work", passed: inserted.length === 1 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      type: "deterministic",
       name: "scorer evaluated performance fix",
       passed: false,
       notes: msg,

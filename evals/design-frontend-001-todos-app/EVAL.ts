@@ -9,13 +9,11 @@ const scorer: ProjectScorer = async (ctx) => {
 
   const checks: CheckResult[] = [
     {
-      type: "deterministic",
       name: "vite build passed",
       passed: build.ok,
       notes: build.ok ? undefined : trimOutput(build.stderr || build.stdout),
     },
     {
-      type: "deterministic",
       name: "vitest passed",
       passed: build.ok && vitest?.ok === true,
       notes: getVitestNotes(build.ok, vitest),

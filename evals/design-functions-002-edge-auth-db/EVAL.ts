@@ -30,7 +30,6 @@ const scorer: ToolScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            type: "deterministic",
             name: "created auth session",
             passed: false,
             notes: signupError?.message ?? "missing session",
@@ -45,7 +44,6 @@ const scorer: ToolScorer = async (ctx) => {
       body: { body: TODO_BODY },
     })) as InvokeResult;
     checks.push({
-      type: "deterministic",
       name: "rejects missing auth",
       passed: missingAuth.status >= 400,
     });
@@ -60,12 +58,10 @@ const scorer: ToolScorer = async (ctx) => {
     })) as InvokeResult;
     const insertedJson = parseJson(inserted);
     checks.push({
-      type: "deterministic",
       name: "authenticated request succeeds",
       passed: inserted.status === 201 || inserted.status === 200,
     });
     checks.push({
-      type: "deterministic",
       name: "returns inserted todo body",
       passed: insertedJson?.body === TODO_BODY || (insertedJson?.todo as any)?.body === TODO_BODY,
     });
@@ -75,7 +71,6 @@ const scorer: ToolScorer = async (ctx) => {
       .select("body,user_id")
       .eq("body", TODO_BODY);
     checks.push({
-      type: "deterministic",
       name: "row exists through supabase-js",
       passed:
         !selectError &&
@@ -87,7 +82,6 @@ const scorer: ToolScorer = async (ctx) => {
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      type: "deterministic",
       name: `scorer evaluated ${FUNCTION_NAME}`,
       passed: false,
       notes: msg,

@@ -84,13 +84,12 @@ function readCheck(value: unknown): CheckResult | undefined {
     return undefined
   }
 
-  const type = value.type
   const name = value.name
   const passed = value.passed
   const notes = value.notes
+  const judgeNotes = value.judgeNotes
 
   if (
-    (type !== "deterministic" && type !== "llm") ||
     typeof name !== "string" ||
     typeof passed !== "boolean"
   ) {
@@ -98,10 +97,10 @@ function readCheck(value: unknown): CheckResult | undefined {
   }
 
   return {
-    type,
     name,
     passed,
     notes: typeof notes === "string" ? notes : undefined,
+    judgeNotes: typeof judgeNotes === "string" ? judgeNotes : undefined,
   }
 }
 

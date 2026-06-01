@@ -30,7 +30,6 @@ const scorer: ToolScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            type: "deterministic",
             name: "created auth sessions",
             passed: false,
             notes: authAError?.message ?? authBError?.message ?? "missing session",
@@ -51,14 +50,13 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'notes';`
     );
-    checks.push({ type: "deterministic", name: "RLS still enabled on notes", passed: rls[0]?.relrowsecurity === true });
+    checks.push({ name: "RLS still enabled on notes", passed: rls[0]?.relrowsecurity === true });
 
     const { data: aNotes, error: aNotesError } = await clientA
       .from("notes")
       .select("body,user_id")
       .order("body");
     checks.push({
-      type: "deterministic",
       name: "user A reads only own note",
       passed:
         !aNotesError &&
@@ -72,7 +70,6 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .select("id")
       .eq("body", "a private note");
     checks.push({
-      type: "deterministic",
       name: "user B cannot read user A note",
       passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
     });
@@ -83,7 +80,6 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .eq("body", "a private note")
       .select("body,user_id");
     checks.push({
-      type: "deterministic",
       name: "user A can still update own note",
       passed:
         !ownUpdateError &&
@@ -106,7 +102,6 @@ WHERE body IN ('b private note', 'stolen by reassignment')
 ORDER BY body;
     `);
     checks.push({
-      type: "deterministic",
       name: "WITH CHECK prevents user_id reassignment",
       passed:
         reassignedRows.length === 1 &&
@@ -116,7 +111,6 @@ ORDER BY body;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      type: "deterministic",
       name: "scorer evaluated RLS fix",
       passed: false,
       notes: msg,

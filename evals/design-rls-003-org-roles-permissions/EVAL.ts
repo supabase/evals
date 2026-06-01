@@ -33,7 +33,6 @@ const scorer: ToolScorer = async (ctx) => {
       `SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('documents', 'document_audit');`
     );
     checks.push({
-      type: "deterministic",
       name: "RLS enabled on documents",
       passed: rls.some((row) => row.relname === "documents" && row.relrowsecurity === true),
     });
@@ -45,7 +44,6 @@ const scorer: ToolScorer = async (ctx) => {
       )
     );
     checks.push({
-      type: "deterministic",
       name: "viewer sees active org documents only",
       passed:
         viewerReads.length === 2 &&
@@ -67,7 +65,7 @@ VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
       viewerInsertBlocked = true;
       await resetTx();
     }
-    checks.push({ type: "deterministic", name: "viewer cannot insert", passed: viewerInsertBlocked });
+    checks.push({ name: "viewer cannot insert", passed: viewerInsertBlocked });
 
     const { rows: editorInsert } = await q(
       asUser(
@@ -80,7 +78,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ type: "deterministic", name: "editor can insert own org document", passed: editorInsert.length === 1 });
+    checks.push({ name: "editor can insert own org document", passed: editorInsert.length === 1 });
 
     const { rows: editorOwnUpdate } = await q(
       asUser(
@@ -94,7 +92,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ type: "deterministic", name: "editor can update own document", passed: editorOwnUpdate.length === 1 });
+    checks.push({ name: "editor can update own document", passed: editorOwnUpdate.length === 1 });
 
     const { rows: editorUpdatesAdmin } = await q(
       asUser(
@@ -109,7 +107,6 @@ RETURNING id;
       )
     );
     checks.push({
-      type: "deterministic",
       name: "editor cannot update another user's document",
       passed: editorUpdatesAdmin.length === 0,
     });
@@ -127,7 +124,6 @@ WHERE id = '10000000-0000-0000-0000-000000000001';
       `SELECT id, deleted_at FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`
     );
     checks.push({
-      type: "deterministic",
       name: "admin delete soft-deletes document in org",
       passed:
         adminSoftDelete.length === 1 &&
@@ -147,7 +143,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ type: "deterministic", name: "admin cannot affect another org", passed: adminCrossOrg.length === 0 });
+    checks.push({ name: "admin cannot affect another org", passed: adminCrossOrg.length === 0 });
 
     let orgReassignmentBlocked = false;
     try {
@@ -169,7 +165,6 @@ RETURNING id;
       await resetTx();
     }
     checks.push({
-      type: "deterministic",
       name: "WITH CHECK blocks editor from moving document to another org",
       passed: orgReassignmentBlocked,
     });
@@ -189,7 +184,6 @@ RETURNING id;
       `SELECT actor_id, document_id FROM document_audit WHERE document_id = '10000000-0000-0000-0000-000000000002';`
     );
     checks.push({
-      type: "deterministic",
       name: "write creates audit row with acting user",
       passed:
         auditedUpdate.length === 1 &&
@@ -202,7 +196,6 @@ RETURNING id;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      type: "deterministic",
       name: "scorer evaluated org role RLS",
       passed: false,
       notes: msg,

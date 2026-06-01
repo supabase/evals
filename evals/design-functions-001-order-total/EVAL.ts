@@ -37,14 +37,12 @@ const scorer: ToolScorer = async (ctx) => {
   try {
     const methodCheck = await invoke(ctx, undefined, "GET");
     checks.push({
-      type: "deterministic",
       name: "rejects non-POST requests",
       passed: methodCheck.status === 405,
     });
 
     const invalidJson = await invoke(ctx, "{");
     checks.push({
-      type: "deterministic",
       name: "rejects invalid JSON",
       passed: invalidJson.status === 400,
     });
@@ -53,7 +51,6 @@ const scorer: ToolScorer = async (ctx) => {
       items: [{ sku: "bad", unit_price_cents: 0, quantity: 1 }],
     });
     checks.push({
-      type: "deterministic",
       name: "rejects invalid item values",
       passed: invalidItem.status === 400,
     });
@@ -68,7 +65,6 @@ const scorer: ToolScorer = async (ctx) => {
     });
     const welcomeJson = parseJson(welcome);
     checks.push({
-      type: "deterministic",
       name: "calculates WELCOME10 totals",
       passed:
         welcome.status === 200 &&
@@ -85,7 +81,6 @@ const scorer: ToolScorer = async (ctx) => {
     });
     const enterpriseJson = parseJson(enterprise);
     checks.push({
-      type: "deterministic",
       name: "chooses enterprise discount over capped coupon",
       passed:
         enterprise.status === 200 &&
@@ -102,7 +97,6 @@ const scorer: ToolScorer = async (ctx) => {
     });
     const cappedCouponJson = parseJson(cappedCoupon);
     checks.push({
-      type: "deterministic",
       name: "caps WELCOME10 discount at 2000 cents",
       passed:
         cappedCoupon.status === 200 &&
@@ -114,7 +108,6 @@ const scorer: ToolScorer = async (ctx) => {
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      type: "deterministic",
       name: `scorer could invoke ${FUNCTION_NAME}`,
       passed: false,
       notes: msg,

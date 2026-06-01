@@ -2,10 +2,10 @@
 
 declare module "virtual:supabase-eval-results" {
   type CheckResult = {
-    type: "deterministic" | "llm"
     name: string
     passed: boolean
     notes?: string
+    judgeNotes?: string
   }
 
   type EvalResult = {

@@ -33,19 +33,19 @@ const scorer: ToolScorer = async (ctx) => {
   if (!rls[0]?.relrowsecurity) {
     return {
       passed: false,
-      checks: [{ type: "deterministic", name: "RLS enabled on notes", passed: false }],
+      checks: [{ name: "RLS enabled on notes", passed: false }],
     };
   }
 
   const checks: CheckResult[] = [];
   try {
     const { rows: aReads } = await q(asUser(USER_A, `SELECT count(*)::int AS n FROM notes;`));
-    checks.push({ type: "deterministic", name: "tenant A sees only org A notes (n=2)", passed: aReads[0]?.n === 2 });
+    checks.push({ name: "tenant A sees only org A notes (n=2)", passed: aReads[0]?.n === 2 });
 
     const { rows: bCross } = await q(
       asUser(USER_B, `SELECT count(*)::int AS n FROM notes WHERE org_id = '${ORG_A}';`)
     );
-    checks.push({ type: "deterministic", name: "tenant B blocked from org A reads", passed: bCross[0]?.n === 0 });
+    checks.push({ name: "tenant B blocked from org A reads", passed: bCross[0]?.n === 0 });
 
     let insertBlocked = false;
     try {
@@ -57,7 +57,7 @@ const scorer: ToolScorer = async (ctx) => {
       insertBlocked = true;
       await resetTx();
     }
-    checks.push({ type: "deterministic", name: "insert into non-member org blocked", passed: insertBlocked });
+    checks.push({ name: "insert into non-member org blocked", passed: insertBlocked });
 
     const { rows: ownUpdate } = await q(
       asUser(
@@ -71,7 +71,7 @@ const scorer: ToolScorer = async (ctx) => {
         "ROLLBACK"
       )
     );
-    checks.push({ type: "deterministic", name: "author can update own note", passed: ownUpdate.length === 1 });
+    checks.push({ name: "author can update own note", passed: ownUpdate.length === 1 });
 
     const { rows: crossUpdate } = await q(
       asUser(
@@ -85,7 +85,7 @@ const scorer: ToolScorer = async (ctx) => {
         "ROLLBACK"
       )
     );
-    checks.push({ type: "deterministic", name: "non-member cannot update org A note", passed: crossUpdate.length === 0 });
+    checks.push({ name: "non-member cannot update org A note", passed: crossUpdate.length === 0 });
 
     const { rows: ownDelete } = await q(
       asUser(
@@ -98,7 +98,7 @@ const scorer: ToolScorer = async (ctx) => {
         "ROLLBACK"
       )
     );
-    checks.push({ type: "deterministic", name: "author can delete own note", passed: ownDelete.length === 1 });
+    checks.push({ name: "author can delete own note", passed: ownDelete.length === 1 });
 
     const { rows: crossDelete } = await q(
       asUser(
@@ -111,11 +111,10 @@ const scorer: ToolScorer = async (ctx) => {
         "ROLLBACK"
       )
     );
-    checks.push({ type: "deterministic", name: "non-member cannot delete org A note", passed: crossDelete.length === 0 });
+    checks.push({ name: "non-member cannot delete org A note", passed: crossDelete.length === 0 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      type: "deterministic",
       name: "scorer evaluated policy behavior",
       passed: false,
       notes: msg,

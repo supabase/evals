@@ -197,7 +197,7 @@ async function runOne(
     | ToolScorer;
   let last: ScoreResult = {
     passed: false,
-    checks: [{ type: "deterministic", name: "ran at least one attempt", passed: false }],
+    checks: [{ name: "ran at least one attempt", passed: false }],
   };
   let lastToolCalls: unknown[] = [];
   let lastTranscript: TranscriptPart[] = [];

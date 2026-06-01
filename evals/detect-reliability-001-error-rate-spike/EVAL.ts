@@ -18,19 +18,16 @@ const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
   const checks: CheckResult[] = [
-    { type: "deterministic", name: "named the affected function", passed: /process-payment/i.test(report) },
+    { name: "named the affected function", passed: /process-payment/i.test(report) },
     {
-      type: "deterministic",
       name: "reported an error rate above 5%",
       passed: reportedErrorRateAboveFivePercent(report),
     },
     {
-      type: "deterministic",
       name: "described the rate as elevated",
       passed: /(spike|elevated|abnormal|exceeds|high error rate|concerning)/i.test(report),
     },
     {
-      type: "deterministic",
       name: "proposed a concrete next step",
       passed: /(investigate|rollback|inspect|trace|mitigate|check|review)/i.test(report),
     },

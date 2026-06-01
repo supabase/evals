@@ -32,7 +32,6 @@ const scorer: ToolScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            type: "deterministic",
             name: "created auth sessions",
             passed: false,
             notes: authAError?.message ?? authBError?.message ?? "missing session",
@@ -53,14 +52,13 @@ INSERT INTO todos (user_id, body, done) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'todos';`
     );
-    checks.push({ type: "deterministic", name: "RLS enabled on todos", passed: rls[0]?.relrowsecurity === true });
+    checks.push({ name: "RLS enabled on todos", passed: rls[0]?.relrowsecurity === true });
 
     const { data: aTodos, error: aTodosError } = await clientA
       .from("todos")
       .select("body,user_id")
       .order("body");
     checks.push({
-      type: "deterministic",
       name: "user A sees only own todos",
       passed:
         !aTodosError &&
@@ -74,7 +72,6 @@ INSERT INTO todos (user_id, body, done) VALUES
       .select("id")
       .eq("body", "a private todo");
     checks.push({
-      type: "deterministic",
       name: "user B cannot read user A todos",
       passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
     });
@@ -85,7 +82,6 @@ INSERT INTO todos (user_id, body, done) VALUES
       .select("body,user_id")
       .single();
     checks.push({
-      type: "deterministic",
       name: "user A can insert own todo through supabase-js",
       passed:
         !ownInsertError &&
@@ -100,7 +96,6 @@ INSERT INTO todos (user_id, body, done) VALUES
         .select("id")
     );
     checks.push({
-      type: "deterministic",
       name: "user B cannot insert todo for user A",
       passed: Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
     });
@@ -111,7 +106,6 @@ INSERT INTO todos (user_id, body, done) VALUES
       .eq("body", "a private todo")
       .select("body,done");
     checks.push({
-      type: "deterministic",
       name: "user A can update own todo",
       passed: !ownUpdateError && ownUpdate?.length === 1 && ownUpdate[0]?.done === true,
     });
@@ -122,7 +116,6 @@ INSERT INTO todos (user_id, body, done) VALUES
       .eq("body", "a done todo")
       .select("id");
     checks.push({
-      type: "deterministic",
       name: "user B cannot update user A todo",
       passed: Boolean(crossUpdateError) || !crossUpdate || crossUpdate.length === 0,
     });
@@ -133,7 +126,6 @@ INSERT INTO todos (user_id, body, done) VALUES
       .eq("body", "b private todo")
       .select("id");
     checks.push({
-      type: "deterministic",
       name: "user B can delete own todo",
       passed: !ownDeleteError && ownDelete?.length === 1,
     });
@@ -144,14 +136,12 @@ INSERT INTO todos (user_id, body, done) VALUES
       .eq("body", "a done todo")
       .select("id");
     checks.push({
-      type: "deterministic",
       name: "user B cannot delete user A todo",
       passed: Boolean(crossDeleteError) || !crossDelete || crossDelete.length === 0,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      type: "deterministic",
       name: "scorer evaluated client RLS behavior",
       passed: false,
       notes: msg,

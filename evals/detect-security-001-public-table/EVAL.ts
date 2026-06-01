@@ -13,10 +13,9 @@ const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
   const checks: CheckResult[] = [
-    { type: "deterministic", name: "named the vulnerable table", passed: /customer_payment_methods/i.test(report) },
-    { type: "deterministic", name: "mentioned the anon role", passed: /\banon\b/i.test(report) },
+    { name: "named the vulnerable table", passed: /customer_payment_methods/i.test(report) },
+    { name: "mentioned the anon role", passed: /\banon\b/i.test(report) },
     {
-      type: "deterministic",
       name: "proposed a concrete fix",
       passed:
         /enable\s+row\s+level\s+security/i.test(report) ||
@@ -37,10 +36,9 @@ const scorer: ToolScorer = async (ctx) => {
   });
 
   checks.push({
-    type: "llm",
     name: "verified the exposed table and fix",
     passed: verdict.passed,
-    notes: verdict.notes,
+    judgeNotes: verdict.notes,
   });
 
   const namedTable = checks[0].passed;
