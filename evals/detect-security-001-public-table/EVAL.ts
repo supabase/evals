@@ -1,4 +1,10 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import {
+  judge,
+  serializeTranscript,
+  type CheckResult,
+  type ToolScorer,
+} from "@supabase-evals/core";
+import { stripIndent } from "common-tags";
 
 // Planted issue: `customer_payment_methods` is GRANTed to anon and has no RLS.
 // The agent must name this specific table in its final report.
@@ -6,25 +12,40 @@ import type { ToolScorer } from "@supabase-evals/core";
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
-  const checks = [
-    { name: "named the vulnerable table", ok: /customer_payment_methods/i.test(report) },
-    { name: "mentioned the anon role",    ok: /\banon\b/i.test(report) },
+  const checks: CheckResult[] = [
+    { name: "named the vulnerable table", passed: /customer_payment_methods/i.test(report) },
+    { name: "mentioned the anon role", passed: /\banon\b/i.test(report) },
     {
       name: "proposed a concrete fix",
-      ok:
+      passed:
         /enable\s+row\s+level\s+security/i.test(report) ||
         /CREATE\s+POLICY/i.test(report) ||
         /REVOKE\s+.*\s+FROM\s+anon/i.test(report),
     },
   ];
 
-  const namedTable = checks[0].ok;
-  const proposedFix = checks[2].ok;
-  const score = checks.filter((c) => c.ok).length / checks.length;
+  const verdict = await judge({
+    input: serializeTranscript(ctx.transcript, {
+      includeToolCallInputs: true,
+    }),
+    rubric: stripIndent`
+      Pass if the agent identifies public.customer_payment_methods as exposed to anon/public access without proper RLS protection and proposes a concrete Supabase-compatible fix such as revoking anon access, enabling RLS, or adding a restrictive policy.
+
+      Fail if it names the wrong table, misses the anon/public exposure, or only gives vague advice.
+    `,
+  });
+
+  checks.push({
+    name: "verified the exposed table and fix",
+    passed: verdict.passed,
+    judgeNotes: verdict.notes,
+  });
+
+  const namedTable = checks[0].passed;
+  const proposedFix = checks[2].passed;
   return {
-    passed: namedTable && proposedFix,
-    score,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    passed: namedTable && proposedFix && verdict.passed,
+    checks,
   };
 };
 

@@ -1,4 +1,4 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const USER_A_EMAIL = "todo-user-a@example.com";
 const USER_B_EMAIL = "todo-user-b@example.com";
@@ -7,7 +7,7 @@ const PASSWORD = "secret123";
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const checks: CheckResult[] = [];
   const q = ctx.query;
 
   try {
@@ -30,10 +30,13 @@ const scorer: ToolScorer = async (ctx) => {
     ) {
       return {
         passed: false,
-        score: 0,
-        notes: `could not create auth sessions: ${
-          authAError?.message ?? authBError?.message ?? "missing session"
-        }`,
+        checks: [
+          {
+            name: "created auth sessions",
+            passed: false,
+            notes: authAError?.message ?? authBError?.message ?? "missing session",
+          },
+        ],
       };
     }
     const userAId = authA.user.id;
@@ -49,7 +52,7 @@ INSERT INTO todos (user_id, body, done) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'todos';`
     );
-    checks.push({ name: "RLS enabled on todos", ok: rls[0]?.relrowsecurity === true });
+    checks.push({ name: "RLS enabled on todos", passed: rls[0]?.relrowsecurity === true });
 
     const { data: aTodos, error: aTodosError } = await clientA
       .from("todos")
@@ -57,7 +60,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .order("body");
     checks.push({
       name: "user A sees only own todos",
-      ok:
+      passed:
         !aTodosError &&
         aTodos?.length === 2 &&
         aTodos.every((todo) => todo.user_id === userAId) &&
@@ -70,7 +73,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .eq("body", "a private todo");
     checks.push({
       name: "user B cannot read user A todos",
-      ok: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
+      passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
     });
 
     const { data: ownInsert, error: ownInsertError } = await clientA
@@ -80,7 +83,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .single();
     checks.push({
       name: "user A can insert own todo through supabase-js",
-      ok:
+      passed:
         !ownInsertError &&
         ownInsert?.body === "a client insert" &&
         ownInsert.user_id === userAId,
@@ -94,7 +97,7 @@ INSERT INTO todos (user_id, body, done) VALUES
     );
     checks.push({
       name: "user B cannot insert todo for user A",
-      ok: Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
+      passed: Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
     });
 
     const { data: ownUpdate, error: ownUpdateError } = await clientA
@@ -104,7 +107,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .select("body,done");
     checks.push({
       name: "user A can update own todo",
-      ok: !ownUpdateError && ownUpdate?.length === 1 && ownUpdate[0]?.done === true,
+      passed: !ownUpdateError && ownUpdate?.length === 1 && ownUpdate[0]?.done === true,
     });
 
     const { data: crossUpdate, error: crossUpdateError } = await clientB
@@ -114,7 +117,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .select("id");
     checks.push({
       name: "user B cannot update user A todo",
-      ok: Boolean(crossUpdateError) || !crossUpdate || crossUpdate.length === 0,
+      passed: Boolean(crossUpdateError) || !crossUpdate || crossUpdate.length === 0,
     });
 
     const { data: ownDelete, error: ownDeleteError } = await clientB
@@ -124,7 +127,7 @@ INSERT INTO todos (user_id, body, done) VALUES
       .select("id");
     checks.push({
       name: "user B can delete own todo",
-      ok: !ownDeleteError && ownDelete?.length === 1,
+      passed: !ownDeleteError && ownDelete?.length === 1,
     });
 
     const { data: crossDelete, error: crossDeleteError } = await clientB
@@ -134,25 +137,25 @@ INSERT INTO todos (user_id, body, done) VALUES
       .select("id");
     checks.push({
       name: "user B cannot delete user A todo",
-      ok: Boolean(crossDeleteError) || !crossDelete || crossDelete.length === 0,
+      passed: Boolean(crossDeleteError) || !crossDelete || crossDelete.length === 0,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    checks.push({
+      name: "scorer evaluated client RLS behavior",
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 9,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate client RLS behavior: ${msg}`,
-      ].join("\n"),
+      checks,
     };
   }
 
-  const passed = checks.every((c) => c.ok);
+  const passed = checks.every((check) => check.passed);
   return {
     passed,
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    checks,
   };
 };
 

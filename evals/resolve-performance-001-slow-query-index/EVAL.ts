@@ -1,11 +1,11 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const TARGET_USER = "00000000-0000-0000-0000-000000000001";
 
 const scorer: ToolScorer = async (ctx) => {
   const q = (sql: string) =>
     ctx.query(sql);
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const checks: CheckResult[] = [];
 
   try {
     const { rows: indexes } = await q(`
@@ -20,7 +20,7 @@ WHERE schemaname = 'public'
     });
     checks.push({
       name: "created index covering user_id and created_at",
-      ok: hasCoveringIndex,
+      passed: hasCoveringIndex,
     });
 
     const { rows: planRows } = await q(`
@@ -33,11 +33,11 @@ LIMIT 50;
     const plan = planRows.map((row) => Object.values(row).join(" ")).join("\n");
     checks.push({
       name: "query plan uses an index",
-      ok: /(Index Scan|Index Only Scan|Bitmap Index Scan)/i.test(plan),
+      passed: /(Index Scan|Index Only Scan|Bitmap Index Scan)/i.test(plan),
     });
     checks.push({
       name: "query plan avoids sequential scan on events",
-      ok: !/Seq Scan on events/i.test(plan),
+      passed: !/Seq Scan on events/i.test(plan),
     });
 
     const { rows: inserted } = await q(`
@@ -45,23 +45,23 @@ INSERT INTO events (user_id, kind, payload)
 VALUES ('${TARGET_USER}', 'insert_probe', '{"ok": true}'::jsonb)
 RETURNING id;
     `);
-    checks.push({ name: "inserts still work", ok: inserted.length === 1 });
+    checks.push({ name: "inserts still work", passed: inserted.length === 1 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    checks.push({
+      name: "scorer evaluated performance fix",
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 4,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate performance fix: ${msg}`,
-      ].join("\n"),
+      checks,
     };
   }
 
   return {
-    passed: checks.every((c) => c.ok),
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    passed: checks.every((check) => check.passed),
+    checks,
   };
 };
 

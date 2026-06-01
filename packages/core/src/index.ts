@@ -10,7 +10,9 @@ import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
+import { openai } from "@ai-sdk/openai";
 import {
+  Output,
   generateText,
   stepCountIs,
   type JSONValue,
@@ -18,6 +20,7 @@ import {
   type ToolSet,
 } from "ai";
 import ts from "typescript";
+import { z } from "zod";
 import {
   createManagementApiClient,
   createPlatform,
@@ -56,8 +59,7 @@ export type EvalResult = {
   product?: EvalProduct[];
   topic?: string[];
   passed: boolean;
-  score?: number;
-  notes?: string;
+  checks?: CheckResult[];
   prompt?: string;
   promptSourcePath?: string;
   attempts?: number;
@@ -66,7 +68,44 @@ export type EvalResult = {
 
 export interface ScoreResult {
   passed: boolean;
-  score: number;
+  checks?: CheckResult[];
+}
+
+export type CheckResult = {
+  name: string;
+  passed: boolean;
+  notes?: string;
+  judgeNotes?: string;
+};
+
+export type TranscriptPart =
+  | {
+      type: "message";
+      role: "system" | "user" | "assistant";
+      content: string;
+    }
+  | {
+      type: "tool_call";
+      name: string;
+      input: Record<string, unknown>;
+      output?: unknown;
+      error?: string;
+    };
+
+export type TranscriptSerializationOptions = {
+  includeToolCallInputs?: boolean;
+  includeToolCallOutputs?: boolean;
+};
+
+export interface JudgeInput {
+  model?: Exclude<LanguageModel, string>;
+  providerOptions?: AiSdkProviderOptions;
+  input: string;
+  rubric: string;
+}
+
+export interface JudgeResult {
+  passed: boolean;
   notes?: string;
 }
 
@@ -129,6 +168,7 @@ export interface ToolScoringContext {
 
 export interface ToolEvalContext extends ToolScoringContext {
   toolCalls: ToolCallRecord[];
+  transcript: TranscriptPart[];
   agentReport?: string;
 }
 
@@ -136,6 +176,7 @@ export interface ProjectEvalContext {
   workspace: string;
   projectResult: ProjectResult;
   toolCalls: ToolCallRecord[];
+  transcript: TranscriptPart[];
   agentReport?: string;
 }
 
@@ -153,6 +194,7 @@ export type AgentRunArgs = {
 export type AgentRunResult = {
   agentReport: string;
   toolCalls: ToolCallRecord[];
+  transcript: TranscriptPart[];
   steps: number;
   stoppedReason: string;
 };
@@ -174,7 +216,68 @@ export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
   return config;
 }
 
+export function serializeTranscript(
+  transcript: TranscriptPart[],
+  options: TranscriptSerializationOptions = {},
+): string {
+  const parts = transcript.flatMap((event) => {
+    if (event.type === "message") {
+      const content = event.content.trim();
+      return content ? [`[${event.role}]\n${content}`] : [];
+    }
+
+    const lines = [`[called ${event.name}]`];
+    if (options.includeToolCallInputs) {
+      lines.push(`input:\n${JSON.stringify(event.input, null, 2)}`);
+    }
+    if (options.includeToolCallOutputs) {
+      if (event.error) {
+        lines.push(`error:\n${event.error}`);
+      } else if (event.output !== undefined) {
+        lines.push(`output:\n${JSON.stringify(event.output, null, 2)}`);
+      }
+    }
+    return [lines.join("\n")];
+  });
+
+  return parts.join("\n\n");
+}
+
 export type AiSdkProviderOptions = Record<string, Record<string, JSONValue>>;
+
+const judgeOutputSchema = z.object({
+  passed: z.boolean(),
+  notes: z.string(),
+});
+
+const DEFAULT_JUDGE_MODEL = openai("gpt-5.5");
+const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
+  openai: {
+    reasoningEffort: "low",
+    textVerbosity: "low",
+  },
+};
+
+export async function judge(args: JudgeInput): Promise<JudgeResult> {
+  const model = args.model ?? DEFAULT_JUDGE_MODEL;
+  const providerOptions =
+    args.providerOptions ?? DEFAULT_JUDGE_PROVIDER_OPTIONS;
+  assertProviderReady(model.provider);
+  const { output } = await generateText({
+    model,
+    system:
+      "You are a strict eval judge. Return only the requested structured judgment.",
+    prompt: ["Rubric:", args.rubric, "", "Input:", args.input].join("\n"),
+    output: Output.object({ schema: judgeOutputSchema }),
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    providerOptions: withProviderDefaults(model.provider, providerOptions),
+  });
+
+  return {
+    passed: output.passed,
+    notes: output.notes,
+  };
+}
 
 export function aiSdkAgent(options: {
   model: Exclude<LanguageModel, string>;
@@ -192,6 +295,10 @@ export function aiSdkAgent(options: {
         ? await createAiSdkTools(args.mcpServers)
         : [];
       const toolCalls: ToolCallRecord[] = [];
+      const transcript: TranscriptPart[] = [
+        { type: "message", role: "system", content: args.systemPrompt },
+        { type: "message", role: "user", content: args.userPrompt },
+      ];
       const tools =
         args.tools ?? mergeToolSets(mcpHandles.map((handle) => handle.tools));
 
@@ -218,9 +325,57 @@ export function aiSdkAgent(options: {
           },
         });
 
+        // Build the transcript from every step's content so the judge sees
+        // all user-facing assistant text, not just the final step's text.
+        const toolOutputs = new Map<
+          string,
+          { output?: unknown; error?: string }
+        >();
+        for (const step of result.steps) {
+          for (const part of step.content) {
+            if (part.type === "tool-result") {
+              toolOutputs.set(part.toolCallId, { output: part.output });
+            } else if (part.type === "tool-error") {
+              toolOutputs.set(part.toolCallId, {
+                error:
+                  part.error instanceof Error
+                    ? part.error.message
+                    : String(part.error),
+              });
+            }
+          }
+        }
+
+        for (const step of result.steps) {
+          for (const part of step.content) {
+            if (part.type === "text") {
+              const content = part.text.trim();
+              if (content) {
+                transcript.push({
+                  type: "message",
+                  role: "assistant",
+                  content,
+                });
+              }
+            } else if (part.type === "tool-call") {
+              const resolved = toolOutputs.get(part.toolCallId);
+              transcript.push({
+                type: "tool_call",
+                name: part.toolName,
+                input: isRecord(part.input) ? part.input : {},
+                output: resolved?.output,
+                error: resolved?.error,
+              });
+            }
+          }
+        }
+
+        const agentReport = result.text.trim();
+
         return {
-          agentReport: result.text.trim(),
+          agentReport,
           toolCalls,
+          transcript,
           steps: result.steps.length,
           stoppedReason:
             result.steps.length >= MAX_STEPS

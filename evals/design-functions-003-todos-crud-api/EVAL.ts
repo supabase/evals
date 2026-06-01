@@ -1,4 +1,4 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todos-api";
 const PASSWORD = "secret123";
@@ -20,7 +20,7 @@ const parseJson = (result: InvokeResult) => {
 const rowFrom = (json: Record<string, any> | undefined) => json?.todo ?? json;
 
 const scorer: ToolScorer = async (ctx) => {
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const checks: CheckResult[] = [];
 
   try {
     const clientA = ctx.client;
@@ -45,10 +45,13 @@ const scorer: ToolScorer = async (ctx) => {
     ) {
       return {
         passed: false,
-        score: 0,
-        notes: `could not create auth sessions: ${
-          authAError?.message ?? authBError?.message ?? "missing session"
-        }`,
+        checks: [
+          {
+            name: "created auth sessions",
+            passed: false,
+            notes: authAError?.message ?? authBError?.message ?? "missing session",
+          },
+        ],
       };
     }
 
@@ -67,21 +70,21 @@ const scorer: ToolScorer = async (ctx) => {
     const authHeadersB = { authorization: `Bearer ${authB.session.access_token}` };
 
     const missingAuth = await invoke({ method: "GET" });
-    checks.push({ name: "rejects missing auth", ok: missingAuth.status === 401 });
+    checks.push({ name: "rejects missing auth", passed: missingAuth.status === 401 });
 
     const badLimit = await invoke({
       method: "GET",
       path: "?limit=200",
       headers: authHeadersA,
     });
-    checks.push({ name: "rejects invalid limit", ok: badLimit.status === 400 });
+    checks.push({ name: "rejects invalid limit", passed: badLimit.status === 400 });
 
     const invalidJson = await invoke({
       method: "POST",
       headers: authHeadersA,
       body: "{",
     });
-    checks.push({ name: "rejects invalid JSON", ok: invalidJson.status === 400 });
+    checks.push({ name: "rejects invalid JSON", passed: invalidJson.status === 400 });
 
     const created = await invoke({
       method: "POST",
@@ -91,7 +94,7 @@ const scorer: ToolScorer = async (ctx) => {
     const createdRow = rowFrom(parseJson(created));
     checks.push({
       name: "creates todo for authenticated user",
-      ok:
+      passed:
         created.status === 201 &&
         createdRow?.body === "buy milk" &&
         createdRow?.user_id === authA.user.id &&
@@ -113,7 +116,7 @@ const scorer: ToolScorer = async (ctx) => {
     const todos = Array.isArray(listJson) ? listJson : listJson?.todos;
     checks.push({
       name: "filters todos by done",
-      ok:
+      passed:
         listDone.status === 200 &&
         Array.isArray(todos) &&
         todos.length === 1 &&
@@ -127,7 +130,7 @@ const scorer: ToolScorer = async (ctx) => {
       headers: authHeadersA,
       body: { done: true },
     });
-    checks.push({ name: "rejects invalid UUID", ok: invalidUuid.status === 400 });
+    checks.push({ name: "rejects invalid UUID", passed: invalidUuid.status === 400 });
 
     const patchOtherUser = await invoke({
       method: "PATCH",
@@ -137,7 +140,7 @@ const scorer: ToolScorer = async (ctx) => {
     });
     checks.push({
       name: "returns 404 when patching another user's todo",
-      ok: patchOtherUser.status === 404,
+      passed: patchOtherUser.status === 404,
     });
 
     const ownPatch = await invoke({
@@ -149,7 +152,7 @@ const scorer: ToolScorer = async (ctx) => {
     const ownPatchRow = rowFrom(parseJson(ownPatch));
     checks.push({
       name: "updates own todo",
-      ok: ownPatch.status === 200 && ownPatchRow?.id === createdRow?.id && ownPatchRow?.done === true,
+      passed: ownPatch.status === 200 && ownPatchRow?.id === createdRow?.id && ownPatchRow?.done === true,
     });
 
     const deleteOtherUser = await invoke({
@@ -159,7 +162,7 @@ const scorer: ToolScorer = async (ctx) => {
     });
     checks.push({
       name: "returns 404 when deleting another user's todo",
-      ok: deleteOtherUser.status === 404,
+      passed: deleteOtherUser.status === 404,
     });
 
     const ownDelete = await invoke({
@@ -169,24 +172,24 @@ const scorer: ToolScorer = async (ctx) => {
     });
     checks.push({
       name: "deletes own todo",
-      ok: ownDelete.status === 200 && parseJson(ownDelete)?.deleted === true,
+      passed: ownDelete.status === 200 && parseJson(ownDelete)?.deleted === true,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    checks.push({
+      name: `scorer evaluated ${FUNCTION_NAME}`,
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 10,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate ${FUNCTION_NAME}: ${msg}`,
-      ].join("\n"),
+      checks,
     };
   }
 
   return {
-    passed: checks.every((c) => c.ok),
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    passed: checks.every((check) => check.passed),
+    checks,
   };
 };
 

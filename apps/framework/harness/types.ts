@@ -6,7 +6,12 @@ import type {
 
 export type {
   ScoreResult,
+  CheckResult,
   ToolCallRecord,
+  TranscriptPart,
+  TranscriptSerializationOptions,
+  JudgeInput,
+  JudgeResult,
   CommandResult,
   VitestResult,
   ProjectResult,
@@ -17,6 +22,10 @@ export type {
   ToolScorer,
   ProjectScorer,
   ExperimentConfig,
+} from "@supabase-evals/core";
+export {
+  judge,
+  serializeTranscript,
 } from "@supabase-evals/core";
 export type {
   EvalMetadata,

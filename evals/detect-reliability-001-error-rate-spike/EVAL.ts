@@ -1,4 +1,4 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 function reportedErrorRateAboveFivePercent(report: string): boolean {
   const percentMatches = report.matchAll(/\b(\d+(?:\.\d+)?)\s*%/g);
@@ -17,27 +17,25 @@ function reportedErrorRateAboveFivePercent(report: string): boolean {
 const scorer: ToolScorer = async (ctx) => {
   const report = ctx.agentReport ?? "";
 
-  const checks = [
-    { name: "named the affected function", ok: /process-payment/i.test(report) },
+  const checks: CheckResult[] = [
+    { name: "named the affected function", passed: /process-payment/i.test(report) },
     {
       name: "reported an error rate above 5%",
-      ok: reportedErrorRateAboveFivePercent(report),
+      passed: reportedErrorRateAboveFivePercent(report),
     },
     {
       name: "described the rate as elevated",
-      ok: /(spike|elevated|abnormal|exceeds|high error rate|concerning)/i.test(report),
+      passed: /(spike|elevated|abnormal|exceeds|high error rate|concerning)/i.test(report),
     },
     {
       name: "proposed a concrete next step",
-      ok: /(investigate|rollback|inspect|trace|mitigate|check|review)/i.test(report),
+      passed: /(investigate|rollback|inspect|trace|mitigate|check|review)/i.test(report),
     },
   ];
 
-  const score = checks.filter((c) => c.ok).length / checks.length;
   return {
-    passed: checks[0].ok && checks[1].ok && checks[2].ok,
-    score,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    passed: checks[0]?.passed === true && checks[1]?.passed === true && checks[2]?.passed === true,
+    checks,
   };
 };
 

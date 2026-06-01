@@ -20,6 +20,7 @@ import type {
   ToolScorer,
   ProjectScorer,
   ScoreResult,
+  TranscriptPart,
 } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -181,6 +182,7 @@ async function runOne(
   ScoreResult & {
     attempts: number;
     toolCalls: unknown[];
+    transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
   }
@@ -193,8 +195,12 @@ async function runOne(
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ProjectScorer
     | ToolScorer;
-  let last: ScoreResult = { passed: false, score: 0, notes: "no attempts" };
+  let last: ScoreResult = {
+    passed: false,
+    checks: [{ name: "ran at least one attempt", passed: false }],
+  };
   let lastToolCalls: unknown[] = [];
+  let lastTranscript: TranscriptPart[] = [];
   let lastAgentReport = "";
   let lastStoppedReason = "not_started";
 
@@ -217,12 +223,14 @@ async function runOne(
       const vitest = build.ok ? await vitestRun(workspace) : undefined;
 
       lastToolCalls = run.toolCalls;
+      lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
       last = await (scorer as ProjectScorer)({
         workspace,
         projectResult: { build, vitest },
         toolCalls: run.toolCalls,
+        transcript: run.transcript,
         agentReport: run.agentReport,
       });
 
@@ -231,6 +239,7 @@ async function runOne(
           ...last,
           attempts: attempt,
           toolCalls: run.toolCalls,
+          transcript: run.transcript,
           agentReport: run.agentReport,
           stoppedReason: run.stoppedReason,
         };
@@ -261,11 +270,13 @@ async function runOne(
       });
 
       lastToolCalls = run.toolCalls;
+      lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
       last = await (scorer as ToolScorer)({
         ...session.scoringContext,
         toolCalls: run.toolCalls,
+        transcript: run.transcript,
         agentReport: run.agentReport,
       });
 
@@ -274,6 +285,7 @@ async function runOne(
           ...last,
           attempts: attempt,
           toolCalls: run.toolCalls,
+          transcript: run.transcript,
           agentReport: run.agentReport,
           stoppedReason: run.stoppedReason,
         };
@@ -287,6 +299,7 @@ async function runOne(
     ...last,
     attempts: RUNS,
     toolCalls: lastToolCalls,
+    transcript: lastTranscript,
     agentReport: lastAgentReport,
     stoppedReason: lastStoppedReason,
   };
@@ -294,6 +307,17 @@ async function runOne(
 
 function normalizeExperimentName(s: string): string {
   return s.replace(/^experiments\//, "").replace(/\.ts$/, "");
+}
+
+function formatRunSummary(res: ScoreResult & { attempts: number }): string {
+  const parts: string[] = [];
+  if (res.checks?.length) {
+    const passed = res.checks.filter((check) => check.passed).length;
+    parts.push(`checks ${passed}/${res.checks.length}`);
+  }
+  parts.push(`attempts ${res.attempts}`);
+
+  return parts.join(", ");
 }
 
 async function main() {
@@ -376,7 +400,7 @@ async function main() {
           ),
         );
         console.log(
-          `  -> ${res.passed ? "PASS" : "FAIL"} (score ${res.score.toFixed(2)}, attempts ${res.attempts})`,
+          `  -> ${res.passed ? "PASS" : "FAIL"} (${formatRunSummary(res)})`,
         );
       } catch (e) {
         console.error(

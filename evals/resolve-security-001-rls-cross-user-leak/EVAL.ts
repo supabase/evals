@@ -1,11 +1,11 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const PASSWORD = "secret123";
 
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const checks: CheckResult[] = [];
   const q = ctx.query;
 
   try {
@@ -28,10 +28,13 @@ const scorer: ToolScorer = async (ctx) => {
     ) {
       return {
         passed: false,
-        score: 0,
-        notes: `could not create auth sessions: ${
-          authAError?.message ?? authBError?.message ?? "missing session"
-        }`,
+        checks: [
+          {
+            name: "created auth sessions",
+            passed: false,
+            notes: authAError?.message ?? authBError?.message ?? "missing session",
+          },
+        ],
       };
     }
 
@@ -47,7 +50,7 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'notes';`
     );
-    checks.push({ name: "RLS still enabled on notes", ok: rls[0]?.relrowsecurity === true });
+    checks.push({ name: "RLS still enabled on notes", passed: rls[0]?.relrowsecurity === true });
 
     const { data: aNotes, error: aNotesError } = await clientA
       .from("notes")
@@ -55,7 +58,7 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .order("body");
     checks.push({
       name: "user A reads only own note",
-      ok:
+      passed:
         !aNotesError &&
         aNotes?.length === 1 &&
         aNotes[0]?.body === "a private note" &&
@@ -68,7 +71,7 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .eq("body", "a private note");
     checks.push({
       name: "user B cannot read user A note",
-      ok: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
+      passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
     });
 
     const { data: ownUpdate, error: ownUpdateError } = await clientA
@@ -78,7 +81,7 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
       .select("body,user_id");
     checks.push({
       name: "user A can still update own note",
-      ok:
+      passed:
         !ownUpdateError &&
         ownUpdate?.length === 1 &&
         ownUpdate[0]?.body === "a updated note" &&
@@ -100,27 +103,27 @@ ORDER BY body;
     `);
     checks.push({
       name: "WITH CHECK prevents user_id reassignment",
-      ok:
+      passed:
         reassignedRows.length === 1 &&
         reassignedRows[0]?.body === "b private note" &&
         reassignedRows[0]?.user_id === userBId,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    checks.push({
+      name: "scorer evaluated RLS fix",
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 5,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate RLS fix: ${msg}`,
-      ].join("\n"),
+      checks,
     };
   }
 
   return {
-    passed: checks.every((c) => c.ok),
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    passed: checks.every((check) => check.passed),
+    checks,
   };
 };
 

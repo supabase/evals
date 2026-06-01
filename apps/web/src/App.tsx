@@ -1,6 +1,6 @@
 import rawResults, { type EvalResult } from "virtual:supabase-eval-results"
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { CheckIcon, CopyIcon, XIcon } from "lucide-react"
+import { BotIcon, CheckIcon, CopyIcon, XIcon } from "lucide-react"
 
 import {
   Accordion,
@@ -69,6 +69,8 @@ type ParsedResult = Omit<EvalResult, "product" | "topic"> & {
   topic: string[]
   primaryCategory: string
 }
+
+type CheckResult = NonNullable<ParsedResult["checks"]>[number]
 
 type ExperimentStageSummary = {
   experiment: string
@@ -323,37 +325,48 @@ function EvalMetadataRow({
   )
 }
 
-function ResultDetails({ notes }: { notes: string }) {
+function ResultChecks({ checks }: { checks: CheckResult[] }) {
   return (
     <div className="flex flex-col gap-1 leading-relaxed text-foreground">
-      {notes.split("\n").map((line, index) => {
-        const match = /^(PASS|FAIL)\s+(.*)$/.exec(line)
-
-        if (!match) {
-          return (
-            <p key={`${index}-${line}`} className="whitespace-pre-wrap">
-              {line}
-            </p>
-          )
-        }
-
-        const [, status, detail] = match
-        const passed = status === "PASS"
-        const StatusIcon = passed ? CheckIcon : XIcon
+      {checks.map((check, index) => {
+        const StatusIcon = check.passed ? CheckIcon : XIcon
+        const notes = check.judgeNotes ?? check.notes
+        const hasJudgeNotes = check.judgeNotes !== undefined
 
         return (
-          <div key={`${index}-${line}`} className="flex items-start gap-2">
-            <StatusIcon
-              className={cn(
-                "mt-0.5 size-4 shrink-0",
-                passed
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-red-400"
-              )}
-              aria-hidden
-            />
-            <span className="sr-only">{passed ? "Pass" : "Fail"}: </span>
-            <span className="min-w-0 whitespace-pre-wrap">{detail}</span>
+          <div key={`${index}-${check.name}`}>
+            <div className="flex items-start gap-2">
+              <StatusIcon
+                className={cn(
+                  "mt-0.5 size-4 shrink-0",
+                  check.passed
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-red-600 dark:text-red-400"
+                )}
+                aria-hidden
+              />
+              <span className="sr-only">
+                {check.passed ? "Pass" : "Fail"}:{" "}
+              </span>
+              <span className="min-w-0 whitespace-pre-wrap">
+                {check.name}
+              </span>
+            </div>
+            {notes ? (
+              <details className="mt-1 ml-6 text-muted-foreground">
+                <summary className="cursor-pointer text-xs uppercase tracking-wide">
+                  <span className="inline-flex items-center gap-1.5">
+                    {hasJudgeNotes ? (
+                      <BotIcon className="size-3.5 text-muted-foreground/70" />
+                    ) : null}
+                    {hasJudgeNotes ? "Judge notes" : "Notes"}
+                  </span>
+                </summary>
+                <p className="mt-1 whitespace-pre-wrap text-foreground">
+                  {notes}
+                </p>
+              </details>
+            ) : null}
           </div>
         )
       })}
@@ -753,10 +766,6 @@ function ExperimentSheet({
                           >
                             <dl className={evalMetaGridClassName}>
                               <EvalMetadataRow
-                                label="Score"
-                                value={result.score ?? "-"}
-                              />
-                              <EvalMetadataRow
                                 label="Attempts"
                                 value={result.attempts ?? "-"}
                               />
@@ -776,10 +785,14 @@ function ExperimentSheet({
                                 label="Topic"
                                 value={result.topic.join(", ") || "-"}
                               />
-                              {result.notes ? (
+                              {result.checks?.length ? (
                                 <EvalMetadataRow
                                   label="Result details"
-                                  value={<ResultDetails notes={result.notes} />}
+                                  value={
+                                    <ResultChecks
+                                      checks={result.checks}
+                                    />
+                                  }
                                 />
                               ) : null}
                               {result.prompt ? (

@@ -1,4 +1,4 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todo-create";
 const TODO_BODY = "verify edge auth database integration";
@@ -18,7 +18,7 @@ const parseJson = (result: InvokeResult) => {
 };
 
 const scorer: ToolScorer = async (ctx) => {
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const checks: CheckResult[] = [];
 
   try {
     const { data: signup, error: signupError } = await ctx.client.auth.signUp({
@@ -28,8 +28,13 @@ const scorer: ToolScorer = async (ctx) => {
     if (signupError || !signup.user || !signup.session?.access_token) {
       return {
         passed: false,
-        score: 0,
-        notes: `could not create auth session: ${signupError?.message ?? "missing session"}`,
+        checks: [
+          {
+            name: "created auth session",
+            passed: false,
+            notes: signupError?.message ?? "missing session",
+          },
+        ],
       };
     }
 
@@ -40,7 +45,7 @@ const scorer: ToolScorer = async (ctx) => {
     })) as InvokeResult;
     checks.push({
       name: "rejects missing auth",
-      ok: missingAuth.status >= 400,
+      passed: missingAuth.status >= 400,
     });
 
     const inserted = (await ctx.invokeFunction({
@@ -54,11 +59,11 @@ const scorer: ToolScorer = async (ctx) => {
     const insertedJson = parseJson(inserted);
     checks.push({
       name: "authenticated request succeeds",
-      ok: inserted.status === 201 || inserted.status === 200,
+      passed: inserted.status === 201 || inserted.status === 200,
     });
     checks.push({
       name: "returns inserted todo body",
-      ok: insertedJson?.body === TODO_BODY || (insertedJson?.todo as any)?.body === TODO_BODY,
+      passed: insertedJson?.body === TODO_BODY || (insertedJson?.todo as any)?.body === TODO_BODY,
     });
 
     const { data: todos, error: selectError } = await ctx.client
@@ -67,7 +72,7 @@ const scorer: ToolScorer = async (ctx) => {
       .eq("body", TODO_BODY);
     checks.push({
       name: "row exists through supabase-js",
-      ok:
+      passed:
         !selectError &&
         Array.isArray(todos) &&
         todos.length === 1 &&
@@ -76,21 +81,21 @@ const scorer: ToolScorer = async (ctx) => {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    checks.push({
+      name: `scorer evaluated ${FUNCTION_NAME}`,
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 4,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate ${FUNCTION_NAME}: ${msg}`,
-      ].join("\n"),
+      checks,
     };
   }
 
-  const passed = checks.every((c) => c.ok);
+  const passed = checks.every((check) => check.passed);
   return {
     passed,
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    checks,
   };
 };
 

@@ -1,4 +1,4 @@
-import type { ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const ORG_A = "11111111-1111-1111-1111-111111111111";
 const ORG_B = "22222222-2222-2222-2222-222222222222";
@@ -18,7 +18,7 @@ ${finish};
 const scorer: ToolScorer = async (ctx) => {
   const q = (sql: string) =>
     ctx.query(sql);
-  const checks: Array<{ name: string; ok: boolean }> = [];
+  const checks: CheckResult[] = [];
 
   const resetTx = async () => {
     try {
@@ -34,7 +34,7 @@ const scorer: ToolScorer = async (ctx) => {
     );
     checks.push({
       name: "RLS enabled on documents",
-      ok: rls.some((row) => row.relname === "documents" && row.relrowsecurity === true),
+      passed: rls.some((row) => row.relname === "documents" && row.relrowsecurity === true),
     });
 
     const { rows: viewerReads } = await q(
@@ -45,7 +45,7 @@ const scorer: ToolScorer = async (ctx) => {
     );
     checks.push({
       name: "viewer sees active org documents only",
-      ok:
+      passed:
         viewerReads.length === 2 &&
         viewerReads.map((row) => row.title).join(",") === "Admin plan,Editor draft",
     });
@@ -65,7 +65,7 @@ VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
       viewerInsertBlocked = true;
       await resetTx();
     }
-    checks.push({ name: "viewer cannot insert", ok: viewerInsertBlocked });
+    checks.push({ name: "viewer cannot insert", passed: viewerInsertBlocked });
 
     const { rows: editorInsert } = await q(
       asUser(
@@ -78,7 +78,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ name: "editor can insert own org document", ok: editorInsert.length === 1 });
+    checks.push({ name: "editor can insert own org document", passed: editorInsert.length === 1 });
 
     const { rows: editorOwnUpdate } = await q(
       asUser(
@@ -92,7 +92,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ name: "editor can update own document", ok: editorOwnUpdate.length === 1 });
+    checks.push({ name: "editor can update own document", passed: editorOwnUpdate.length === 1 });
 
     const { rows: editorUpdatesAdmin } = await q(
       asUser(
@@ -108,7 +108,7 @@ RETURNING id;
     );
     checks.push({
       name: "editor cannot update another user's document",
-      ok: editorUpdatesAdmin.length === 0,
+      passed: editorUpdatesAdmin.length === 0,
     });
 
     await q(
@@ -125,7 +125,7 @@ WHERE id = '10000000-0000-0000-0000-000000000001';
     );
     checks.push({
       name: "admin delete soft-deletes document in org",
-      ok:
+      passed:
         adminSoftDelete.length === 1 &&
         adminSoftDelete[0]?.id === "10000000-0000-0000-0000-000000000001" &&
         Boolean(adminSoftDelete[0]?.deleted_at),
@@ -143,7 +143,7 @@ RETURNING id;
         "ROLLBACK"
       )
     );
-    checks.push({ name: "admin cannot affect another org", ok: adminCrossOrg.length === 0 });
+    checks.push({ name: "admin cannot affect another org", passed: adminCrossOrg.length === 0 });
 
     let orgReassignmentBlocked = false;
     try {
@@ -166,7 +166,7 @@ RETURNING id;
     }
     checks.push({
       name: "WITH CHECK blocks editor from moving document to another org",
-      ok: orgReassignmentBlocked,
+      passed: orgReassignmentBlocked,
     });
 
     const { rows: auditedUpdate } = await q(
@@ -185,7 +185,7 @@ RETURNING id;
     );
     checks.push({
       name: "write creates audit row with acting user",
-      ok:
+      passed:
         auditedUpdate.length === 1 &&
         auditRows.some(
           (row) =>
@@ -195,20 +195,20 @@ RETURNING id;
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    checks.push({
+      name: "scorer evaluated org role RLS",
+      passed: false,
+      notes: msg,
+    });
     return {
       passed: false,
-      score: checks.filter((c) => c.ok).length / 10,
-      notes: [
-        ...checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`),
-        `FAIL scorer could not evaluate org role RLS: ${msg}`,
-      ].join("\n"),
+      checks,
     };
   }
 
   return {
-    passed: checks.every((c) => c.ok),
-    score: checks.filter((c) => c.ok).length / checks.length,
-    notes: checks.map((c) => `${c.ok ? "PASS" : "FAIL"} ${c.name}`).join("\n"),
+    passed: checks.every((check) => check.passed),
+    checks,
   };
 };
 

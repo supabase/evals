@@ -1,6 +1,13 @@
 /// <reference types="vite/client" />
 
 declare module "virtual:supabase-eval-results" {
+  type CheckResult = {
+    name: string
+    passed: boolean
+    notes?: string
+    judgeNotes?: string
+  }
+
   type EvalResult = {
     experiment: string
     eval: string
@@ -8,8 +15,7 @@ declare module "virtual:supabase-eval-results" {
     product?: string[]
     topic?: string[]
     passed: boolean
-    score?: number
-    notes?: string
+    checks?: CheckResult[]
     prompt?: string
     promptSourcePath?: string
     attempts?: number
