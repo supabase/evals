@@ -1,5 +1,5 @@
-import { App, getAuthSchemaSql } from 'lite-supa'
-import { createPgliteConnection, type PgliteConnection } from 'lite-supa/pglite'
+import { App, getAuthSchemaSql } from '@supabase/lite'
+import { createPgliteConnection, type PgliteConnection } from '@supabase/lite/pglite'
 import { PGlite } from '@electric-sql/pglite'
 import type { LogRow } from '../types.js'
 import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js'

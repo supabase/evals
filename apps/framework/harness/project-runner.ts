@@ -52,8 +52,8 @@ function setupSource() {
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll } from "vitest";
-import { App, getAuthSchemaSql } from "lite-supa";
-import { createPgliteConnection } from "lite-supa/pglite";
+import { App, getAuthSchemaSql } from "@supabase/lite";
+import { createPgliteConnection } from "@supabase/lite/pglite";
 
 const PROJECT_DB_URL = "http://supabase-evals.local";
 const PROJECT_DB_ANON_KEY = "supabase-evals-anon-key";
