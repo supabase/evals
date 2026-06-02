@@ -3,7 +3,13 @@ import { createHash, createHmac } from "node:crypto";
 import { execFile } from "node:child_process";
 import { createServer } from "node:net";
 import { promisify } from "node:util";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -24,6 +30,7 @@ import { z } from "zod";
 import {
   createManagementApiClient,
   createPlatform,
+  type EdgeFunctionSeed,
   type ManagementApiClient,
   type PlatformHandle,
   type ProjectInstance,
@@ -397,6 +404,7 @@ export type EvalRuntime = {
 export type EvalSessionArgs = {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
+  functionsSeedDir?: string;
 };
 
 export type EvalSession = {
@@ -725,6 +733,7 @@ export interface PlatformBackend {
 export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
+  functionsSeedDir?: string;
 }): Promise<PlatformBackend> {
   const sql =
     opts.projectSeedSql && existsSync(opts.projectSeedSql)
@@ -736,9 +745,14 @@ export async function bootPlatformBackend(opts: {
       ? parseJsonl(opts.logsSeedJsonl)
       : undefined;
 
+  const functions =
+    opts.functionsSeedDir && existsSync(opts.functionsSeedDir)
+      ? parseFunctionSeeds(opts.functionsSeedDir)
+      : undefined;
+
   const platform = await createPlatform({
     accessToken: ACCESS_TOKEN,
-    projects: [{ sql, logs }],
+    projects: [{ sql, logs, functions }],
   });
 
   let server: ServerHandle | undefined;
@@ -902,6 +916,25 @@ function parseJsonl(path: string): LogRow[] {
     .split("\n")
     .filter((line) => line.trim())
     .map(parseLogLine);
+}
+
+function parseFunctionSeeds(dir: string): EdgeFunctionSeed[] {
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => {
+      const functionDir = join(dir, entry.name);
+      const files = readdirSync(functionDir, { withFileTypes: true })
+        .filter((file) => file.isFile())
+        .map((file) => ({
+          name: file.name,
+          content: readFileSync(join(functionDir, file.name), "utf8"),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      return files.length
+        ? [{ slug: entry.name, files } satisfies EdgeFunctionSeed]
+        : [];
+    });
 }
 
 function parseLogLine(line: string): LogRow {

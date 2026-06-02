@@ -7,11 +7,19 @@ export type LogRow = {
   metadata?: Record<string, unknown>
 }
 
+export type EdgeFunctionSeed = {
+  slug: string
+  name?: string
+  verify_jwt?: boolean
+  files: Array<{ name: string; content: string }>
+}
+
 export type ProjectSeed = {
   ref?: string
   name?: string
   sql?: string
   logs?: LogRow[]
+  functions?: EdgeFunctionSeed[]
 }
 
 export type AppOptions = {

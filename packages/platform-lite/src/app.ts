@@ -42,7 +42,7 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
     const ref = seed.ref ?? generateRef()
     const name = seed.name ?? ref
     const instance = new ProjectInstance(ref, name, 'default-org')
-    await instance.init(seed.sql, seed.logs)
+    await instance.init(seed.sql, seed.logs, seed.functions)
     store.set(ref, instance)
   }
 

@@ -91,15 +91,26 @@ const res = await platform.app.request('/v1/projects/test-project/database/query
 ```
 fixtures/
 └── my-project/
-    ├── project.sql     # SQL executed on boot
-    └── logs.jsonl      # one JSON object per line: { id?, ts, source, level, message, metadata? }
+    ├── project.sql                    # SQL executed on boot
+    ├── logs.jsonl                     # one JSON object per line: { id?, ts, source, level, message, metadata? }
+    └── functions/
+        └── hello-world/
+            └── index.ts               # seeded Edge Function files
 ```
 
 ### Programmatic (`projects`)
 
 ```ts
 await createPlatform({
-  projects: [{ ref: 'my-project', sql: 'CREATE TABLE ...', logs: [...] }]
+  projects: [{
+    ref: 'my-project',
+    sql: 'CREATE TABLE ...',
+    logs: [...],
+    functions: [{
+      slug: 'hello-world',
+      files: [{ name: 'index.ts', content: 'Deno.serve(() => new Response("ok"))' }]
+    }]
+  }]
 })
 ```
 

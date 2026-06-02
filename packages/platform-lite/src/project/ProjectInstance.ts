@@ -1,7 +1,7 @@
 import { App, getAuthSchemaSql } from '@supabase/lite'
 import { createPgliteConnection, type PgliteConnection } from '@supabase/lite/pglite'
 import { PGlite } from '@electric-sql/pglite'
-import type { LogRow } from '../types.js'
+import type { EdgeFunctionSeed, LogRow } from '../types.js'
 import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js'
 
 export type Migration = {
@@ -66,7 +66,7 @@ export class ProjectInstance {
     this.createdAt = new Date().toISOString()
   }
 
-  async init(sql?: string, logs?: LogRow[]): Promise<void> {
+  async init(sql?: string, logs?: LogRow[], functions?: EdgeFunctionSeed[]): Promise<void> {
     // createPgliteConnection is async; App.init() can't handle Promise<Connection>
     // so we resolve it before constructing the App.
     const connection = await createPgliteConnection()
@@ -92,6 +92,25 @@ export class ProjectInstance {
     if (logs?.length) {
       for (const row of logs) {
         await seedLogRow(this.logsDb, row)
+      }
+    }
+
+    if (functions?.length) {
+      const now = Date.now()
+      for (const fn of functions) {
+        this.functions.set(fn.slug, {
+          id: crypto.randomUUID(),
+          slug: fn.slug,
+          name: fn.name ?? fn.slug,
+          status: 'ACTIVE',
+          version: 1,
+          created_at: now,
+          updated_at: now,
+          verify_jwt: fn.verify_jwt ?? true,
+          entrypoint_path: fn.files[0]?.name ? `file:///${fn.files[0].name}` : undefined,
+          import_map_path: undefined,
+          files: fn.files,
+        })
       }
     }
   }

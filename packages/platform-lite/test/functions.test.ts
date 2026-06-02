@@ -2,6 +2,36 @@ import { describe, it, expect } from 'vitest'
 import { createTestApp } from './helpers.js'
 
 describe('functions', () => {
+  it('lists seeded functions and returns their body', async () => {
+    const source = 'Deno.serve(() => new Response("seeded"))'
+    const app = await createTestApp([
+      {
+        ref: 'seeded-fn-proj',
+        functions: [
+          {
+            slug: 'seeded-fn',
+            files: [{ name: 'index.ts', content: source }],
+          },
+        ],
+      },
+    ])
+
+    const listRes = await app.request('/v1/projects/seeded-fn-proj/functions', {
+      headers: { Authorization: 'Bearer test-token' },
+    })
+    const list = await listRes.json() as Array<{ slug: string; version: number }>
+    expect(list).toHaveLength(1)
+    expect(list[0]).toMatchObject({ slug: 'seeded-fn', version: 1 })
+
+    const bodyRes = await app.request('/v1/projects/seeded-fn-proj/functions/seeded-fn/body', {
+      headers: { Authorization: 'Bearer test-token' },
+    })
+    expect(bodyRes.status).toBe(200)
+    const body = await bodyRes.text()
+    expect(body).toContain('index.ts')
+    expect(body).toContain(source)
+  })
+
   it('deploys a function and lists it', async () => {
     const app = await createTestApp([{ ref: 'fn-proj' }])
 

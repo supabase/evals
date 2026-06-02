@@ -50,8 +50,45 @@ export async function loadSeedDir(dir: string): Promise<ProjectSeed[]> {
       // optional
     }
 
+    seed.functions = await loadFunctionSeeds(join(projectDir, 'functions'))
+
     seeds.push(seed)
   }
 
   return seeds
+}
+
+async function loadFunctionSeeds(dir: string): Promise<NonNullable<ProjectSeed['functions']>> {
+  const entries = await readdir(dir, { withFileTypes: true }).catch((err: NodeJS.ErrnoException) => {
+    if (err.code === 'ENOENT') return null
+    throw err
+  })
+  if (!entries) return []
+
+  const functions: NonNullable<ProjectSeed['functions']> = []
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const functionDir = join(dir, entry.name)
+    const files = await loadFunctionFiles(functionDir)
+    if (files.length) {
+      functions.push({ slug: entry.name, files })
+    }
+  }
+
+  return functions
+}
+
+async function loadFunctionFiles(dir: string): Promise<Array<{ name: string; content: string }>> {
+  const entries = await readdir(dir, { withFileTypes: true })
+  const files: Array<{ name: string; content: string }> = []
+
+  for (const entry of entries) {
+    if (!entry.isFile()) continue
+    files.push({
+      name: entry.name,
+      content: await readFile(join(dir, entry.name), 'utf-8'),
+    })
+  }
+
+  return files.sort((a, b) => a.name.localeCompare(b.name))
 }
