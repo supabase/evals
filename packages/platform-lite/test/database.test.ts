@@ -45,6 +45,44 @@ describe('database', () => {
     expect(data).toEqual([{ n: 1 }])
   })
 
+  it('rejects malformed query JSON', async () => {
+    const app = await createTestApp([{ ref: 'malformed-query-proj' }])
+
+    const res = await app.request('/v1/projects/malformed-query-proj/database/query', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-token',
+        'Content-Type': 'application/json',
+      },
+      body: '',
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ message: 'Invalid JSON body' })
+  })
+
+  it('rejects missing query body field', async () => {
+    const app = await createTestApp([{ ref: 'missing-query-proj' }])
+
+    const { status, data } = await request(app, 'POST', '/v1/projects/missing-query-proj/database/query', {
+      read_only: true,
+    })
+
+    expect(status).toBe(400)
+    expect(data).toMatchObject({ message: expect.stringContaining('query') })
+  })
+
+  it('rejects empty query body field', async () => {
+    const app = await createTestApp([{ ref: 'empty-query-proj' }])
+
+    const { status, data } = await request(app, 'POST', '/v1/projects/empty-query-proj/database/query', {
+      query: '',
+    })
+
+    expect(status).toBe(400)
+    expect(data).toMatchObject({ message: expect.stringContaining('query') })
+  })
+
   it('records migration and re-applies on re-list', async () => {
     const app = await createTestApp([{ ref: 'mig-proj' }])
 

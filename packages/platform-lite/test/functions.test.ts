@@ -71,6 +71,25 @@ describe('functions', () => {
     expect(deployRes.status).toBe(400)
   })
 
+  it('rejects deploys without uploaded source files', async () => {
+    const app = await createTestApp([{ ref: 'empty-files-fn-proj' }])
+
+    const formData = new FormData()
+    formData.append('metadata', JSON.stringify({ name: 'empty-fn', entrypoint_path: 'index.ts' }))
+    formData.append('file', 'Deno.serve(() => new Response("not a file"))')
+
+    const deployRes = await app.request('/v1/projects/empty-files-fn-proj/functions/deploy?slug=empty-fn', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-token' },
+      body: formData,
+    })
+
+    expect(deployRes.status).toBe(400)
+    await expect(deployRes.json()).resolves.toMatchObject({
+      message: expect.stringContaining('Entrypoint path does not exist'),
+    })
+  })
+
   it('returns function body as multipart', async () => {
     const app = await createTestApp([{ ref: 'fn-body-proj' }])
 

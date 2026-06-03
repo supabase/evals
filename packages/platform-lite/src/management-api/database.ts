@@ -1,6 +1,13 @@
 import type { ProjectStore } from '../project-store.js'
 import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
 import { extractRows } from './utils.js'
+import { z } from 'zod'
+
+const runQueryBodySchema = z.object({
+  query: z.string().min(1),
+  parameters: z.array(z.unknown()).optional(),
+  read_only: z.boolean().optional(),
+})
 
 export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
   const routes = createManagementApiRoutes()
@@ -10,8 +17,9 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
     const project = store.get(ref)
     if (!project) return c.json({ message: 'Project not found' }, 404)
 
-    const body = await c.req.json<{ query: string; parameters?: unknown[]; read_only?: boolean }>()
-    const { query, parameters } = body
+    const parsed = await parseRunQueryBody(c.req.raw)
+    if (!parsed.ok) return c.json({ message: parsed.error }, 400)
+    const { query, parameters } = parsed.body
 
     try {
       const result = parameters?.length
@@ -52,4 +60,29 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
   })
 
   return routes
+}
+
+async function parseRunQueryBody(req: Request): Promise<
+  | {
+      ok: true
+      body: z.infer<typeof runQueryBodySchema>
+    }
+  | {
+      ok: false
+      error: string
+    }
+> {
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return { ok: false, error: 'Invalid JSON body' }
+  }
+
+  const parsed = runQueryBodySchema.safeParse(body)
+  if (!parsed.success) {
+    return { ok: false, error: z.prettifyError(parsed.error) }
+  }
+
+  return { ok: true, body: parsed.data }
 }

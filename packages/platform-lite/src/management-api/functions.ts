@@ -65,6 +65,12 @@ export function createFunctionsRoutes(store: ProjectStore): ManagementApiRoutes 
     const parsed = await parseDeployBody(c.req.raw)
     if (!parsed.ok) return c.json({ message: parsed.error }, 400)
     const { metadata, files } = parsed
+    if (files.length === 0) {
+      return c.json(
+        { message: `Entrypoint path does not exist - ${metadata.entrypoint_path ?? ''}` },
+        400
+      )
+    }
 
     const existing = project.functions.get(slug)
     const now = Date.now()
