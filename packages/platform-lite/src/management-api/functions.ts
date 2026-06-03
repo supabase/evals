@@ -1,6 +1,14 @@
 import type { ProjectStore } from '../project-store.js'
 import type { EdgeFunctionEntry } from '../project/ProjectInstance.js'
 import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
+import { z } from 'zod'
+
+const deployMetadataSchema = z.looseObject({
+  name: z.string().optional(),
+  entrypoint_path: z.string().optional(),
+  import_map_path: z.string().optional(),
+  verify_jwt: z.boolean().optional(),
+})
 
 export function createFunctionsRoutes(store: ProjectStore): ManagementApiRoutes {
   const routes = createManagementApiRoutes()
@@ -54,18 +62,9 @@ export function createFunctionsRoutes(store: ProjectStore): ManagementApiRoutes 
     if (!project) return c.json({ message: 'Project not found' }, 404)
     if (!slug) return c.json({ message: 'Missing slug query parameter' }, 400)
 
-    const formData = await c.req.formData()
-    const metadataRaw = formData.get('metadata')
-    const metadata = metadataRaw
-      ? JSON.parse(typeof metadataRaw === 'string' ? metadataRaw : await (metadataRaw as File).text())
-      : {}
-
-    const files: Array<{ name: string; content: string }> = []
-    for (const [key, value] of formData.entries()) {
-      if (key === 'file' && value instanceof File && value.name) {
-        files.push({ name: value.name, content: await value.text() })
-      }
-    }
+    const parsed = await parseDeployBody(c.req.raw)
+    if (!parsed.ok) return c.json({ message: parsed.error }, 400)
+    const { metadata, files } = parsed
 
     const existing = project.functions.get(slug)
     const now = Date.now()
@@ -88,6 +87,48 @@ export function createFunctionsRoutes(store: ProjectStore): ManagementApiRoutes 
   })
 
   return routes
+}
+
+async function parseDeployBody(req: Request): Promise<{
+  ok: true
+  metadata: z.infer<typeof deployMetadataSchema>
+  files: Array<{ name: string; content: string }>
+} | {
+  ok: false
+  error: string
+}> {
+  let formData: FormData
+  try {
+    formData = await req.formData()
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+
+  const metadataRaw = formData.get('metadata')
+  let metadataJson: unknown = {}
+  if (metadataRaw) {
+    const raw = typeof metadataRaw === 'string' ? metadataRaw : await metadataRaw.text()
+    try {
+      metadataJson = JSON.parse(raw)
+    } catch {
+      return { ok: false, error: 'Invalid function metadata JSON' }
+    }
+  }
+
+  const metadata = deployMetadataSchema.safeParse(metadataJson)
+  if (!metadata.success) {
+    return { ok: false, error: z.prettifyError(metadata.error) }
+  }
+
+  const files: Array<{ name: string; content: string }> = []
+
+  for (const [key, value] of formData.entries()) {
+    if (key === 'file' && value instanceof File && value.name) {
+      files.push({ name: value.name, content: await value.text() })
+    }
+  }
+
+  return { ok: true, metadata: metadata.data, files }
 }
 
 function toFileUrl(path: string): string {

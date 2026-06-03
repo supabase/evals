@@ -54,6 +54,23 @@ describe('functions', () => {
     expect(list[0].slug).toBe('hello')
   })
 
+  it('rejects malformed multipart deploy body', async () => {
+    const app = await createTestApp([{ ref: 'bad-multipart-fn-proj' }])
+
+    const deployRes = await app.request('/v1/projects/bad-multipart-fn-proj/functions/deploy?slug=json-fn', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-token',
+        'Content-Type': 'multipart/form-data',
+      },
+      body: JSON.stringify({
+        metadata: { name: 'json-fn', entrypoint_path: 'index.ts', verify_jwt: true },
+        file: [{ name: 'index.ts', content: 'Deno.serve(() => new Response("json"))' }],
+      }),
+    })
+    expect(deployRes.status).toBe(400)
+  })
+
   it('returns function body as multipart', async () => {
     const app = await createTestApp([{ ref: 'fn-body-proj' }])
 

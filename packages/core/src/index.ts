@@ -978,6 +978,16 @@ async function invokeEdgeFunction(
   const source = fn.files[0]?.content;
   if (!source) throw new Error(`edge function ${input.name} has no source`);
 
+  const method = (input.method ?? "POST").toUpperCase();
+  const headers = new Headers(input.headers ?? {});
+  if (fn.verify_jwt && !headers.has("authorization")) {
+    return {
+      status: 401,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ error: "Missing authorization header" }),
+    };
+  }
+
   const anonKey = generateAnonKey(instance.ref, instance.jwtSecret);
   const projectFetch = (req: Request) => instance.app.fetch(req);
   const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
@@ -988,8 +998,6 @@ async function invokeEdgeFunction(
     runtimeFetch,
   );
 
-  const method = (input.method ?? "POST").toUpperCase();
-  const headers = new Headers(input.headers ?? {});
   const hasBody =
     method !== "GET" && method !== "HEAD" && input.body !== undefined;
   const bodyStr =
