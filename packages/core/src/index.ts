@@ -524,6 +524,7 @@ export function supabaseMcpServer(
   } = {},
 ): McpServerDefinition {
   const features = options.features ?? [
+    "docs",
     "account",
     "database",
     "development",
