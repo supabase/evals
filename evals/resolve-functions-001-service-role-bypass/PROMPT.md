@@ -14,11 +14,9 @@ topic:
 
 # Private Notes Function Review
 
-I have an Edge Function called `private-notes` that returns rows from our
-`private_notes` table.
+I built an Edge Function called `private-notes` for showing a user's saved
+private notes.
 
-Can you review it and fix anything that would let one signed-in user read
-another user's private notes? The table should be protected by RLS, so I'd like
-the function to use that correctly instead of working around it.
+Can you check whether there's any way one user could see another user's notes?
 
-Please deploy the fixed function when you're done.
+Please fix and deploy it if needed.
