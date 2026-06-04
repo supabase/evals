@@ -1093,7 +1093,14 @@ function compileEdgeFunction(
   const moduleState: { exports: Record<string, unknown> } = { exports };
 
   const requireFromSandbox = (specifier: string) => {
-    if (specifier === "@supabase/supabase-js") {
+    if (specifier === "jsr:@supabase/functions-js/edge-runtime.d.ts") {
+      return {};
+    }
+    if (
+      specifier === "@supabase/supabase-js" ||
+      specifier.startsWith("jsr:@supabase/supabase-js@") ||
+      specifier.startsWith("npm:@supabase/supabase-js@")
+    ) {
       return {
         createClient: (
           u: string,
