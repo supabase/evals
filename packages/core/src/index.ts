@@ -144,18 +144,25 @@ export interface EdgeFunctionsInvokeInput {
   body?: unknown;
 }
 
-export interface EdgeFunctionsInvokeResult {
-  status: number;
-  headers: Record<string, string>;
-  body: string;
-  /**
-   * Bearer tokens the function presented on the outbound requests it made back
-   * to the project (PostgREST / auth), in call order. Lets scorers assert which
-   * identity the function acted as — e.g. that it forwarded the caller's JWT
-   * rather than using the service-role key.
-   */
-  outboundBearerTokens: string[];
-}
+/**
+ * Result of invoking an edge function. `type: "error"` means no response was
+ * produced (missing function, compile error, or a runtime throw).
+ */
+export type EdgeFunctionsInvokeResult =
+  | {
+      type: "response";
+      status: number;
+      headers: Record<string, string>;
+      body: string;
+      /**
+       * Bearer tokens the function presented on the outbound requests it made
+       * back to the project (PostgREST / auth), in call order. Lets scorers
+       * assert which identity it acted as — e.g. that it forwarded the caller's
+       * JWT rather than using the service-role key.
+       */
+      outboundBearerTokens: string[];
+    }
+  | { type: "error"; error: string };
 
 export interface ToolScoringContext {
   /** Typed Management API client pointed at the platform-lite server for this eval. */
@@ -958,81 +965,91 @@ async function invokeEdgeFunction(
   instance: ProjectInstance,
   input: EdgeFunctionsInvokeInput,
 ): Promise<EdgeFunctionsInvokeResult> {
-  const fn = instance.functions.get(input.name);
-  if (!fn) throw new Error(`edge function not found: ${input.name}`);
-  const source = fn.files[0]?.content;
-  if (!source) throw new Error(`edge function ${input.name} has no source`);
-
-  const method = (input.method ?? "POST").toUpperCase();
-  const headers = new Headers(input.headers ?? {});
-  if (fn.verify_jwt && !headers.has("authorization")) {
-    return {
-      status: 401,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ error: "Missing authorization header" }),
-      outboundBearerTokens: [],
-    };
-  }
-
   // Record the bearer token on every outbound request the function makes back
   // to the project, so scorers can assert which identity it acted as.
   const outboundBearerTokens: string[] = [];
-  const projectFetch = (req: Request) => {
-    const bearer = req.headers
-      .get("authorization")
-      ?.replace(/^Bearer\s+/i, "");
-    if (bearer) outboundBearerTokens.push(bearer);
-    return instance.app.fetch(req);
-  };
-  const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
-  // Legacy JWT keys are the only kind platform-lite authenticates:
-  // https://github.com/supabase-community/lite/blob/aff4e9fa6f75289f3d7eb021b2b7a8198e4665ec/app/src/server/data/auth-guard.ts#L25-L76
-  const env: Record<string, string> = {
-    SUPABASE_URL: RUNTIME_URL,
-    SUPABASE_ANON_KEY: generateProjectKey(
-      instance.ref,
-      instance.jwtSecret,
-      "anon",
-    ),
-    SUPABASE_SERVICE_ROLE_KEY: generateProjectKey(
-      instance.ref,
-      instance.jwtSecret,
-      "service_role",
-    ),
-  };
-  const handler = compileEdgeFunction(source, env, runtimeFetch);
+  // Errors as values (status 0 + `error`) so a failing invoke fails a check.
+  try {
+    const fn = instance.functions.get(input.name);
+    if (!fn) throw new Error(`edge function not found: ${input.name}`);
+    const source = fn.files[0]?.content;
+    if (!source) throw new Error(`edge function ${input.name} has no source`);
 
-  const hasBody =
-    method !== "GET" && method !== "HEAD" && input.body !== undefined;
-  const bodyStr =
-    typeof input.body === "string"
-      ? input.body
-      : input.body === undefined
-        ? undefined
-        : JSON.stringify(input.body);
+    const method = (input.method ?? "POST").toUpperCase();
+    const headers = new Headers(input.headers ?? {});
+    if (fn.verify_jwt && !headers.has("authorization")) {
+      return {
+        type: "response",
+        status: 401,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ error: "Missing authorization header" }),
+        outboundBearerTokens,
+      };
+    }
 
-  if (bodyStr !== undefined && !headers.has("content-type")) {
-    headers.set("content-type", "application/json");
-  }
-
-  const response = await Promise.resolve(
-    handler(
-      new Request(
-        `https://project-ref.functions.supabase.co/${input.name}${input.path ?? ""}`,
-        { method, headers, body: hasBody ? bodyStr : undefined },
+    const projectFetch = (req: Request) => {
+      const bearer = req.headers
+        .get("authorization")
+        ?.replace(/^Bearer\s+/i, "");
+      if (bearer) outboundBearerTokens.push(bearer);
+      return instance.app.fetch(req);
+    };
+    const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
+    // Legacy JWT keys are the only kind platform-lite authenticates:
+    // https://github.com/supabase-community/lite/blob/aff4e9fa6f75289f3d7eb021b2b7a8198e4665ec/app/src/server/data/auth-guard.ts#L25-L76
+    const env: Record<string, string> = {
+      SUPABASE_URL: RUNTIME_URL,
+      SUPABASE_ANON_KEY: generateProjectKey(
+        instance.ref,
+        instance.jwtSecret,
+        "anon",
       ),
-    ),
-  );
-  if (!(response instanceof Response)) {
-    throw new Error(`edge function ${input.name} did not return a Response`);
-  }
+      SUPABASE_SERVICE_ROLE_KEY: generateProjectKey(
+        instance.ref,
+        instance.jwtSecret,
+        "service_role",
+      ),
+    };
+    const handler = compileEdgeFunction(source, env, runtimeFetch);
 
-  return {
-    status: response.status,
-    headers: Object.fromEntries(response.headers.entries()),
-    body: await response.text(),
-    outboundBearerTokens,
-  };
+    const hasBody =
+      method !== "GET" && method !== "HEAD" && input.body !== undefined;
+    const bodyStr =
+      typeof input.body === "string"
+        ? input.body
+        : input.body === undefined
+          ? undefined
+          : JSON.stringify(input.body);
+
+    if (bodyStr !== undefined && !headers.has("content-type")) {
+      headers.set("content-type", "application/json");
+    }
+
+    const response = await Promise.resolve(
+      handler(
+        new Request(
+          `https://project-ref.functions.supabase.co/${input.name}${input.path ?? ""}`,
+          { method, headers, body: hasBody ? bodyStr : undefined },
+        ),
+      ),
+    );
+    if (!(response instanceof Response)) {
+      throw new Error(`edge function ${input.name} did not return a Response`);
+    }
+
+    return {
+      type: "response",
+      status: response.status,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.text(),
+      outboundBearerTokens,
+    };
+  } catch (error) {
+    return {
+      type: "error",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 type EdgeHandler = (req: Request) => unknown;

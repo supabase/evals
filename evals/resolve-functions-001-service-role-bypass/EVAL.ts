@@ -1,162 +1,112 @@
-import type {
-  CheckResult,
-  EdgeFunctionsInvokeResult,
-  ToolScorer,
-} from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from "@supabase-evals/core";
 
 const FUNCTION_NAME = "private-notes";
 const PASSWORD = "secret123";
 const NOTE_A = "user A private note";
 const NOTE_B = "user B private note";
 
-const parseJson = (result: EdgeFunctionsInvokeResult) => {
-  try {
-    return JSON.parse(result.body) as Record<string, unknown>;
-  } catch {
-    return undefined;
-  }
-};
-
-const notesFrom = (json: Record<string, unknown> | undefined) => {
-  const notes = json?.notes;
-  return Array.isArray(notes) ? notes : [];
-};
-
-const noteBodies = (result: EdgeFunctionsInvokeResult) =>
-  notesFrom(parseJson(result))
-    .map((note) =>
-      typeof note === "object" && note && "body" in note
-        ? note.body
-        : undefined,
-    )
-    .filter((body): body is string => typeof body === "string");
-
 const scorer: ToolScorer = async (ctx) => {
-  const checks: CheckResult[] = [];
+  const clientA = ctx.client;
+  const clientB = ctx.getClient();
 
-  try {
-    const clientA = ctx.client;
-    const clientB = ctx.getClient();
+  const { data: authA, error: authAError } = await clientA.auth.signUp({
+    email: "private-notes-a@example.com",
+    password: PASSWORD,
+  });
+  const { data: authB, error: authBError } = await clientB.auth.signUp({
+    email: "private-notes-b@example.com",
+    password: PASSWORD,
+  });
 
-    const { data: authA, error: authAError } = await clientA.auth.signUp({
-      email: `private-notes-a-${Date.now()}@example.com`,
-      password: PASSWORD,
-    });
-    const { data: authB, error: authBError } = await clientB.auth.signUp({
-      email: `private-notes-b-${Date.now()}@example.com`,
-      password: PASSWORD,
-    });
+  if (
+    authAError ||
+    authBError ||
+    !authA.user?.id ||
+    !authA.session?.access_token ||
+    !authB.user?.id ||
+    !authB.session?.access_token
+  ) {
+    throw new Error(
+      `failed to create test users: ${
+        [authAError?.message, authBError?.message].filter(Boolean).join("; ") ||
+        "missing session"
+      }`,
+    );
+  }
 
-    if (
-      authAError ||
-      authBError ||
-      !authA.user?.id ||
-      !authA.session?.access_token ||
-      !authB.user?.id ||
-      !authB.session?.access_token
-    ) {
-      return {
-        passed: false,
-        checks: [
-          {
-            name: "created auth sessions",
-            passed: false,
-            notes:
-              authAError?.message ?? authBError?.message ?? "missing session",
-          },
-        ],
-      };
-    }
+  const callerToken = authA.session.access_token;
+  const authHeadersA = { authorization: `Bearer ${callerToken}` };
+  const authHeadersB = {
+    authorization: `Bearer ${authB.session.access_token}`,
+  };
 
-    await ctx.query(`
+  await ctx.query(`
 INSERT INTO private_notes (user_id, body) VALUES
   ('${authA.user.id}', '${NOTE_A}'),
   ('${authB.user.id}', '${NOTE_B}');
-    `);
+  `);
 
-    const invoke = (input: {
-      path?: string;
-      headers?: Record<string, string>;
-    }) =>
-      ctx.invokeFunction({
-        name: FUNCTION_NAME,
-        method: "GET",
-        ...input,
-      });
+  const invoke = (input: { path?: string; headers?: Record<string, string> }) =>
+    ctx.invokeFunction({ name: FUNCTION_NAME, method: "GET", ...input });
 
-    const authHeadersA = {
-      authorization: `Bearer ${authA.session.access_token}`,
-    };
-    const authHeadersB = {
-      authorization: `Bearer ${authB.session.access_token}`,
-    };
+  const missingAuth = await invoke({});
+  const ownNotes = await invoke({
+    path: `?user_id=${authA.user.id}`,
+    headers: authHeadersA,
+  });
+  const aRequestsB = await invoke({
+    path: `?user_id=${authB.user.id}`,
+    headers: authHeadersA,
+  });
+  const bRequestsA = await invoke({
+    path: `?user_id=${authA.user.id}`,
+    headers: authHeadersB,
+  });
 
-    const missingAuth = await invoke({});
-    checks.push({
+  const checks: CheckResult[] = [
+    {
       name: "rejects missing auth",
-      passed: missingAuth.status === 401 || missingAuth.status === 403,
-    });
-
-    const ownNotes = await invoke({
-      path: `?user_id=${authA.user.id}`,
-      headers: authHeadersA,
-    });
-    const ownBodies = noteBodies(ownNotes);
-    checks.push({
+      passed:
+        missingAuth.type === "response" &&
+        (missingAuth.status === 401 || missingAuth.status === 403),
+      notes: missingAuth.type === "error" ? missingAuth.error : undefined,
+    },
+    {
       name: "user A reads own note",
       passed:
+        ownNotes.type === "response" &&
         ownNotes.status === 200 &&
-        ownBodies.includes(NOTE_A) &&
-        !ownBodies.includes(NOTE_B),
-    });
-
-    // The fixed function should reach the database as the signed-in user, never
-    // with the service-role key that skips RLS.
-    const callerToken = authA.session.access_token;
-    const outboundTokens = ownNotes.outboundBearerTokens;
-    checks.push({
+        ownNotes.body.includes(NOTE_A) &&
+        !ownNotes.body.includes(NOTE_B),
+      notes: ownNotes.type === "error" ? ownNotes.error : undefined,
+    },
+    {
+      // Reads should run as the signed-in user, never the service-role key.
       name: "reads only with the caller's JWT",
       passed:
-        outboundTokens.length > 0 &&
-        outboundTokens.every((token) => token === callerToken),
-    });
-
-    const aRequestsB = await invoke({
-      path: `?user_id=${authB.user.id}`,
-      headers: authHeadersA,
-    });
-    const aRequestsBBodies = noteBodies(aRequestsB);
-    checks.push({
+        ownNotes.type === "response" &&
+        ownNotes.outboundBearerTokens.length > 0 &&
+        ownNotes.outboundBearerTokens.every((token) => token === callerToken),
+    },
+    {
       name: "user A cannot force-read user B note",
-      passed: aRequestsB.status === 200 && !aRequestsBBodies.includes(NOTE_B),
-    });
-
-    const bRequestsA = await invoke({
-      path: `?user_id=${authA.user.id}`,
-      headers: authHeadersB,
-    });
-    const bRequestsABodies = noteBodies(bRequestsA);
-    checks.push({
+      passed:
+        aRequestsB.type === "response" &&
+        aRequestsB.status === 200 &&
+        !aRequestsB.body.includes(NOTE_B),
+      notes: aRequestsB.type === "error" ? aRequestsB.error : undefined,
+    },
+    {
       name: "user B cannot force-read user A note",
-      passed: bRequestsA.status === 200 && !bRequestsABodies.includes(NOTE_A),
-    });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    checks.push({
-      name: `scorer evaluated ${FUNCTION_NAME}`,
-      passed: false,
-      notes: msg,
-    });
-    return {
-      passed: false,
-      checks,
-    };
-  }
+      passed:
+        bRequestsA.type === "response" &&
+        bRequestsA.status === 200 &&
+        !bRequestsA.body.includes(NOTE_A),
+      notes: bRequestsA.type === "error" ? bRequestsA.error : undefined,
+    },
+  ];
 
-  return {
-    passed: checks.every((check) => check.passed),
-    checks,
-  };
+  return { passed: checks.every((check) => check.passed), checks };
 };
 
 export default scorer;
