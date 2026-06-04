@@ -99,7 +99,10 @@ INSERT INTO private_notes (user_id, body) VALUES
       passed: missingAuth.status === 401 || missingAuth.status === 403,
     });
 
-    const ownNotes = await invoke({ headers: authHeadersA });
+    const ownNotes = await invoke({
+      path: `?user_id=${authA.user.id}`,
+      headers: authHeadersA,
+    });
     const ownBodies = noteBodies(ownNotes);
     checks.push({
       name: "user A reads own note",

@@ -9,6 +9,13 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const userId = url.searchParams.get("user_id");
 
+  if (!userId) {
+    return new Response(JSON.stringify({ error: "user_id is required" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   const { data, error } = await supabase
     .from("private_notes")
     .select("id,user_id,body,created_at")
