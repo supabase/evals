@@ -986,7 +986,7 @@ async function invokeEdgeFunction(
   };
   const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
   // Legacy JWT keys are the only kind platform-lite authenticates:
-  // https://github.com/supabase-community/lite/blob/f7260efe4a794d23157bd130b8b9c778555ac3a3/app/src/server/data/auth-guard.ts#L25-L76
+  // https://github.com/supabase-community/lite/blob/aff4e9fa6f75289f3d7eb021b2b7a8198e4665ec/app/src/server/data/auth-guard.ts#L25-L76
   const env: Record<string, string> = {
     SUPABASE_URL: RUNTIME_URL,
     SUPABASE_ANON_KEY: generateProjectKey(
