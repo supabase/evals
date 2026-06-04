@@ -87,6 +87,7 @@ INSERT INTO private_notes (user_id, body) VALUES
         ownNotes.type === "response" &&
         ownNotes.outboundBearerTokens.length > 0 &&
         ownNotes.outboundBearerTokens.every((token) => token === callerToken),
+      notes: ownNotes.type === "error" ? ownNotes.error : undefined,
     },
     {
       name: "user A cannot force-read user B note",

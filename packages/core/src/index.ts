@@ -144,25 +144,32 @@ export interface EdgeFunctionsInvokeInput {
   body?: unknown;
 }
 
+export interface EdgeFunctionsInvokeResponse {
+  type: "response";
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  /**
+   * Bearer tokens the function presented on outbound requests it made back to
+   * the project, in call order. Lets scorers assert which identity it acted as.
+   */
+  outboundBearerTokens: string[];
+}
+
 /**
  * Result of invoking an edge function. `type: "error"` means no response was
  * produced (missing function, compile error, or a runtime throw).
  */
 export type EdgeFunctionsInvokeResult =
-  | {
-      type: "response";
-      status: number;
-      headers: Record<string, string>;
-      body: string;
-      /**
-       * Bearer tokens the function presented on the outbound requests it made
-       * back to the project (PostgREST / auth), in call order. Lets scorers
-       * assert which identity it acted as — e.g. that it forwarded the caller's
-       * JWT rather than using the service-role key.
-       */
-      outboundBearerTokens: string[];
-    }
+  | EdgeFunctionsInvokeResponse
   | { type: "error"; error: string };
+
+export function unwrapEdgeFunctionResponse(
+  result: EdgeFunctionsInvokeResult,
+): EdgeFunctionsInvokeResponse {
+  if (result.type === "error") throw new Error(result.error);
+  return result;
+}
 
 export interface ToolScoringContext {
   /** Typed Management API client pointed at the platform-lite server for this eval. */
@@ -968,7 +975,6 @@ async function invokeEdgeFunction(
   // Record the bearer token on every outbound request the function makes back
   // to the project, so scorers can assert which identity it acted as.
   const outboundBearerTokens: string[] = [];
-  // Errors as values (status 0 + `error`) so a failing invoke fails a check.
   try {
     const fn = instance.functions.get(input.name);
     if (!fn) throw new Error(`edge function not found: ${input.name}`);

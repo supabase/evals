@@ -1,4 +1,8 @@
-import type { CheckResult, ToolScorer } from "@supabase-evals/core";
+import {
+  unwrapEdgeFunctionResponse,
+  type CheckResult,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todo-create";
 const TODO_BODY = "verify edge auth database integration";
@@ -38,24 +42,28 @@ const scorer: ToolScorer = async (ctx) => {
       };
     }
 
-    const missingAuth = (await ctx.invokeFunction({
-      name: FUNCTION_NAME,
-      method: "POST",
-      body: { body: TODO_BODY },
-    })) as InvokeResult;
+    const missingAuth = unwrapEdgeFunctionResponse(
+      await ctx.invokeFunction({
+        name: FUNCTION_NAME,
+        method: "POST",
+        body: { body: TODO_BODY },
+      })
+    );
     checks.push({
       name: "rejects missing auth",
       passed: missingAuth.status >= 400,
     });
 
-    const inserted = (await ctx.invokeFunction({
-      name: FUNCTION_NAME,
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${signup.session.access_token}`,
-      },
-      body: { body: TODO_BODY },
-    })) as InvokeResult;
+    const inserted = unwrapEdgeFunctionResponse(
+      await ctx.invokeFunction({
+        name: FUNCTION_NAME,
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${signup.session.access_token}`,
+        },
+        body: { body: TODO_BODY },
+      })
+    );
     const insertedJson = parseJson(inserted);
     checks.push({
       name: "authenticated request succeeds",
