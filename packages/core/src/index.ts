@@ -148,6 +148,13 @@ export interface EdgeFunctionsInvokeResult {
   status: number;
   headers: Record<string, string>;
   body: string;
+  /**
+   * Bearer tokens the function presented on the outbound requests it made back
+   * to the project (PostgREST / auth), in call order. Lets scorers assert which
+   * identity the function acted as — e.g. that it forwarded the caller's JWT
+   * rather than using the service-role key.
+   */
+  outboundBearerTokens: string[];
 }
 
 export interface ToolScoringContext {
@@ -963,10 +970,20 @@ async function invokeEdgeFunction(
       status: 401,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ error: "Missing authorization header" }),
+      outboundBearerTokens: [],
     };
   }
 
-  const projectFetch = (req: Request) => instance.app.fetch(req);
+  // Record the bearer token on every outbound request the function makes back
+  // to the project, so scorers can assert which identity it acted as.
+  const outboundBearerTokens: string[] = [];
+  const projectFetch = (req: Request) => {
+    const bearer = req.headers
+      .get("authorization")
+      ?.replace(/^Bearer\s+/i, "");
+    if (bearer) outboundBearerTokens.push(bearer);
+    return instance.app.fetch(req);
+  };
   const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
   // Legacy JWT keys are the only kind platform-lite authenticates:
   // https://github.com/supabase-community/lite/blob/f7260efe4a794d23157bd130b8b9c778555ac3a3/app/src/server/data/auth-guard.ts#L25-L76
@@ -1014,6 +1031,7 @@ async function invokeEdgeFunction(
     status: response.status,
     headers: Object.fromEntries(response.headers.entries()),
     body: await response.text(),
+    outboundBearerTokens,
   };
 }
 

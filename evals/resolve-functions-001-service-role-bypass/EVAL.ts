@@ -1,17 +1,15 @@
-import type { CheckResult, ToolScorer } from "@supabase-evals/core";
+import type {
+  CheckResult,
+  EdgeFunctionsInvokeResult,
+  ToolScorer,
+} from "@supabase-evals/core";
 
 const FUNCTION_NAME = "private-notes";
 const PASSWORD = "secret123";
 const NOTE_A = "user A private note";
 const NOTE_B = "user B private note";
 
-interface InvokeResult {
-  status: number;
-  headers: Record<string, string>;
-  body: string;
-}
-
-const parseJson = (result: InvokeResult) => {
+const parseJson = (result: EdgeFunctionsInvokeResult) => {
   try {
     return JSON.parse(result.body) as Record<string, unknown>;
   } catch {
@@ -24,7 +22,7 @@ const notesFrom = (json: Record<string, unknown> | undefined) => {
   return Array.isArray(notes) ? notes : [];
 };
 
-const noteBodies = (result: InvokeResult) =>
+const noteBodies = (result: EdgeFunctionsInvokeResult) =>
   notesFrom(parseJson(result))
     .map((note) =>
       typeof note === "object" && note && "body" in note
@@ -84,7 +82,7 @@ INSERT INTO private_notes (user_id, body) VALUES
         name: FUNCTION_NAME,
         method: "GET",
         ...input,
-      }) as Promise<InvokeResult>;
+      });
 
     const authHeadersA = {
       authorization: `Bearer ${authA.session.access_token}`,
@@ -110,6 +108,17 @@ INSERT INTO private_notes (user_id, body) VALUES
         ownNotes.status === 200 &&
         ownBodies.includes(NOTE_A) &&
         !ownBodies.includes(NOTE_B),
+    });
+
+    // The fixed function should reach the database as the signed-in user, never
+    // with the service-role key that skips RLS.
+    const callerToken = authA.session.access_token;
+    const outboundTokens = ownNotes.outboundBearerTokens;
+    checks.push({
+      name: "reads only with the caller's JWT",
+      passed:
+        outboundTokens.length > 0 &&
+        outboundTokens.every((token) => token === callerToken),
     });
 
     const aRequestsB = await invoke({
