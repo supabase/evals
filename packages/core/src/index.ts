@@ -925,12 +925,16 @@ function parseLogLine(line: string): LogRow {
   };
 }
 
-function generateAnonKey(ref: string, jwtSecret: string): string {
+function generateProjectKey(
+  ref: string,
+  jwtSecret: string,
+  role: "anon" | "service_role",
+): string {
   const b64url = (s: string) => Buffer.from(s).toString("base64url");
   const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const body = b64url(
     JSON.stringify({
-      role: "anon",
+      role,
       iss: "supabase-lite",
       ref,
       iat: Math.floor(Date.now() / 1000),
@@ -962,15 +966,24 @@ async function invokeEdgeFunction(
     };
   }
 
-  const anonKey = generateAnonKey(instance.ref, instance.jwtSecret);
   const projectFetch = (req: Request) => instance.app.fetch(req);
   const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
-  const handler = compileEdgeFunction(
-    source,
-    RUNTIME_URL,
-    anonKey,
-    runtimeFetch,
-  );
+  // Legacy JWT keys are the only kind platform-lite authenticates:
+  // https://github.com/supabase-community/lite/blob/f7260efe4a794d23157bd130b8b9c778555ac3a3/app/src/server/data/auth-guard.ts#L25-L76
+  const env: Record<string, string> = {
+    SUPABASE_URL: RUNTIME_URL,
+    SUPABASE_ANON_KEY: generateProjectKey(
+      instance.ref,
+      instance.jwtSecret,
+      "anon",
+    ),
+    SUPABASE_SERVICE_ROLE_KEY: generateProjectKey(
+      instance.ref,
+      instance.jwtSecret,
+      "service_role",
+    ),
+  };
+  const handler = compileEdgeFunction(source, env, runtimeFetch);
 
   const hasBody =
     method !== "GET" && method !== "HEAD" && input.body !== undefined;
@@ -1023,8 +1036,7 @@ function createRuntimeFetch(
 
 function compileEdgeFunction(
   source: string,
-  url: string,
-  anonKey: string,
+  env: Record<string, string>,
   runtimeFetch: typeof fetch,
 ): EdgeHandler {
   const js = ts.transpileModule(source, {
@@ -1067,12 +1079,7 @@ function compileEdgeFunction(
         denoServeHandler = (req) => handler(req);
       },
       env: {
-        get: (key: string) =>
-          key === "SUPABASE_URL"
-            ? url
-            : key === "SUPABASE_ANON_KEY"
-              ? anonKey
-              : undefined,
+        get: (key: string) => env[key],
       },
     },
     fetch: runtimeFetch,
