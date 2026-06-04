@@ -3,13 +3,7 @@ import { createHash, createHmac } from "node:crypto";
 import { execFile } from "node:child_process";
 import { createServer } from "node:net";
 import { promisify } from "node:util";
-import {
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-} from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -30,7 +24,7 @@ import { z } from "zod";
 import {
   createManagementApiClient,
   createPlatform,
-  type EdgeFunctionSeed,
+  loadFunctionSeeds,
   type ManagementApiClient,
   type PlatformHandle,
   type ProjectInstance,
@@ -745,10 +739,9 @@ export async function bootPlatformBackend(opts: {
       ? parseJsonl(opts.logsSeedJsonl)
       : undefined;
 
-  const functions =
-    opts.functionsSeedDir && existsSync(opts.functionsSeedDir)
-      ? parseFunctionSeeds(opts.functionsSeedDir)
-      : undefined;
+  const functions = opts.functionsSeedDir
+    ? await loadFunctionSeeds(opts.functionsSeedDir)
+    : undefined;
 
   const platform = await createPlatform({
     accessToken: ACCESS_TOKEN,
@@ -916,25 +909,6 @@ function parseJsonl(path: string): LogRow[] {
     .split("\n")
     .filter((line) => line.trim())
     .map(parseLogLine);
-}
-
-function parseFunctionSeeds(dir: string): EdgeFunctionSeed[] {
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .flatMap((entry) => {
-      const functionDir = join(dir, entry.name);
-      const files = readdirSync(functionDir, { withFileTypes: true })
-        .filter((file) => file.isFile())
-        .map((file) => ({
-          name: file.name,
-          content: readFileSync(join(functionDir, file.name), "utf8"),
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-      return files.length
-        ? [{ slug: entry.name, files } satisfies EdgeFunctionSeed]
-        : [];
-    });
 }
 
 function parseLogLine(line: string): LogRow {

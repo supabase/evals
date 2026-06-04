@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ProjectSeed, LogRow } from './types.js'
+import type { EdgeFunctionSeed, ProjectSeed, LogRow } from './types.js'
 
 export async function loadSeedDir(dir: string): Promise<ProjectSeed[]> {
   const entries = await readdir(dir, { withFileTypes: true }).catch((err: NodeJS.ErrnoException) => {
@@ -58,14 +58,18 @@ export async function loadSeedDir(dir: string): Promise<ProjectSeed[]> {
   return seeds
 }
 
-async function loadFunctionSeeds(dir: string): Promise<NonNullable<ProjectSeed['functions']>> {
+/**
+ * Read a `functions/` directory into `EdgeFunctionSeed[]`, one entry per
+ * subdirectory (`functions/<slug>/*`). Returns `[]` if the directory is absent.
+ */
+export async function loadFunctionSeeds(dir: string): Promise<EdgeFunctionSeed[]> {
   const entries = await readdir(dir, { withFileTypes: true }).catch((err: NodeJS.ErrnoException) => {
     if (err.code === 'ENOENT') return null
     throw err
   })
   if (!entries) return []
 
-  const functions: NonNullable<ProjectSeed['functions']> = []
+  const functions: EdgeFunctionSeed[] = []
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
     const functionDir = join(dir, entry.name)
