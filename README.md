@@ -31,6 +31,12 @@ Run one eval:
 npm run eval -- --eval detect-security-001-public-table --experiment openai-gpt-5.4-mini --runs 1 --force
 ```
 
+View results in the web app at `http://localhost:5173`:
+
+```bash
+npm run web
+```
+
 ## Concepts
 
 - An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional seed data.
