@@ -28,14 +28,16 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 Run one eval:
 
 ```bash
-npm run eval -- --eval detect-security-001-public-table --experiment openai-gpt-5.4-mini
+npm run eval -- --eval detect-security-001-public-table --experiment openai-gpt-5.4-mini --runs 1 --force
 ```
 
 ## Concepts
 
 - An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional seed data.
 - An **experiment** is one agent/runtime/model setup under `experiments/<name>.ts`.
-- Running evals means executing experiment x eval pairs and writing local result files under `results/`.
+- An **agent** is the model driver that receives the eval prompt and calls the configured tools.
+- A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
+- `platform-lite` exposes a Supabase Management API-compatible HTTP surface backed by [`@supabase/lite`](https://github.com/supabase/supabase-lite), so real tools like `@supabase/mcp-server-supabase` can run against a lightweight project.
 
 ## Common Workflows
 
@@ -46,22 +48,18 @@ npm run eval -- --eval detect-security-001-public-table --experiment openai-gpt-
 3. Add `EVAL.ts` with the scorer.
 4. Add `seed/` data if the scenario needs project state or logs.
 
-Test with:
-
-```bash
-npm run eval -- --eval <eval-id> --experiment <experiment-name>
-```
-
 ### Add an experiment
 
 Add a file under `experiments/` for the agent/model/runtime setup you want to compare.
 
 ### Run evals
 
+Running evals executes experiment x eval pairs and writes local result files under `results/`.
+
 Target a single experiment by filename stem:
 
 ```bash
-npm run eval -- --experiment openai-gpt-5.4-mini
+npm run eval -- --experiment openai-gpt-5.4-mini --runs 1 --force
 ```
 
 Target a single model id:
@@ -69,6 +67,9 @@ Target a single model id:
 ```bash
 npm run eval -- --model gpt-5.4-mini
 ```
+
+> [!NOTE]
+> Use `--runs 1 --force` when you want a fresh single-attempt result. Without `--force`, existing result files are skipped; without `--runs 1`, the runner defaults to up to four attempts with stop-on-pass.
 
 Or run everything:
 
@@ -103,10 +104,8 @@ Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
 
 ## Eval Modes
 
-- **Tool evals** use the experiment's configured MCP servers backed by `platform-lite`. Scorers can inspect project state through helpers such as `ctx.mgmt`, `ctx.client`, `ctx.query`, `ctx.invokeFunction`, and `ctx.agentReport`.
-- **Project evals** include `app/package.json` and `app/src/`. The agent edits a copied workspace with file tools only. Scoring runs Vite and withheld Vitest tests after the agent turn.
-
-Project eval workspaces are copied under `results/<experiment>/<eval-id>/workspace/`. The agent edits only that copy. `EVAL.ts` and `tests/` are withheld during the agent turn and copied in before scoring.
+- **Tool evals** run the agent against the experiment's MCP/tool surface, then score the resulting project state or report.
+- **Project evals** copy an app workspace for the agent to edit with file tools, then score with Vite and withheld Vitest tests.
 
 ## Skills
 
@@ -120,4 +119,4 @@ To use a skill in an experiment, reference its directory name in the experiment'
 npm run check
 ```
 
-Runs typechecking plus the credential-free framework smoke script.
+Runs typechecks plus local smoke tests.
