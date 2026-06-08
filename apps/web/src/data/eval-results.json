@@ -1,0 +1,1175 @@
+[
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "design-frontend-001-todos-app",
+    "stage": "design",
+    "product": [
+      "database",
+      "auth",
+      "sdk"
+    ],
+    "topic": [
+      "frontend",
+      "rls",
+      "supabase-js"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "vite build passed",
+        "passed": true
+      },
+      {
+        "name": "vitest passed",
+        "passed": true
+      }
+    ],
+    "prompt": "# Authenticated Todos Frontend\n\nBuild the missing Supabase integration for this Vite + React todos app.\n\nThe Supabase project already has a `todos` table with RLS policies:\n\n```sql\ntodos(id uuid, user_id uuid default auth.uid(), body text, done boolean, created_at timestamptz)\n```\n\nThe project files are under `app/`. `app/src/App.tsx` already contains the UI\nmarkup and stable `data-testid`s used by the tests. Keep that UI shape intact\nand hook it up to Supabase.\n\nRequirements:\n\n1. Create a Supabase client using `@supabase/supabase-js`. You may create a\n   helper like `app/src/supabase.ts` or keep the client in `App.tsx`.\n2. Read `import.meta.env.VITE_SUPABASE_URL` and\n   `import.meta.env.VITE_SUPABASE_ANON_KEY`.\n3. The sign-in form signs in with email/password.\n4. After sign-in, load and render only the current user's todos.\n5. The add-todo form inserts a todo for the current user. The table defaults `user_id`\n   from `auth.uid()`, so insert only the todo body.\n6. Checking a todo updates its `done` state in Supabase.\n7. Throw an error if any Supabase call fails.\n\nYou may refactor the implementation, but keep the existing user-facing controls\nand `data-testid` attributes so the tests can drive the app.",
+    "promptSourcePath": "evals/design-frontend-001-todos-app/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/design-frontend-001-todos-app/summary.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "design-functions-001-order-total",
+    "stage": "design",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "edge-functions",
+      "api"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer could invoke order-total",
+        "passed": false,
+        "notes": "edge function import not supported: jsr:@supabase/functions-js/edge-runtime.d.ts"
+      }
+    ],
+    "prompt": "# Order Total Edge Function\n\nCreate a Supabase Edge Function named `order-total`.\n\nThe function should accept only `POST` requests with a JSON body:\n\n```json\n{\n  \"items\": [\n    { \"sku\": \"basic-plan\", \"unit_price_cents\": 1200, \"quantity\": 2 }\n  ],\n  \"customer_tier\": \"standard\",\n  \"coupon\": \"WELCOME10\"\n}\n```\n\nImplement this behavior:\n\n1. Return `405` for non-`POST` requests.\n2. Return `400` with a JSON error if the body is invalid JSON, if `items` is\n   missing or empty, or if any item has a non-positive `unit_price_cents` or\n   `quantity`.\n3. Calculate `subtotal_cents` as the sum of `unit_price_cents * quantity`.\n4. Apply the best single discount:\n   - Coupon `WELCOME10`: 10% off subtotal, capped at 2000 cents.\n   - `customer_tier: \"enterprise\"`: 15% off subtotal.\n   - Discounts do not stack; use whichever discount is larger.\n5. Calculate `tax_cents` as 7.25% of the post-discount amount, rounded to the\n   nearest cent.\n6. Return `200` JSON with `subtotal_cents`, `discount_cents`, `tax_cents`, and\n   `total_cents`.\n\nDeploy the function with slug `order-total`. The deployed source should be a\nsingle `index.ts` file.",
+    "promptSourcePath": "evals/design-functions-001-order-total/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/design-functions-001-order-total.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "design-functions-002-edge-auth-db",
+    "stage": "design",
+    "product": [
+      "functions",
+      "database",
+      "auth",
+      "sdk"
+    ],
+    "topic": [
+      "edge-functions",
+      "auth",
+      "supabase-js"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer evaluated todo-create",
+        "passed": false,
+        "notes": "edge function import not supported: npm:@supabase/supabase-js@2"
+      }
+    ],
+    "prompt": "# Edge Function Auth + Database\n\nCreate a Supabase Edge Function named `todo-create`.\n\nThe function must:\n\n1. Accept only `POST` requests.\n2. Require the caller's `Authorization` header and forward it to Supabase.\n3. Use `@supabase/supabase-js` with:\n  - `Deno.env.get(\"SUPABASE_URL\")`\n  - `Deno.env.get(\"SUPABASE_ANON_KEY\")`\n4. Read JSON body `{ \"body\": \"todo text\" }`.\n5. Insert one row into the existing `todos` table. The table defaults `user_id`\n  from `auth.uid()`, so insert only the `body` value.\n6. Return `201` JSON containing the inserted row.\n7. Return a non-2xx JSON error for missing auth, invalid JSON, missing body, or\n  insert/select failures.\n\nDeploy the function with slug `todo-create`. The deployed source should be a\nsingle `index.ts` file.",
+    "promptSourcePath": "evals/design-functions-002-edge-auth-db/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/design-functions-002-edge-auth-db.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "design-functions-003-todos-crud-api",
+    "stage": "design",
+    "product": [
+      "functions",
+      "database",
+      "sdk"
+    ],
+    "topic": [
+      "edge-functions",
+      "supabase-js",
+      "crud"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer evaluated todos-api",
+        "passed": false,
+        "notes": "edge function import not supported: jsr:@supabase/functions-js/edge-runtime.d.ts"
+      }
+    ],
+    "prompt": "# Todos CRUD Edge Function\n\nCreate a Supabase Edge Function named `todos-api`.\n\nThe function must use `@supabase/supabase-js` with:\n\n- `Deno.env.get(\"SUPABASE_URL\")`\n- `Deno.env.get(\"SUPABASE_ANON_KEY\")`\n- The caller's `Authorization` header forwarded through `global.headers`\n\nImplement these routes:\n\n1. `GET /todos-api`\n  - Requires auth.\n  - Returns the caller's todos ordered by `created_at` ascending.\n  - Supports optional `?done=true|false`.\n  - Supports optional `?limit=` from 1 to 100, defaulting to 50.\n2. `POST /todos-api`\n  - Requires auth.\n  - Reads JSON body `{ \"body\": \"todo text\", \"done\": false }`.\n  - `body` is required and must be a non-empty string.\n  - `done` is optional and defaults to `false`.\n  - Returns `201` JSON containing the inserted row.\n3. `PATCH /todos-api/<uuid>`\n  - Requires auth.\n  - Accepts a JSON object with only `body` and/or `done`.\n  - Returns the updated row.\n  - Return `404` if the row does not belong to the caller or does not exist.\n4. `DELETE /todos-api/<uuid>`\n  - Requires auth.\n  - Deletes the caller's row and returns JSON `{ \"deleted\": true }`.\n  - Return `404` if the row does not belong to the caller or does not exist.\n\nReturn JSON errors for missing auth (`401`), unsupported methods (`405`),\ninvalid JSON (`400`), invalid UUID path params (`400`), invalid query params\n(`400`), and database failures.\n\nDeploy the function with slug `todos-api`. The deployed source should be a\nsingle `index.ts` file.",
+    "promptSourcePath": "evals/design-functions-003-todos-crud-api/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/design-functions-003-todos-crud-api.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "design-rls-001-tenant-isolation",
+    "stage": "design",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "multi-tenancy",
+      "security"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "tenant A sees only org A notes (n=2)",
+        "passed": true
+      },
+      {
+        "name": "tenant B blocked from org A reads",
+        "passed": true
+      },
+      {
+        "name": "insert into non-member org blocked",
+        "passed": true
+      },
+      {
+        "name": "author can update own note",
+        "passed": true
+      },
+      {
+        "name": "non-member cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "non-member cannot delete org A note",
+        "passed": true
+      }
+    ],
+    "prompt": "# Multi-tenant RLS\n\nYou are working on a Supabase project for a multi-tenant SaaS app.\n\nThe schema has two tables — `notes` and `memberships` — already created and\nseeded. Inspect the project state if you need to.\n\n```sql\n-- notes\nid uuid, org_id uuid, author_id uuid, body text, created_at timestamptz\n\n-- memberships  (which users belong to which orgs)\nuser_id uuid, org_id uuid\n```\n\nAdd the RLS policies needed so that authenticated users can:\n\n1. `SELECT` notes only from orgs they are a member of.\n2. `INSERT` notes only into orgs they are a member of, and only with\n   `author_id = auth.uid()`.\n3. `UPDATE` and `DELETE` only their own notes.\n\nApply the required database changes. End your turn when you believe the\npolicies are in place.",
+    "promptSourcePath": "evals/design-rls-001-tenant-isolation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/design-rls-001-tenant-isolation.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "design-rls-002-own-todos-client",
+    "stage": "design",
+    "product": [
+      "database",
+      "auth",
+      "sdk"
+    ],
+    "topic": [
+      "rls",
+      "supabase-js",
+      "security"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on todos",
+        "passed": true
+      },
+      {
+        "name": "user A sees only own todos",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A todos",
+        "passed": true
+      },
+      {
+        "name": "user A can insert own todo through supabase-js",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert todo for user A",
+        "passed": true
+      },
+      {
+        "name": "user A can update own todo",
+        "passed": true
+      },
+      {
+        "name": "user B cannot update user A todo",
+        "passed": true
+      },
+      {
+        "name": "user B can delete own todo",
+        "passed": true
+      },
+      {
+        "name": "user B cannot delete user A todo",
+        "passed": true
+      }
+    ],
+    "prompt": "# Own Todos RLS via Supabase Client\n\nYou are working on a Supabase project for a todos app.\n\nThe `todos` table already exists:\n\n```sql\nid uuid, user_id uuid, body text, done boolean, created_at timestamptz\n```\n\n`user_id` defaults to `auth.uid()`, so app code can insert a todo by sending only\n`body` / `done`.\n\nAdd the RLS policies needed so that authenticated users can:\n\n1. `SELECT` only their own todos.\n2. `INSERT` only their own todos.\n3. `UPDATE` only their own todos.\n4. `DELETE` only their own todos.\n\nApply the required database changes. End your turn when you believe the\npolicies are in place.",
+    "promptSourcePath": "evals/design-rls-002-own-todos-client/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/design-rls-002-own-todos-client.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "design-rls-003-org-roles-permissions",
+    "stage": "design",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "permissions",
+      "security"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "RLS enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "viewer sees active org documents only",
+        "passed": true
+      },
+      {
+        "name": "viewer cannot insert",
+        "passed": true
+      },
+      {
+        "name": "editor can insert own org document",
+        "passed": true
+      },
+      {
+        "name": "editor can update own document",
+        "passed": true
+      },
+      {
+        "name": "editor cannot update another user's document",
+        "passed": true
+      },
+      {
+        "name": "admin delete soft-deletes document in org",
+        "passed": false
+      },
+      {
+        "name": "admin cannot affect another org",
+        "passed": true
+      },
+      {
+        "name": "WITH CHECK blocks editor from moving document to another org",
+        "passed": true
+      },
+      {
+        "name": "write creates audit row with acting user",
+        "passed": true
+      }
+    ],
+    "prompt": "# Organization Document RLS\n\nYou are working on a Supabase project for a multi-tenant document app.\n\nThe schema has three tables already created and seeded:\n\n```sql\n-- memberships\nuser_id uuid, org_id uuid, role text\n\n-- documents\nid uuid, org_id uuid, owner_id uuid, title text, body text, deleted_at timestamptz\n\n-- document_audit\nid uuid, document_id uuid, actor_id uuid, action text, ts timestamptz\n```\n\nAdd the RLS policies and database logic needed for authenticated users:\n\n1. Viewers can read active documents in orgs where they are members.\n2. Editors can read active documents in their orgs, insert documents they own in their orgs, and update or delete only documents they own.\n3. Admins can read, update, and delete any active document in orgs where they are admins.\n4. Soft-deleted documents (`deleted_at IS NOT NULL`) should not be visible through normal reads.\n5. Deletes should be soft deletes by setting `deleted_at`; do not hard-delete rows.\n6. Every insert, update, and soft-delete should write a row to `document_audit` with the acting user.\n\nApply the required database changes. End your turn when you believe the\npolicies and audit behavior are in place.",
+    "promptSourcePath": "evals/design-rls-003-org-roles-permissions/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/design-rls-003-org-roles-permissions.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "detect-reliability-001-error-rate-spike",
+    "stage": "detect",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "reliability",
+      "observability",
+      "logs"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "named the affected function",
+        "passed": true
+      },
+      {
+        "name": "reported an error rate above 5%",
+        "passed": true
+      },
+      {
+        "name": "described the rate as elevated",
+        "passed": true
+      },
+      {
+        "name": "proposed a concrete next step",
+        "passed": true
+      }
+    ],
+    "prompt": "# Edge Function Reliability Review\n\nAudit the recent edge-function logs for any reliability problem worth flagging.\n\nIf you find one, report:\n\n- The affected function id\n- The observed error rate\n- Why the rate is concerning\n- A concrete next step to investigate or mitigate it\n\nBe specific. Vague answers like \"review the logs\" do not count.",
+    "promptSourcePath": "evals/detect-reliability-001-error-rate-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/detect-reliability-001-error-rate-spike.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "detect-reliability-002-subtle-error-spike",
+    "stage": "detect",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "reliability",
+      "observability",
+      "logs"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "named stripe-webhook",
+        "passed": true
+      },
+      {
+        "name": "used recent or per-function framing",
+        "passed": true
+      },
+      {
+        "name": "described elevated error rate",
+        "passed": true
+      }
+    ],
+    "prompt": "# Subtle Reliability Spike\n\nAudit recent edge-function logs for any reliability issue worth a human's\nattention.\n\nReport the affected function and explain why it is concerning. Be concrete\nabout the window or grouping you used. Vague answers like \"some errors are\npresent\" do not count.",
+    "promptSourcePath": "evals/detect-reliability-002-subtle-error-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/detect-reliability-002-subtle-error-spike.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "detect-security-001-public-table",
+    "stage": "detect",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "security",
+      "rls",
+      "observability"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "named the vulnerable table",
+        "passed": true
+      },
+      {
+        "name": "mentioned the anon role",
+        "passed": true
+      },
+      {
+        "name": "proposed a concrete fix",
+        "passed": true
+      },
+      {
+        "name": "verified the exposed table and fix",
+        "passed": true,
+        "judgeNotes": "Identifies public.customer_payment_methods as exposed to anon via SELECT without RLS and provides concrete Supabase-compatible SQL fixes: enable RLS, add restrictive authenticated policies, and revoke anon SELECT."
+      }
+    ],
+    "prompt": "# Audit this Supabase project for security issues\n\nYou have access to the project's database schema and recent logs.\n\nIdentify any tables exposed to the public/anon role without proper Row Level\nSecurity in place. For each issue found, report:\n\n- The table name\n- The role(s) that can access it\n- Why this is a problem\n- A specific fix (SQL preferred)\n\nBe concrete. Vague answers like \"consider reviewing your RLS settings\" do not\ncount.",
+    "promptSourcePath": "evals/detect-security-001-public-table/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/detect-security-001-public-table.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "observe-db-001-table-row-counts",
+    "stage": "observe",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "schema",
+      "observability"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "reported users count",
+        "passed": true
+      },
+      {
+        "name": "reported orders count",
+        "passed": true
+      },
+      {
+        "name": "reported events count",
+        "passed": true
+      }
+    ],
+    "prompt": "# Public Table Row Counts\n\nList every user-defined table in the `public` schema and its exact row count.\n\nReport the results as table name plus count.",
+    "promptSourcePath": "evals/observe-db-001-table-row-counts/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/observe-db-001-table-row-counts.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "observe-logs-001-top-error-function",
+    "stage": "observe",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "observability",
+      "logs",
+      "reliability"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "named stripe-webhook",
+        "passed": true
+      },
+      {
+        "name": "reported 9 errors",
+        "passed": true
+      },
+      {
+        "name": "reported 50 total events",
+        "passed": true
+      }
+    ],
+    "prompt": "# Top Erroring Edge Function\n\nIdentify the edge function with the most errors in the last 15 minutes.\n\nReport:\n\n- The function id\n- The exact error count\n- The total event count for that function in the same window\n\nUse the available project observability data to answer.",
+    "promptSourcePath": "evals/observe-logs-001-top-error-function/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/observe-logs-001-top-error-function.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "resolve-functions-001-service-role-bypass",
+    "stage": "resolve",
+    "product": [
+      "functions",
+      "auth",
+      "database",
+      "sdk"
+    ],
+    "topic": [
+      "edge-functions",
+      "rls",
+      "security",
+      "supabase-js"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects missing auth",
+        "passed": true
+      },
+      {
+        "name": "user A reads own note",
+        "passed": true
+      },
+      {
+        "name": "user A cannot force-read user B note",
+        "passed": true
+      },
+      {
+        "name": "user B cannot force-read user A note",
+        "passed": true
+      }
+    ],
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/resolve-functions-001-service-role-bypass.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "resolve-performance-001-slow-query-index",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "performance",
+      "indexing",
+      "logs"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "created index covering user_id and created_at",
+        "passed": true
+      },
+      {
+        "name": "query plan uses an index",
+        "passed": true
+      },
+      {
+        "name": "query plan avoids sequential scan on events",
+        "passed": true
+      },
+      {
+        "name": "inserts still work",
+        "passed": true
+      }
+    ],
+    "prompt": "# Slow Recent Events Query\n\nInvestigate recent slow queries in the project logs and apply the most\nimpactful database fix.\n\nEnd your turn with a short summary of what you changed and why.",
+    "promptSourcePath": "evals/resolve-performance-001-slow-query-index/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/resolve-performance-001-slow-query-index.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "resolve-reliability-001-unhealthy-project-recovery",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "reliability",
+      "troubleshooting"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "answered unhealthy project recovery question safely",
+        "passed": false,
+        "judgeNotes": "The answer recommends restart first, but it presents pause/restore as a subsequent recovery path and does not clearly distinguish restore as backup/data recovery rather than a service restart/reboot. It also omits several expected concrete troubleshooting steps such as checking logs/advisors/resource pressure and contacting Supabase support if the project remains unhealthy."
+      }
+    ],
+    "prompt": "# Unhealthy Project Recovery Question\n\nMy Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
+    "promptSourcePath": "evals/resolve-reliability-001-unhealthy-project-recovery/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/resolve-reliability-001-unhealthy-project-recovery.json"
+  },
+  {
+    "experiment": "claude-sonnet-4.6",
+    "eval": "resolve-security-001-rls-cross-user-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "policies"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own note",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A note",
+        "passed": true
+      },
+      {
+        "name": "user A can still update own note",
+        "passed": true
+      },
+      {
+        "name": "WITH CHECK prevents user_id reassignment",
+        "passed": true
+      }
+    ],
+    "prompt": "# RLS Cross-User Access Review\n\nAudit the RLS policies on this Supabase project.\n\nIf any policy lets one authenticated user access another user's data, fix it in\nthe database. Do not weaken existing legitimate access.\n\nEnd your turn when you believe the policies are correct.",
+    "promptSourcePath": "evals/resolve-security-001-rls-cross-user-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-sonnet-4.6/resolve-security-001-rls-cross-user-leak.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "design-frontend-001-todos-app",
+    "stage": "design",
+    "product": [
+      "database",
+      "auth",
+      "sdk"
+    ],
+    "topic": [
+      "frontend",
+      "rls",
+      "supabase-js"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "vite build passed",
+        "passed": true
+      },
+      {
+        "name": "vitest passed",
+        "passed": true
+      }
+    ],
+    "prompt": "# Authenticated Todos Frontend\n\nBuild the missing Supabase integration for this Vite + React todos app.\n\nThe Supabase project already has a `todos` table with RLS policies:\n\n```sql\ntodos(id uuid, user_id uuid default auth.uid(), body text, done boolean, created_at timestamptz)\n```\n\nThe project files are under `app/`. `app/src/App.tsx` already contains the UI\nmarkup and stable `data-testid`s used by the tests. Keep that UI shape intact\nand hook it up to Supabase.\n\nRequirements:\n\n1. Create a Supabase client using `@supabase/supabase-js`. You may create a\n   helper like `app/src/supabase.ts` or keep the client in `App.tsx`.\n2. Read `import.meta.env.VITE_SUPABASE_URL` and\n   `import.meta.env.VITE_SUPABASE_ANON_KEY`.\n3. The sign-in form signs in with email/password.\n4. After sign-in, load and render only the current user's todos.\n5. The add-todo form inserts a todo for the current user. The table defaults `user_id`\n   from `auth.uid()`, so insert only the todo body.\n6. Checking a todo updates its `done` state in Supabase.\n7. Throw an error if any Supabase call fails.\n\nYou may refactor the implementation, but keep the existing user-facing controls\nand `data-testid` attributes so the tests can drive the app.",
+    "promptSourcePath": "evals/design-frontend-001-todos-app/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/design-frontend-001-todos-app/summary.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "design-functions-001-order-total",
+    "stage": "design",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "edge-functions",
+      "api"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects non-POST requests",
+        "passed": true
+      },
+      {
+        "name": "rejects invalid JSON",
+        "passed": true
+      },
+      {
+        "name": "rejects invalid item values",
+        "passed": true
+      },
+      {
+        "name": "calculates WELCOME10 totals",
+        "passed": true
+      },
+      {
+        "name": "chooses enterprise discount over capped coupon",
+        "passed": true
+      },
+      {
+        "name": "caps WELCOME10 discount at 2000 cents",
+        "passed": true
+      }
+    ],
+    "prompt": "# Order Total Edge Function\n\nCreate a Supabase Edge Function named `order-total`.\n\nThe function should accept only `POST` requests with a JSON body:\n\n```json\n{\n  \"items\": [\n    { \"sku\": \"basic-plan\", \"unit_price_cents\": 1200, \"quantity\": 2 }\n  ],\n  \"customer_tier\": \"standard\",\n  \"coupon\": \"WELCOME10\"\n}\n```\n\nImplement this behavior:\n\n1. Return `405` for non-`POST` requests.\n2. Return `400` with a JSON error if the body is invalid JSON, if `items` is\n   missing or empty, or if any item has a non-positive `unit_price_cents` or\n   `quantity`.\n3. Calculate `subtotal_cents` as the sum of `unit_price_cents * quantity`.\n4. Apply the best single discount:\n   - Coupon `WELCOME10`: 10% off subtotal, capped at 2000 cents.\n   - `customer_tier: \"enterprise\"`: 15% off subtotal.\n   - Discounts do not stack; use whichever discount is larger.\n5. Calculate `tax_cents` as 7.25% of the post-discount amount, rounded to the\n   nearest cent.\n6. Return `200` JSON with `subtotal_cents`, `discount_cents`, `tax_cents`, and\n   `total_cents`.\n\nDeploy the function with slug `order-total`. The deployed source should be a\nsingle `index.ts` file.",
+    "promptSourcePath": "evals/design-functions-001-order-total/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/design-functions-001-order-total.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "design-functions-002-edge-auth-db",
+    "stage": "design",
+    "product": [
+      "functions",
+      "database",
+      "auth",
+      "sdk"
+    ],
+    "topic": [
+      "edge-functions",
+      "auth",
+      "supabase-js"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer evaluated todo-create",
+        "passed": false,
+        "notes": "edge function import not supported: npm:@supabase/supabase-js@2"
+      }
+    ],
+    "prompt": "# Edge Function Auth + Database\n\nCreate a Supabase Edge Function named `todo-create`.\n\nThe function must:\n\n1. Accept only `POST` requests.\n2. Require the caller's `Authorization` header and forward it to Supabase.\n3. Use `@supabase/supabase-js` with:\n  - `Deno.env.get(\"SUPABASE_URL\")`\n  - `Deno.env.get(\"SUPABASE_ANON_KEY\")`\n4. Read JSON body `{ \"body\": \"todo text\" }`.\n5. Insert one row into the existing `todos` table. The table defaults `user_id`\n  from `auth.uid()`, so insert only the `body` value.\n6. Return `201` JSON containing the inserted row.\n7. Return a non-2xx JSON error for missing auth, invalid JSON, missing body, or\n  insert/select failures.\n\nDeploy the function with slug `todo-create`. The deployed source should be a\nsingle `index.ts` file.",
+    "promptSourcePath": "evals/design-functions-002-edge-auth-db/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/design-functions-002-edge-auth-db.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "design-functions-003-todos-crud-api",
+    "stage": "design",
+    "product": [
+      "functions",
+      "database",
+      "sdk"
+    ],
+    "topic": [
+      "edge-functions",
+      "supabase-js",
+      "crud"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer evaluated todos-api",
+        "passed": false,
+        "notes": "edge function import not supported: npm:@supabase/supabase-js@2"
+      }
+    ],
+    "prompt": "# Todos CRUD Edge Function\n\nCreate a Supabase Edge Function named `todos-api`.\n\nThe function must use `@supabase/supabase-js` with:\n\n- `Deno.env.get(\"SUPABASE_URL\")`\n- `Deno.env.get(\"SUPABASE_ANON_KEY\")`\n- The caller's `Authorization` header forwarded through `global.headers`\n\nImplement these routes:\n\n1. `GET /todos-api`\n  - Requires auth.\n  - Returns the caller's todos ordered by `created_at` ascending.\n  - Supports optional `?done=true|false`.\n  - Supports optional `?limit=` from 1 to 100, defaulting to 50.\n2. `POST /todos-api`\n  - Requires auth.\n  - Reads JSON body `{ \"body\": \"todo text\", \"done\": false }`.\n  - `body` is required and must be a non-empty string.\n  - `done` is optional and defaults to `false`.\n  - Returns `201` JSON containing the inserted row.\n3. `PATCH /todos-api/<uuid>`\n  - Requires auth.\n  - Accepts a JSON object with only `body` and/or `done`.\n  - Returns the updated row.\n  - Return `404` if the row does not belong to the caller or does not exist.\n4. `DELETE /todos-api/<uuid>`\n  - Requires auth.\n  - Deletes the caller's row and returns JSON `{ \"deleted\": true }`.\n  - Return `404` if the row does not belong to the caller or does not exist.\n\nReturn JSON errors for missing auth (`401`), unsupported methods (`405`),\ninvalid JSON (`400`), invalid UUID path params (`400`), invalid query params\n(`400`), and database failures.\n\nDeploy the function with slug `todos-api`. The deployed source should be a\nsingle `index.ts` file.",
+    "promptSourcePath": "evals/design-functions-003-todos-crud-api/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/design-functions-003-todos-crud-api.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "design-rls-001-tenant-isolation",
+    "stage": "design",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "multi-tenancy",
+      "security"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "tenant A sees only org A notes (n=2)",
+        "passed": true
+      },
+      {
+        "name": "tenant B blocked from org A reads",
+        "passed": true
+      },
+      {
+        "name": "insert into non-member org blocked",
+        "passed": true
+      },
+      {
+        "name": "author can update own note",
+        "passed": true
+      },
+      {
+        "name": "non-member cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "non-member cannot delete org A note",
+        "passed": true
+      }
+    ],
+    "prompt": "# Multi-tenant RLS\n\nYou are working on a Supabase project for a multi-tenant SaaS app.\n\nThe schema has two tables — `notes` and `memberships` — already created and\nseeded. Inspect the project state if you need to.\n\n```sql\n-- notes\nid uuid, org_id uuid, author_id uuid, body text, created_at timestamptz\n\n-- memberships  (which users belong to which orgs)\nuser_id uuid, org_id uuid\n```\n\nAdd the RLS policies needed so that authenticated users can:\n\n1. `SELECT` notes only from orgs they are a member of.\n2. `INSERT` notes only into orgs they are a member of, and only with\n   `author_id = auth.uid()`.\n3. `UPDATE` and `DELETE` only their own notes.\n\nApply the required database changes. End your turn when you believe the\npolicies are in place.",
+    "promptSourcePath": "evals/design-rls-001-tenant-isolation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/design-rls-001-tenant-isolation.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "design-rls-002-own-todos-client",
+    "stage": "design",
+    "product": [
+      "database",
+      "auth",
+      "sdk"
+    ],
+    "topic": [
+      "rls",
+      "supabase-js",
+      "security"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on todos",
+        "passed": true
+      },
+      {
+        "name": "user A sees only own todos",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A todos",
+        "passed": true
+      },
+      {
+        "name": "user A can insert own todo through supabase-js",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert todo for user A",
+        "passed": true
+      },
+      {
+        "name": "user A can update own todo",
+        "passed": true
+      },
+      {
+        "name": "user B cannot update user A todo",
+        "passed": true
+      },
+      {
+        "name": "user B can delete own todo",
+        "passed": true
+      },
+      {
+        "name": "user B cannot delete user A todo",
+        "passed": true
+      }
+    ],
+    "prompt": "# Own Todos RLS via Supabase Client\n\nYou are working on a Supabase project for a todos app.\n\nThe `todos` table already exists:\n\n```sql\nid uuid, user_id uuid, body text, done boolean, created_at timestamptz\n```\n\n`user_id` defaults to `auth.uid()`, so app code can insert a todo by sending only\n`body` / `done`.\n\nAdd the RLS policies needed so that authenticated users can:\n\n1. `SELECT` only their own todos.\n2. `INSERT` only their own todos.\n3. `UPDATE` only their own todos.\n4. `DELETE` only their own todos.\n\nApply the required database changes. End your turn when you believe the\npolicies are in place.",
+    "promptSourcePath": "evals/design-rls-002-own-todos-client/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/design-rls-002-own-todos-client.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "design-rls-003-org-roles-permissions",
+    "stage": "design",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "permissions",
+      "security"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "RLS enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "viewer sees active org documents only",
+        "passed": true
+      },
+      {
+        "name": "viewer cannot insert",
+        "passed": true
+      },
+      {
+        "name": "editor can insert own org document",
+        "passed": true
+      },
+      {
+        "name": "editor can update own document",
+        "passed": true
+      },
+      {
+        "name": "editor cannot update another user's document",
+        "passed": true
+      },
+      {
+        "name": "scorer evaluated org role RLS",
+        "passed": false,
+        "notes": "new row violates row-level security policy for table \"documents\""
+      }
+    ],
+    "prompt": "# Organization Document RLS\n\nYou are working on a Supabase project for a multi-tenant document app.\n\nThe schema has three tables already created and seeded:\n\n```sql\n-- memberships\nuser_id uuid, org_id uuid, role text\n\n-- documents\nid uuid, org_id uuid, owner_id uuid, title text, body text, deleted_at timestamptz\n\n-- document_audit\nid uuid, document_id uuid, actor_id uuid, action text, ts timestamptz\n```\n\nAdd the RLS policies and database logic needed for authenticated users:\n\n1. Viewers can read active documents in orgs where they are members.\n2. Editors can read active documents in their orgs, insert documents they own in their orgs, and update or delete only documents they own.\n3. Admins can read, update, and delete any active document in orgs where they are admins.\n4. Soft-deleted documents (`deleted_at IS NOT NULL`) should not be visible through normal reads.\n5. Deletes should be soft deletes by setting `deleted_at`; do not hard-delete rows.\n6. Every insert, update, and soft-delete should write a row to `document_audit` with the acting user.\n\nApply the required database changes. End your turn when you believe the\npolicies and audit behavior are in place.",
+    "promptSourcePath": "evals/design-rls-003-org-roles-permissions/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/design-rls-003-org-roles-permissions.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "detect-reliability-001-error-rate-spike",
+    "stage": "detect",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "reliability",
+      "observability",
+      "logs"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "named the affected function",
+        "passed": true
+      },
+      {
+        "name": "reported an error rate above 5%",
+        "passed": true
+      },
+      {
+        "name": "described the rate as elevated",
+        "passed": true
+      },
+      {
+        "name": "proposed a concrete next step",
+        "passed": true
+      }
+    ],
+    "prompt": "# Edge Function Reliability Review\n\nAudit the recent edge-function logs for any reliability problem worth flagging.\n\nIf you find one, report:\n\n- The affected function id\n- The observed error rate\n- Why the rate is concerning\n- A concrete next step to investigate or mitigate it\n\nBe specific. Vague answers like \"review the logs\" do not count.",
+    "promptSourcePath": "evals/detect-reliability-001-error-rate-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/detect-reliability-001-error-rate-spike.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "detect-reliability-002-subtle-error-spike",
+    "stage": "detect",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "reliability",
+      "observability",
+      "logs"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "named stripe-webhook",
+        "passed": false
+      },
+      {
+        "name": "used recent or per-function framing",
+        "passed": true
+      },
+      {
+        "name": "described elevated error rate",
+        "passed": true
+      },
+      {
+        "name": "did not flag a non-planted function",
+        "passed": false
+      }
+    ],
+    "prompt": "# Subtle Reliability Spike\n\nAudit recent edge-function logs for any reliability issue worth a human's\nattention.\n\nReport the affected function and explain why it is concerning. Be concrete\nabout the window or grouping you used. Vague answers like \"some errors are\npresent\" do not count.",
+    "promptSourcePath": "evals/detect-reliability-002-subtle-error-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/detect-reliability-002-subtle-error-spike.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "detect-security-001-public-table",
+    "stage": "detect",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "security",
+      "rls",
+      "observability"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "named the vulnerable table",
+        "passed": true
+      },
+      {
+        "name": "mentioned the anon role",
+        "passed": true
+      },
+      {
+        "name": "proposed a concrete fix",
+        "passed": true
+      },
+      {
+        "name": "verified the exposed table and fix",
+        "passed": true,
+        "judgeNotes": "Identified public.customer_payment_methods as anon-accessible without RLS and provided concrete Supabase SQL fix: revoke anon/authenticated access, enable RLS, and add restrictive authenticated owner policy."
+      }
+    ],
+    "prompt": "# Audit this Supabase project for security issues\n\nYou have access to the project's database schema and recent logs.\n\nIdentify any tables exposed to the public/anon role without proper Row Level\nSecurity in place. For each issue found, report:\n\n- The table name\n- The role(s) that can access it\n- Why this is a problem\n- A specific fix (SQL preferred)\n\nBe concrete. Vague answers like \"consider reviewing your RLS settings\" do not\ncount.",
+    "promptSourcePath": "evals/detect-security-001-public-table/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/detect-security-001-public-table.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "observe-db-001-table-row-counts",
+    "stage": "observe",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "schema",
+      "observability"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "reported users count",
+        "passed": true
+      },
+      {
+        "name": "reported orders count",
+        "passed": true
+      },
+      {
+        "name": "reported events count",
+        "passed": true
+      }
+    ],
+    "prompt": "# Public Table Row Counts\n\nList every user-defined table in the `public` schema and its exact row count.\n\nReport the results as table name plus count.",
+    "promptSourcePath": "evals/observe-db-001-table-row-counts/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/observe-db-001-table-row-counts.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "observe-logs-001-top-error-function",
+    "stage": "observe",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "observability",
+      "logs",
+      "reliability"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "named stripe-webhook",
+        "passed": true
+      },
+      {
+        "name": "reported 9 errors",
+        "passed": true
+      },
+      {
+        "name": "reported 50 total events",
+        "passed": true
+      }
+    ],
+    "prompt": "# Top Erroring Edge Function\n\nIdentify the edge function with the most errors in the last 15 minutes.\n\nReport:\n\n- The function id\n- The exact error count\n- The total event count for that function in the same window\n\nUse the available project observability data to answer.",
+    "promptSourcePath": "evals/observe-logs-001-top-error-function/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/observe-logs-001-top-error-function.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "resolve-functions-001-service-role-bypass",
+    "stage": "resolve",
+    "product": [
+      "functions",
+      "auth",
+      "database",
+      "sdk"
+    ],
+    "topic": [
+      "edge-functions",
+      "rls",
+      "security",
+      "supabase-js"
+    ],
+    "passed": false,
+    "checks": [
+      {
+        "name": "rejects missing auth",
+        "passed": true
+      },
+      {
+        "name": "scorer evaluated private-notes",
+        "passed": false,
+        "notes": "edge function import not supported: https://esm.sh/@supabase/supabase-js@2"
+      }
+    ],
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/resolve-functions-001-service-role-bypass.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "resolve-performance-001-slow-query-index",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "performance",
+      "indexing",
+      "logs"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "created index covering user_id and created_at",
+        "passed": true
+      },
+      {
+        "name": "query plan uses an index",
+        "passed": true
+      },
+      {
+        "name": "query plan avoids sequential scan on events",
+        "passed": true
+      },
+      {
+        "name": "inserts still work",
+        "passed": true
+      }
+    ],
+    "prompt": "# Slow Recent Events Query\n\nInvestigate recent slow queries in the project logs and apply the most\nimpactful database fix.\n\nEnd your turn with a short summary of what you changed and why.",
+    "promptSourcePath": "evals/resolve-performance-001-slow-query-index/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/resolve-performance-001-slow-query-index.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "resolve-reliability-001-unhealthy-project-recovery",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "reliability",
+      "troubleshooting"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "answered unhealthy project recovery question safely",
+        "passed": true,
+        "judgeNotes": "The answer recommends restart first, does not present pause/restore as the first recovery step, and distinguishes restart for transient issues from restore/backup recovery. It includes some concrete steps, though it could be stronger by explicitly advising logs/advisors/resource checks, troubleshooting docs, and contacting Supabase support if the project remains unhealthy."
+      }
+    ],
+    "prompt": "# Unhealthy Project Recovery Question\n\nMy Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
+    "promptSourcePath": "evals/resolve-reliability-001-unhealthy-project-recovery/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/resolve-reliability-001-unhealthy-project-recovery.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "resolve-security-001-rls-cross-user-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "policies"
+    ],
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own note",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A note",
+        "passed": true
+      },
+      {
+        "name": "user A can still update own note",
+        "passed": true
+      },
+      {
+        "name": "WITH CHECK prevents user_id reassignment",
+        "passed": true
+      }
+    ],
+    "prompt": "# RLS Cross-User Access Review\n\nAudit the RLS policies on this Supabase project.\n\nIf any policy lets one authenticated user access another user's data, fix it in\nthe database. Do not weaken existing legitimate access.\n\nEnd your turn when you believe the policies are correct.",
+    "promptSourcePath": "evals/resolve-security-001-rls-cross-user-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/resolve-security-001-rls-cross-user-leak.json"
+  }
+]
