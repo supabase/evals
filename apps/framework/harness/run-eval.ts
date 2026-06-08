@@ -31,9 +31,11 @@ const args = new Set(rawArgs);
 const FORCE = args.has("--force");
 const SMOKE = args.has("--smoke");
 const DRY = args.has("--dry");
-const EXPERIMENT_FILTER = readFlag("experiment");
+const EXPERIMENT_FILTERS = readRepeatedFlag("experiment").map(
+  normalizeExperimentName,
+);
 const MODEL_FILTER = readFlag("model");
-const EVAL_FILTER = readFlag("eval");
+const EVAL_FILTERS = readRepeatedFlag("eval");
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
@@ -65,6 +67,39 @@ function readFlag(name: string): string | undefined {
     return value;
   }
   return undefined;
+}
+
+function readRepeatedFlag(name: string): string[] {
+  const values: string[] = [];
+  const prefix = `--${name}=`;
+
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const arg = rawArgs[index];
+    if (!arg) continue;
+
+    if (arg.startsWith(prefix)) {
+      values.push(...splitList(arg.slice(prefix.length)));
+      continue;
+    }
+
+    if (arg === `--${name}`) {
+      const value = rawArgs[index + 1];
+      if (!value || value.startsWith("--")) {
+        throw new Error(`--${name} requires a value`);
+      }
+      values.push(...splitList(value));
+      index += 1;
+    }
+  }
+
+  return values;
+}
+
+function splitList(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function discoverEvals(): EvalManifest[] {
@@ -321,18 +356,29 @@ function formatRunSummary(res: ScoreResult & { attempts: number }): string {
 }
 
 async function main() {
-  const experiments = (await loadExperiments()).filter(({ name, config }) => {
+  const allExperiments = await loadExperiments();
+  if (EXPERIMENT_FILTERS.length > 0) {
+    const experimentNames = new Set(allExperiments.map(({ name }) => name));
+    const missing = EXPERIMENT_FILTERS.filter((name) => !experimentNames.has(name));
+    if (missing.length > 0) {
+      throw new Error(`no experiment matched: ${missing.join(",")}`);
+    }
+  }
+
+  const experiments = allExperiments.filter(({ name, config }) => {
     if (
-      EXPERIMENT_FILTER &&
-      name !== normalizeExperimentName(EXPERIMENT_FILTER)
+      EXPERIMENT_FILTERS.length > 0 &&
+      !EXPERIMENT_FILTERS.includes(name)
     )
       return false;
     if (MODEL_FILTER && config.agent.modelId !== MODEL_FILTER) return false;
     return true;
   });
-  if (EXPERIMENT_FILTER || MODEL_FILTER) {
+  if (EXPERIMENT_FILTERS.length > 0 || MODEL_FILTER) {
     const filter = [
-      EXPERIMENT_FILTER ? `experiment=${EXPERIMENT_FILTER}` : undefined,
+      EXPERIMENT_FILTERS.length > 0
+        ? `experiment=${EXPERIMENT_FILTERS.join(",")}`
+        : undefined,
       MODEL_FILTER ? `model=${MODEL_FILTER}` : undefined,
     ]
       .filter(Boolean)
@@ -342,6 +388,14 @@ async function main() {
     }
   }
   const evals = discoverEvals();
+  if (EVAL_FILTERS.length > 0) {
+    const evalIds = new Set(evals.map((e) => e.id));
+    const missing = EVAL_FILTERS.filter((evalId) => !evalIds.has(evalId));
+    if (missing.length > 0) {
+      throw new Error(`no eval matched: ${missing.join(",")}`);
+    }
+  }
+
   console.log(
     `${experiments.length} experiment(s), ${evals.length} eval(s), ` +
       `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
@@ -354,13 +408,9 @@ async function main() {
           return acc;
         }, {}),
       )
-    : EVAL_FILTER
-      ? evals.filter((e) => e.id === EVAL_FILTER)
+    : EVAL_FILTERS.length > 0
+      ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
       : evals;
-
-  if (EVAL_FILTER && filtered.length === 0) {
-    throw new Error(`no eval matched --eval=${EVAL_FILTER}`);
-  }
 
   for (const { name, config } of experiments) {
     if (!DRY) {
