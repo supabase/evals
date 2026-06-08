@@ -29,11 +29,7 @@ import {
   type ProjectInstance,
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
-import {
-  evalProductSchema,
-  evalStageSchema,
-  evalSuiteSchema,
-} from "./eval-metadata.js";
+import type { CheckResult } from "./eval-metadata.js";
 
 const EXECUTOR_BIN = join(
   dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
@@ -48,49 +44,24 @@ export {
   EVAL_PRODUCTS,
   EVAL_SUITES,
   EVAL_STAGES,
+  checkResultSchema,
   evalMetadataSchema,
   evalProductSchema,
+  evalResultSchema,
   evalStageSchema,
   evalSuiteSchema,
   parseEvalMarkdown,
+  rawEvalResultSchema,
 } from "./eval-metadata.js";
 export type {
+  CheckResult,
   EvalMetadata,
   EvalProduct,
+  EvalResult,
   EvalSuite,
   EvalStage,
   ParsedEvalMarkdown,
 } from "./eval-metadata.js";
-
-export const checkResultSchema = z.object({
-  name: z.string(),
-  passed: z.boolean(),
-  notes: z.string().optional(),
-  judgeNotes: z.string().optional(),
-});
-export type CheckResult = z.infer<typeof checkResultSchema>;
-
-export const rawEvalResultSchema = z
-  .object({
-    experiment: z.string(),
-    eval: z.string(),
-    stage: evalStageSchema.optional(),
-    product: z.array(evalProductSchema).optional(),
-    topic: z.array(z.string()).optional(),
-    suite: evalSuiteSchema.optional(),
-    passed: z.boolean().optional(),
-    checks: z.array(checkResultSchema).optional(),
-    attempts: z.number().optional(),
-  })
-  .passthrough();
-
-export const evalResultSchema = rawEvalResultSchema.extend({
-  passed: z.boolean(),
-  prompt: z.string().optional(),
-  promptSourcePath: z.string().optional(),
-  sourcePath: z.string(),
-});
-export type EvalResult = z.infer<typeof evalResultSchema>;
 
 export interface ScoreResult {
   passed: boolean;

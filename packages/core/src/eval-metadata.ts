@@ -48,6 +48,39 @@ export const evalMetadataSchema = z.object({
   suite: evalSuiteSchema.default("regression"),
 });
 
+export const checkResultSchema = z.object({
+  name: z.string(),
+  passed: z.boolean(),
+  notes: z.string().optional(),
+  judgeNotes: z.string().optional(),
+});
+export type CheckResult = z.infer<typeof checkResultSchema>;
+
+const evalResultShape = {
+  experiment: z.string(),
+  eval: z.string(),
+  stage: evalStageSchema.optional(),
+  product: z.array(evalProductSchema).optional(),
+  topic: z.array(z.string()).optional(),
+  suite: evalSuiteSchema.optional(),
+  passed: z.boolean().optional(),
+  checks: z.array(checkResultSchema).optional(),
+  attempts: z.number().optional(),
+};
+
+// Raw result files may carry extra fields we don't model; tolerate them.
+export const rawEvalResultSchema = z.looseObject(evalResultShape);
+
+// Web-facing result; a clean strict object so its inferred type stays usable.
+export const evalResultSchema = z.object({
+  ...evalResultShape,
+  passed: z.boolean(),
+  prompt: z.string().optional(),
+  promptSourcePath: z.string().optional(),
+  sourcePath: z.string(),
+});
+export type EvalResult = z.infer<typeof evalResultSchema>;
+
 export function parseEvalMarkdown(
   source: string,
   sourceName = "eval markdown",

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { BotIcon, CheckIcon, CopyIcon, XIcon } from "lucide-react"
+import { z } from "zod"
+import {
+  evalResultSchema,
+  type EvalResult,
+} from "@supabase-evals/core/eval-metadata"
 import rawResults from "@/data/eval-results.json"
-import type { EvalResult } from "@/data/types"
 
 import {
   Accordion,
@@ -140,7 +144,7 @@ function parseResult(result: EvalResult): ParsedResult {
   }
 }
 
-const exportedResults: EvalResult[] = rawResults
+const exportedResults: EvalResult[] = z.array(evalResultSchema).parse(rawResults)
 const results = exportedResults.map(parseResult)
 const experiments = Array.from(
   new Set(results.map((result) => result.experiment))
