@@ -11,10 +11,12 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { parseEvalMarkdown } from "@supabase-evals/core/eval-metadata";
 import {
-  evalSuiteSchema,
-  parseEvalMarkdown,
-} from "@supabase-evals/core/eval-metadata";
+  normalizeExperimentName,
+  readRepeatedFlag,
+  readSuiteFilters,
+} from "../lib/cli-args.js";
 import { buildFileTools } from "./file-tools.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
@@ -34,12 +36,12 @@ const args = new Set(rawArgs);
 const FORCE = args.has("--force");
 const SMOKE = args.has("--smoke");
 const DRY = args.has("--dry");
-const EXPERIMENT_FILTERS = readRepeatedFlag("experiment").map(
+const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
   normalizeExperimentName,
 );
 const MODEL_FILTER = readFlag("model");
-const EVAL_FILTERS = readRepeatedFlag("eval");
-const SUITE_FILTERS = readSuiteFilters();
+const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
+const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
@@ -71,51 +73,6 @@ function readFlag(name: string): string | undefined {
     return value;
   }
   return undefined;
-}
-
-function readRepeatedFlag(name: string): string[] {
-  const values: string[] = [];
-  const prefix = `--${name}=`;
-
-  for (let index = 0; index < rawArgs.length; index += 1) {
-    const arg = rawArgs[index];
-    if (!arg) continue;
-
-    if (arg.startsWith(prefix)) {
-      values.push(...splitList(arg.slice(prefix.length)));
-      continue;
-    }
-
-    if (arg === `--${name}`) {
-      const value = rawArgs[index + 1];
-      if (!value || value.startsWith("--")) {
-        throw new Error(`--${name} requires a value`);
-      }
-      values.push(...splitList(value));
-      index += 1;
-    }
-  }
-
-  return values;
-}
-
-function splitList(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function readSuiteFilters() {
-  return readRepeatedFlag("suite").map((value) => {
-    const parsed = evalSuiteSchema.safeParse(normalizeSuiteName(value));
-    if (!parsed.success) {
-      throw new Error(
-        `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(", ")}`,
-      );
-    }
-    return parsed.data;
-  });
 }
 
 function discoverEvals(): EvalManifest[] {
@@ -355,14 +312,6 @@ async function runOne(
     agentReport: lastAgentReport,
     stoppedReason: lastStoppedReason,
   };
-}
-
-function normalizeExperimentName(s: string): string {
-  return s.replace(/^experiments\//, "").replace(/\.ts$/, "");
-}
-
-function normalizeSuiteName(value: string): string {
-  return value.trim().toLowerCase();
 }
 
 function formatRunSummary(res: ScoreResult & { attempts: number }): string {

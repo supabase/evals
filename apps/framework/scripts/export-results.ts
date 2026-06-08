@@ -10,14 +10,18 @@ import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  evalSuiteSchema,
   parseEvalMarkdown,
+  rawEvalResultSchema,
 } from "@supabase-evals/core/eval-metadata";
 import type {
   EvalResult,
   EvalSuite,
-} from "@supabase-evals/core";
-import { rawEvalResultSchema } from "@supabase-evals/core";
+} from "@supabase-evals/core/eval-metadata";
+import {
+  normalizeExperimentName,
+  readRepeatedFlag,
+  readSuiteFilters,
+} from "../lib/cli-args.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..", "..");
@@ -25,11 +29,11 @@ const RESULTS_DIR = join(ROOT, "results");
 const EVALS_DIR = join(ROOT, "evals");
 const OUTPUT_PATH = join(ROOT, "apps", "web", "src", "data", "eval-results.json");
 const rawArgs = process.argv.slice(2);
-const EXPERIMENT_FILTERS = readRepeatedFlag("experiment").map(
+const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
   normalizeExperimentName,
 );
-const EVAL_FILTERS = readRepeatedFlag("eval");
-const SUITE_FILTERS = readSuiteFilters();
+const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
+const SUITE_FILTERS = readSuiteFilters(rawArgs);
 
 async function readPrompt(evalId: string) {
   const promptPath = resolve(EVALS_DIR, evalId, "PROMPT.md");
@@ -79,55 +83,6 @@ async function readResultFile(
     attempts: parsedResult.attempts,
     sourcePath,
   };
-}
-
-function readRepeatedFlag(name: string): string[] {
-  const values: string[] = [];
-  const prefix = `--${name}=`;
-
-  for (let index = 0; index < rawArgs.length; index += 1) {
-    const arg = rawArgs[index];
-    if (!arg) continue;
-
-    if (arg.startsWith(prefix)) {
-      values.push(...splitList(arg.slice(prefix.length)));
-      continue;
-    }
-
-    if (arg === `--${name}`) {
-      const value = rawArgs[index + 1];
-      if (!value || value.startsWith("--")) {
-        throw new Error(`--${name} requires a value`);
-      }
-      values.push(...splitList(value));
-      index += 1;
-    }
-  }
-
-  return values;
-}
-
-function splitList(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function readSuiteFilters(): EvalSuite[] {
-  return readRepeatedFlag("suite").map((value) => {
-    const parsed = evalSuiteSchema.safeParse(value.trim().toLowerCase());
-    if (!parsed.success) {
-      throw new Error(
-        `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(", ")}`,
-      );
-    }
-    return parsed.data;
-  });
-}
-
-function normalizeExperimentName(value: string): string {
-  return value.replace(/^experiments\//, "").replace(/\.ts$/, "");
 }
 
 function shouldIncludeExperiment(experiment: string): boolean {
