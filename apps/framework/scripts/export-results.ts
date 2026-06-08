@@ -10,16 +10,14 @@ import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  EVAL_PRODUCTS,
-  EVAL_STAGES,
+  evalSuiteSchema,
   parseEvalMarkdown,
 } from "@supabase-evals/core/eval-metadata";
 import type {
-  CheckResult,
-  EvalProduct,
   EvalResult,
-  EvalStage,
+  EvalSuite,
 } from "@supabase-evals/core";
+import { rawEvalResultSchema } from "@supabase-evals/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..", "..");
@@ -31,84 +29,7 @@ const EXPERIMENT_FILTERS = readRepeatedFlag("experiment").map(
   normalizeExperimentName,
 );
 const EVAL_FILTERS = readRepeatedFlag("eval");
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-const EVAL_STAGE_VALUES: readonly string[] = EVAL_STAGES;
-const EVAL_PRODUCT_VALUES: readonly string[] = EVAL_PRODUCTS;
-
-function isEvalStage(value: string): value is EvalStage {
-  return EVAL_STAGE_VALUES.includes(value);
-}
-
-function isEvalProduct(value: string): value is EvalProduct {
-  return EVAL_PRODUCT_VALUES.includes(value);
-}
-
-function readStage(value: unknown): EvalStage | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  return isEvalStage(value) ? value : undefined;
-}
-
-function readProductArray(value: unknown): EvalProduct[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-
-  const products = value.filter(
-    (item): item is EvalProduct => typeof item === "string" && isEvalProduct(item),
-  );
-  return products.length > 0 ? products : undefined;
-}
-
-function readTopicArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-
-  const topics = value.filter((item): item is string => typeof item === "string");
-  return topics.length > 0 ? topics : undefined;
-}
-
-function readChecks(value: unknown): CheckResult[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-
-  const checks = value.flatMap((item) => {
-    const check = readCheck(item);
-    return check ? [check] : [];
-  });
-
-  return checks.length > 0 ? checks : undefined;
-}
-
-function readCheck(value: unknown): CheckResult | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const name = value.name;
-  const passed = value.passed;
-  const notes = value.notes;
-  const judgeNotes = value.judgeNotes;
-
-  if (typeof name !== "string" || typeof passed !== "boolean") {
-    return undefined;
-  }
-
-  return {
-    name,
-    passed,
-    notes: typeof notes === "string" ? notes : undefined,
-    judgeNotes: typeof judgeNotes === "string" ? judgeNotes : undefined,
-  };
-}
+const SUITE_FILTERS = readSuiteFilters();
 
 async function readPrompt(evalId: string) {
   const promptPath = resolve(EVALS_DIR, evalId, "PROMPT.md");
@@ -136,31 +57,26 @@ async function readResultFile(
   sourcePath: string,
 ): Promise<EvalResult | null> {
   const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
-
-  if (!isRecord(parsed)) {
+  const result = rawEvalResultSchema.safeParse(parsed);
+  if (!result.success) {
     return null;
   }
+  const parsedResult = result.data;
 
-  const experiment = parsed.experiment;
-  const evalId = parsed.eval;
-
-  if (typeof experiment !== "string" || typeof evalId !== "string") {
-    return null;
-  }
-
-  const promptData = await readPrompt(evalId);
+  const promptData = await readPrompt(parsedResult.eval);
 
   return {
-    experiment,
-    eval: evalId,
-    stage: promptData?.stage ?? readStage(parsed.stage),
-    product: promptData?.product ?? readProductArray(parsed.product),
-    topic: promptData?.topic ?? readTopicArray(parsed.topic),
-    passed: parsed.passed === true,
-    checks: readChecks(parsed.checks),
+    experiment: parsedResult.experiment,
+    eval: parsedResult.eval,
+    stage: promptData?.stage ?? parsedResult.stage,
+    product: promptData?.product ?? parsedResult.product,
+    topic: promptData?.topic ?? parsedResult.topic,
+    suite: promptData?.suite ?? parsedResult.suite,
+    passed: parsedResult.passed === true,
+    checks: parsedResult.checks,
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
-    attempts: typeof parsed.attempts === "number" ? parsed.attempts : undefined,
+    attempts: parsedResult.attempts,
     sourcePath,
   };
 }
@@ -198,6 +114,18 @@ function splitList(value: string): string[] {
     .filter(Boolean);
 }
 
+function readSuiteFilters(): EvalSuite[] {
+  return readRepeatedFlag("suite").map((value) => {
+    const parsed = evalSuiteSchema.safeParse(value.trim().toLowerCase());
+    if (!parsed.success) {
+      throw new Error(
+        `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(", ")}`,
+      );
+    }
+    return parsed.data;
+  });
+}
+
 function normalizeExperimentName(value: string): string {
   return value.replace(/^experiments\//, "").replace(/\.ts$/, "");
 }
@@ -216,6 +144,14 @@ function shouldIncludeEval(evalId: string): boolean {
   }
 
   return EVAL_FILTERS.includes(evalId);
+}
+
+function shouldIncludeSuite(suite: EvalSuite | undefined): boolean {
+  if (SUITE_FILTERS.length === 0) {
+    return true;
+  }
+
+  return suite !== undefined && SUITE_FILTERS.includes(suite);
 }
 
 async function loadEvalResults(): Promise<EvalResult[]> {
@@ -252,7 +188,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
         }
 
         const result = await readResultFile(entryPath, relativeEntryPath);
-        if (result) {
+        if (result && shouldIncludeSuite(result.suite)) {
           results.push(result);
         }
         continue;
@@ -275,7 +211,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
         summaryPath,
         `${relativeEntryPath}/summary.json`,
       );
-      if (result) {
+      if (result && shouldIncludeSuite(result.suite)) {
         results.push(result);
       }
     }
@@ -289,7 +225,10 @@ async function loadEvalResults(): Promise<EvalResult[]> {
 
 async function main() {
   const results = await loadEvalResults();
-  const hasFilters = EXPERIMENT_FILTERS.length > 0 || EVAL_FILTERS.length > 0;
+  const hasFilters =
+    EXPERIMENT_FILTERS.length > 0 ||
+    EVAL_FILTERS.length > 0 ||
+    SUITE_FILTERS.length > 0;
 
   if (hasFilters && results.length === 0) {
     throw new Error("no result files matched the requested export filters");

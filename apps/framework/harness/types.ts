@@ -2,6 +2,7 @@ import type {
   EvalMetadata,
   EvalProduct,
   EvalStage,
+  EvalSuite,
 } from "@supabase-evals/core/eval-metadata";
 
 export type {
@@ -31,6 +32,7 @@ export type {
   EvalMetadata,
   EvalProduct,
   EvalStage,
+  EvalSuite,
 } from "@supabase-evals/core/eval-metadata";
 
 export type EvalMode = "tool" | "project";
@@ -46,6 +48,7 @@ export interface EvalManifest {
   metadata: EvalMetadata;
   stage: EvalStage;
   product: EvalProduct[];
+  suite: EvalSuite;
   topic: string[];
   dir: string;
   appDir?: string;

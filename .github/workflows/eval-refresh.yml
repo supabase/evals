@@ -6,11 +6,15 @@ on:
       experiments:
         description: "Comma-separated experiment names to run"
         required: true
-        default: "openai-gpt-5.4-mini,claude-sonnet-4.6"
+        default: "openai-gpt-5.4-mini,openai-gpt-5.4-nano"
       eval:
         description: "Optional single eval id to run"
         required: false
         default: ""
+      suite:
+        description: "Comma-separated eval suites to run"
+        required: true
+        default: "benchmark"
       runs:
         description: "Attempts per experiment/eval pair"
         required: true
@@ -37,6 +41,7 @@ jobs:
     outputs:
       experiments: ${{ steps.inputs.outputs.experiments }}
       eval: ${{ steps.inputs.outputs.eval }}
+      suite: ${{ steps.inputs.outputs.suite }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
     steps:
@@ -49,20 +54,24 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             experiments="${{ inputs.experiments }}"
             eval_id="${{ inputs.eval }}"
+            suite="${{ inputs.suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
           else
-            experiments="openai-gpt-5.4-mini,claude-sonnet-4.6"
+            experiments="openai-gpt-5.4-mini,openai-gpt-5.4-nano"
             eval_id=""
+            suite="benchmark"
             runs="1"
             timeout_sec="720"
           fi
 
           experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments")"
+          suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
 
           {
             echo "experiments=$experiments_json"
             echo "eval=$eval_id"
+            echo "suite=$suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
           } >> "$GITHUB_OUTPUT"
@@ -117,6 +126,10 @@ jobs:
             "--force"
           )
 
+          while IFS= read -r suite; do
+            args+=("--suite" "$suite")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
+
           if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
             args+=("--eval" "${{ needs.prepare.outputs.eval }}")
           fi
@@ -168,6 +181,10 @@ jobs:
             fi
             export_args+=("--experiment" "$experiment")
           done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiments }}')
+
+          while IFS= read -r suite; do
+            export_args+=("--suite" "$suite")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
 
           if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
             export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")

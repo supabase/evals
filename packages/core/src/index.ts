@@ -29,7 +29,11 @@ import {
   type ProjectInstance,
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
-import type { EvalProduct, EvalStage } from "./eval-metadata.js";
+import {
+  evalProductSchema,
+  evalStageSchema,
+  evalSuiteSchema,
+} from "./eval-metadata.js";
 
 const EXECUTOR_BIN = join(
   dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
@@ -42,41 +46,56 @@ export type { SupabaseClient };
 export type { ManagementApiClient };
 export {
   EVAL_PRODUCTS,
+  EVAL_SUITES,
   EVAL_STAGES,
+  evalMetadataSchema,
+  evalProductSchema,
+  evalStageSchema,
+  evalSuiteSchema,
   parseEvalMarkdown,
 } from "./eval-metadata.js";
 export type {
   EvalMetadata,
   EvalProduct,
+  EvalSuite,
   EvalStage,
   ParsedEvalMarkdown,
 } from "./eval-metadata.js";
 
-export type EvalResult = {
-  experiment: string;
-  eval: string;
-  stage?: EvalStage;
-  product?: EvalProduct[];
-  topic?: string[];
-  passed: boolean;
-  checks?: CheckResult[];
-  prompt?: string;
-  promptSourcePath?: string;
-  attempts?: number;
-  sourcePath: string;
-};
+export const checkResultSchema = z.object({
+  name: z.string(),
+  passed: z.boolean(),
+  notes: z.string().optional(),
+  judgeNotes: z.string().optional(),
+});
+export type CheckResult = z.infer<typeof checkResultSchema>;
+
+export const rawEvalResultSchema = z
+  .object({
+    experiment: z.string(),
+    eval: z.string(),
+    stage: evalStageSchema.optional(),
+    product: z.array(evalProductSchema).optional(),
+    topic: z.array(z.string()).optional(),
+    suite: evalSuiteSchema.optional(),
+    passed: z.boolean().optional(),
+    checks: z.array(checkResultSchema).optional(),
+    attempts: z.number().optional(),
+  })
+  .passthrough();
+
+export const evalResultSchema = rawEvalResultSchema.extend({
+  passed: z.boolean(),
+  prompt: z.string().optional(),
+  promptSourcePath: z.string().optional(),
+  sourcePath: z.string(),
+});
+export type EvalResult = z.infer<typeof evalResultSchema>;
 
 export interface ScoreResult {
   passed: boolean;
   checks?: CheckResult[];
 }
-
-export type CheckResult = {
-  name: string;
-  passed: boolean;
-  notes?: string;
-  judgeNotes?: string;
-};
 
 export type TranscriptPart =
   | {

@@ -11,7 +11,10 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parseEvalMarkdown } from "@supabase-evals/core/eval-metadata";
+import {
+  evalSuiteSchema,
+  parseEvalMarkdown,
+} from "@supabase-evals/core/eval-metadata";
 import { buildFileTools } from "./file-tools.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
@@ -36,6 +39,7 @@ const EXPERIMENT_FILTERS = readRepeatedFlag("experiment").map(
 );
 const MODEL_FILTER = readFlag("model");
 const EVAL_FILTERS = readRepeatedFlag("eval");
+const SUITE_FILTERS = readSuiteFilters();
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
@@ -102,6 +106,18 @@ function splitList(value: string): string[] {
     .filter(Boolean);
 }
 
+function readSuiteFilters() {
+  return readRepeatedFlag("suite").map((value) => {
+    const parsed = evalSuiteSchema.safeParse(normalizeSuiteName(value));
+    if (!parsed.success) {
+      throw new Error(
+        `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(", ")}`,
+      );
+    }
+    return parsed.data;
+  });
+}
+
 function discoverEvals(): EvalManifest[] {
   const dir = join(ROOT, "evals");
   if (!existsSync(dir)) return [];
@@ -126,6 +142,7 @@ function discoverEvals(): EvalManifest[] {
       metadata,
       stage: metadata.stage,
       product: metadata.product,
+      suite: metadata.suite,
       topic: metadata.topic,
       dir: evalDir,
       appDir: isProject ? appDir : undefined,
@@ -344,6 +361,10 @@ function normalizeExperimentName(s: string): string {
   return s.replace(/^experiments\//, "").replace(/\.ts$/, "");
 }
 
+function normalizeSuiteName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 function formatRunSummary(res: ScoreResult & { attempts: number }): string {
   const parts: string[] = [];
   if (res.checks?.length) {
@@ -396,11 +417,6 @@ async function main() {
     }
   }
 
-  console.log(
-    `${experiments.length} experiment(s), ${evals.length} eval(s), ` +
-      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
-  );
-
   const filtered = SMOKE
     ? Object.values(
         evals.reduce<Record<string, EvalManifest>>((acc, e) => {
@@ -411,6 +427,25 @@ async function main() {
     : EVAL_FILTERS.length > 0
       ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
       : evals;
+  const suiteFiltered =
+    SUITE_FILTERS.length > 0
+      ? filtered.filter((e) => SUITE_FILTERS.includes(e.suite))
+      : filtered;
+
+  if (suiteFiltered.length === 0) {
+    const filter = [
+      EVAL_FILTERS.length > 0 ? `eval=${EVAL_FILTERS.join(",")}` : undefined,
+      SUITE_FILTERS.length > 0 ? `suite=${SUITE_FILTERS.join(",")}` : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    throw new Error(`no evals matched ${filter}`);
+  }
+
+  console.log(
+    `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
+      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
+  );
 
   for (const { name, config } of experiments) {
     if (!DRY) {
@@ -423,7 +458,7 @@ async function main() {
         continue;
       }
     }
-    for (const ev of filtered) {
+    for (const ev of suiteFiltered) {
       const out = resultPath(name, ev);
       if (!FORCE && existsSync(out)) {
         console.log(`SKIP ${name} x ${ev.id} (already ran)`);
@@ -432,8 +467,8 @@ async function main() {
       if (DRY) {
         console.log(
           ev.mode === "project"
-            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} mode=project tools=files.*`
-            : `PLAN ${name} x ${ev.id}  stage=${ev.stage} runtime=${config.runtime.id} model=${config.agent.modelId}`,
+            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} mode=project tools=files.*`
+            : `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} runtime=${config.runtime.id} model=${config.agent.modelId}`,
         );
         continue;
       }
