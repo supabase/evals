@@ -24,7 +24,9 @@ on:
         required: true
         default: "720"
   pull_request:
-    types: [labeled]
+    # Run whenever a PR carrying the run-evals label is opened, pushed to, or
+    # (re)labeled. The job-level `if` gates on the label actually being present.
+    types: [opened, synchronize, labeled]
 
 permissions:
   contents: write
@@ -32,11 +34,17 @@ permissions:
 
 concurrency:
   group: eval-refresh-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # Supersede an in-flight run when a new commit is pushed to the same PR, but
+  # never cancel a workflow_dispatch run (those open the refresh PR).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-evals')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'run-evals') &&
+        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
       experiments: ${{ steps.inputs.outputs.experiments }}
