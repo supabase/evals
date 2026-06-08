@@ -12,6 +12,11 @@ import {
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseEvalMarkdown } from "@supabase-evals/core/eval-metadata";
+import {
+  normalizeExperimentName,
+  readRepeatedFlag,
+  readSuiteFilters,
+} from "../lib/cli-args.js";
 import { buildFileTools } from "./file-tools.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
@@ -31,9 +36,12 @@ const args = new Set(rawArgs);
 const FORCE = args.has("--force");
 const SMOKE = args.has("--smoke");
 const DRY = args.has("--dry");
-const EXPERIMENT_FILTER = readFlag("experiment");
+const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
+  normalizeExperimentName,
+);
 const MODEL_FILTER = readFlag("model");
-const EVAL_FILTER = readFlag("eval");
+const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
+const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
@@ -91,6 +99,7 @@ function discoverEvals(): EvalManifest[] {
       metadata,
       stage: metadata.stage,
       product: metadata.product,
+      suite: metadata.suite,
       topic: metadata.topic,
       dir: evalDir,
       appDir: isProject ? appDir : undefined,
@@ -305,10 +314,6 @@ async function runOne(
   };
 }
 
-function normalizeExperimentName(s: string): string {
-  return s.replace(/^experiments\//, "").replace(/\.ts$/, "");
-}
-
 function formatRunSummary(res: ScoreResult & { attempts: number }): string {
   const parts: string[] = [];
   if (res.checks?.length) {
@@ -321,18 +326,29 @@ function formatRunSummary(res: ScoreResult & { attempts: number }): string {
 }
 
 async function main() {
-  const experiments = (await loadExperiments()).filter(({ name, config }) => {
+  const allExperiments = await loadExperiments();
+  if (EXPERIMENT_FILTERS.length > 0) {
+    const experimentNames = new Set(allExperiments.map(({ name }) => name));
+    const missing = EXPERIMENT_FILTERS.filter((name) => !experimentNames.has(name));
+    if (missing.length > 0) {
+      throw new Error(`no experiment matched: ${missing.join(",")}`);
+    }
+  }
+
+  const experiments = allExperiments.filter(({ name, config }) => {
     if (
-      EXPERIMENT_FILTER &&
-      name !== normalizeExperimentName(EXPERIMENT_FILTER)
+      EXPERIMENT_FILTERS.length > 0 &&
+      !EXPERIMENT_FILTERS.includes(name)
     )
       return false;
     if (MODEL_FILTER && config.agent.modelId !== MODEL_FILTER) return false;
     return true;
   });
-  if (EXPERIMENT_FILTER || MODEL_FILTER) {
+  if (EXPERIMENT_FILTERS.length > 0 || MODEL_FILTER) {
     const filter = [
-      EXPERIMENT_FILTER ? `experiment=${EXPERIMENT_FILTER}` : undefined,
+      EXPERIMENT_FILTERS.length > 0
+        ? `experiment=${EXPERIMENT_FILTERS.join(",")}`
+        : undefined,
       MODEL_FILTER ? `model=${MODEL_FILTER}` : undefined,
     ]
       .filter(Boolean)
@@ -342,10 +358,13 @@ async function main() {
     }
   }
   const evals = discoverEvals();
-  console.log(
-    `${experiments.length} experiment(s), ${evals.length} eval(s), ` +
-      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
-  );
+  if (EVAL_FILTERS.length > 0) {
+    const evalIds = new Set(evals.map((e) => e.id));
+    const missing = EVAL_FILTERS.filter((evalId) => !evalIds.has(evalId));
+    if (missing.length > 0) {
+      throw new Error(`no eval matched: ${missing.join(",")}`);
+    }
+  }
 
   const filtered = SMOKE
     ? Object.values(
@@ -354,13 +373,28 @@ async function main() {
           return acc;
         }, {}),
       )
-    : EVAL_FILTER
-      ? evals.filter((e) => e.id === EVAL_FILTER)
+    : EVAL_FILTERS.length > 0
+      ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
       : evals;
+  const suiteFiltered =
+    SUITE_FILTERS.length > 0
+      ? filtered.filter((e) => SUITE_FILTERS.includes(e.suite))
+      : filtered;
 
-  if (EVAL_FILTER && filtered.length === 0) {
-    throw new Error(`no eval matched --eval=${EVAL_FILTER}`);
+  if (suiteFiltered.length === 0) {
+    const filter = [
+      EVAL_FILTERS.length > 0 ? `eval=${EVAL_FILTERS.join(",")}` : undefined,
+      SUITE_FILTERS.length > 0 ? `suite=${SUITE_FILTERS.join(",")}` : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    throw new Error(`no evals matched ${filter}`);
   }
+
+  console.log(
+    `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
+      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
+  );
 
   for (const { name, config } of experiments) {
     if (!DRY) {
@@ -373,7 +407,7 @@ async function main() {
         continue;
       }
     }
-    for (const ev of filtered) {
+    for (const ev of suiteFiltered) {
       const out = resultPath(name, ev);
       if (!FORCE && existsSync(out)) {
         console.log(`SKIP ${name} x ${ev.id} (already ran)`);
@@ -382,8 +416,8 @@ async function main() {
       if (DRY) {
         console.log(
           ev.mode === "project"
-            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} mode=project tools=files.*`
-            : `PLAN ${name} x ${ev.id}  stage=${ev.stage} runtime=${config.runtime.id} model=${config.agent.modelId}`,
+            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} mode=project tools=files.*`
+            : `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} runtime=${config.runtime.id} model=${config.agent.modelId}`,
         );
         continue;
       }

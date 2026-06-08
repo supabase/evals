@@ -68,6 +68,19 @@ Target a single experiment by filename stem:
 npm run eval -- --experiment openai-gpt-5.4-mini --runs 1 --force
 ```
 
+Target multiple experiments or eval scenarios by repeating flags:
+
+```bash
+npm run eval -- \
+  --experiment openai-gpt-5.4-mini \
+  --experiment openai-gpt-5.4-nano \
+  --suite benchmark \
+  --eval detect-security-001-public-table \
+  --eval observe-db-001-table-row-counts \
+  --runs 1 \
+  --force
+```
+
 Target a single model id:
 
 ```bash
@@ -97,6 +110,7 @@ Every eval contains:
 ```md
 ---
 stage: design
+suite: benchmark
 product:
   - database
   - auth

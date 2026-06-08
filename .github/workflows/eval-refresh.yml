@@ -1,0 +1,222 @@
+name: Refresh eval results
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiments:
+        description: "Comma-separated experiment names to run"
+        required: true
+        default: "openai-gpt-5.4-mini,openai-gpt-5.4-nano"
+      eval:
+        description: "Optional single eval id to run"
+        required: false
+        default: ""
+      suite:
+        description: "Comma-separated eval suites to run"
+        required: true
+        default: "benchmark"
+      runs:
+        description: "Attempts per experiment/eval pair"
+        required: true
+        default: "1"
+      timeout_sec:
+        description: "Timeout per attempt in seconds"
+        required: true
+        default: "720"
+  pull_request:
+    # Run whenever a PR carrying the run-evals label is opened, pushed to, or
+    # (re)labeled. The job-level `if` gates on the label actually being present.
+    types: [opened, synchronize, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: eval-refresh-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  # Supersede an in-flight run when a new commit is pushed to the same PR, but
+  # never cancel a workflow_dispatch run (those open the refresh PR).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'run-evals') &&
+        github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      experiments: ${{ steps.inputs.outputs.experiments }}
+      eval: ${{ steps.inputs.outputs.eval }}
+      suite: ${{ steps.inputs.outputs.suite }}
+      runs: ${{ steps.inputs.outputs.runs }}
+      timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
+    steps:
+      - name: Prepare inputs
+        id: inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            experiments="${{ inputs.experiments }}"
+            eval_id="${{ inputs.eval }}"
+            suite="${{ inputs.suite }}"
+            runs="${{ inputs.runs }}"
+            timeout_sec="${{ inputs.timeout_sec }}"
+          else
+            experiments="openai-gpt-5.4-mini,openai-gpt-5.4-nano"
+            eval_id=""
+            suite="benchmark"
+            runs="1"
+            timeout_sec="720"
+          fi
+
+          experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments")"
+          suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
+
+          {
+            echo "experiments=$experiments_json"
+            echo "eval=$eval_id"
+            echo "suite=$suite_json"
+            echo "runs=$runs"
+            echo "timeout_sec=$timeout_sec"
+          } >> "$GITHUB_OUTPUT"
+
+  run-evals:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        experiment: ${{ fromJSON(needs.prepare.outputs.experiments) }}
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write eval environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+            echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+          } > .env
+
+      - name: Run evals
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args=(
+            "--experiment"
+            "${{ matrix.experiment }}"
+            "--runs"
+            "${{ needs.prepare.outputs.runs }}"
+            "--timeout-sec"
+            "${{ needs.prepare.outputs.timeout_sec }}"
+            "--force"
+          )
+
+          while IFS= read -r suite; do
+            args+=("--suite" "$suite")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
+
+          if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
+            args+=("--eval" "${{ needs.prepare.outputs.eval }}")
+          fi
+
+          npm run eval -- "${args[@]}"
+
+      - name: Upload raw results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: raw-results-${{ matrix.experiment }}
+          path: results/${{ matrix.experiment }}/
+          retention-days: 3
+
+  export-results:
+    needs: [prepare, run-evals]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download raw results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: downloaded-results
+
+      - name: Export web results
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p results
+          export_args=()
+          while IFS= read -r experiment; do
+            artifact_dir="downloaded-results/raw-results-$experiment"
+            if [ -d "$artifact_dir" ]; then
+              mkdir -p "results/$experiment"
+              cp -R "$artifact_dir"/. "results/$experiment"/
+            fi
+            export_args+=("--experiment" "$experiment")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiments }}')
+
+          while IFS= read -r suite; do
+            export_args+=("--suite" "$suite")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
+
+          if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
+            export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")
+          fi
+
+          npm run -w @supabase-evals/framework export-results -- "${export_args[@]}"
+
+      - name: Upload exported results
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eval-results-json
+          path: apps/web/src/data/eval-results.json
+          retention-days: 7
+
+      - name: Create results pull request
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          add-paths: apps/web/src/data/eval-results.json
+          branch: chore/refresh-eval-results
+          commit-message: "chore: refresh eval results"
+          title: "chore: refresh eval results"
+          body: |
+            Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
+          draft: true
+          delete-branch: true
