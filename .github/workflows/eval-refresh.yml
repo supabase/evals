@@ -1,0 +1,124 @@
+name: Refresh eval results
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiments:
+        description: "Comma-separated experiment names to run"
+        required: true
+        default: "openai-gpt-5.4-mini,claude-sonnet-4.6"
+      eval:
+        description: "Optional single eval id to run"
+        required: false
+        default: ""
+      runs:
+        description: "Attempts per experiment/eval pair"
+        required: true
+        default: "1"
+      timeout_sec:
+        description: "Timeout per attempt in seconds"
+        required: true
+        default: "720"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: eval-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write eval environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+            echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+          } > .env
+
+      - name: Run evals
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IFS=',' read -ra experiments <<< "${{ inputs.experiments }}"
+          for experiment in "${experiments[@]}"; do
+            experiment="$(echo "$experiment" | xargs)"
+            if [ -z "$experiment" ]; then
+              continue
+            fi
+
+            args=(
+              "--experiment"
+              "$experiment"
+              "--runs"
+              "${{ inputs.runs }}"
+              "--timeout-sec"
+              "${{ inputs.timeout_sec }}"
+              "--force"
+            )
+
+            if [ -n "${{ inputs.eval }}" ]; then
+              args+=("--eval" "${{ inputs.eval }}")
+            fi
+
+            npm run eval -- "${args[@]}"
+          done
+
+      - name: Export web results
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export_args=()
+          IFS=',' read -ra experiments <<< "${{ inputs.experiments }}"
+          for experiment in "${experiments[@]}"; do
+            experiment="$(echo "$experiment" | xargs)"
+            if [ -n "$experiment" ]; then
+              export_args+=("--experiment" "$experiment")
+            fi
+          done
+
+          if [ -n "${{ inputs.eval }}" ]; then
+            export_args+=("--eval" "${{ inputs.eval }}")
+          fi
+
+          npm run -w @supabase-evals/framework export-results -- "${export_args[@]}"
+
+      - name: Commit results
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- apps/web/src/data/eval-results.json; then
+            echo "No eval result changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/data/eval-results.json
+          git commit -m "chore: refresh eval results"
+          git push
