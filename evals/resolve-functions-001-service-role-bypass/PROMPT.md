@@ -1,5 +1,6 @@
 ---
 stage: resolve
+suite: benchmark
 product:
   - functions
   - auth
