@@ -1,6 +1,5 @@
 ---
 stage: detect
-suite: benchmark
 product:
   - database
 topic:

@@ -1,4 +1,5 @@
 import {
+  unwrapEdgeFunctionResponse,
   type CheckResult,
   type ToolEvalContext,
   type ToolScorer,
@@ -17,11 +18,13 @@ const invoke = async (
   body: Record<string, unknown> | string | undefined,
   method = "POST"
 ) =>
-  ctx.invokeFunction({
-    name: FUNCTION_NAME,
-    method,
-    body,
-  }) as Promise<InvokeResult>;
+  unwrapEdgeFunctionResponse(
+    await ctx.invokeFunction({
+      name: FUNCTION_NAME,
+      method,
+      body,
+    })
+  );
 
 const parseJson = (result: InvokeResult) => {
   try {

@@ -1,4 +1,8 @@
-import type { CheckResult, ToolScorer } from "@supabase-evals/core";
+import {
+  unwrapEdgeFunctionResponse,
+  type CheckResult,
+  type ToolScorer,
+} from "@supabase-evals/core";
 
 const FUNCTION_NAME = "todos-api";
 const PASSWORD = "secret123";
@@ -61,10 +65,12 @@ const scorer: ToolScorer = async (ctx) => {
       headers?: Record<string, string>;
       body?: unknown;
     }) =>
-      ctx.invokeFunction({
-        name: FUNCTION_NAME,
-        ...input,
-      }) as Promise<InvokeResult>;
+      ctx
+        .invokeFunction({
+          name: FUNCTION_NAME,
+          ...input,
+        })
+        .then(unwrapEdgeFunctionResponse);
 
     const authHeadersA = { authorization: `Bearer ${authA.session.access_token}` };
     const authHeadersB = { authorization: `Bearer ${authB.session.access_token}` };

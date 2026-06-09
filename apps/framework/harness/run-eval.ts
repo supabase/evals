@@ -259,10 +259,12 @@ async function runOne(
     // Tool mode: boot runtime, expose MCP tools, run agent, score result.
     const projectSeedSql = join(ev.seedDir, "project.sql");
     const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
+    const functionsSeedDir = join(ev.seedDir, "functions");
 
     const session = await exp.runtime.startSession({
       projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
       logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
+      functionsSeedDir: existsSync(functionsSeedDir) ? functionsSeedDir : undefined,
     });
 
     try {

@@ -24,6 +24,7 @@ import { z } from "zod";
 import {
   createManagementApiClient,
   createPlatform,
+  loadFunctionSeeds,
   type ManagementApiClient,
   type PlatformHandle,
   type ProjectInstance,
@@ -133,10 +134,31 @@ export interface EdgeFunctionsInvokeInput {
   body?: unknown;
 }
 
-export interface EdgeFunctionsInvokeResult {
+export interface EdgeFunctionsInvokeResponse {
+  type: "response";
   status: number;
   headers: Record<string, string>;
   body: string;
+  /**
+   * Bearer tokens the function presented on outbound requests it made back to
+   * the project, in call order. Lets scorers assert which identity it acted as.
+   */
+  outboundBearerTokens: string[];
+}
+
+/**
+ * Result of invoking an edge function. `type: "error"` means no response was
+ * produced (missing function, compile error, or a runtime throw).
+ */
+export type EdgeFunctionsInvokeResult =
+  | EdgeFunctionsInvokeResponse
+  | { type: "error"; error: string };
+
+export function unwrapEdgeFunctionResponse(
+  result: EdgeFunctionsInvokeResult,
+): EdgeFunctionsInvokeResponse {
+  if (result.type === "error") throw new Error(result.error);
+  return result;
 }
 
 export interface ToolScoringContext {
@@ -387,6 +409,7 @@ export type EvalRuntime = {
 export type EvalSessionArgs = {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
+  functionsSeedDir?: string;
 };
 
 export type EvalSession = {
@@ -716,6 +739,7 @@ export interface PlatformBackend {
 export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
+  functionsSeedDir?: string;
 }): Promise<PlatformBackend> {
   const sql =
     opts.projectSeedSql && existsSync(opts.projectSeedSql)
@@ -727,9 +751,13 @@ export async function bootPlatformBackend(opts: {
       ? parseJsonl(opts.logsSeedJsonl)
       : undefined;
 
+  const functions = opts.functionsSeedDir
+    ? await loadFunctionSeeds(opts.functionsSeedDir)
+    : undefined;
+
   const platform = await createPlatform({
     accessToken: ACCESS_TOKEN,
-    projects: [{ sql, logs }],
+    projects: [{ sql, logs, functions }],
   });
 
   let server: ServerHandle | undefined;
@@ -909,12 +937,16 @@ function parseLogLine(line: string): LogRow {
   };
 }
 
-function generateAnonKey(ref: string, jwtSecret: string): string {
+function generateProjectKey(
+  ref: string,
+  jwtSecret: string,
+  role: "anon" | "service_role",
+): string {
   const b64url = (s: string) => Buffer.from(s).toString("base64url");
   const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const body = b64url(
     JSON.stringify({
-      role: "anon",
+      role,
       iss: "supabase-lite",
       ref,
       iat: Math.floor(Date.now() / 1000),
@@ -931,53 +963,90 @@ async function invokeEdgeFunction(
   instance: ProjectInstance,
   input: EdgeFunctionsInvokeInput,
 ): Promise<EdgeFunctionsInvokeResult> {
-  const fn = instance.functions.get(input.name);
-  if (!fn) throw new Error(`edge function not found: ${input.name}`);
-  const source = fn.files[0]?.content;
-  if (!source) throw new Error(`edge function ${input.name} has no source`);
+  // Record the bearer token on every outbound request the function makes back
+  // to the project, so scorers can assert which identity it acted as.
+  const outboundBearerTokens: string[] = [];
+  try {
+    const fn = instance.functions.get(input.name);
+    if (!fn) throw new Error(`edge function not found: ${input.name}`);
+    const source = fn.files[0]?.content;
+    if (!source) throw new Error(`edge function ${input.name} has no source`);
 
-  const anonKey = generateAnonKey(instance.ref, instance.jwtSecret);
-  const projectFetch = (req: Request) => instance.app.fetch(req);
-  const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
-  const handler = compileEdgeFunction(
-    source,
-    RUNTIME_URL,
-    anonKey,
-    runtimeFetch,
-  );
+    const method = (input.method ?? "POST").toUpperCase();
+    const headers = new Headers(input.headers ?? {});
+    if (fn.verify_jwt && !headers.has("authorization")) {
+      return {
+        type: "response",
+        status: 401,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ error: "Missing authorization header" }),
+        outboundBearerTokens,
+      };
+    }
 
-  const method = (input.method ?? "POST").toUpperCase();
-  const headers = new Headers(input.headers ?? {});
-  const hasBody =
-    method !== "GET" && method !== "HEAD" && input.body !== undefined;
-  const bodyStr =
-    typeof input.body === "string"
-      ? input.body
-      : input.body === undefined
-        ? undefined
-        : JSON.stringify(input.body);
-
-  if (bodyStr !== undefined && !headers.has("content-type")) {
-    headers.set("content-type", "application/json");
-  }
-
-  const response = await Promise.resolve(
-    handler(
-      new Request(
-        `https://project-ref.functions.supabase.co/${input.name}${input.path ?? ""}`,
-        { method, headers, body: hasBody ? bodyStr : undefined },
+    const projectFetch = (req: Request) => {
+      const bearer = req.headers
+        .get("authorization")
+        ?.replace(/^Bearer\s+/i, "");
+      if (bearer) outboundBearerTokens.push(bearer);
+      return instance.app.fetch(req);
+    };
+    const runtimeFetch = createRuntimeFetch(RUNTIME_URL, projectFetch);
+    // Legacy JWT keys are the only kind platform-lite authenticates:
+    // https://github.com/supabase-community/lite/blob/aff4e9fa6f75289f3d7eb021b2b7a8198e4665ec/app/src/server/data/auth-guard.ts#L25-L76
+    const env: Record<string, string> = {
+      SUPABASE_URL: RUNTIME_URL,
+      SUPABASE_ANON_KEY: generateProjectKey(
+        instance.ref,
+        instance.jwtSecret,
+        "anon",
       ),
-    ),
-  );
-  if (!(response instanceof Response)) {
-    throw new Error(`edge function ${input.name} did not return a Response`);
-  }
+      SUPABASE_SERVICE_ROLE_KEY: generateProjectKey(
+        instance.ref,
+        instance.jwtSecret,
+        "service_role",
+      ),
+    };
+    const handler = compileEdgeFunction(source, env, runtimeFetch);
 
-  return {
-    status: response.status,
-    headers: Object.fromEntries(response.headers.entries()),
-    body: await response.text(),
-  };
+    const hasBody =
+      method !== "GET" && method !== "HEAD" && input.body !== undefined;
+    const bodyStr =
+      typeof input.body === "string"
+        ? input.body
+        : input.body === undefined
+          ? undefined
+          : JSON.stringify(input.body);
+
+    if (bodyStr !== undefined && !headers.has("content-type")) {
+      headers.set("content-type", "application/json");
+    }
+
+    const response = await Promise.resolve(
+      handler(
+        new Request(
+          `https://project-ref.functions.supabase.co/${input.name}${input.path ?? ""}`,
+          { method, headers, body: hasBody ? bodyStr : undefined },
+        ),
+      ),
+    );
+    if (!(response instanceof Response)) {
+      throw new Error(`edge function ${input.name} did not return a Response`);
+    }
+
+    return {
+      type: "response",
+      status: response.status,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.text(),
+      outboundBearerTokens,
+    };
+  } catch (error) {
+    return {
+      type: "error",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 type EdgeHandler = (req: Request) => unknown;
@@ -999,8 +1068,7 @@ function createRuntimeFetch(
 
 function compileEdgeFunction(
   source: string,
-  url: string,
-  anonKey: string,
+  env: Record<string, string>,
   runtimeFetch: typeof fetch,
 ): EdgeHandler {
   const js = ts.transpileModule(source, {
@@ -1016,7 +1084,14 @@ function compileEdgeFunction(
   const moduleState: { exports: Record<string, unknown> } = { exports };
 
   const requireFromSandbox = (specifier: string) => {
-    if (specifier === "@supabase/supabase-js") {
+    if (specifier === "jsr:@supabase/functions-js/edge-runtime.d.ts") {
+      return {};
+    }
+    if (
+      specifier === "@supabase/supabase-js" ||
+      specifier.startsWith("jsr:@supabase/supabase-js@") ||
+      specifier.startsWith("npm:@supabase/supabase-js@")
+    ) {
       return {
         createClient: (
           u: string,
@@ -1043,12 +1118,7 @@ function compileEdgeFunction(
         denoServeHandler = (req) => handler(req);
       },
       env: {
-        get: (key: string) =>
-          key === "SUPABASE_URL"
-            ? url
-            : key === "SUPABASE_ANON_KEY"
-              ? anonKey
-              : undefined,
+        get: (key: string) => env[key],
       },
     },
     fetch: runtimeFetch,
