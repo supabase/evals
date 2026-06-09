@@ -1,0 +1,78 @@
+[
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "detect-security-001-public-table",
+    "stage": "detect",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "security",
+      "rls",
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "named the vulnerable table",
+        "passed": true
+      },
+      {
+        "name": "mentioned the anon role",
+        "passed": true
+      },
+      {
+        "name": "proposed a concrete fix",
+        "passed": true
+      },
+      {
+        "name": "verified the exposed table and fix",
+        "passed": true,
+        "judgeNotes": "Identified public.customer_payment_methods exposed to anon SELECT with RLS disabled, explained the risk, and provided concrete Supabase-compatible SQL fixes (enable RLS with restrictive authenticated policy and revoke anon/authenticated access if not public)."
+      }
+    ],
+    "prompt": "# Audit this Supabase project for security issues\n\nYou have access to the project's database schema and recent logs.\n\nIdentify any tables exposed to the public/anon role without proper Row Level\nSecurity in place. For each issue found, report:\n\n- The table name\n- The role(s) that can access it\n- Why this is a problem\n- A specific fix (SQL preferred)\n\nBe concrete. Vague answers like \"consider reviewing your RLS settings\" do not\ncount.",
+    "promptSourcePath": "evals/detect-security-001-public-table/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/detect-security-001-public-table.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "detect-security-001-public-table",
+    "stage": "detect",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "security",
+      "rls",
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "named the vulnerable table",
+        "passed": true
+      },
+      {
+        "name": "mentioned the anon role",
+        "passed": true
+      },
+      {
+        "name": "proposed a concrete fix",
+        "passed": true
+      },
+      {
+        "name": "verified the exposed table and fix",
+        "passed": true,
+        "judgeNotes": "The agent correctly identified public.customer_payment_methods as accessible by anon with SELECT and lacking proper RLS, explained the exposure risk, and provided concrete Supabase-compatible SQL fixes including enabling RLS, revoking anon/authenticated grants, and adding restrictive ownership policies."
+      }
+    ],
+    "prompt": "# Audit this Supabase project for security issues\n\nYou have access to the project's database schema and recent logs.\n\nIdentify any tables exposed to the public/anon role without proper Row Level\nSecurity in place. For each issue found, report:\n\n- The table name\n- The role(s) that can access it\n- Why this is a problem\n- A specific fix (SQL preferred)\n\nBe concrete. Vague answers like \"consider reviewing your RLS settings\" do not\ncount.",
+    "promptSourcePath": "evals/detect-security-001-public-table/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/detect-security-001-public-table.json"
+  }
+]

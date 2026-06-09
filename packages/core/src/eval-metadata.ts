@@ -1,13 +1,16 @@
-export const EVAL_STAGES = [
+import { z } from "zod";
+
+export const evalStageSchema = z.enum([
   "design",
   "deploy",
   "observe",
   "detect",
   "resolve",
-] as const;
-export type EvalStage = (typeof EVAL_STAGES)[number];
+]);
+export const EVAL_STAGES = evalStageSchema.options;
+export type EvalStage = z.infer<typeof evalStageSchema>;
 
-export const EVAL_PRODUCTS = [
+export const evalProductSchema = z.enum([
   "database",
   "storage",
   "auth",
@@ -18,13 +21,19 @@ export const EVAL_PRODUCTS = [
   "cli",
   "docs",
   "self-hosted",
-] as const;
-export type EvalProduct = (typeof EVAL_PRODUCTS)[number];
+]);
+export const EVAL_PRODUCTS = evalProductSchema.options;
+export type EvalProduct = z.infer<typeof evalProductSchema>;
+
+export const evalSuiteSchema = z.enum(["benchmark", "regression"]);
+export const EVAL_SUITES = evalSuiteSchema.options;
+export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
 export type EvalMetadata = {
   stage: EvalStage;
   product: EvalProduct[];
   topic: string[];
+  suite: EvalSuite;
 };
 
 export type ParsedEvalMarkdown = {
@@ -32,8 +41,45 @@ export type ParsedEvalMarkdown = {
   body: string;
 };
 
-const stageSet = new Set<string>(EVAL_STAGES);
-const productSet = new Set<string>(EVAL_PRODUCTS);
+export const evalMetadataSchema = z.object({
+  stage: evalStageSchema,
+  product: z.array(evalProductSchema).min(1),
+  topic: z.array(z.string().min(1)).min(1),
+  suite: evalSuiteSchema.default("regression"),
+});
+
+export const checkResultSchema = z.object({
+  name: z.string(),
+  passed: z.boolean(),
+  notes: z.string().optional(),
+  judgeNotes: z.string().optional(),
+});
+export type CheckResult = z.infer<typeof checkResultSchema>;
+
+const evalResultShape = {
+  experiment: z.string(),
+  eval: z.string(),
+  stage: evalStageSchema.optional(),
+  product: z.array(evalProductSchema).optional(),
+  topic: z.array(z.string()).optional(),
+  suite: evalSuiteSchema.optional(),
+  passed: z.boolean().optional(),
+  checks: z.array(checkResultSchema).optional(),
+  attempts: z.number().optional(),
+};
+
+// Raw result files may carry extra fields we don't model; tolerate them.
+export const rawEvalResultSchema = z.looseObject(evalResultShape);
+
+// Web-facing result; a clean strict object so its inferred type stays usable.
+export const evalResultSchema = z.object({
+  ...evalResultShape,
+  passed: z.boolean(),
+  prompt: z.string().optional(),
+  promptSourcePath: z.string().optional(),
+  sourcePath: z.string(),
+});
+export type EvalResult = z.infer<typeof evalResultSchema>;
 
 export function parseEvalMarkdown(
   source: string,
@@ -45,39 +91,26 @@ export function parseEvalMarkdown(
   }
 
   const raw = parseSimpleFrontmatter(match[1] ?? "", sourceName);
-  const stage = normalizeToken(readRequiredScalar(raw, "stage", sourceName));
-  if (!stageSet.has(stage)) {
-    throw new Error(
-      `${sourceName} has invalid stage "${stage}". Expected one of: ${EVAL_STAGES.join(", ")}`,
-    );
-  }
+  const rawSuite = readOptionalScalar(raw, "suite");
+  const parsedMetadata = evalMetadataSchema.safeParse({
+    stage: normalizeToken(readRequiredScalar(raw, "stage", sourceName)),
+    product: readRequiredArray(raw, ["product", "products"], sourceName).map(
+      normalizeToken,
+    ),
+    topic: readRequiredArray(raw, ["topic", "topics"], sourceName).map(
+      normalizeToken,
+    ),
+    suite: rawSuite ? normalizeToken(rawSuite) : undefined,
+  });
 
-  const product = readRequiredArray(
-    raw,
-    ["product", "products"],
-    sourceName,
-  ).map(normalizeToken);
-  const invalidProducts = product.filter((value) => !productSet.has(value));
-  if (invalidProducts.length) {
+  if (!parsedMetadata.success) {
     throw new Error(
-      `${sourceName} has invalid product value(s): ${invalidProducts.join(", ")}. ` +
-        `Expected one or more of: ${EVAL_PRODUCTS.join(", ")}`,
+      `${sourceName} has invalid eval metadata: ${formatZodIssues(parsedMetadata.error.issues)}`,
     );
-  }
-
-  const topic = readRequiredArray(raw, ["topic", "topics"], sourceName).map(
-    normalizeToken,
-  );
-  if (topic.some((value) => !value)) {
-    throw new Error(`${sourceName} has an empty topic value`);
   }
 
   return {
-    metadata: {
-      stage: stage as EvalStage,
-      product: product as EvalProduct[],
-      topic,
-    },
+    metadata: parsedMetadata.data,
     body: source.slice(match[0].length).trim(),
   };
 }
@@ -177,6 +210,26 @@ function readRequiredArray(
     );
   }
   return cleaned;
+}
+
+function readOptionalScalar(
+  raw: Record<string, string | string[]>,
+  key: string,
+): string | undefined {
+  const value = raw[key];
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined;
+  }
+  return value;
+}
+
+function formatZodIssues(issues: z.core.$ZodIssue[]): string {
+  return issues
+    .map((issue) => {
+      const path = issue.path.join(".");
+      return path ? `${path}: ${issue.message}` : issue.message;
+    })
+    .join("; ");
 }
 
 function normalizeToken(value: string): string {
