@@ -1,6 +1,32 @@
 [
   {
     "experiment": "openai-gpt-5.4-mini",
+    "eval": "detect-reliability-003-edge-function-5xx-correlation",
+    "stage": "detect",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "reliability",
+      "observability",
+      "logs"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "diagnosed edge function 5xx correlation issue",
+        "passed": false,
+        "judgeNotes": "The answer identifies image-transform and mentions 503s, but it does not provide the specific burst/window of 12 HTTP 503s, does not note the absence of corresponding Edge Function invocation rows while nearby successes exist, and does not draw the key conclusion that the failure occurred in the gateway/platform/invocation path before normal invocation logging. It also introduces avatar-upload validation as a likely cause and recommends generic inspection/redeploy rather than escalation with request IDs/time window or platform/runtime health correlation."
+      }
+    ],
+    "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "promptSourcePath": "evals/detect-reliability-003-edge-function-5xx-correlation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/detect-reliability-003-edge-function-5xx-correlation.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
     "eval": "resolve-functions-001-service-role-bypass",
     "stage": "resolve",
     "product": [
@@ -16,7 +42,7 @@
       "supabase-js"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -32,11 +58,11 @@
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": false
+        "passed": true
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": false
+        "passed": true
       }
     ],
     "prompt": "# Private Notes Function Review\n\nI built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
@@ -100,6 +126,32 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "detect-reliability-003-edge-function-5xx-correlation",
+    "stage": "detect",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "reliability",
+      "observability",
+      "logs"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "diagnosed edge function 5xx correlation issue",
+        "passed": false,
+        "judgeNotes": "The answer identifies image-transform and gives the 10:18Z–10:29Z 503 window, but it misses a key required finding: that matching Edge Function invocation rows are absent during the failing window while nearby successful invocations exist. It therefore does not clearly conclude the failure happened in the gateway/platform invocation path before normal invocation logging, rather than in function code. The next steps are partly concrete but not tied to gateway/request IDs or platform invocation-path escalation."
+      }
+    ],
+    "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "promptSourcePath": "evals/detect-reliability-003-edge-function-5xx-correlation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/detect-reliability-003-edge-function-5xx-correlation.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
