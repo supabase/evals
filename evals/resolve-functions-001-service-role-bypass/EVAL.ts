@@ -5,6 +5,7 @@ const PASSWORD = "secret123";
 const NOTE_A = "user A private note";
 const NOTE_B = "user B private note";
 
+// Temporary no-op change to smoke test changed-eval refresh selection.
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
