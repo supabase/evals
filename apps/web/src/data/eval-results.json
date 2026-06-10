@@ -15,9 +15,19 @@
     "passed": false,
     "checks": [
       {
-        "name": "diagnosed edge function 5xx correlation issue",
+        "name": "identified image-transform and the 503 burst window",
+        "passed": true,
+        "judgeNotes": "The assistant identified image-transform as affected and gave a specific 2026-04-28T10:18Z–10:29Z window for repeated 503 errors."
+      },
+      {
+        "name": "correlated absent invocation rows to a gateway/platform failure",
         "passed": false,
-        "judgeNotes": "The answer identifies image-transform and mentions 503s, but it does not provide the specific burst/window of 12 HTTP 503s, does not note the absence of corresponding Edge Function invocation rows while nearby successes exist, and does not draw the key conclusion that the failure occurred in the gateway/platform/invocation path before normal invocation logging. It also introduces avatar-upload validation as a likely cause and recommends generic inspection/redeploy rather than escalation with request IDs/time window or platform/runtime health correlation."
+        "judgeNotes": "The assistant noted gateway 503s and recovery, but did not make clear that invocation rows were absent/missing during the failing window while nearby successful invocations existed, nor did it explicitly conclude the failure occurred before invocation record creation and was not an application exception visible in MCP invocation logs."
+      },
+      {
+        "name": "recommended a concrete next step",
+        "passed": true,
+        "judgeNotes": "The assistant recommended concrete next steps, including checking Edge Function deployment history for a specific time window, reviewing function code/config for startup/runtime errors, adding retry/fallback handling, and investigating a separate validation failure."
       }
     ],
     "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -143,9 +153,19 @@
     "passed": false,
     "checks": [
       {
-        "name": "diagnosed edge function 5xx correlation issue",
+        "name": "identified image-transform and the 503 burst window",
+        "passed": true,
+        "judgeNotes": "Identified image-transform as affected and specified the 2026-04-28T10:18Z–~10:29Z 503 window."
+      },
+      {
+        "name": "correlated absent invocation rows to a gateway/platform failure",
         "passed": false,
-        "judgeNotes": "The answer identifies image-transform and gives the 10:18Z–10:29Z 503 window, but it misses a key required finding: that matching Edge Function invocation rows are absent during the failing window while nearby successful invocations exist. It therefore does not clearly conclude the failure happened in the gateway/platform invocation path before normal invocation logging, rather than in function code. The next steps are partly concrete but not tied to gateway/request IDs or platform invocation-path escalation."
+        "judgeNotes": "The assistant identified gateway 503s and nearby later 200s, but did not make clear that Edge Function invocation rows were absent/missing during the failing window while successful invocation rows existed nearby. It therefore did not explicitly draw the required conclusion that the failures occurred before invocation records were created and were not application exceptions visible in MCP invocation logs."
+      },
+      {
+        "name": "recommended a concrete next step",
+        "passed": true,
+        "judgeNotes": "The assistant recommended concrete next steps: verify the image-transform Edge Function health/deployment, check concurrent deploys/config changes in the incident window, re-test uploads, and redeploy/restart if 503s persist."
       }
     ],
     "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
