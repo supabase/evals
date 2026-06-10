@@ -485,6 +485,7 @@ function getTimelineGroups(
   }
 
   if (groupBy === "eval") {
+    // Preserve sortedResults order so eval rows follow journey/topic sorting.
     const evalIds = Array.from(
       new Set(sourceResults.map((result) => result.eval))
     )
