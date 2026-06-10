@@ -44,11 +44,11 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
         (contains(github.event.pull_request.labels.*.name, 'run-evals') ||
-          contains(github.event.pull_request.labels.*.name, 'run-changed-evals')) &&
+          contains(github.event.pull_request.labels.*.name, 'run-evals-changed')) &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         (github.event.action != 'labeled' ||
           github.event.label.name == 'run-evals' ||
-          github.event.label.name == 'run-changed-evals'))
+          github.event.label.name == 'run-evals-changed'))
     runs-on: ubuntu-latest
     outputs:
       experiments: ${{ steps.inputs.outputs.experiments }}
@@ -65,6 +65,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref }}
+
+      - name: Setup Node.js
+        if: github.event_name == 'pull_request'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
 
       - name: Prepare inputs
         id: inputs
@@ -88,13 +94,15 @@ jobs:
             runs="1"
             timeout_sec="720"
 
-            if [ "${{ contains(github.event.pull_request.labels.*.name, 'run-changed-evals') }}" = "true" ] &&
-              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals') }}" != "true" ]; then
+            full_refresh="${{ contains(github.event.pull_request.labels.*.name, 'run-evals') }}"
+            changed_refresh="${{ contains(github.event.pull_request.labels.*.name, 'run-evals-changed') }}"
+
+            if [ "$changed_refresh" = "true" ] && [ "$full_refresh" != "true" ]; then
               merge_results="true"
-              changed_eval_ids="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD |
-                awk -F/ '$1 == "evals" && NF >= 3 { print $2 }' |
-                sort -u)"
-              evals_json="$(jq -Rnc '[inputs | select(length > 0)]' <<< "$changed_eval_ids")"
+              evals_json="$(
+                git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD |
+                  node apps/framework/scripts/changed-eval-ids.mjs
+              )"
               if [ "$evals_json" = "[]" ]; then
                 should_run="false"
               fi
