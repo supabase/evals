@@ -10,7 +10,6 @@ import type { PlatformBackend } from "../harness/platform-backend.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
 
-const DESIGN_EVAL = "evals/design-rls-001-tenant-isolation";
 const CLIENT_RLS_EVAL = "evals/design-rls-002-own-todos-client";
 const FUNCTIONS_EVAL = "evals/design-functions-001-order-total";
 const EDGE_AUTH_DB_EVAL = "evals/design-functions-002-edge-auth-db";
@@ -58,73 +57,6 @@ async function withBackend<T>(
 
 function seedPath(relDir: string, file: string): string {
   return join(ROOT, relDir, "seed", file);
-}
-
-async function smokeDesignEval() {
-  const scorer = await loadScorer(DESIGN_EVAL);
-
-  await withBackend(
-    { projectSeedSql: seedPath(DESIGN_EVAL, "project.sql") },
-    async (backend) => {
-      const before = await scorer(scorerCtx(backend));
-      assert.equal(before.passed, false);
-      assert(
-        before.checks?.some(
-          (check) =>
-            check.name === "RLS enabled on notes" &&
-            check.passed === false
-        )
-      );
-
-      await backend.query(`
-ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
-GRANT SELECT ON memberships TO authenticated;
-GRANT SELECT, INSERT ON notes TO authenticated;
-
-CREATE POLICY "members can read notes in their orgs"
-ON notes FOR SELECT TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM memberships
-    WHERE memberships.org_id = notes.org_id
-      AND memberships.user_id = auth.uid()
-  )
-);
-
-CREATE POLICY "members can insert their own notes in their orgs"
-ON notes FOR INSERT TO authenticated
-WITH CHECK (
-  author_id = auth.uid()
-  AND EXISTS (
-    SELECT 1 FROM memberships
-    WHERE memberships.org_id = notes.org_id
-      AND memberships.user_id = auth.uid()
-  )
-);
-
-CREATE POLICY "authors can update their own notes"
-ON notes FOR UPDATE TO authenticated
-USING (author_id = auth.uid())
-WITH CHECK (
-  author_id = auth.uid()
-  AND EXISTS (
-    SELECT 1 FROM memberships
-    WHERE memberships.org_id = notes.org_id
-      AND memberships.user_id = auth.uid()
-  )
-);
-
-CREATE POLICY "authors can delete their own notes"
-ON notes FOR DELETE TO authenticated
-USING (author_id = auth.uid());
-      `);
-
-      const after = await scorer(scorerCtx(backend));
-      assert.equal(after.passed, true, checksMessage(after));
-    }
-  );
-
-  console.log("PASS design scorer + platform-backend dispatcher");
 }
 
 async function smokeClientRlsEval() {
@@ -347,7 +279,6 @@ async function smokeProjectEval() {
 }
 
 async function main() {
-  await smokeDesignEval();
   await smokeClientRlsEval();
   await smokeFunctionsEval();
   await smokeSupaliteClient();

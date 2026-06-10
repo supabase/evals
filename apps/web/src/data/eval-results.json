@@ -16,7 +16,7 @@
       "supabase-js"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -32,17 +32,74 @@
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": true
+        "passed": false
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": true
+        "passed": false
       }
     ],
     "prompt": "# Private Notes Function Review\n\nI built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
     "promptSourcePath": "evals/resolve-functions-001-service-role-bypass/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/resolve-functions-001-service-role-bypass.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -88,5 +145,62 @@
     "promptSourcePath": "evals/resolve-functions-001-service-role-bypass/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/resolve-functions-001-service-role-bypass.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/resolve-security-002-rls-cross-tenant-leak.json"
   }
 ]

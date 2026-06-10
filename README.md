@@ -117,10 +117,12 @@ product:
 topic:
   - rls
   - security
+motivation: AI-123
 ---
 ```
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
+Benchmark evals should include `motivation` with the issue or other reference that explains why the scenario belongs in the suite.
 
 ## Eval Modes
 
