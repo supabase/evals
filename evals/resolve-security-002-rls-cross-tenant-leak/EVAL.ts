@@ -95,6 +95,16 @@ INSERT INTO notes (org_id, author_id, body) VALUES
       .eq("body", "org A note 2")
       .select("id");
 
+    const ownInsert = await clientA
+      .from("notes")
+      .insert({ org_id: orgAId, author_id: userAId, body: "org A note 3" })
+      .select("id");
+
+    const crossInsert = await clientB
+      .from("notes")
+      .insert({ org_id: orgAId, author_id: userBId, body: "sneaky org A note" })
+      .select("id");
+
     const checks: CheckResult[] = [
       { name: "RLS enabled on notes", passed: rlsEnabled },
       {
@@ -128,6 +138,14 @@ INSERT INTO notes (org_id, author_id, body) VALUES
       {
         name: "tenant B cannot delete org A note",
         passed: Boolean(crossDelete.error) || !crossDelete.data || crossDelete.data.length === 0,
+      },
+      {
+        name: "tenant A can insert note in own org",
+        passed: !ownInsert.error && ownInsert.data?.length === 1,
+      },
+      {
+        name: "tenant B cannot insert into org A",
+        passed: Boolean(crossInsert.error) || !crossInsert.data || crossInsert.data.length === 0,
       },
     ];
 
