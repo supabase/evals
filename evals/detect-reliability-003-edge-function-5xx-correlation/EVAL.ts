@@ -7,32 +7,55 @@ import {
 import { stripIndent } from "common-tags";
 
 const scorer: ToolScorer = async (ctx) => {
-  const verdict = await judge({
-    input: serializeTranscript(ctx.transcript),
-    rubric: stripIndent`
-      Pass if the assistant correctly investigates the customer's vague image processing failure report and explains the planted Edge Function 5xx issue.
+  const input = serializeTranscript(ctx.transcript);
 
-      A passing answer should:
-      - Identify image-transform as the affected function.
-      - Say that gateway/invocation logs show a burst of 12 HTTP 503 responses in the 2026-04-28T10:18Z through 2026-04-28T10:29Z window, or an equivalent specific window covering those events.
-      - Make clear that corresponding Edge Function invocation rows are absent or missing for that same failing window, while nearby successful invocations exist.
-      - Draw the right conclusion: the evidence points to a gateway/platform/invocation-path failure before the normal Edge Function invocation record was created, not an application exception visible through the MCP's exposed invocation log surface.
-      - Recommend a concrete next step, such as escalating/opening an incident with the gateway/request ids and time window, checking Edge Function platform/runtime health, deployment/routing, or correlated infrastructure logs.
+  const [signalFound, correlationMade, nextStepGiven] = await Promise.all([
+    judge({
+      input,
+      rubric: stripIndent`
+        Pass if the assistant identified image-transform as the affected function and located the burst of 12 HTTP 503 responses in the 2026-04-28T10:18Z–2026-04-28T10:29Z window (or an equivalent specific window covering those events).
 
-      Fail if the assistant only says there are generic 5xxs, flags the old billing-webhook errors outside the customer report window as the main issue, claims the image-transform function code threw errors based on function runtime logs, misses the absence of matching invocation rows, or gives only vague advice like "check the logs" without a specific next step.
-    `,
-  });
+        Fail if the assistant missed image-transform entirely, flagged only the old billing-webhook 503s from 2026-04-26 as the main issue, or gave only a vague description of errors without naming the function and window.
+      `,
+    }),
+    judge({
+      input,
+      rubric: stripIndent`
+        Pass if the assistant made clear that Edge Function invocation rows are absent or missing for the failing window while nearby successful invocations exist, and drew the correct conclusion: the evidence points to a gateway/platform failure before the invocation record was created, not an application exception visible through the MCP's invocation log surface.
+
+        Fail if the assistant claimed the image-transform function code itself threw the errors (based on function runtime logs), ignored the absence of invocation rows, or treated the gateway 503s as equivalent to function-level errors.
+      `,
+    }),
+    judge({
+      input,
+      rubric: stripIndent`
+        Pass if the assistant recommended a concrete next step, such as escalating or opening an incident with the gateway request IDs and time window, checking Edge Function platform or runtime health, reviewing deployment or routing configuration, or investigating correlated infrastructure logs.
+
+        Fail if the assistant gave only vague advice like "check the logs" or "monitor the situation" without a specific actionable step.
+      `,
+    }),
+  ]);
 
   const checks: CheckResult[] = [
     {
-      name: "diagnosed edge function 5xx correlation issue",
-      passed: verdict.passed,
-      judgeNotes: verdict.notes,
+      name: "identified image-transform and the 503 burst window",
+      passed: signalFound.passed,
+      judgeNotes: signalFound.notes,
+    },
+    {
+      name: "correlated absent invocation rows to a gateway/platform failure",
+      passed: correlationMade.passed,
+      judgeNotes: correlationMade.notes,
+    },
+    {
+      name: "recommended a concrete next step",
+      passed: nextStepGiven.passed,
+      judgeNotes: nextStepGiven.notes,
     },
   ];
 
   return {
-    passed: verdict.passed,
+    passed: checks.every((c) => c.passed),
     checks,
   };
 };
