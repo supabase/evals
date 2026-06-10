@@ -3,8 +3,11 @@ stage: resolve
 suite: benchmark
 product:
   - database
+  - auth
 topic:
   - rls
+  - security
+motivation: AI-821
 ---
 
 # Workspace Notes Access Review
