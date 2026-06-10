@@ -37,6 +37,16 @@ const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const MERGE_RESULTS = rawArgs.includes("--merge");
 
+type ExistingEvalResult = {
+  parsed: EvalResult;
+  original: unknown;
+};
+
+type MergedEvalResult = {
+  parsed: EvalResult;
+  output: unknown;
+};
+
 async function readPrompt(evalId: string) {
   const promptPath = resolve(EVALS_DIR, evalId, "PROMPT.md");
   const normalizedEvalsDir = resolve(EVALS_DIR);
@@ -188,34 +198,54 @@ function sortResults(results: EvalResult[]): EvalResult[] {
   );
 }
 
-async function loadExistingExportedResults(): Promise<EvalResult[]> {
+async function loadExistingExportedResults(): Promise<ExistingEvalResult[]> {
   if (!existsSync(OUTPUT_PATH)) {
     return [];
   }
 
-  const parsed: unknown = JSON.parse(await readFile(OUTPUT_PATH, "utf8"));
-  const results = evalResultSchema.array().safeParse(parsed);
+  const existingResults: unknown = JSON.parse(await readFile(OUTPUT_PATH, "utf8"));
+  if (!Array.isArray(existingResults)) {
+    throw new Error(
+      `could not parse existing exported results at ${relative(ROOT, OUTPUT_PATH)}`,
+    );
+  }
+
+  const results = evalResultSchema.array().safeParse(existingResults);
   if (!results.success) {
     throw new Error(
       `could not parse existing exported results at ${relative(ROOT, OUTPUT_PATH)}`,
     );
   }
 
-  return results.data;
+  return results.data.map((result, index) => ({
+    parsed: result,
+    original: existingResults[index],
+  }));
 }
 
-async function mergeEvalResults(results: EvalResult[]): Promise<EvalResult[]> {
-  const merged = new Map<string, EvalResult>();
+async function mergeEvalResults(results: EvalResult[]): Promise<MergedEvalResult[]> {
+  const merged = new Map<string, MergedEvalResult>();
 
   for (const result of await loadExistingExportedResults()) {
-    merged.set(resultKey(result), result);
+    merged.set(resultKey(result.parsed), {
+      parsed: result.parsed,
+      output: result.original,
+    });
   }
 
   for (const result of results) {
-    merged.set(resultKey(result), result);
+    merged.set(resultKey(result), {
+      parsed: result,
+      output: result,
+    });
   }
 
-  return sortResults([...merged.values()]);
+  return [...merged.values()]
+    .sort(
+      (a, b) =>
+        a.parsed.experiment.localeCompare(b.parsed.experiment) ||
+        a.parsed.eval.localeCompare(b.parsed.eval),
+    );
 }
 
 async function main() {
@@ -229,12 +259,17 @@ async function main() {
     throw new Error("no result files matched the requested export filters");
   }
 
-  const exportedResults = MERGE_RESULTS ? await mergeEvalResults(results) : results;
+  const mergedResults = MERGE_RESULTS ? await mergeEvalResults(results) : undefined;
+  const exportedResults = mergedResults
+    ? mergedResults.map((result) => result.output)
+    : results;
 
   await mkdir(dirname(OUTPUT_PATH), { recursive: true });
   await writeFile(OUTPUT_PATH, `${JSON.stringify(exportedResults, null, 2)}\n`);
 
-  const passed = exportedResults.filter((result) => result.passed).length;
+  const passed = mergedResults
+    ? mergedResults.filter((result) => result.parsed.passed).length
+    : results.filter((result) => result.passed).length;
   const action = MERGE_RESULTS ? "Merged" : "Exported";
   const totalSuffix = MERGE_RESULTS ? `, ${exportedResults.length} total` : "";
   console.log(
