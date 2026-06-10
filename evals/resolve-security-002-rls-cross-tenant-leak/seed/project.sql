@@ -1,4 +1,3 @@
--- gen_random_uuid() is built into Postgres 13+ (and PGlite). No extension needed.
 CREATE TABLE notes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL,
@@ -13,8 +12,6 @@ CREATE TABLE memberships (
   PRIMARY KEY (user_id, org_id)
 );
 
--- Baseline privileges. The eval measures RLS policy correctness, not whether
--- the agent remembered to GRANT standard table access.
 GRANT SELECT, INSERT, UPDATE, DELETE ON notes TO authenticated;
 GRANT SELECT ON memberships TO authenticated;
 
