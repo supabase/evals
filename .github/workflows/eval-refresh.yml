@@ -8,7 +8,7 @@ on:
         required: true
         default: "openai-gpt-5.4-mini,openai-gpt-5.4-nano"
       eval:
-        description: "Optional single eval id to run"
+        description: "Optional comma-separated eval ids to run"
         required: false
         default: ""
       suite:
@@ -24,8 +24,8 @@ on:
         required: true
         default: "720"
   pull_request:
-    # Run whenever a PR carrying the run-evals label is opened, pushed to, or
-    # receives the run-evals label. The job-level `if` gates on those cases.
+    # Run whenever a PR carrying a refresh label is opened, pushed to, or
+    # receives that label. The job-level `if` gates on those cases.
     types: [opened, synchronize, labeled]
 
 permissions:
@@ -43,22 +43,37 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'run-evals') &&
+        (contains(github.event.pull_request.labels.*.name, 'run-evals') ||
+          contains(github.event.pull_request.labels.*.name, 'run-changed-evals')) &&
         github.event.pull_request.head.repo.full_name == github.repository &&
-        (github.event.action != 'labeled' || github.event.label.name == 'run-evals'))
+        (github.event.action != 'labeled' ||
+          github.event.label.name == 'run-evals' ||
+          github.event.label.name == 'run-changed-evals'))
     runs-on: ubuntu-latest
     outputs:
       experiments: ${{ steps.inputs.outputs.experiments }}
-      eval: ${{ steps.inputs.outputs.eval }}
+      evals: ${{ steps.inputs.outputs.evals }}
       suite: ${{ steps.inputs.outputs.suite }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
+      merge_results: ${{ steps.inputs.outputs.merge_results }}
+      should_run: ${{ steps.inputs.outputs.should_run }}
     steps:
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
       - name: Prepare inputs
         id: inputs
         shell: bash
         run: |
           set -euo pipefail
+
+          merge_results="false"
+          should_run="true"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             experiments="${{ inputs.experiments }}"
@@ -66,12 +81,26 @@ jobs:
             suite="${{ inputs.suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
+            evals_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$eval_id")"
           else
             experiments="openai-gpt-5.4-mini,openai-gpt-5.4-nano"
-            eval_id=""
             suite="benchmark"
             runs="1"
             timeout_sec="720"
+
+            if [ "${{ contains(github.event.pull_request.labels.*.name, 'run-changed-evals') }}" = "true" ] &&
+              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals') }}" != "true" ]; then
+              merge_results="true"
+              changed_eval_ids="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD |
+                awk -F/ '$1 == "evals" && NF >= 3 { print $2 }' |
+                sort -u)"
+              evals_json="$(jq -Rnc '[inputs | select(length > 0)]' <<< "$changed_eval_ids")"
+              if [ "$evals_json" = "[]" ]; then
+                should_run="false"
+              fi
+            else
+              evals_json="[]"
+            fi
           fi
 
           experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments")"
@@ -79,14 +108,17 @@ jobs:
 
           {
             echo "experiments=$experiments_json"
-            echo "eval=$eval_id"
+            echo "evals=$evals_json"
             echo "suite=$suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
+            echo "merge_results=$merge_results"
+            echo "should_run=$should_run"
           } >> "$GITHUB_OUTPUT"
 
   run-evals:
     needs: prepare
+    if: needs.prepare.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -140,9 +172,9 @@ jobs:
             args+=("--suite" "$suite")
           done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
 
-          if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
-            args+=("--eval" "${{ needs.prepare.outputs.eval }}")
-          fi
+          while IFS= read -r eval_id; do
+            args+=("--eval" "$eval_id")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.evals }}')
 
           npm run eval -- "${args[@]}"
 
@@ -155,6 +187,7 @@ jobs:
 
   publish-results:
     needs: [prepare, run-evals]
+    if: needs.prepare.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -197,8 +230,12 @@ jobs:
             export_args+=("--suite" "$suite")
           done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
 
-          if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
-            export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")
+          while IFS= read -r eval_id; do
+            export_args+=("--eval" "$eval_id")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.evals }}')
+
+          if [ "${{ needs.prepare.outputs.merge_results }}" = "true" ]; then
+            export_args+=("--merge")
           fi
 
           npm run -w @supabase-evals/framework export-results -- "${export_args[@]}"

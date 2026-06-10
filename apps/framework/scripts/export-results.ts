@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  evalResultSchema,
   parseEvalMarkdown,
   rawEvalResultSchema,
 } from "@supabase-evals/core/eval-metadata";
@@ -34,6 +35,7 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
 );
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
+const MERGE_RESULTS = rawArgs.includes("--merge");
 
 async function readPrompt(evalId: string) {
   const promptPath = resolve(EVALS_DIR, evalId, "PROMPT.md");
@@ -172,10 +174,48 @@ async function loadEvalResults(): Promise<EvalResult[]> {
     }
   }
 
+  return sortResults(results);
+}
+
+function resultKey(result: Pick<EvalResult, "experiment" | "eval">): string {
+  return `${normalizeExperimentName(result.experiment)}\0${result.eval}`;
+}
+
+function sortResults(results: EvalResult[]): EvalResult[] {
   return results.sort(
     (a, b) =>
       a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval),
   );
+}
+
+async function loadExistingExportedResults(): Promise<EvalResult[]> {
+  if (!existsSync(OUTPUT_PATH)) {
+    return [];
+  }
+
+  const parsed: unknown = JSON.parse(await readFile(OUTPUT_PATH, "utf8"));
+  const results = evalResultSchema.array().safeParse(parsed);
+  if (!results.success) {
+    throw new Error(
+      `could not parse existing exported results at ${relative(ROOT, OUTPUT_PATH)}`,
+    );
+  }
+
+  return results.data;
+}
+
+async function mergeEvalResults(results: EvalResult[]): Promise<EvalResult[]> {
+  const merged = new Map<string, EvalResult>();
+
+  for (const result of await loadExistingExportedResults()) {
+    merged.set(resultKey(result), result);
+  }
+
+  for (const result of results) {
+    merged.set(resultKey(result), result);
+  }
+
+  return sortResults([...merged.values()]);
 }
 
 async function main() {
@@ -189,13 +229,17 @@ async function main() {
     throw new Error("no result files matched the requested export filters");
   }
 
-  await mkdir(dirname(OUTPUT_PATH), { recursive: true });
-  await writeFile(OUTPUT_PATH, `${JSON.stringify(results, null, 2)}\n`);
+  const exportedResults = MERGE_RESULTS ? await mergeEvalResults(results) : results;
 
-  const passed = results.filter((result) => result.passed).length;
+  await mkdir(dirname(OUTPUT_PATH), { recursive: true });
+  await writeFile(OUTPUT_PATH, `${JSON.stringify(exportedResults, null, 2)}\n`);
+
+  const passed = exportedResults.filter((result) => result.passed).length;
+  const action = MERGE_RESULTS ? "Merged" : "Exported";
+  const totalSuffix = MERGE_RESULTS ? `, ${exportedResults.length} total` : "";
   console.log(
-    `Exported ${results.length} result(s) to ${relative(ROOT, OUTPUT_PATH)} ` +
-      `(${passed} pass, ${results.length - passed} fail)`,
+    `${action} ${results.length} result(s) to ${relative(ROOT, OUTPUT_PATH)} ` +
+      `(${passed} pass, ${exportedResults.length - passed} fail${totalSuffix})`,
   );
 }
 
