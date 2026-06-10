@@ -100,7 +100,7 @@ jobs:
             if [ "$changed_refresh" = "true" ] && [ "$full_refresh" != "true" ]; then
               merge_results="true"
               evals_json="$(
-                git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD |
+                git diff --name-only "${{ github.event.pull_request.base.sha }}...HEAD" |
                   node apps/framework/scripts/changed-eval-ids.mjs
               )"
               if [ "$evals_json" = "[]" ]; then
