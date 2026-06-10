@@ -66,7 +66,7 @@ const WEBSITE_URL = "https://supabase.com"
 const UNASSIGNED_PRODUCT = "__unassigned_product__"
 
 type JourneyStage = (typeof JOURNEY_STAGES)[number]["id"]
-type GroupBy = "stage" | "model" | "product"
+type GroupBy = "stage" | "model" | "product" | "eval"
 
 type ParsedResult = Omit<EvalResult, "product" | "topic"> & {
   category: JourneyStage | "unknown"
@@ -206,6 +206,10 @@ function getExperimentOverallSummary(
     passed: experimentResults.filter((result) => result.passed).length,
     total: experimentResults.length,
   }
+}
+
+function getEvalResults(evalId: string, sourceResults = sortedResults) {
+  return sourceResults.filter((result) => result.eval === evalId)
 }
 
 function getExperimentStageGroups(
@@ -480,6 +484,34 @@ function getTimelineGroups(
     })
   }
 
+  if (groupBy === "eval") {
+    const evalIds = Array.from(
+      new Set(sourceResults.map((result) => result.eval))
+    )
+
+    return evalIds.map((evalId) => {
+      const evalResults = getEvalResults(evalId, sourceResults)
+      const bars = sortBarsByScore(
+        experiments
+          .map((experiment) => ({
+            label: formatExperiment(experiment),
+            summary: getExperimentOverallSummary(experiment, evalResults),
+          }))
+          .filter((bar) => bar.summary.total > 0)
+      )
+      const passed = evalResults.filter((result) => result.passed).length
+
+      return {
+        id: evalId,
+        label: formatGroupLabel(formatEvalName(evalId)),
+        meta: formatPassPercentage(passed, evalResults.length),
+        description: evalId,
+        sourceResults: evalResults,
+        bars,
+      }
+    })
+  }
+
   return JOURNEY_STAGES.map((stage) => {
     const stageResults = getStageResults(stage.id, sourceResults)
     const bars = sortBarsByScore(
@@ -602,9 +634,18 @@ function TimelineGroupRow({
           ) : null}
         </div>
         {group.description ? (
-          <p className="text-sm leading-5 text-muted-foreground">
-            {group.description}
-          </p>
+          groupBy === "eval" ? (
+            <code
+              className="inline-flex max-w-full rounded-md border bg-muted/35 px-2 py-1 font-mono text-xs leading-5 text-muted-foreground"
+              title={group.description}
+            >
+              <span className="truncate">{group.description}</span>
+            </code>
+          ) : (
+            <p className="text-sm leading-5 text-muted-foreground">
+              {group.description}
+            </p>
+          )
         ) : null}
       </div>
       <div className="min-w-0">
@@ -1031,7 +1072,8 @@ export function App() {
                       if (
                         value === "stage" ||
                         value === "model" ||
-                        value === "product"
+                        value === "product" ||
+                        value === "eval"
                       ) {
                         setGroupBy(value)
                       }
@@ -1046,6 +1088,9 @@ export function App() {
                     </ToggleGroupItem>
                     <ToggleGroupItem value="product">
                       Group by product
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="eval">
+                      Group by eval
                     </ToggleGroupItem>
                   </ToggleGroup>
                 </div>
