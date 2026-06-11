@@ -3,6 +3,7 @@ import { createPgliteConnection, type PgliteConnection } from '@supabase/lite/pg
 import { PGlite } from '@electric-sql/pglite'
 import type { EdgeFunctionSeed, LogRow } from '../types.js'
 import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js'
+import { STORAGE_SCHEMA_SQL } from './storage-schema.js'
 
 export type Migration = {
   version: string
@@ -83,6 +84,7 @@ export class ProjectInstance {
     await this.app.init()
     await this.app.connection.exec(AUTH_ROLES_SQL)
     await this.app.connection.exec(getAuthSchemaSql())
+    await this.app.connection.exec(STORAGE_SCHEMA_SQL)
 
     if (sql) {
       await this.app.connection.exec(sql)

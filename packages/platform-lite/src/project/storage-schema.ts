@@ -1,16 +1,12 @@
---
--- Minimal slice of the storage schema this eval needs, with column shapes
--- verified against a real project (pg_dump of a fresh `supabase start`,
--- CLI 2.90.0): storage.buckets and storage.objects, RLS enabled with no
--- policies (how a real project ships, and the deny-all starting state),
--- grants so the API roles reach policy evaluation instead of failing on
--- permissions, and storage.foldername() which path-scoped policies use.
--- Production extras this eval never touches (other storage tables, helper
--- functions, performance indexes, triggers) are omitted. The platform-lite
--- runtime provisions no storage schema of its own, so this seed is what
--- creates it.
---
-
+// Minimal slice of the storage schema every Supabase project provisions,
+// with column shapes verified against a real project (pg_dump of a fresh
+// `supabase start`, CLI 2.90.0): storage.buckets and storage.objects, RLS
+// enabled with no policies (how a real project ships), grants so the API
+// roles reach policy evaluation instead of failing on permissions, and
+// storage.foldername() which path-scoped policies use. Production extras
+// (other storage tables, helper functions, performance indexes, triggers)
+// are omitted.
+export const STORAGE_SCHEMA_SQL = `
 CREATE SCHEMA storage;
 
 CREATE FUNCTION storage.foldername(name text) RETURNS text[]
@@ -59,3 +55,4 @@ ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
 GRANT ALL ON storage.buckets TO anon, authenticated, service_role;
 GRANT ALL ON storage.objects TO anon, authenticated, service_role;
+`
