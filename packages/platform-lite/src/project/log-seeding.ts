@@ -78,6 +78,18 @@ CREATE TABLE IF NOT EXISTS function_edge_logs (
 );
 
 CREATE VIEW function_logs AS SELECT * FROM function_edge_logs;
+
+CREATE TABLE IF NOT EXISTS storage_logs (
+  id text PRIMARY KEY,
+  identifier text,
+  timestamp timestamptz NOT NULL DEFAULT now(),
+  ts timestamptz,
+  event_message text,
+  message text,
+  source text,
+  level text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb
+);
 `
 
 export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
