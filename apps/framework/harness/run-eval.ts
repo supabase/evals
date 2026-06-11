@@ -91,9 +91,7 @@ function discoverEvals(): EvalManifest[] {
       readFileSync(promptPath, "utf8"),
       `evals/${id}/PROMPT.md`,
     ).metadata;
-    const isProject =
-      existsSync(join(appDir, "package.json")) &&
-      existsSync(join(appDir, "src"));
+    const isProject = existsSync(appDir) && statSync(appDir).isDirectory();
     const mode = isProject ? "project" : "tool";
     out.push({
       id,
@@ -166,6 +164,18 @@ function copyWithheldTests(ev: EvalManifest, workspace: string) {
   }
 }
 
+function readSessionSeedArgs(ev: EvalManifest) {
+  const projectSeedSql = join(ev.seedDir, "project.sql");
+  const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
+  const functionsSeedDir = join(ev.seedDir, "functions");
+
+  return {
+    projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
+    logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
+    functionsSeedDir: existsSync(functionsSeedDir) ? functionsSeedDir : undefined,
+  };
+}
+
 function buildSystemPrompt(
   mode: "tool" | "project",
   skillContext: string,
@@ -173,8 +183,8 @@ function buildSystemPrompt(
 ): string {
   const base =
     mode === "project"
-      ? "You are an agent solving a Supabase frontend project eval task. " +
-        "Use the provided file tools to inspect and modify the project files in the workspace. " +
+      ? "You are an agent solving a Supabase project eval task. " +
+        "Use the provided tools to inspect Supabase context and modify project files in the workspace. " +
         "Do not expect shell access. When you are done, end your turn with a short summary of what you changed."
       : "You are an agent solving a Supabase eval task. " +
         "Use the provided tools to inspect and modify the project. " +
@@ -220,58 +230,69 @@ async function runOne(
       const workspace = workspacePath(expName, ev.id, attempt);
       materializeWorkspace(ev, workspace);
       const fileTools = buildFileTools(workspace);
-      const systemPrompt = buildSystemPrompt("project", skillContext);
+      const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
 
-      const run = await exp.agent.run({
-        systemPrompt,
-        userPrompt: prompt,
-        tools: fileTools,
-        timeoutSec: TIMEOUT_SEC,
-      });
+      try {
+        const systemPrompt = buildSystemPrompt(
+          "project",
+          skillContext,
+          session.promptAddendum,
+        );
 
-      copyWithheldTests(ev, workspace);
-      const build = await viteBuild(workspace);
-      const vitest = build.ok ? await vitestRun(workspace) : undefined;
+        const run = await exp.agent.run({
+          systemPrompt,
+          userPrompt: prompt,
+          tools: fileTools,
+          mcpServers: session.mcpServers,
+          timeoutSec: TIMEOUT_SEC,
+        });
 
-      lastToolCalls = run.toolCalls;
-      lastTranscript = run.transcript;
-      lastAgentReport = run.agentReport;
-      lastStoppedReason = run.stoppedReason;
-      last = await runScorer(
-        () =>
-          (scorer as ProjectScorer)({
-            workspace,
-            projectResult: { build, vitest },
+        let copiedWithheldTests = false;
+        const ensureWithheldTests = () => {
+          if (copiedWithheldTests) return;
+          copyWithheldTests(ev, workspace);
+          copiedWithheldTests = true;
+        };
+
+        lastToolCalls = run.toolCalls;
+        lastTranscript = run.transcript;
+        lastAgentReport = run.agentReport;
+        lastStoppedReason = run.stoppedReason;
+        last = await runScorer(
+          () =>
+            (scorer as ProjectScorer)({
+              ...session.scoringContext,
+              workspace,
+              runViteBuild: () => viteBuild(workspace),
+              runVitest: () => {
+                ensureWithheldTests();
+                return vitestRun(workspace);
+              },
+              toolCalls: run.toolCalls,
+              transcript: run.transcript,
+              agentReport: run.agentReport,
+            }),
+          { debug: DEBUG },
+        );
+
+        if (STOP_ON_PASS && last.passed) {
+          return {
+            ...last,
+            attempts: attempt,
             toolCalls: run.toolCalls,
             transcript: run.transcript,
             agentReport: run.agentReport,
-          }),
-        { debug: DEBUG },
-      );
-
-      if (STOP_ON_PASS && last.passed) {
-        return {
-          ...last,
-          attempts: attempt,
-          toolCalls: run.toolCalls,
-          transcript: run.transcript,
-          agentReport: run.agentReport,
-          stoppedReason: run.stoppedReason,
-        };
+            stoppedReason: run.stoppedReason,
+          };
+        }
+      } finally {
+        await session.close();
       }
       continue;
     }
 
     // Tool mode: boot runtime, expose MCP tools, run agent, score result.
-    const projectSeedSql = join(ev.seedDir, "project.sql");
-    const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
-    const functionsSeedDir = join(ev.seedDir, "functions");
-
-    const session = await exp.runtime.startSession({
-      projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
-      logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
-      functionsSeedDir: existsSync(functionsSeedDir) ? functionsSeedDir : undefined,
-    });
+    const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
 
     try {
       const systemPrompt = buildSystemPrompt(
@@ -428,7 +449,7 @@ async function main() {
       if (DRY) {
         console.log(
           ev.mode === "project"
-            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} mode=project tools=files.*`
+            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} mode=project tools=files.* runtime=${config.runtime.id}`
             : `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} runtime=${config.runtime.id} model=${config.agent.modelId}`,
         );
         continue;

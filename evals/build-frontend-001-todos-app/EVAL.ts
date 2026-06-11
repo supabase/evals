@@ -5,7 +5,8 @@ import type {
 } from "@supabase-evals/core";
 
 const scorer: ProjectScorer = async (ctx) => {
-  const { build, vitest } = ctx.projectResult;
+  const build = await ctx.runViteBuild();
+  const vitest = build.ok ? await ctx.runVitest() : undefined;
 
   const checks: CheckResult[] = [
     {

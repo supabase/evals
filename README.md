@@ -127,7 +127,7 @@ Benchmark evals should include `motivation` with the issue or other reference th
 ## Eval Modes
 
 - **Tool evals** run the agent against the experiment's MCP/tool surface, then score the resulting project state or report.
-- **Project evals** copy an app workspace for the agent to edit with file tools, then score with Vite and withheld Vitest tests.
+- **Project evals** copy an app workspace for the agent to edit with file tools, then may score with Vite and withheld Vitest tests or file inspection.
 
 ## Skills
 

@@ -184,9 +184,10 @@ export interface ToolEvalContext extends ToolScoringContext {
   agentReport?: string;
 }
 
-export interface ProjectEvalContext {
+export interface ProjectEvalContext extends ToolScoringContext {
   workspace: string;
-  projectResult: ProjectResult;
+  runViteBuild: () => Promise<CommandResult>;
+  runVitest: () => Promise<VitestResult>;
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   agentReport?: string;
@@ -311,8 +312,10 @@ export function aiSdkAgent(options: {
         { type: "message", role: "system", content: args.systemPrompt },
         { type: "message", role: "user", content: args.userPrompt },
       ];
-      const tools =
-        args.tools ?? mergeToolSets(mcpHandles.map((handle) => handle.tools));
+      const tools = mergeToolSets([
+        ...(args.tools ? [args.tools] : []),
+        ...mcpHandles.map((handle) => handle.tools),
+      ]);
 
       try {
         const result = await generateText({
@@ -1180,7 +1183,7 @@ function toRecordRows(rows: unknown): Record<string, unknown>[] {
   return Array.isArray(rows) ? rows.filter(isRecord) : [];
 }
 
-function mergeToolSets(toolSets: ToolSet[]): ToolSet {
+function mergeToolSets(toolSets: ToolSet[]): ToolSet | undefined {
   const merged: ToolSet = {};
   for (const toolSet of toolSets) {
     for (const [name, tool] of Object.entries(toolSet)) {
@@ -1190,7 +1193,7 @@ function mergeToolSets(toolSets: ToolSet[]): ToolSet {
       merged[name] = tool;
     }
   }
-  return merged;
+  return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
 function throwIfCloseErrors(errors: unknown[], message: string): void {

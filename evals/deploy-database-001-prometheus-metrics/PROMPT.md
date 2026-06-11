@@ -1,0 +1,12 @@
+---
+stage: deploy
+suite: benchmark
+product:
+  - database
+topic:
+  - observability
+motivation: AI-817
+---
+
+Can you wire my Supabase project metrics into our existing observability stack and document
+what we need to do to make the config live?
