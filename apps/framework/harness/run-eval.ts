@@ -17,6 +17,7 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from "../lib/cli-args.js";
+import { runScorer } from "../lib/scorer.js";
 import { buildFileTools } from "./file-tools.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
@@ -45,6 +46,7 @@ const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
+const DEBUG = args.has("--debug");
 
 async function loadExperiments() {
   const dir = join(ROOT, "experiments");
@@ -235,13 +237,17 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
-      last = await (scorer as ProjectScorer)({
-        workspace,
-        projectResult: { build, vitest },
-        toolCalls: run.toolCalls,
-        transcript: run.transcript,
-        agentReport: run.agentReport,
-      });
+      last = await runScorer(
+        () =>
+          (scorer as ProjectScorer)({
+            workspace,
+            projectResult: { build, vitest },
+            toolCalls: run.toolCalls,
+            transcript: run.transcript,
+            agentReport: run.agentReport,
+          }),
+        { debug: DEBUG },
+      );
 
       if (STOP_ON_PASS && last.passed) {
         return {
@@ -284,12 +290,16 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
-      last = await (scorer as ToolScorer)({
-        ...session.scoringContext,
-        toolCalls: run.toolCalls,
-        transcript: run.transcript,
-        agentReport: run.agentReport,
-      });
+      last = await runScorer(
+        () =>
+          (scorer as ToolScorer)({
+            ...session.scoringContext,
+            toolCalls: run.toolCalls,
+            transcript: run.transcript,
+            agentReport: run.agentReport,
+          }),
+        { debug: DEBUG },
+      );
 
       if (STOP_ON_PASS && last.passed) {
         return {

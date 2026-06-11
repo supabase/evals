@@ -88,13 +88,11 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
         ownUpdate[0]?.user_id === userAId,
     });
 
-    await silenceExpectedError(() =>
-      clientB
-        .from("notes")
-        .update({ user_id: userAId, body: "stolen by reassignment" })
-        .eq("body", "b private note")
-        .select("id,user_id")
-    );
+    await clientB
+      .from("notes")
+      .update({ user_id: userAId, body: "stolen by reassignment" })
+      .eq("body", "b private note")
+      .select("id,user_id");
     const { rows: reassignedRows } = await q(`
 SELECT user_id, body
 FROM notes
@@ -129,12 +127,3 @@ ORDER BY body;
 
 export default scorer;
 
-async function silenceExpectedError<T>(fn: () => PromiseLike<T>): Promise<T> {
-  const original = console.error;
-  console.error = () => undefined;
-  try {
-    return await fn();
-  } finally {
-    console.error = original;
-  }
-}
