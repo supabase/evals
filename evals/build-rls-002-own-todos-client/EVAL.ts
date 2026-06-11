@@ -89,12 +89,10 @@ INSERT INTO todos (user_id, body, done) VALUES
         ownInsert.user_id === userAId,
     });
 
-    const { data: spoofInsert, error: spoofInsertError } = await silenceExpectedError(() =>
-      clientB
-        .from("todos")
-        .insert({ user_id: userAId, body: "b spoofed as a" })
-        .select("id")
-    );
+    const { data: spoofInsert, error: spoofInsertError } = await clientB
+      .from("todos")
+      .insert({ user_id: userAId, body: "b spoofed as a" })
+      .select("id");
     checks.push({
       name: "user B cannot insert todo for user A",
       passed: Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
@@ -161,12 +159,3 @@ INSERT INTO todos (user_id, body, done) VALUES
 
 export default scorer;
 
-async function silenceExpectedError<T>(fn: () => PromiseLike<T>): Promise<T> {
-  const original = console.error;
-  console.error = () => undefined;
-  try {
-    return await fn();
-  } finally {
-    console.error = original;
-  }
-}
