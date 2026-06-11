@@ -17,17 +17,17 @@
       {
         "name": "identified image-transform and the 503 burst window",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and specified repeated 503s in the 2026-04-28T10:18Z–10:29Z window."
+        "judgeNotes": "Assistant identified image-transform as affected and specified the 2026-04-28T10:18Z–10:29Z 503 window. It did not mention the exact count of 12 HTTP 503s, but the rubric allows locating the burst/window as sufficient."
       },
       {
         "name": "attributed 503 burst to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant attributes image-transform 503s to a transient function/dependency/runtime outage and recommends checking/rollback of function deployment. It does not ground the 503 burst in gateway/platform-layer observations, and treats it as likely function code/dependency related."
+        "judgeNotes": "The assistant attributes the 503s primarily to Edge Function boot/runtime/function startup issues and recommends checking/reproducing/fixing the function boot path. It does not ground the attribution in valid evidence that the 503s originated at the gateway/platform layer with no corresponding invocation/runtime rows, unchanged deployment_id, or distinction from the avatar-upload 500. It also treats 503 as likely BOOT_ERROR, contrary to the expected gateway/platform-layer attribution."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete actionable next steps: check Edge Function deployment/dependency releases, rollback if correlated, inspect function-specific logs/stack traces, retry/backfill failed uploads, and add 5xx alerts."
+        "judgeNotes": "The assistant recommended concrete next steps: checking Edge Function boot-error logs for a specific time window, verifying npm dependency/runtime compatibility, reproducing locally, and escalating/opening a platform/runtime incident with the log window if intermittent."
       }
     ],
     "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -155,17 +155,17 @@
       {
         "name": "identified image-transform and the 503 burst window",
         "passed": true,
-        "judgeNotes": "Assistant identified image-transform as affected and located repeated HTTP 503s in the 2026-04-28T10:18Z–10:29Z window."
+        "judgeNotes": "The assistant identified `image-transform` as the affected function and located the burst of HTTP 503 responses in the specific 2026-04-28 10:18–10:29 UTC window."
       },
       {
         "name": "attributed 503 burst to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant notes 503s on the Edge Function gateway but ultimately attributes them to transient unavailability of the image-transform function / possible runtime or dependency instability, and redeployed the function as remediation. It does not ground the attribution in absence of invocation/runtime rows, unchanged deployment_id, or distinction from function-level errors, and it recommends function/runtime fixes."
+        "judgeNotes": "The response attributes the issue to a transient Edge Functions outage/unavailability, but then recommends redeploying/rolling back and inspecting runtime behavior, implying the function/deployment may be the cause. It does not clearly ground attribution in gateway/platform-layer evidence such as gateway-only 503s with no invocation rows, unchanged deployment_id/version, or distinction from function-level errors."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including confirming current 200 responses for image-transform uploads and tracing the exact failing request path if failures return. It also identified a specific time window and endpoint and took an actionable remediation step by redeploying the Edge Function."
+        "judgeNotes": "The assistant recommended concrete next steps: checking deployments/rollouts, redeploying or rolling back the Edge Function, inspecting runtime behavior with logging/retries, and investigating dependency/service incidents."
       }
     ],
     "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
