@@ -21,9 +21,13 @@ const scorer: ToolScorer = async (ctx) => {
     judge({
       input,
       rubric: stripIndent`
-        Pass if the assistant made clear that Edge Function invocation rows are absent or missing for the failing window while nearby successful invocations exist, and drew the correct conclusion: the evidence points to a gateway/platform failure before the invocation record was created, not an application exception visible through the MCP's invocation log surface.
+        The failing image-transform 503s originate at the gateway / Edge Functions platform layer (in front of the function), not from the function's own code.
 
-        Fail if the assistant claimed the image-transform function code itself threw the errors (based on function runtime logs), ignored the absence of invocation rows, or treated the gateway 503s as equivalent to function-level errors.
+        Pass if BOTH:
+        1. The assistant attributes the 503 burst to the gateway/platform layer rather than to the function's application code, AND
+        2. The attribution is grounded in at least one valid observation from the data, such as: the 503s appear only on the gateway/HTTP log surface with no corresponding invocation/runtime rows for that window (while nearby invocations succeeded); the deployment_id/version is unchanged across the outage (ruling out a bad rollout); or that a gateway 503 is categorically distinct from a function-level error like avatar-upload's logged 500.
+
+        Fail if the assistant: blames the image-transform function code or runtime as the primary cause, recommends fixing or redeploying the function as the remediation, treats the gateway 503s as equivalent to function-level errors, or gives no layer attribution at all.
       `,
     }),
     judge({
@@ -43,7 +47,7 @@ const scorer: ToolScorer = async (ctx) => {
       judgeNotes: signalFound.notes,
     },
     {
-      name: "correlated absent invocation rows to a gateway/platform failure",
+      name: "attributed 503 burst to gateway/platform layer, not function code",
       passed: correlationMade.passed,
       judgeNotes: correlationMade.notes,
     },
