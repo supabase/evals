@@ -7,25 +7,32 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "npm run check -w @supabase-evals/framework",
-    "eval": "node --env-file=.env --import tsx/esm apps/framework/harness/run-eval.ts",
-    "eval:dry": "node --env-file=.env --import tsx/esm apps/framework/harness/run-eval.ts --dry",
-    "eval:smoke": "node --env-file=.env --import tsx/esm apps/framework/harness/run-eval.ts --smoke",
-    "eval:force": "node --env-file=.env --import tsx/esm apps/framework/harness/run-eval.ts --force",
-    "test:framework": "npm run test:framework -w @supabase-evals/framework",
-    "export-results": "node --import tsx/esm apps/framework/scripts/export-results.ts",
-    "typecheck": "npm run typecheck -w @supabase-evals/framework && npm run typecheck -w @supabase-evals/web",
-    "web": "npm run dev -w @supabase-evals/web",
-    "web:build": "npm run build -w @supabase-evals/web",
-    "demo:mcp": "npm run -w @supabase-evals/framework demo:mcp",
-    "demo:executor": "npm run -w @supabase-evals/framework demo:executor"
+    "check": "pnpm --filter @supabase-evals/framework check",
+    "eval": "pnpm --filter @supabase-evals/framework eval",
+    "eval:dry": "pnpm --filter @supabase-evals/framework eval:dry",
+    "eval:smoke": "pnpm --filter @supabase-evals/framework eval:smoke",
+    "eval:force": "pnpm --filter @supabase-evals/framework eval:force",
+    "test:framework": "pnpm --filter @supabase-evals/framework test:framework",
+    "export-results": "pnpm --filter @supabase-evals/framework export-results",
+    "typecheck": "pnpm --filter @supabase-evals/framework typecheck && pnpm --filter @supabase-evals/web typecheck",
+    "web": "pnpm --filter @supabase-evals/web dev",
+    "web:build": "pnpm --filter @supabase-evals/web build",
+    "demo:mcp": "pnpm --filter @supabase-evals/framework demo:mcp",
+    "demo:executor": "pnpm --filter @supabase-evals/framework demo:executor"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/openai": "catalog:",
     "common-tags": "^1.8.2"
   },
   "devDependencies": {
+    "@supabase-evals/core": "workspace:*",
     "@types/common-tags": "^1.8.4",
-    "typescript": "^5.6.0"
+    "typescript": "catalog:"
   },
-  "packageManager": "npm@10.8.2"
+  "engines": {
+    "node": ">=22",
+    "pnpm": "10.24"
+  },
+  "packageManager": "pnpm@10.24.0"
 }

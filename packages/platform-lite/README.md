@@ -5,8 +5,8 @@ Lightweight in-process Supabase platform exposing the real Management API HTTP i
 ## Setup
 
 ```sh
-npm install
-npm run generate:types
+pnpm install
+pnpm generate:types
 ```
 
 `generate:types` fetches the upstream Supabase Management API OpenAPI spec,
@@ -17,7 +17,7 @@ API routes currently implemented by platform-lite.
 ## Dev
 
 ```sh
-npm run dev
+pnpm dev
 ```
 
 ## Playground
@@ -28,7 +28,7 @@ local platform-lite server though local MCP clients.
 With the development server running:
 
 ```sh
-npm run dev
+pnpm dev
 ```
 
 Open another shell and launch Claude from the playground directory:
@@ -43,7 +43,7 @@ Now you can call tools like `execute_sql` against your supabase lite seed projec
 ## Build
 
 ```sh
-npm run build -w @supabase-evals/platform-lite
+pnpm --filter @supabase-evals/platform-lite build
 ```
 
 ## Usage
