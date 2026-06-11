@@ -17,17 +17,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform and described the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z-12:00Z."
+        "judgeNotes": "The assistant identified image-transform as the main affected function and described a recurring pattern of 503 gateway failures throughout the morning of 2026-04-28, including alternating successes and failures around :00/:30. It did not incorrectly center the old billing-webhook issue."
       },
       {
-        "name": "attributed 503 burst to gateway/platform layer, not function code",
+        "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant did not clearly attribute the image-transform 503 burst to the gateway/platform layer in front of the function. It instead suggested dependency/runtime/cold-start/upstream issues inside the packages and recommended inspecting/replacing function dependencies, which leans toward function/runtime/application remediation. Although it noted no matching app-level exception, the final attribution was ambiguous and not grounded enough in valid observations like absent invocation/runtime rows or unchanged deployment_id."
+        "judgeNotes": "The response mentions gateway failures, but does not clearly attribute the recurring 503s to the gateway/platform layer in front of the function. It also suggests investigating function code, boot/dependency/import errors, and cold-start instability, which treats the function/runtime as a likely cause rather than ruling it out based on log evidence."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including checking recent deploys/package changes, inspecting function dependencies, adding telemetry, and implementing retries/fallbacks."
+        "judgeNotes": "The assistant recommended specific actionable next steps: inspect Edge Function code/deployment history, check Edge Function logs around the 503 timestamps, add retries, and investigate third-party dependency cold-start/boot instability."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -150,22 +150,22 @@
       "logs"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified `image-transform` as the affected function and described a recurring intermittent pattern of 503 gateway/API failures throughout the morning of 2026-04-28, alternating with 200s. It also avoided misattributing the issue to old billing-webhook errors."
+        "judgeNotes": "Identified image-transform as affected and described recurring 503 gateway/request-layer failures throughout the morning of 2026-04-28, with multiple examples across the window and actionable next steps."
       },
       {
-        "name": "attributed 503 burst to gateway/platform layer, not function code",
-        "passed": true,
-        "judgeNotes": "The assistant attributes the 503s to the API/gateway/edge routing layer before the function handler runs, not to application code. This is grounded in the observation that 503s appear in API/gateway logs without corresponding Edge Function execution failures while nearby executions succeeded. Although it suggests redeploying to rule out transient platform/runtime issues, the primary attribution and escalation are platform/gateway-level, so it passes."
+        "name": "attributed recurring 503s to gateway/platform layer, not function code",
+        "passed": false,
+        "judgeNotes": "The assistant did attribute the 503s to the gateway/request layer and cited missing corresponding function execution errors, but it also recommended re-deploying/rolling the function as a mitigation, which the rubric explicitly marks as a fail."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including adding observability, implementing retries, redeploying the Edge Function, and escalating to Supabase support with timestamps and endpoint details because failures appear gateway-level."
+        "judgeNotes": "The assistant provided concrete next steps: confirm the upload dependency on the Edge Function, add retry/backoff for 503s, redeploy the function as mitigation, and add correlation/observability around the function call path."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
