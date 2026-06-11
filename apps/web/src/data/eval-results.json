@@ -17,17 +17,17 @@
       {
         "name": "identified image-transform and the 503 burst window",
         "passed": true,
-        "judgeNotes": "The assistant identified image-transform as the affected function and specified the 2026-04-28T10:18Z–10:29Z window with repeated 503 gateway responses."
+        "judgeNotes": "Identified image-transform as affected and specified repeated 503s in the 2026-04-28T10:18Z–10:29Z window."
       },
       {
-        "name": "correlated absent invocation rows to a gateway/platform failure",
+        "name": "attributed 503 burst to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The response noted gateway 503s and nearby 200s, but did not make clear that Edge Function invocation rows were absent/missing during the failing window while successful invocations existed nearby. It also left open that the function itself may have been unavailable/crashing and recommended reviewing function code/logs, rather than drawing the required conclusion that evidence points to a gateway/platform failure before invocation records were created, not an application exception visible in invocation logs."
+        "judgeNotes": "The assistant attributes image-transform 503s to a transient function/dependency/runtime outage and recommends checking/rollback of function deployment. It does not ground the 503 burst in gateway/platform-layer observations, and treats it as likely function code/dependency related."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended specific actionable next steps: checking Edge Function deployment/history, reviewing function logs for crashes/timeouts, adding retry/backoff, and monitoring gateway/function errors."
+        "judgeNotes": "The assistant recommended concrete actionable next steps: check Edge Function deployment/dependency releases, rollback if correlated, inspect function-specific logs/stack traces, retry/backfill failed uploads, and add 5xx alerts."
       }
     ],
     "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -150,22 +150,22 @@
       "logs"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "identified image-transform and the 503 burst window",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified image-transform as the affected function and located the burst of HTTP 503s in the 2026-04-28T10:18Z–2026-04-28T10:29Z window, with appropriate context and next steps."
+        "judgeNotes": "Assistant identified image-transform as affected and located repeated HTTP 503s in the 2026-04-28T10:18Z–10:29Z window."
       },
       {
-        "name": "correlated absent invocation rows to a gateway/platform failure",
-        "passed": true,
-        "judgeNotes": "The assistant identified gateway 503s for /functions/v1/image-transform and characterized them as a transient Edge Function/gateway availability issue rather than Postgres. It also noted that only gateway logs showed 503s and suggested reviewing runtime logs, without claiming the function code threw. However, it did not explicitly state that invocation rows were absent/missing during the failing window while nearby successful invocations existed, which is a key rubric point. Overall it drew the correct conclusion enough to pass."
+        "name": "attributed 503 burst to gateway/platform layer, not function code",
+        "passed": false,
+        "judgeNotes": "The assistant notes 503s on the Edge Function gateway but ultimately attributes them to transient unavailability of the image-transform function / possible runtime or dependency instability, and redeployed the function as remediation. It does not ground the attribution in absence of invocation/runtime rows, unchanged deployment_id, or distinction from function-level errors, and it recommends function/runtime fixes."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: inspect the Edge Function deployment/config around the failure window, review runtime/container health errors for image-transform, add retry behavior, and redeploy/rollback if recurring."
+        "judgeNotes": "The assistant recommended concrete next steps, including confirming current 200 responses for image-transform uploads and tracing the exact failing request path if failures return. It also identified a specific time window and endpoint and took an actionable remediation step by redeploying the Edge Function."
       }
     ],
     "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
