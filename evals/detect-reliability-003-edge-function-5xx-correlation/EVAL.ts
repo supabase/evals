@@ -24,7 +24,7 @@ const scorer: ToolScorer = async (ctx) => {
         The failing image-transform 503s originate at the gateway / Edge Functions platform layer (in front of the function), not from the function's own code.
 
         Pass if BOTH:
-        1. The assistant attributes the 503 burst to the gateway/platform layer rather than to the function's application code, AND
+        1. The assistant attributes the recurring 503s to the gateway/platform layer rather than to the function's application code, AND
         2. The attribution is grounded in at least one valid observation from the data, such as: the 503s appear only on the gateway/HTTP log surface with no corresponding invocation/runtime rows for that window (while nearby invocations succeeded), the deployment_id/version is unchanged across the outage (ruling out a bad rollout), or that a gateway 503 is categorically distinct from a function-level error like avatar-upload's logged 500.
 
         Fail if the assistant: blames the image-transform function code or runtime as the primary cause, recommends fixing or redeploying the function as the remediation, treats the gateway 503s as equivalent to function-level errors, or gives no layer attribution at all.
@@ -47,7 +47,7 @@ const scorer: ToolScorer = async (ctx) => {
       judgeNotes: signalFound.notes,
     },
     {
-      name: "attributed 503 burst to gateway/platform layer, not function code",
+      name: "attributed recurring 503s to gateway/platform layer, not function code",
       passed: correlationMade.passed,
       judgeNotes: correlationMade.notes,
     },
