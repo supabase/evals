@@ -177,16 +177,14 @@ async function checkUserBCannotInsertAsUserA(
   ctx: ToolEvalContext,
   users: TestUsers,
 ): Promise<CheckResult> {
-  await silenceExpectedError(() =>
-    users.clientB
-      .from("bookmarks")
-      .insert({
-        user_id: users.userAId,
-        title: "planted by user B",
-        url: "https://example.com/planted",
-      })
-      .select("id"),
-  );
+  await users.clientB
+    .from("bookmarks")
+    .insert({
+      user_id: users.userAId,
+      title: "planted by user B",
+      url: "https://example.com/planted",
+    })
+    .select("id");
   const { rows } = await ctx.query(
     `SELECT count(*)::int AS count FROM bookmarks WHERE title = 'planted by user B';`,
   );
@@ -222,14 +220,4 @@ async function checkRlsDiagnosisAndOwnerPolicies(
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };
-}
-
-async function silenceExpectedError<T>(fn: () => PromiseLike<T>): Promise<T> {
-  const original = console.error;
-  console.error = () => undefined;
-  try {
-    return await fn();
-  } finally {
-    console.error = original;
-  }
 }
