@@ -46,6 +46,39 @@
   },
   {
     "experiment": "openai-gpt-5.4-mini",
+    "eval": "deploy-database-001-prometheus-metrics",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "preserved existing app scrape job",
+        "passed": true
+      },
+      {
+        "name": "configured the Supabase Metrics API scrape correctly",
+        "passed": false,
+        "judgeNotes": "Fails: Supabase scrape uses basic_auth password instead of password_file, injects a Secret API key via env/template substitution, docker-compose does not mount a password_file via volume or secret, and the target is not explicitly wired to 94abbf064d3a42fa9874.supabase.co/red."
+      },
+      {
+        "name": "documented live deployment and verification steps",
+        "passed": false,
+        "judgeNotes": "README lacks required matching secret file setup and concrete verification steps (Prometheus targets, PromQL/Grafana, or equivalent). Deploy/redeploy guidance is also env-var based rather than the required secret-file setup."
+      }
+    ],
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/deploy-database-001-prometheus-metrics/summary.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
     "eval": "investigate-reliability-003-edge-function-5xx-correlation",
     "stage": "investigate",
     "product": [
@@ -57,22 +90,22 @@
       "logs"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described the recurring 503 pattern across the morning of 2026-04-28, covering the 8 gateway failures from 07:00Z–12:00Z."
+        "judgeNotes": "Identified image-transform as affected and noted the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z–12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": false,
-        "judgeNotes": "The assistant attributes the 503s to an edge/runtime availability problem and distinguishes avatar-upload's 500 as app-level, but the attribution is not grounded in a valid observation required by the rubric. It cites cadence and interleaved 200s, not the key evidence that 503s appear only on gateway/HTTP logs with no corresponding invocation/runtime rows, unchanged deployment_id/version, or categorical distinction of gateway 503 vs function-level error. It also recommends redeploying/pinning dependencies, which the rubric treats as a fail if remediation focuses on fixing/redeploying the function."
+        "passed": true,
+        "judgeNotes": "The assistant attributes the recurring image-transform 503s to API/gateway/platform routing rather than function code. This is grounded in the observation that 503s appear in API/gateway logs rather than function runtime failures, while successful function requests returned 200 nearby. It also distinguishes the separate avatar-upload 500 as an application error."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: check Edge Function provider/platform incidents for the date, inspect function-specific logs at exact failure timestamps, redeploy with pinned dependencies, and add retry/fallback handling."
+        "judgeNotes": "The assistant recommended concrete next steps, including inspecting Edge Function deployment/version health for the affected time window, checking upstream dependency outages, and adding retry/backoff for 503s."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -123,7 +156,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS deny-all due to no policies, added authenticated SELECT using user_id = auth.uid() and INSERT with check user_id = auth.uid(), and did not disable RLS."
+        "judgeNotes": "Diagnosed deny-all RLS with no policies and created authenticated owner-scoped SELECT and INSERT policies using auth.uid() / WITH CHECK, without disabling RLS. Extra UPDATE policy does not violate the rubric."
       }
     ],
     "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -235,6 +268,39 @@
   },
   {
     "experiment": "openai-gpt-5.4-nano",
+    "eval": "deploy-database-001-prometheus-metrics",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "preserved existing app scrape job",
+        "passed": true
+      },
+      {
+        "name": "configured the Supabase Metrics API scrape correctly",
+        "passed": false,
+        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an environment variable instead of password_file, and docker-compose.yml does not mount the password file via a volume or Compose secret. Existing app scrape and endpoint/target are otherwise present."
+      },
+      {
+        "name": "documented live deployment and verification steps",
+        "passed": false,
+        "judgeNotes": "README includes creating a Secret API key, restarting the Compose stack, and basic Prometheus/Grafana verification, but it does not require placing a matching secret file. It instead uses an environment variable, which fails the required secret-file setup."
+      }
+    ],
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/deploy-database-001-prometheus-metrics/summary.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
     "eval": "investigate-reliability-003-edge-function-5xx-correlation",
     "stage": "investigate",
     "product": [
@@ -251,17 +317,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described recurring HTTP 503s throughout the morning of 2026-04-28, covering most of the gateway failures across 07:00Z-12:00Z."
+        "judgeNotes": "Assistant identified image-transform as affected and described recurring intermittent 503s throughout the morning of 2026-04-28, covering the 07:00Z-12:00Z window with multiple examples. It did not focus on old billing-webhook logs."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant correctly attributes 503s to the Edge Function gateway/platform layer and grounds this in the absence of function execution logs for 503s while 200 executions exist, and distinguishes avatar-upload's 500. However, it recommends instrumenting and redeploying/bumping the image-transform function to rule out runtime/build state, which the rubric lists as a fail condition when recommending fixing or redeploying the function as remediation."
+        "judgeNotes": "The assistant attributes the 503s to Edge Function/application runtime issues (dependency, timeout/resource pressure, upstream call inside transform code) and recommends logging/redeploying/fixing the function, rather than identifying the gateway/platform layer. Although it mentions gateway-like HTTP status data and Storage absence, it does not ground the 503s as platform-layer failures distinct from function runtime errors."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: correlate exact timestamps/endpoints, add retry handling for 503s, instrument the Edge Function to confirm whether code runs, and redeploy/bump the function version to rule out runtime/build issues."
+        "judgeNotes": "The assistant recommended concrete next steps: add structured runtime error logging and redeploy, check dependency/version changes around the incident window, add retry/backoff mitigation, and verify correlated Storage requests."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -312,7 +378,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API behavior, kept RLS enabled, and created authenticated SELECT and INSERT owner-scoped policies using user_id = auth.uid() and WITH CHECK."
+        "judgeNotes": "The assistant correctly diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using user_id = auth.uid() / WITH CHECK. Extra UPDATE/DELETE owner policies do not violate the rubric."
       }
     ],
     "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
