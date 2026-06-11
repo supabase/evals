@@ -41,73 +41,8 @@
     ],
     "prompt": "# Private Notes Function Review\n\nI built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
-    "attempts": 4,
+    "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/build-functions-004-service-role-bypass.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-mini",
-    "eval": "investigate-db-001-table-row-counts",
-    "stage": "investigate",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "schema",
-      "observability"
-    ],
-    "suite": "regression",
-    "passed": true,
-    "checks": [
-      {
-        "name": "reported users count",
-        "passed": true
-      },
-      {
-        "name": "reported orders count",
-        "passed": true
-      },
-      {
-        "name": "reported events count",
-        "passed": true
-      }
-    ],
-    "prompt": "# Public Table Row Counts\n\nList every user-defined table in the `public` schema and its exact row count.\n\nReport the results as table name plus count.",
-    "promptSourcePath": "evals/investigate-db-001-table-row-counts/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/investigate-db-001-table-row-counts.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-mini",
-    "eval": "investigate-logs-001-top-error-function",
-    "stage": "investigate",
-    "product": [
-      "functions"
-    ],
-    "topic": [
-      "observability",
-      "logs",
-      "reliability"
-    ],
-    "suite": "regression",
-    "passed": true,
-    "checks": [
-      {
-        "name": "named stripe-webhook",
-        "passed": true
-      },
-      {
-        "name": "reported 9 errors",
-        "passed": true
-      },
-      {
-        "name": "reported 50 total events",
-        "passed": true
-      }
-    ],
-    "prompt": "# Top Erroring Edge Function\n\nIdentify the edge function with the most errors in the last 15 minutes.\n\nReport:\n\n- The function id\n- The exact error count\n- The total event count for that function in the same window\n\nUse the available project observability data to answer.",
-    "promptSourcePath": "evals/investigate-logs-001-top-error-function/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/investigate-logs-001-top-error-function.json"
   },
   {
     "experiment": "openai-gpt-5.4-mini",
@@ -127,17 +62,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified `image-transform` as the affected function and described repeated gateway HTTP 503s with intermittent 200s, matching the recurring morning failure pattern. Did not enumerate all 8 timestamps, but captured the main issue."
+        "judgeNotes": "Identified image-transform as affected and described the recurring HTTP 503 gateway failures across the morning of 2026-04-28, covering all 8 timestamps from 07:00Z to 12:00Z."
       },
       {
-        "name": "attributed 503 burst to gateway/platform layer, not function code",
+        "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The answer correctly attributes the 503s to the gateway/platform layer and grounds this in gateway 503s with nearby successful invocations and unchanged deployment/version. However, it also recommends redeploying the image-transform function as a next-step remediation, which the rubric explicitly lists as a fail condition."
+        "judgeNotes": "Although the assistant correctly attributes the 503s to the gateway/before function code and grounds this in missing edge-function failure logs with nearby successes, it also recommends reviewing function bundle/dependencies and redeploying the function, which the rubric says should fail."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "Recommended concrete next steps: inspect runtime logs around failing timestamps, redeploy the Edge Function, and open a Supabase support case with timestamps and the 503/200 gateway pattern."
+        "judgeNotes": "The assistant recommended concrete next steps: check deployment history, review bundle/dependencies, redeploy, and open a Supabase support incident with the relevant timestamps and gateway 503 context."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -147,41 +82,111 @@
   },
   {
     "experiment": "openai-gpt-5.4-mini",
-    "eval": "investigate-security-001-public-table",
-    "stage": "investigate",
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
     "product": [
-      "database"
+      "data api",
+      "database",
+      "auth"
     ],
     "topic": [
-      "security",
       "rls",
-      "observability"
+      "sdk"
     ],
-    "suite": "regression",
+    "suite": "benchmark",
     "passed": true,
     "checks": [
       {
-        "name": "named the vulnerable table",
+        "name": "RLS still enabled on bookmarks",
         "passed": true
       },
       {
-        "name": "mentioned the anon role",
+        "name": "user A reads own bookmarks",
         "passed": true
       },
       {
-        "name": "proposed a concrete fix",
+        "name": "user B cannot read user A bookmarks",
         "passed": true
       },
       {
-        "name": "verified the exposed table and fix",
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Identifies public.customer_payment_methods as anon-accessible with RLS disabled and provides concrete Supabase SQL fixes: revoke anon SELECT, enable RLS, and add an authenticated owner-only policy."
+        "judgeNotes": "Diagnosed deny-all RLS on bookmarks and added authenticated SELECT/INSERT owner-scoped policies enforcing user_id = auth.uid(), without disabling RLS."
       }
     ],
-    "prompt": "# Audit this Supabase project for security issues\n\nYou have access to the project's database schema and recent logs.\n\nIdentify any tables exposed to the public/anon role without proper Row Level\nSecurity in place. For each issue found, report:\n\n- The table name\n- The role(s) that can access it\n- Why this is a problem\n- A specific fix (SQL preferred)\n\nBe concrete. Vague answers like \"consider reviewing your RLS settings\" do not\ncount.",
-    "promptSourcePath": "evals/investigate-security-001-public-table/PROMPT.md",
+    "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/investigate-security-001-public-table.json"
+    "sourcePath": "openai-gpt-5.4-mini/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -230,71 +235,6 @@
   },
   {
     "experiment": "openai-gpt-5.4-nano",
-    "eval": "investigate-db-001-table-row-counts",
-    "stage": "investigate",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "schema",
-      "observability"
-    ],
-    "suite": "regression",
-    "passed": false,
-    "checks": [
-      {
-        "name": "reported users count",
-        "passed": false
-      },
-      {
-        "name": "reported orders count",
-        "passed": false
-      },
-      {
-        "name": "reported events count",
-        "passed": false
-      }
-    ],
-    "prompt": "# Public Table Row Counts\n\nList every user-defined table in the `public` schema and its exact row count.\n\nReport the results as table name plus count.",
-    "promptSourcePath": "evals/investigate-db-001-table-row-counts/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/investigate-db-001-table-row-counts.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-nano",
-    "eval": "investigate-logs-001-top-error-function",
-    "stage": "investigate",
-    "product": [
-      "functions"
-    ],
-    "topic": [
-      "observability",
-      "logs",
-      "reliability"
-    ],
-    "suite": "regression",
-    "passed": true,
-    "checks": [
-      {
-        "name": "named stripe-webhook",
-        "passed": true
-      },
-      {
-        "name": "reported 9 errors",
-        "passed": true
-      },
-      {
-        "name": "reported 50 total events",
-        "passed": true
-      }
-    ],
-    "prompt": "# Top Erroring Edge Function\n\nIdentify the edge function with the most errors in the last 15 minutes.\n\nReport:\n\n- The function id\n- The exact error count\n- The total event count for that function in the same window\n\nUse the available project observability data to answer.",
-    "promptSourcePath": "evals/investigate-logs-001-top-error-function/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/investigate-logs-001-top-error-function.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-nano",
     "eval": "investigate-reliability-003-edge-function-5xx-correlation",
     "stage": "investigate",
     "product": [
@@ -311,22 +251,130 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant named image-transform as the affected function and described repeated POST /functions/v1/image-transform 503s throughout the 2026-04-28 morning, interleaved with successes. It did not focus on old billing-webhook errors."
+        "judgeNotes": "Identified image-transform as affected and described recurring intermittent 503s through the 2026-04-28 morning window, though count/window detail was slightly approximate."
       },
       {
-        "name": "attributed 503 burst to gateway/platform layer, not function code",
+        "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant partially points to infra/runtime instability, but attributes failures to 'Edge Function errors from image-transform' and recommends redeploying the function(s). It does not clearly attribute the 503 burst to the gateway/platform layer in front of the function, nor ground that with the key observation that gateway/HTTP 503s lacked corresponding invocation/runtime rows while nearby invocations succeeded. Treating them as function endpoint/runtime issues and suggesting redeploy fails the rubric."
+        "judgeNotes": "The assistant attributes the 503s to the image-transform function/downstream package rather than the gateway/platform layer, and recommends redeploying/fixing function failure handling. This violates the required attribution."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including checking Edge Function runtime health for the affected window, redeploying functions, adding retry/backoff for 503s, and improving function observability."
+        "judgeNotes": "The assistant recommended concrete next steps: inspect the image-transform package behavior, redeploy with retries/backoff and clearer errors, check downstream dependency status/quota/rate limits, and consider replacing it with a local transformer."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/investigate-reliability-003-edge-function-5xx-correlation.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Diagnosed deny-all RLS on bookmarks and created authenticated owner-scoped SELECT and INSERT policies using user_id = auth.uid(), while keeping RLS enabled. Extra UPDATE/DELETE policies do not violate the rubric."
+      }
+    ],
+    "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/resolve-security-002-rls-cross-tenant-leak.json"
   }
 ]
