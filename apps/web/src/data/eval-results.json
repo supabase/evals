@@ -15,22 +15,22 @@
     "passed": false,
     "checks": [
       {
-        "name": "identified image-transform and the 503 burst window",
+        "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Assistant identified image-transform as affected and specified the 2026-04-28T10:18Z–10:29Z 503 window. It did not mention the exact count of 12 HTTP 503s, but the rubric allows locating the burst/window as sufficient."
+        "judgeNotes": "Identified image-transform and described the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z-12:00Z."
       },
       {
         "name": "attributed 503 burst to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant attributes the 503s primarily to Edge Function boot/runtime/function startup issues and recommends checking/reproducing/fixing the function boot path. It does not ground the attribution in valid evidence that the 503s originated at the gateway/platform layer with no corresponding invocation/runtime rows, unchanged deployment_id, or distinction from the avatar-upload 500. It also treats 503 as likely BOOT_ERROR, contrary to the expected gateway/platform-layer attribution."
+        "judgeNotes": "The assistant did not clearly attribute the image-transform 503 burst to the gateway/platform layer in front of the function. It instead suggested dependency/runtime/cold-start/upstream issues inside the packages and recommended inspecting/replacing function dependencies, which leans toward function/runtime/application remediation. Although it noted no matching app-level exception, the final attribution was ambiguous and not grounded enough in valid observations like absent invocation/runtime rows or unchanged deployment_id."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: checking Edge Function boot-error logs for a specific time window, verifying npm dependency/runtime compatibility, reproducing locally, and escalating/opening a platform/runtime incident with the log window if intermittent."
+        "judgeNotes": "The assistant recommended concrete next steps, including checking recent deploys/package changes, inspecting function dependencies, adding telemetry, and implementing retries/fallbacks."
       }
     ],
-    "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/detect-reliability-003-edge-function-5xx-correlation/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/detect-reliability-003-edge-function-5xx-correlation.json"
@@ -150,25 +150,25 @@
       "logs"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "identified image-transform and the 503 burst window",
+        "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant identified `image-transform` as the affected function and located the burst of HTTP 503 responses in the specific 2026-04-28 10:18–10:29 UTC window."
+        "judgeNotes": "The assistant correctly identified `image-transform` as the affected function and described a recurring intermittent pattern of 503 gateway/API failures throughout the morning of 2026-04-28, alternating with 200s. It also avoided misattributing the issue to old billing-webhook errors."
       },
       {
         "name": "attributed 503 burst to gateway/platform layer, not function code",
-        "passed": false,
-        "judgeNotes": "The response attributes the issue to a transient Edge Functions outage/unavailability, but then recommends redeploying/rolling back and inspecting runtime behavior, implying the function/deployment may be the cause. It does not clearly ground attribution in gateway/platform-layer evidence such as gateway-only 503s with no invocation rows, unchanged deployment_id/version, or distinction from function-level errors."
+        "passed": true,
+        "judgeNotes": "The assistant attributes the 503s to the API/gateway/edge routing layer before the function handler runs, not to application code. This is grounded in the observation that 503s appear in API/gateway logs without corresponding Edge Function execution failures while nearby executions succeeded. Although it suggests redeploying to rule out transient platform/runtime issues, the primary attribution and escalation are platform/gateway-level, so it passes."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: checking deployments/rollouts, redeploying or rolling back the Edge Function, inspecting runtime behavior with logging/retries, and investigating dependency/service incidents."
+        "judgeNotes": "The assistant recommended concrete next steps, including adding observability, implementing retries, redeploying the Edge Function, and escalating to Supabase support with timestamps and endpoint details because failures appear gateway-level."
       }
     ],
-    "prompt": "Users reported around `2026-04-28T12:00:00Z` that image uploads were failing\nearlier today with server errors.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/detect-reliability-003-edge-function-5xx-correlation/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/detect-reliability-003-edge-function-5xx-correlation.json"
