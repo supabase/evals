@@ -16,7 +16,7 @@
       "supabase-js"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -32,11 +32,11 @@
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": false
+        "passed": true
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": false
+        "passed": true
       }
     ],
     "prompt": "# Private Notes Function Review\n\nI built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
@@ -62,17 +62,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified `image-transform` as the affected function and described the recurring HTTP 503 gateway failures across the morning of 2026-04-28, covering all 8 failures from 07:00Z through 12:00Z. It did not incorrectly focus on older billing-webhook errors."
+        "judgeNotes": "Identified image-transform as affected and described the recurring 503 pattern across the morning of 2026-04-28, covering the 8 gateway failures from 07:00Z–12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The response correctly attributes the recurring 503s to the edge gateway/platform and grounds it in gateway 503s, nearby 200s, and stable deployment/version. However, it recommends redeploying `image-transform` and inspecting function/runtime issues as next remediation steps, which the rubric says should fail because the issue is at the gateway/platform layer rather than the function code."
+        "judgeNotes": "The assistant attributes the 503s to an edge/runtime availability problem and distinguishes avatar-upload's 500 as app-level, but the attribution is not grounded in a valid observation required by the rubric. It cites cadence and interleaved 200s, not the key evidence that 503s appear only on gateway/HTTP logs with no corresponding invocation/runtime rows, unchanged deployment_id/version, or categorical distinction of gateway 503 vs function-level error. It also recommends redeploying/pinning dependencies, which the rubric treats as a fail if remediation focuses on fixing/redeploying the function."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended specific actionable next steps: checking Edge Function deployment/health, inspecting runtime logs, redeploying the affected function, and reviewing recent upload pipeline/package changes."
+        "judgeNotes": "The assistant recommended concrete next steps: check Edge Function provider/platform incidents for the date, inspect function-specific logs at exact failure timestamps, redeploy with pinned dependencies, and add retry/fallback handling."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -123,7 +123,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS deny-all due to no policies and added authenticated SELECT and INSERT policies scoped to user_id = auth.uid(), without disabling RLS."
+        "judgeNotes": "Diagnosed RLS deny-all due to no policies, added authenticated SELECT using user_id = auth.uid() and INSERT with check user_id = auth.uid(), and did not disable RLS."
       }
     ],
     "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -205,7 +205,7 @@
       "supabase-js"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -213,11 +213,11 @@
       },
       {
         "name": "user A reads own note",
-        "passed": false
+        "passed": true
       },
       {
         "name": "reads only with the caller's JWT",
-        "passed": false
+        "passed": true
       },
       {
         "name": "user A cannot force-read user B note",
@@ -251,17 +251,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant identified image-transform as the affected function and described intermittent/recurring HTTP 503s throughout the morning of 2026-04-28, listing multiple failures across 07:00Z–12:00Z and noting successful calls in between."
+        "judgeNotes": "Identified image-transform as affected and described recurring HTTP 503s throughout the morning of 2026-04-28, covering most of the gateway failures across 07:00Z-12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant identifies 503s at the gateway but still frames the likely cause as an Edge Function availability/processing issue involving dependency/runtime instability, upstream calls, timeouts, or resources, and recommends inspecting/updating/redeploying the function. It does not clearly attribute the recurring 503s to the gateway/platform layer in front of the function, nor ground that attribution with observations like missing invocation/runtime rows or unchanged deployment_id."
+        "judgeNotes": "The assistant correctly attributes 503s to the Edge Function gateway/platform layer and grounds this in the absence of function execution logs for 503s while 200 executions exist, and distinguishes avatar-upload's 500. However, it recommends instrumenting and redeploying/bumping the image-transform function to rule out runtime/build state, which the rubric lists as a fail condition when recommending fixing or redeploying the function as remediation."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "Assistant recommended concrete next steps: inspect Edge Function dependency/runtime details, redeploy/update function, add retries, and capture request context/timing for correlation."
+        "judgeNotes": "The assistant recommended concrete next steps: correlate exact timestamps/endpoints, add retry handling for 503s, instrument the Edge Function to confirm whether code runs, and redeploy/bump the function version to rule out runtime/build issues."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -312,7 +312,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using user_id = auth.uid() with WITH CHECK for inserts. Extra update/delete policies are acceptable."
+        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API behavior, kept RLS enabled, and created authenticated SELECT and INSERT owner-scoped policies using user_id = auth.uid() and WITH CHECK."
       }
     ],
     "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
