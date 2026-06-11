@@ -200,8 +200,6 @@ async function checkUserBCannotInsertAsUserA(
 async function checkRlsDiagnosisAndOwnerPolicies(
   ctx: ToolEvalContext,
 ): Promise<CheckResult> {
-  // AI-822: empty Data API results must be handled as an RLS issue, not a
-  // data/query problem, and fixed with owner-scoped policies.
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, {
       includeToolCallInputs: true,
