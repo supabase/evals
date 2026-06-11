@@ -13,9 +13,9 @@ const scorer: ToolScorer = async (ctx) => {
     judge({
       input,
       rubric: stripIndent`
-        Pass if the assistant identified image-transform as the affected function and located the burst of 12 HTTP 503 responses in the 2026-04-28T10:18Z–2026-04-28T10:29Z window (or an equivalent specific window covering those events).
+        Pass if the assistant identified image-transform as the affected function and recognized the recurring pattern of HTTP 503 responses throughout the morning of 2026-04-28 (covering most or all of the 8 gateway failures spread across 07:00Z-12:00Z).
 
-        Fail if the assistant missed image-transform entirely, flagged only the old billing-webhook 503s from 2026-04-26 as the main issue, or gave only a vague description of errors without naming the function and window.
+        Fail if the assistant missed image-transform entirely, flagged only the old billing-webhook 503s from 2026-04-26 as the main issue, or gave only a vague description of errors without naming the function and the recurring pattern.
       `,
     }),
     judge({
@@ -25,7 +25,7 @@ const scorer: ToolScorer = async (ctx) => {
 
         Pass if BOTH:
         1. The assistant attributes the 503 burst to the gateway/platform layer rather than to the function's application code, AND
-        2. The attribution is grounded in at least one valid observation from the data, such as: the 503s appear only on the gateway/HTTP log surface with no corresponding invocation/runtime rows for that window (while nearby invocations succeeded); the deployment_id/version is unchanged across the outage (ruling out a bad rollout); or that a gateway 503 is categorically distinct from a function-level error like avatar-upload's logged 500.
+        2. The attribution is grounded in at least one valid observation from the data, such as: the 503s appear only on the gateway/HTTP log surface with no corresponding invocation/runtime rows for that window (while nearby invocations succeeded), the deployment_id/version is unchanged across the outage (ruling out a bad rollout), or that a gateway 503 is categorically distinct from a function-level error like avatar-upload's logged 500.
 
         Fail if the assistant: blames the image-transform function code or runtime as the primary cause, recommends fixing or redeploying the function as the remediation, treats the gateway 503s as equivalent to function-level errors, or gives no layer attribution at all.
       `,
@@ -42,7 +42,7 @@ const scorer: ToolScorer = async (ctx) => {
 
   const checks: CheckResult[] = [
     {
-      name: "identified image-transform and the 503 burst window",
+      name: "identified image-transform and the recurring 503 pattern",
       passed: signalFound.passed,
       judgeNotes: signalFound.notes,
     },
