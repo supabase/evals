@@ -1,10 +1,9 @@
 import { z } from "zod";
 
 export const evalStageSchema = z.enum([
-  "design",
+  "build",
   "deploy",
-  "observe",
-  "detect",
+  "investigate",
   "resolve",
 ]);
 export const EVAL_STAGES = evalStageSchema.options;

@@ -1,5 +1,5 @@
 ---
-stage: design
+stage: build
 product:
   - functions
   - database

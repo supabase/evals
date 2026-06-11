@@ -1,11 +1,11 @@
 ---
-stage: design
+stage: build
 product:
   - database
   - auth
-  - sdk
 topic:
   - rls
+  - sdk
   - supabase-js
   - security
 ---

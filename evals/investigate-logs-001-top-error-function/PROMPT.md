@@ -1,5 +1,5 @@
 ---
-stage: observe
+stage: investigate
 product:
   - functions
 topic:
