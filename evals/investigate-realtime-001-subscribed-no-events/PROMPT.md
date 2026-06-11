@@ -9,7 +9,7 @@ topic:
 motivation: AI-819, REAL-577
 ---
 
-# New Orders Never Appear Live
+# Debug Realtime publication
 
 Our dispatch dashboard shows incoming orders as they happen. The courier
 location feed on the same page updates live without problems, but new orders
