@@ -19,7 +19,7 @@ git submodule update --init
 From the repo root:
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env
 ```
 
@@ -28,13 +28,13 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 Run one eval:
 
 ```bash
-npm run eval -- --eval detect-security-001-public-table --experiment openai-gpt-5.4-mini --runs 1 --force
+pnpm eval -- --eval detect-security-001-public-table --experiment openai-gpt-5.4-mini --runs 1 --force
 ```
 
 View results in the web app at `http://localhost:5173`:
 
 ```bash
-npm run web
+pnpm web
 ```
 
 ## Concepts
@@ -65,13 +65,13 @@ Running evals executes experiment x eval pairs and writes local result files und
 Target a single experiment by filename stem:
 
 ```bash
-npm run eval -- --experiment openai-gpt-5.4-mini --runs 1 --force
+pnpm eval -- --experiment openai-gpt-5.4-mini --runs 1 --force
 ```
 
 Target multiple experiments or eval scenarios by repeating flags:
 
 ```bash
-npm run eval -- \
+pnpm eval -- \
   --experiment openai-gpt-5.4-mini \
   --experiment openai-gpt-5.4-nano \
   --suite benchmark \
@@ -84,7 +84,7 @@ npm run eval -- \
 Target a single model id:
 
 ```bash
-npm run eval -- --model gpt-5.4-mini
+pnpm eval -- --model gpt-5.4-mini
 ```
 
 > [!NOTE]
@@ -93,7 +93,7 @@ npm run eval -- --model gpt-5.4-mini
 Or run everything:
 
 ```bash
-npm run eval
+pnpm eval
 ```
 
 ## Eval Shape
@@ -138,7 +138,7 @@ To use a skill in an experiment, reference its directory name in the experiment'
 ## Framework Checks
 
 ```bash
-npm run check
+pnpm check
 ```
 
 Runs typechecks plus local smoke tests.
