@@ -28,8 +28,8 @@ import { cn } from "@/lib/utils"
 
 const JOURNEY_STAGES = [
   {
-    id: "design",
-    label: "Design",
+    id: "build",
+    label: "Build",
     description:
       "Tests whether an agent can write strong Supabase code, either directly with tools or through project evals that connect Supabase to a front end.",
   },
@@ -40,16 +40,10 @@ const JOURNEY_STAGES = [
       "Will measure how well an agent follows Supabase deployment patterns, including declarative schemas and CLI workflows.",
   },
   {
-    id: "observe",
-    label: "Observe",
+    id: "investigate",
+    label: "Investigate",
     description:
-      "Measures how well an agent can gather the project and observability context it needs, primarily through the mock management API.",
-  },
-  {
-    id: "detect",
-    label: "Detect",
-    description:
-      "Tests whether an agent can interpret observability data, optionally combine it with code context, and identify the underlying issues.",
+      "Tests whether an agent can gather project context, interpret observability data, and identify the underlying issue.",
   },
   {
     id: "resolve",
@@ -1082,7 +1076,7 @@ export function App() {
                     className="w-fit"
                   >
                     <ToggleGroupItem value="stage">
-                      Group by stage
+                      Group by journey
                     </ToggleGroupItem>
                     <ToggleGroupItem value="model">
                       Group by model
@@ -1096,9 +1090,9 @@ export function App() {
                   </ToggleGroup>
                 </div>
                 <p className="max-w-xl text-base leading-6 tracking-[-0.011em] text-pretty text-muted-foreground lg:max-w-2xl lg:flex-1 lg:pb-1">
-                  We evaluate model experiments against each stage of the
-                  Supabase developer journey, from designing application
-                  primitives through observing behavior, detecting issues, and
+                  We evaluate model experiments against each step of the
+                  Supabase developer journey, from building application
+                  primitives through deploying, investigating issues, and
                   resolving production problems with the right project context.
                 </p>
               </div>

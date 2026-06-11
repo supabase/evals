@@ -1,44 +1,8 @@
 [
   {
     "experiment": "openai-gpt-5.4-mini",
-    "eval": "detect-reliability-003-edge-function-5xx-correlation",
-    "stage": "detect",
-    "product": [
-      "functions"
-    ],
-    "topic": [
-      "reliability",
-      "observability",
-      "logs"
-    ],
-    "suite": "benchmark",
-    "passed": false,
-    "checks": [
-      {
-        "name": "identified image-transform and the recurring 503 pattern",
-        "passed": true,
-        "judgeNotes": "The assistant identified image-transform as the main affected function and described a recurring pattern of 503 gateway failures throughout the morning of 2026-04-28, including alternating successes and failures around :00/:30. It did not incorrectly center the old billing-webhook issue."
-      },
-      {
-        "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": false,
-        "judgeNotes": "The response mentions gateway failures, but does not clearly attribute the recurring 503s to the gateway/platform layer in front of the function. It also suggests investigating function code, boot/dependency/import errors, and cold-start instability, which treats the function/runtime as a likely cause rather than ruling it out based on log evidence."
-      },
-      {
-        "name": "recommended a concrete next step",
-        "passed": true,
-        "judgeNotes": "The assistant recommended specific actionable next steps: inspect Edge Function code/deployment history, check Edge Function logs around the 503 timestamps, add retries, and investigate third-party dependency cold-start/boot instability."
-      }
-    ],
-    "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
-    "promptSourcePath": "evals/detect-reliability-003-edge-function-5xx-correlation/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/detect-reliability-003-edge-function-5xx-correlation.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-mini",
-    "eval": "resolve-functions-001-service-role-bypass",
-    "stage": "resolve",
+    "eval": "build-functions-004-service-role-bypass",
+    "stage": "build",
     "product": [
       "functions",
       "auth",
@@ -76,71 +40,79 @@
       }
     ],
     "prompt": "# Private Notes Function Review\n\nI built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
-    "promptSourcePath": "evals/resolve-functions-001-service-role-bypass/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/resolve-functions-001-service-role-bypass.json"
+    "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
+    "attempts": 4,
+    "sourcePath": "openai-gpt-5.4-mini/build-functions-004-service-role-bypass.json"
   },
   {
     "experiment": "openai-gpt-5.4-mini",
-    "eval": "resolve-security-002-rls-cross-tenant-leak",
-    "stage": "resolve",
+    "eval": "investigate-db-001-table-row-counts",
+    "stage": "investigate",
     "product": [
-      "database",
-      "auth"
+      "database"
     ],
     "topic": [
-      "rls",
-      "security"
+      "schema",
+      "observability"
     ],
-    "suite": "benchmark",
+    "suite": "regression",
     "passed": true,
     "checks": [
       {
-        "name": "RLS enabled on notes",
+        "name": "reported users count",
         "passed": true
       },
       {
-        "name": "tenant A sees only org A notes",
+        "name": "reported orders count",
         "passed": true
       },
       {
-        "name": "tenant B cannot read org A notes",
-        "passed": true
-      },
-      {
-        "name": "tenant A author can update own note",
-        "passed": true
-      },
-      {
-        "name": "tenant B cannot update org A note",
-        "passed": true
-      },
-      {
-        "name": "tenant B author can delete own note",
-        "passed": true
-      },
-      {
-        "name": "tenant B cannot delete org A note",
-        "passed": true
-      },
-      {
-        "name": "tenant A can insert note in own org",
-        "passed": true
-      },
-      {
-        "name": "tenant B cannot insert into org A",
+        "name": "reported events count",
         "passed": true
       }
     ],
-    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
-    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "prompt": "# Public Table Row Counts\n\nList every user-defined table in the `public` schema and its exact row count.\n\nReport the results as table name plus count.",
+    "promptSourcePath": "evals/investigate-db-001-table-row-counts/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak.json"
+    "sourcePath": "openai-gpt-5.4-mini/investigate-db-001-table-row-counts.json"
   },
   {
-    "experiment": "openai-gpt-5.4-nano",
-    "eval": "detect-reliability-003-edge-function-5xx-correlation",
-    "stage": "detect",
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "investigate-logs-001-top-error-function",
+    "stage": "investigate",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "observability",
+      "logs",
+      "reliability"
+    ],
+    "suite": "regression",
+    "passed": true,
+    "checks": [
+      {
+        "name": "named stripe-webhook",
+        "passed": true
+      },
+      {
+        "name": "reported 9 errors",
+        "passed": true
+      },
+      {
+        "name": "reported 50 total events",
+        "passed": true
+      }
+    ],
+    "prompt": "# Top Erroring Edge Function\n\nIdentify the edge function with the most errors in the last 15 minutes.\n\nReport:\n\n- The function id\n- The exact error count\n- The total event count for that function in the same window\n\nUse the available project observability data to answer.",
+    "promptSourcePath": "evals/investigate-logs-001-top-error-function/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/investigate-logs-001-top-error-function.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "investigate-reliability-003-edge-function-5xx-correlation",
+    "stage": "investigate",
     "product": [
       "functions"
     ],
@@ -155,28 +127,66 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described recurring 503 gateway/request-layer failures throughout the morning of 2026-04-28, with multiple examples across the window and actionable next steps."
+        "judgeNotes": "Identified `image-transform` as the affected function and described repeated gateway HTTP 503s with intermittent 200s, matching the recurring morning failure pattern. Did not enumerate all 8 timestamps, but captured the main issue."
       },
       {
-        "name": "attributed recurring 503s to gateway/platform layer, not function code",
+        "name": "attributed 503 burst to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant did attribute the 503s to the gateway/request layer and cited missing corresponding function execution errors, but it also recommended re-deploying/rolling the function as a mitigation, which the rubric explicitly marks as a fail."
+        "judgeNotes": "The answer correctly attributes the 503s to the gateway/platform layer and grounds this in gateway 503s with nearby successful invocations and unchanged deployment/version. However, it also recommends redeploying the image-transform function as a next-step remediation, which the rubric explicitly lists as a fail condition."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant provided concrete next steps: confirm the upload dependency on the Edge Function, add retry/backoff for 503s, redeploy the function as mitigation, and add correlation/observability around the function call path."
+        "judgeNotes": "Recommended concrete next steps: inspect runtime logs around failing timestamps, redeploy the Edge Function, and open a Supabase support case with timestamps and the 503/200 gateway pattern."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
-    "promptSourcePath": "evals/detect-reliability-003-edge-function-5xx-correlation/PROMPT.md",
+    "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/detect-reliability-003-edge-function-5xx-correlation.json"
+    "sourcePath": "openai-gpt-5.4-mini/investigate-reliability-003-edge-function-5xx-correlation.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "investigate-security-001-public-table",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "security",
+      "rls",
+      "observability"
+    ],
+    "suite": "regression",
+    "passed": true,
+    "checks": [
+      {
+        "name": "named the vulnerable table",
+        "passed": true
+      },
+      {
+        "name": "mentioned the anon role",
+        "passed": true
+      },
+      {
+        "name": "proposed a concrete fix",
+        "passed": true
+      },
+      {
+        "name": "verified the exposed table and fix",
+        "passed": true,
+        "judgeNotes": "Identifies public.customer_payment_methods as anon-accessible with RLS disabled and provides concrete Supabase SQL fixes: revoke anon SELECT, enable RLS, and add an authenticated owner-only policy."
+      }
+    ],
+    "prompt": "# Audit this Supabase project for security issues\n\nYou have access to the project's database schema and recent logs.\n\nIdentify any tables exposed to the public/anon role without proper Row Level\nSecurity in place. For each issue found, report:\n\n- The table name\n- The role(s) that can access it\n- Why this is a problem\n- A specific fix (SQL preferred)\n\nBe concrete. Vague answers like \"consider reviewing your RLS settings\" do not\ncount.",
+    "promptSourcePath": "evals/investigate-security-001-public-table/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/investigate-security-001-public-table.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
-    "eval": "resolve-functions-001-service-role-bypass",
-    "stage": "resolve",
+    "eval": "build-functions-004-service-role-bypass",
+    "stage": "build",
     "product": [
       "functions",
       "auth",
@@ -214,65 +224,109 @@
       }
     ],
     "prompt": "# Private Notes Function Review\n\nI built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
-    "promptSourcePath": "evals/resolve-functions-001-service-role-bypass/PROMPT.md",
+    "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/resolve-functions-001-service-role-bypass.json"
+    "sourcePath": "openai-gpt-5.4-nano/build-functions-004-service-role-bypass.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
-    "eval": "resolve-security-002-rls-cross-tenant-leak",
-    "stage": "resolve",
+    "eval": "investigate-db-001-table-row-counts",
+    "stage": "investigate",
     "product": [
-      "database",
-      "auth"
+      "database"
     ],
     "topic": [
-      "rls",
-      "security"
+      "schema",
+      "observability"
     ],
-    "suite": "benchmark",
+    "suite": "regression",
+    "passed": false,
+    "checks": [
+      {
+        "name": "reported users count",
+        "passed": false
+      },
+      {
+        "name": "reported orders count",
+        "passed": false
+      },
+      {
+        "name": "reported events count",
+        "passed": false
+      }
+    ],
+    "prompt": "# Public Table Row Counts\n\nList every user-defined table in the `public` schema and its exact row count.\n\nReport the results as table name plus count.",
+    "promptSourcePath": "evals/investigate-db-001-table-row-counts/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/investigate-db-001-table-row-counts.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "investigate-logs-001-top-error-function",
+    "stage": "investigate",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "observability",
+      "logs",
+      "reliability"
+    ],
+    "suite": "regression",
     "passed": true,
     "checks": [
       {
-        "name": "RLS enabled on notes",
+        "name": "named stripe-webhook",
         "passed": true
       },
       {
-        "name": "tenant A sees only org A notes",
+        "name": "reported 9 errors",
         "passed": true
       },
       {
-        "name": "tenant B cannot read org A notes",
-        "passed": true
-      },
-      {
-        "name": "tenant A author can update own note",
-        "passed": true
-      },
-      {
-        "name": "tenant B cannot update org A note",
-        "passed": true
-      },
-      {
-        "name": "tenant B author can delete own note",
-        "passed": true
-      },
-      {
-        "name": "tenant B cannot delete org A note",
-        "passed": true
-      },
-      {
-        "name": "tenant A can insert note in own org",
-        "passed": true
-      },
-      {
-        "name": "tenant B cannot insert into org A",
+        "name": "reported 50 total events",
         "passed": true
       }
     ],
-    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
-    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "prompt": "# Top Erroring Edge Function\n\nIdentify the edge function with the most errors in the last 15 minutes.\n\nReport:\n\n- The function id\n- The exact error count\n- The total event count for that function in the same window\n\nUse the available project observability data to answer.",
+    "promptSourcePath": "evals/investigate-logs-001-top-error-function/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/resolve-security-002-rls-cross-tenant-leak.json"
+    "sourcePath": "openai-gpt-5.4-nano/investigate-logs-001-top-error-function.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "investigate-reliability-003-edge-function-5xx-correlation",
+    "stage": "investigate",
+    "product": [
+      "functions"
+    ],
+    "topic": [
+      "reliability",
+      "observability",
+      "logs"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "identified image-transform and the recurring 503 pattern",
+        "passed": true,
+        "judgeNotes": "The assistant named image-transform as the affected function and described repeated POST /functions/v1/image-transform 503s throughout the 2026-04-28 morning, interleaved with successes. It did not focus on old billing-webhook errors."
+      },
+      {
+        "name": "attributed 503 burst to gateway/platform layer, not function code",
+        "passed": false,
+        "judgeNotes": "The assistant partially points to infra/runtime instability, but attributes failures to 'Edge Function errors from image-transform' and recommends redeploying the function(s). It does not clearly attribute the 503 burst to the gateway/platform layer in front of the function, nor ground that with the key observation that gateway/HTTP 503s lacked corresponding invocation/runtime rows while nearby invocations succeeded. Treating them as function endpoint/runtime issues and suggesting redeploy fails the rubric."
+      },
+      {
+        "name": "recommended a concrete next step",
+        "passed": true,
+        "judgeNotes": "The assistant recommended concrete next steps, including checking Edge Function runtime health for the affected window, redeploying functions, adding retry/backoff for 503s, and improving function observability."
+      }
+    ],
+    "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/investigate-reliability-003-edge-function-5xx-correlation.json"
   }
 ]
