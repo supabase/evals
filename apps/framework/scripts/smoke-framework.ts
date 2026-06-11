@@ -11,12 +11,12 @@ import { runScorer } from "../lib/scorer.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
 
-const CLIENT_RLS_EVAL = "evals/design-rls-002-own-todos-client";
-const FUNCTIONS_EVAL = "evals/design-functions-001-order-total";
-const EDGE_AUTH_DB_EVAL = "evals/design-functions-002-edge-auth-db";
-const OBSERVE_EVAL = "evals/observe-logs-001-top-error-function";
-const DETECT_EVAL = "evals/detect-security-001-public-table";
-const FRONTEND_EVAL = "evals/design-frontend-001-todos-app";
+const CLIENT_RLS_EVAL = "evals/build-rls-002-own-todos-client";
+const FUNCTIONS_EVAL = "evals/build-functions-001-order-total";
+const EDGE_AUTH_DB_EVAL = "evals/build-functions-002-edge-auth-db";
+const INVESTIGATE_LOGS_EVAL = "evals/investigate-logs-001-top-error-function";
+const INVESTIGATE_SECURITY_EVAL = "evals/investigate-security-001-public-table";
+const FRONTEND_EVAL = "evals/build-frontend-001-todos-app";
 
 async function loadScorer(relDir: string): Promise<ToolScorer> {
   const mod = await import(pathToFileURL(join(ROOT, relDir, "EVAL.ts")).href);
@@ -194,7 +194,7 @@ async function smokeEdgeAuthDbEval() {
 
 async function smokeLogsSeeding() {
   await withBackend(
-    { logsSeedJsonl: seedPath(OBSERVE_EVAL, "logs.jsonl") },
+    { logsSeedJsonl: seedPath(INVESTIGATE_LOGS_EVAL, "logs.jsonl") },
     async ({ url, ref, accessToken }) => {
       const logsUrl = `${url}/v1/projects/${ref}/analytics/endpoints/logs.all?sql=${encodeURIComponent("SELECT count(*)::int AS n FROM edge_logs")}`;
       const res = await fetch(logsUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -206,11 +206,11 @@ async function smokeLogsSeeding() {
   console.log("PASS logs seeding via platform-lite");
 }
 
-async function smokeObserveEval() {
-  const scorer = await loadScorer(OBSERVE_EVAL);
+async function smokeInvestigateLogsEval() {
+  const scorer = await loadScorer(INVESTIGATE_LOGS_EVAL);
 
   await withBackend(
-    { logsSeedJsonl: seedPath(OBSERVE_EVAL, "logs.jsonl") },
+    { logsSeedJsonl: seedPath(INVESTIGATE_LOGS_EVAL, "logs.jsonl") },
     async (backend) => {
       const result = await scorer(
         scorerCtx(backend, { agentReport: "stripe-webhook had the most errors with 9 errors out of 50 events." })
@@ -219,16 +219,16 @@ async function smokeObserveEval() {
     }
   );
 
-  console.log("PASS observe scorer");
+  console.log("PASS investigate logs scorer");
 }
 
-async function smokeDetectEval() {
-  const scorer = await loadScorer(DETECT_EVAL);
+async function smokeInvestigateSecurityEval() {
+  const scorer = await loadScorer(INVESTIGATE_SECURITY_EVAL);
 
   await withBackend(
     {
-      projectSeedSql: seedPath(DETECT_EVAL, "project.sql"),
-      logsSeedJsonl: seedPath(DETECT_EVAL, "logs.jsonl"),
+      projectSeedSql: seedPath(INVESTIGATE_SECURITY_EVAL, "project.sql"),
+      logsSeedJsonl: seedPath(INVESTIGATE_SECURITY_EVAL, "logs.jsonl"),
     },
     async (backend) => {
       const { rows } = await backend.query(`
@@ -255,12 +255,12 @@ ORDER BY grantee;
     }
   );
 
-  console.log("PASS detect scorer + database shim");
+  console.log("PASS investigate security scorer + database shim");
 }
 
 async function smokeProjectEval() {
   const source = join(ROOT, FRONTEND_EVAL, "app");
-  const workspace = join(ROOT, "results", "_smoke", "design-frontend-001-todos-app");
+  const workspace = join(ROOT, "results", "_smoke", "build-frontend-001-todos-app");
   rmSync(workspace, { recursive: true, force: true });
   mkdirSync(dirname(workspace), { recursive: true });
   cpSync(source, workspace, {
@@ -289,8 +289,8 @@ async function main() {
   await smokePlatformBackendClose();
   await smokeEdgeAuthDbEval();
   await smokeLogsSeeding();
-  await smokeObserveEval();
-  await smokeDetectEval();
+  await smokeInvestigateLogsEval();
+  await smokeInvestigateSecurityEval();
   await smokeProjectEval();
   console.log("PASS framework smoke");
 }

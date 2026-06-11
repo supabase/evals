@@ -28,7 +28,7 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 Run one eval:
 
 ```bash
-pnpm eval -- --eval detect-security-001-public-table --experiment openai-gpt-5.4-mini --runs 1 --force
+pnpm eval -- --eval investigate-security-001-public-table --experiment openai-gpt-5.4-mini --runs 1 --force
 ```
 
 View results in the web app at `http://localhost:5173`:
@@ -75,8 +75,8 @@ pnpm eval -- \
   --experiment openai-gpt-5.4-mini \
   --experiment openai-gpt-5.4-nano \
   --suite benchmark \
-  --eval detect-security-001-public-table \
-  --eval observe-db-001-table-row-counts \
+  --eval investigate-security-001-public-table \
+  --eval investigate-db-001-table-row-counts \
   --runs 1 \
   --force
 ```
@@ -109,7 +109,7 @@ Every eval contains:
 
 ```md
 ---
-stage: design
+stage: build
 suite: benchmark
 product:
   - database

@@ -1,5 +1,5 @@
 ---
-stage: resolve
+stage: build
 suite: benchmark
 product:
   - functions
