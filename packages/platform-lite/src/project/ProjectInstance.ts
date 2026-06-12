@@ -1,6 +1,7 @@
 import { App, getAuthSchemaSql } from '@supabase/lite'
 import { createPgliteConnection, type PgliteConnection } from '@supabase/lite/pglite'
 import { PGlite } from '@electric-sql/pglite'
+import { vector } from '@electric-sql/pglite/vector'
 import type { EdgeFunctionSeed, LogRow } from '../types.js'
 import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js'
 import { STORAGE_SCHEMA_SQL } from './storage-schema.js'
@@ -36,6 +37,11 @@ BEGIN
 END $$;
 CREATE SCHEMA IF NOT EXISTS auth;
 GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
+CREATE SCHEMA IF NOT EXISTS extensions;
+GRANT USAGE ON SCHEMA extensions TO anon, authenticated, service_role;
+-- Real Supabase projects keep the extensions schema on the search path, so
+-- extension operators (e.g. pgvector's <#>) resolve unqualified.
+SET search_path TO public, extensions;
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
 $$;
@@ -70,7 +76,9 @@ export class ProjectInstance {
   async init(sql?: string, logs?: LogRow[], functions?: EdgeFunctionSeed[]): Promise<void> {
     // createPgliteConnection is async; App.init() can't handle Promise<Connection>
     // so we resolve it before constructing the App.
-    const connection = await createPgliteConnection()
+    const connection = await createPgliteConnection({
+      pgliteOptions: { extensions: { vector } },
+    })
     this.pglite = (connection as PgliteConnection).driver
     this.app = new App({
       connection,
