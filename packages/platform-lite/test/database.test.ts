@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
+import { createPlatform } from '../src/app.js'
 import { createTestApp, request } from './helpers.js'
 
 describe('database', () => {
@@ -126,5 +128,57 @@ describe('database', () => {
     )
     expect(status).toBe(200)
     expect(data.map((row) => row.id)).toEqual([1, 3])
+  })
+
+  it('routes supabase-js rpc calls to PostgREST', async () => {
+    const ref = 'rpc-proj'
+    const platform = await createPlatform({
+      projects: [
+        {
+          ref,
+          sql: `
+            CREATE OR REPLACE FUNCTION public.echo_input(value text)
+            RETURNS text
+            LANGUAGE sql
+            STABLE
+            AS $$
+              SELECT value || '-rpc'
+            $$;
+
+            GRANT USAGE ON SCHEMA public TO anon;
+            GRANT EXECUTE ON FUNCTION public.echo_input(text) TO anon;
+          `,
+        },
+      ],
+    })
+
+    try {
+      const instance = platform.getProject(ref)
+      if (!instance) throw new Error(`project missing: ${ref}`)
+
+      const { data: keys } = await request<Array<{ name: string; api_key: string }>>(
+        platform.app,
+        'GET',
+        `/v1/projects/${ref}/api-keys`
+      )
+      const anon = keys.find((key) => key.name === 'anon')
+      if (!anon) throw new Error(`anon key missing: ${ref}`)
+
+      const supabase = createClient('http://supabase-evals.local', anon.api_key, {
+        global: {
+          fetch: (input, init) => {
+            const req = new Request(input, init)
+            return instance.app.fetch(req)
+          },
+        },
+      })
+
+      const { data, error } = await supabase.rpc('echo_input', { value: 'lite' })
+
+      expect(error).toBeNull()
+      expect(data).toEqual([{ echo_input: 'lite-rpc' }])
+    } finally {
+      await platform.dispose()
+    }
   })
 })
