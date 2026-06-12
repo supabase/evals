@@ -307,7 +307,7 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
 }
 
 /** Build the ToolScoringContext.rpcAsUser implementation from a query runner. */
-export function makeRpcAsUser(
+function makeRpcAsUser(
   query: ToolScoringContext["query"],
 ): ToolScoringContext["rpcAsUser"] {
   return async (userId, functionName) => {
@@ -531,7 +531,7 @@ export function platformLiteRuntime(options: {
             client: backend.client,
             getClient: backend.getClient,
             query: backend.query,
-            rpcAsUser: makeRpcAsUser(backend.query),
+            rpcAsUser: backend.rpcAsUser,
             invokeFunction: backend.invokeFunction,
           },
           close: async () => {
@@ -780,6 +780,10 @@ export interface PlatformBackend {
   client: SupabaseClient;
   getClient: () => SupabaseClient;
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  rpcAsUser: (
+    userId: string,
+    functionName: string,
+  ) => Promise<{ rows: Record<string, unknown>[] }>;
   invokeFunction: (
     input: EdgeFunctionsInvokeInput,
   ) => Promise<EdgeFunctionsInvokeResult>;
@@ -823,6 +827,12 @@ export async function bootPlatformBackend(opts: {
 
     let closed = false;
 
+    const query = async (sql: string) => {
+      const results = await instance.pglite.exec(sql);
+      const lastRowSet = [...results].reverse().find(hasNamedFields);
+      return { rows: toRecordRows(lastRowSet?.rows) };
+    };
+
     return {
       url: server.url,
       ref,
@@ -830,11 +840,8 @@ export async function bootPlatformBackend(opts: {
       mgmt: createManagementApiClient(server.url, ACCESS_TOKEN),
       client: instance.app.getClient(),
       getClient: () => instance.app.getClient(),
-      query: async (sql) => {
-        const results = await instance.pglite.exec(sql);
-        const lastRowSet = [...results].reverse().find(hasNamedFields);
-        return { rows: toRecordRows(lastRowSet?.rows) };
-      },
+      query,
+      rpcAsUser: makeRpcAsUser(query),
       invokeFunction: (input) => invokeEdgeFunction(instance, input),
       close: async () => {
         if (closed) return;

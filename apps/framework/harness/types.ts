@@ -26,7 +26,6 @@ export type {
 } from "@supabase-evals/core";
 export {
   judge,
-  makeRpcAsUser,
   serializeTranscript,
 } from "@supabase-evals/core";
 export type {
