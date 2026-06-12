@@ -39,7 +39,7 @@ pnpm web
 
 ## Concepts
 
-- An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional seed data.
+- An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
 - An **experiment** is one agent/runtime/model setup under `experiments/<name>.ts`.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
 - A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
@@ -52,7 +52,8 @@ pnpm web
 1. Add a folder under `evals/`.
 2. Add `PROMPT.md` with frontmatter metadata and the task the agent sees.
 3. Add `EVAL.ts` with the scorer.
-4. Add `seed/` data if the scenario needs project state or logs.
+4. Add `remote/` data if the scenario needs hosted-project state (database, logs, functions).
+5. Add `local/` files if the agent starts from an existing workspace (project evals: the app it edits).
 
 ### Add an experiment
 
@@ -102,8 +103,10 @@ Every eval contains:
 
 1. `PROMPT.md` - frontmatter metadata plus the task description the agent sees.
 2. `EVAL.ts` - a default-exported scorer.
-3. Optional `seed/project.sql` - applied to a fresh Supabase-like project DB.
-4. Optional `seed/logs.jsonl` - seeded observability log rows.
+3. Optional `remote/` - the hosted project's starting state, seeded into platform-lite: `project.sql` (database), `logs.jsonl` (observability logs), `functions/` (already-deployed edge functions).
+4. Optional `local/` - the agent's starting files; for project evals, the app workspace it edits.
+
+The two directories mirror Supabase's two environments: `remote/` describes what the customer's hosted project already looks like, `local/` describes what the developer's working directory already looks like.
 
 `PROMPT.md` frontmatter drives eval discovery and site filters:
 
@@ -127,7 +130,7 @@ Benchmark evals should include `motivation` with the issue or other reference th
 ## Eval Modes
 
 - **Tool evals** run the agent against the experiment's MCP/tool surface, then score the resulting project state or report.
-- **Project evals** copy an app workspace for the agent to edit with file tools, then may score with Vite and withheld Vitest tests or file inspection.
+- **Project evals** copy the eval's `local/` app workspace for the agent to edit with file tools, then may score with Vite and withheld Vitest tests or file inspection.
 
 ## Skills
 

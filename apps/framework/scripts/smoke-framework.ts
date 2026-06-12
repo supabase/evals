@@ -60,7 +60,7 @@ async function withBackend<T>(
 }
 
 function seedPath(relDir: string, file: string): string {
-  return join(ROOT, relDir, "seed", file);
+  return join(ROOT, relDir, "remote", file);
 }
 
 async function smokeClientRlsEval() {
