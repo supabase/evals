@@ -177,10 +177,13 @@ export interface ToolScoringContext {
    * a transaction under the authenticated role with the caller's JWT claims.
    *
    * TODO: replace callers with the supabase-js client's rpc() once
-   * @supabase/lite ships its Data API rpc support. It is implemented upstream
-   * (https://github.com/supabase-community/lite/blob/main/app/src/postgrest/resolvers/rpc-params.ts)
-   * but missing from the published builds: 0.4.0 and 0.4.1-next.1 both answer
-   * /rest/v1/rpc/* with PGRST125.
+   * @supabase/lite serves /rest/v1/rpc/*. Its postgrest translation layer
+   * already implements rpc end to end
+   * (https://github.com/supabase-community/lite/blob/main/app/src/postgrest/resolvers/rpc-params.ts),
+   * but the HTTP server never routes rpc paths to it: postgrestRoutes in
+   * https://github.com/supabase-community/lite/blob/main/app/src/server/data.ts
+   * only matches "/:relation", so two-segment rpc paths fall through to the
+   * PGRST125 catch-all.
    */
   rpcAsUser: (
     userId: string,
