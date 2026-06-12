@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootPlatformBackend } from "../harness/platform-backend.js";
 import { viteBuild, vitestRun } from "../harness/project-runner.js";
 import type { ToolScorer, TranscriptPart } from "../harness/types.js";
+import { makeRpcAsUser } from "../harness/types.js";
 import type { PlatformBackend } from "../harness/platform-backend.js";
 import { runScorer } from "../lib/scorer.js";
 
@@ -36,6 +37,7 @@ function scorerCtx(
     client: backend.client,
     getClient: backend.getClient,
     query: backend.query,
+    rpcAsUser: makeRpcAsUser(backend.query),
     invokeFunction: backend.invokeFunction,
     toolCalls: [],
     transcript: extra?.transcript ?? [],

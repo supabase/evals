@@ -1,6 +1,5 @@
 import {
   judge,
-  rpcAsUser,
   serializeTranscript,
   type CheckResult,
   type SupabaseClient,
@@ -131,7 +130,7 @@ async function runDeleteAccountFlow(
   users: TestUsers,
 ): Promise<CheckResult> {
   try {
-    await rpcAsUser(ctx, users.victimId, "public.delete_account");
+    await ctx.rpcAsUser(users.victimId, "public.delete_account");
     return { name: "delete_account flow ran for the victim", passed: true };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
