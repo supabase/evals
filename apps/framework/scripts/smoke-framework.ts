@@ -259,7 +259,7 @@ ORDER BY grantee;
 }
 
 async function smokeProjectEval() {
-  const source = join(ROOT, FRONTEND_EVAL, "app");
+  const source = join(ROOT, FRONTEND_EVAL, "local");
   const workspace = join(ROOT, "results", "_smoke", "build-frontend-001-todos-app");
   rmSync(workspace, { recursive: true, force: true });
   mkdirSync(dirname(workspace), { recursive: true });
