@@ -178,12 +178,10 @@ export interface ToolScoringContext {
    *
    * TODO: replace callers with the supabase-js client's rpc() once
    * @supabase/lite serves /rest/v1/rpc/*. Its postgrest translation layer
-   * already implements rpc end to end
-   * (https://github.com/supabase-community/lite/blob/main/app/src/postgrest/resolvers/rpc-params.ts),
-   * but the HTTP server never routes rpc paths to it: postgrestRoutes in
-   * https://github.com/supabase-community/lite/blob/main/app/src/server/data.ts
-   * only matches "/:relation", so two-segment rpc paths fall through to the
-   * PGRST125 catch-all.
+   * already implements rpc end to end, but the HTTP server never routes rpc
+   * paths to it, so they fall through to the PGRST125 catch-all. Upstream
+   * fix: https://github.com/supabase-community/lite/pull/243 — switch once
+   * it ships in a release.
    */
   rpcAsUser: (
     userId: string,
