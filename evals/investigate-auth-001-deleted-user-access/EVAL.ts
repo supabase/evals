@@ -1,5 +1,6 @@
 import {
   judge,
+  rpcAsUser,
   serializeTranscript,
   type CheckResult,
   type SupabaseClient,
@@ -129,25 +130,10 @@ async function runDeleteAccountFlow(
   ctx: ToolEvalContext,
   users: TestUsers,
 ): Promise<CheckResult> {
-  // supabase-js rpc() 404s against @supabase/lite 0.4.0, so the scorer runs
-  // the function the way PostgREST executes an RPC: in a transaction under
-  // the caller's role and JWT claims.
   try {
-    await ctx.query(`
-BEGIN;
-SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claim.sub = '${users.victimId}';
-SET LOCAL request.jwt.claim.role = 'authenticated';
-SELECT public.delete_account();
-COMMIT;
-    `);
+    await rpcAsUser(ctx, users.victimId, "public.delete_account");
     return { name: "delete_account flow ran for the victim", passed: true };
   } catch (error) {
-    try {
-      await ctx.query("ROLLBACK;");
-    } catch {
-      // Clear aborted scorer transactions.
-    }
     const msg = error instanceof Error ? error.message : String(error);
     return {
       name: "delete_account flow ran for the victim",

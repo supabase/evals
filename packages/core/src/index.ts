@@ -292,6 +292,47 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
   };
 }
 
+/**
+ * Execute a Postgres function the way PostgREST serves an RPC call: inside a
+ * transaction under the authenticated role with the caller's JWT claims.
+ *
+ * TODO: replace callers with the supabase-js client's rpc() once
+ * @supabase/lite ships its Data API rpc support. It is implemented upstream
+ * (https://github.com/supabase-community/lite/blob/main/app/src/postgrest/resolvers/rpc-params.ts)
+ * but missing from the published builds: 0.4.0 and 0.4.1-next.1 both answer
+ * /rest/v1/rpc/* with PGRST125.
+ */
+export async function rpcAsUser(
+  ctx: Pick<ToolScoringContext, "query">,
+  userId: string,
+  functionName: string,
+): Promise<{ rows: Record<string, unknown>[] }> {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$/.test(functionName)) {
+    throw new Error(`rpcAsUser: invalid function name: ${functionName}`);
+  }
+  if (!/^[0-9a-fA-F][0-9a-fA-F-]{34}[0-9a-fA-F]$/.test(userId)) {
+    throw new Error(`rpcAsUser: invalid user id: ${userId}`);
+  }
+
+  try {
+    return await ctx.query(`
+BEGIN;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub = '${userId}';
+SET LOCAL request.jwt.claim.role = 'authenticated';
+SELECT ${functionName}();
+COMMIT;
+    `);
+  } catch (error) {
+    try {
+      await ctx.query("ROLLBACK;");
+    } catch {
+      // Clear aborted transactions left by the failed call.
+    }
+    throw error;
+  }
+}
+
 export function aiSdkAgent(options: {
   model: Exclude<LanguageModel, string>;
   providerOptions?: AiSdkProviderOptions;
