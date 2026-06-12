@@ -55,8 +55,8 @@ const scorer: ToolScorer = async (ctx) => {
       await checkEmbeddingColumn(ctx),
       await checkHnswIndex(ctx),
       await checkIndexMatchesSearchOperator(ctx),
-      await checkSearchIsolation(ctx, "user A", users.userAId, [1, 2]),
-      await checkSearchIsolation(ctx, "user B", users.userBId, [3, 4]),
+      await checkSearchIsolation("user A", users.clientA, [1, 2]),
+      await checkSearchIsolation("user B", users.clientB, [3, 4]),
       await checkUserAReadsOwnSections(users),
       await checkUserAReadsOwnDocuments(users),
     ];
@@ -75,19 +75,19 @@ export default scorer;
 
 type TestUsers = {
   clientA: SupabaseClient;
-  userAId: string;
-  userBId: string;
+  clientB: SupabaseClient;
 };
 
 async function setupUsersAndEmbeddings(
   ctx: ToolEvalContext,
 ): Promise<{ users: TestUsers } | { failure: CheckResult }> {
   const clientA = ctx.client;
+  const clientB = ctx.getClient();
   const authA = await clientA.auth.signUp({
     email: "vector-user-a@example.com",
     password: PASSWORD,
   });
-  const authB = await ctx.getClient().auth.signUp({
+  const authB = await clientB.auth.signUp({
     email: "vector-user-b@example.com",
     password: PASSWORD,
   });
@@ -119,7 +119,7 @@ async function setupUsersAndEmbeddings(
   }
 
   return {
-    users: { clientA, userAId: authA.data.user.id, userBId: authB.data.user.id },
+    users: { clientA, clientB },
   };
 }
 
@@ -189,41 +189,34 @@ async function checkIndexMatchesSearchOperator(
   };
 }
 
-// Runs the search function as a signed-in user via the docs' direct-Postgres
-// impersonation pattern (supabase-lite doesn't route PostgREST rpc yet).
-// https://supabase.com/docs/guides/ai/rag-with-permissions#direct-postgres-connection
 async function checkSearchIsolation(
-  ctx: ToolEvalContext,
   label: string,
-  userId: string,
+  client: SupabaseClient,
   expectedSectionIds: number[],
 ): Promise<CheckResult> {
   const name = `${label} search returns only own sections, best match first`;
-  await ctx.query(`SET ROLE authenticated;`);
-  await ctx.query(`SELECT set_config('request.jwt.claim.sub', '${userId}', false);`);
-  try {
-    // Named arguments, mirroring how the seeded search function calls the rpc.
-    const { rows } = await ctx.query(
-      `SELECT * FROM match_document_sections(query_embedding => '${QUERY_EMBEDDING}', match_count => 10);`,
-    );
-    // The seeded search function passes results straight back to the app, so
-    // any row shape works as long as it identifies the section.
-    const ids = rows.map((row) => Number(row.id ?? row.section_id));
-    const leaked =
-      ids.includes(LEAK_CANARY_SECTION) && !expectedSectionIds.includes(LEAK_CANARY_SECTION);
 
-    return {
-      name,
-      passed: ids.join(",") === expectedSectionIds.join(","),
-      notes: leaked ? "leak: another user's section is in the results" : undefined,
-    };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return { name, passed: false, notes: msg };
-  } finally {
-    await ctx.query(`RESET ROLE;`);
-    await ctx.query(`SELECT set_config('request.jwt.claim.sub', '', false);`);
+  const { data, error } = await client.rpc("match_document_sections", {
+    query_embedding: QUERY_EMBEDDING,
+    match_count: 10,
+  });
+
+  if (error) {
+    return { name, passed: false, notes: error.message };
   }
+
+  // The seeded search function passes results straight back to the app, so
+  // any row shape works as long as it identifies the section.
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  const ids = rows.map((row) => Number(row.id ?? row.section_id));
+  const leaked =
+    ids.includes(LEAK_CANARY_SECTION) && !expectedSectionIds.includes(LEAK_CANARY_SECTION);
+
+  return {
+    name,
+    passed: ids.join(",") === expectedSectionIds.join(","),
+    notes: leaked ? "leak: another user's section is in the results" : undefined,
+  };
 }
 
 async function checkUserAReadsOwnSections(users: TestUsers): Promise<CheckResult> {
