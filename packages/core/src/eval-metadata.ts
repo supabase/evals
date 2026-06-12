@@ -17,6 +17,7 @@ export const evalProductSchema = z.enum([
   "sdk",
   "realtime",
   "functions",
+  "vectors",
   "cli",
   "docs",
   "self-hosted",
