@@ -46,6 +46,117 @@
   },
   {
     "experiment": "openai-gpt-5.4-mini",
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 019ebd94-bd28-766f-a216-6720884a392f/receipt-alpha.pdf, 019ebd94-bd28-766f-a216-6720884a392f/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Configured a private user-files bucket, kept RLS enabled, added authenticated owner-scoped SELECT and INSERT policies on storage.objects, and provided createSignedUrl code with an expiry for temporary sharing."
+      }
+    ],
+    "prompt": "# Private User Files in Storage\n\nOur app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/build-storage-001-private-bucket-access.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "build-vectors-001-rag-with-permissions",
+    "stage": "build",
+    "product": [
+      "database",
+      "vectors"
+    ],
+    "topic": [
+      "sql",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
+      }
+    ],
+    "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
+    "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/build-vectors-001-rag-with-permissions.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
     "eval": "deploy-database-001-prometheus-metrics",
     "stage": "deploy",
     "product": [
@@ -64,12 +175,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape uses basic_auth password instead of password_file, injects a Secret API key via env/template substitution, docker-compose does not mount a password_file via volume or secret, and the target is not explicitly wired to 94abbf064d3a42fa9874.supabase.co/red."
+        "judgeNotes": "Fails: Supabase target is templated rather than dfc1664fb2454cd59275.supabase.co/red, uses basic_auth password instead of password_file, and docker-compose.yml does not mount/wire a password_file via volume or Compose secret. Existing app job is preserved and HTTPS/path are present."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README lacks required matching secret file setup and concrete verification steps (Prometheus targets, PromQL/Grafana, or equivalent). Deploy/redeploy guidance is also env-var based rather than the required secret-file setup."
+        "judgeNotes": "README includes Secret API key creation and concrete verification via Prometheus targets/Grafana, but it does not instruct placing a matching secret file and uses env/.env instead. It also says restart Prometheus rather than restart/reload the Compose stack."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -90,22 +201,22 @@
       "logs"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and noted the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z–12:00Z."
+        "judgeNotes": "The assistant identified image-transform as affected and described the recurring 503 pattern across the morning of 2026-04-28, listing most/all gateway failures from 07:00Z through 12:00Z. It did not focus on old billing-webhook logs and provided a concrete next-step diagnosis."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": true,
-        "judgeNotes": "The assistant attributes the recurring image-transform 503s to API/gateway/platform routing rather than function code. This is grounded in the observation that 503s appear in API/gateway logs rather than function runtime failures, while successful function requests returned 200 nearby. It also distinguishes the separate avatar-upload 500 as an application error."
+        "passed": false,
+        "judgeNotes": "The assistant attributes the recurring image-transform 503s to the Edge Function layer and likely runtime/dependency issues, not specifically to the gateway/platform layer in front of the function. It also recommends inspecting/fixing function internals/error handling, which conflicts with the rubric. Although it distinguishes Storage/Postgres and notes a separate avatar-upload 500, it does not ground attribution in valid gateway-vs-invocation observations."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including inspecting Edge Function deployment/version health for the affected time window, checking upstream dependency outages, and adding retry/backoff for 503s."
+        "judgeNotes": "The assistant recommended several concrete next steps, including inspecting function internals/upstream package changelogs, adding retries/error handling, checking recent deploys or dependency updates, temporarily bypassing image transformation, and verifying with fresh logs."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -156,7 +267,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed deny-all RLS with no policies and created authenticated owner-scoped SELECT and INSERT policies using auth.uid() / WITH CHECK, without disabling RLS. Extra UPDATE policy does not violate the rubric."
+        "judgeNotes": "Diagnosed deny-all RLS with no policies, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() (with WITH CHECK for inserts)."
       }
     ],
     "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -268,6 +379,117 @@
   },
   {
     "experiment": "openai-gpt-5.4-nano",
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 019ebd94-a8d1-725a-bedc-672d2952c8c9/receipt-alpha.pdf, 019ebd94-a8d1-725a-bedc-672d2952c8c9/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Configured a private user-files bucket, kept RLS enabled, added authenticated owner-scoped INSERT and SELECT policies on storage.objects, and provided supabase-js code using createSignedUrl with an expiry for temporary sharing links."
+      }
+    ],
+    "prompt": "# Private User Files in Storage\n\nOur app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/build-storage-001-private-bucket-access.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "build-vectors-001-rag-with-permissions",
+    "stage": "build",
+    "product": [
+      "database",
+      "vectors"
+    ],
+    "topic": [
+      "sql",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_hnsw ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_hnsw ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
+      }
+    ],
+    "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
+    "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/build-vectors-001-rag-with-permissions.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
     "eval": "deploy-database-001-prometheus-metrics",
     "stage": "deploy",
     "product": [
@@ -286,12 +508,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an environment variable instead of password_file, and docker-compose.yml does not mount the password file via a volume or Compose secret. Existing app scrape and endpoint/target are otherwise present."
+        "judgeNotes": "prometheus.yml only contains the existing app scrape. It does not add a Supabase Metrics API scrape target, HTTPS scheme, /customer/v1/privileged/metrics path, HTTP Basic Auth with password_file, or docker-compose password_file mounting/secret wiring."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README includes creating a Secret API key, restarting the Compose stack, and basic Prometheus/Grafana verification, but it does not require placing a matching secret file. It instead uses an environment variable, which fails the required secret-file setup."
+        "judgeNotes": "README.md does not include required steps to create a Secret API key, place the matching secret file, or restart/reload the Compose stack. It also lacks concrete verification via Prometheus targets, PromQL/Grafana, or equivalent."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -317,17 +539,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Assistant identified image-transform as affected and described recurring intermittent 503s throughout the morning of 2026-04-28, covering the 07:00Z-12:00Z window with multiple examples. It did not focus on old billing-webhook logs."
+        "judgeNotes": "The assistant correctly identified `image-transform` as the affected function and described recurring intermittent HTTP 503 failures throughout the morning of 2026-04-28, with examples spanning 07:30Z to 11:00Z and mixed successes/failures."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant attributes the 503s to Edge Function/application runtime issues (dependency, timeout/resource pressure, upstream call inside transform code) and recommends logging/redeploying/fixing the function, rather than identifying the gateway/platform layer. Although it mentions gateway-like HTTP status data and Storage absence, it does not ground the 503s as platform-layer failures distinct from function runtime errors."
+        "judgeNotes": "The assistant blamed the image-transform Edge Function/function dependency and recommended inspecting and redeploying the function. It did not attribute the recurring 503s to the gateway/platform layer or ground that attribution in observations such as missing invocation/runtime rows or unchanged deployment ruling out rollout."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: add structured runtime error logging and redeploy, check dependency/version changes around the incident window, add retry/backoff mitigation, and verify correlated Storage requests."
+        "judgeNotes": "The assistant provided concrete next steps: inspect the specific image-transform Edge Function and dependency behavior, add retry/error handling, redeploy with improved diagnostics, and check for correlated cold-start/resource-limit behavior. This is more specific than vague log checking."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -378,7 +600,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using user_id = auth.uid() / WITH CHECK. Extra UPDATE/DELETE owner policies do not violate the rubric."
+        "judgeNotes": "Diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
       }
     ],
     "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
