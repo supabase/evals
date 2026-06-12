@@ -169,7 +169,7 @@ async function checkIndexMatchesSearchOperator(
   // https://www.postgresql.org/docs/current/functions-info.html
   const { rows } = await ctx.query(stripIndent`
     SELECT pg_get_functiondef(oid) AS def FROM pg_proc
-    WHERE proname = 'match_document_sections' AND pronargs = 2;
+    WHERE proname = 'match_document_sections';
   `);
   const fnDef = rows[0]?.def;
   if (typeof fnDef !== "string") {
@@ -202,10 +202,13 @@ async function checkSearchIsolation(
   await ctx.query(`SET ROLE authenticated;`);
   await ctx.query(`SELECT set_config('request.jwt.claim.sub', '${userId}', false);`);
   try {
+    // Named arguments, mirroring how the seeded search function calls the rpc.
     const { rows } = await ctx.query(
-      `SELECT id FROM match_document_sections('${QUERY_EMBEDDING}', 10);`,
+      `SELECT * FROM match_document_sections(query_embedding => '${QUERY_EMBEDDING}', match_count => 10);`,
     );
-    const ids = rows.map((row) => Number(row.id));
+    // The seeded search function passes results straight back to the app, so
+    // any row shape works as long as it identifies the section.
+    const ids = rows.map((row) => Number(row.id ?? row.section_id));
     const leaked =
       ids.includes(LEAK_CANARY_SECTION) && !expectedSectionIds.includes(LEAK_CANARY_SECTION);
 

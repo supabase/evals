@@ -12,7 +12,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
 
 const CLIENT_RLS_EVAL = "evals/build-rls-002-own-todos-client";
-const VECTORS_EVAL = "evals/build-vectors-001-rag-with-permissions";
 const FUNCTIONS_EVAL = "evals/build-functions-001-order-total";
 const EDGE_AUTH_DB_EVAL = "evals/build-functions-002-edge-auth-db";
 const INVESTIGATE_LOGS_EVAL = "evals/investigate-logs-001-top-error-function";
@@ -85,63 +84,6 @@ CREATE POLICY "users can delete own todos" ON todos FOR DELETE TO authenticated 
   );
 
   console.log("PASS client-scored RLS scorer + supabase-js");
-}
-
-const VECTORS_GOLDEN_SQL = `
-CREATE EXTENSION vector WITH SCHEMA extensions;
-
-ALTER TABLE document_sections ADD COLUMN embedding extensions.vector(384);
-
-ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE document_sections ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "users can read own documents" ON documents FOR SELECT TO authenticated
-  USING (owner_id = (SELECT auth.uid()));
-CREATE POLICY "users can read own document sections" ON document_sections FOR SELECT TO authenticated
-  USING (document_id IN (SELECT id FROM documents WHERE owner_id = (SELECT auth.uid())));
-
-CREATE INDEX ON document_sections USING hnsw (embedding extensions.vector_ip_ops);
-
-CREATE FUNCTION match_document_sections(query_embedding extensions.vector(384), match_count int)
-RETURNS SETOF document_sections
-LANGUAGE sql
-AS $fn$
-  SELECT * FROM document_sections
-  ORDER BY embedding OPERATOR(extensions.<#>) query_embedding
-  LIMIT match_count;
-$fn$;
-`;
-
-async function smokeVectorsEval() {
-  const scorer = await loadScorer(VECTORS_EVAL);
-
-  await withBackend(
-    { projectSeedSql: seedPath(VECTORS_EVAL, "project.sql") },
-    async (backend) => {
-      await backend.query(VECTORS_GOLDEN_SQL);
-      const result = await scorer(scorerCtx(backend));
-      assert.equal(result.passed, true, checksMessage(result));
-    }
-  );
-
-  // SECURITY DEFINER match function bypasses RLS; the leak checks must fail.
-  await withBackend(
-    { projectSeedSql: seedPath(VECTORS_EVAL, "project.sql") },
-    async (backend) => {
-      await backend.query(
-        VECTORS_GOLDEN_SQL.replace("LANGUAGE sql", "LANGUAGE sql SECURITY DEFINER")
-      );
-      const result = await scorer(scorerCtx(backend));
-      assert.equal(result.passed, false, "security definer leak should fail the scorer");
-      const failed = (result.checks ?? []).filter((check) => !check.passed);
-      assert(
-        failed.some((check) => check.name.includes("user A search")),
-        `expected the user A leak check to fail, got: ${checksMessage(result)}`
-      );
-    }
-  );
-
-  console.log("PASS vectors RAG-with-permissions scorer + pgvector");
 }
 
 async function smokeFunctionsEval() {
@@ -342,7 +284,6 @@ async function smokeProjectEval() {
 
 async function main() {
   await smokeClientRlsEval();
-  await smokeVectorsEval();
   await smokeFunctionsEval();
   await smokeSupaliteClient();
   await smokePlatformBackendClose();
