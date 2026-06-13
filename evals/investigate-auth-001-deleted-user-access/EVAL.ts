@@ -19,7 +19,7 @@ const scorer: ToolScorer = async (ctx) => {
     const users = setup.users;
 
     const activeBefore = await checkVictimActiveBeforeDeletion(users);
-    const flow = await runDeleteAccountFlow(ctx, users);
+    const flow = await runDeleteAccountFlow(users);
 
     const checks: CheckResult[] = [
       activeBefore,
@@ -125,21 +125,14 @@ async function checkVictimActiveBeforeDeletion(users: TestUsers): Promise<CheckR
   };
 }
 
-async function runDeleteAccountFlow(
-  ctx: ToolEvalContext,
-  users: TestUsers,
-): Promise<CheckResult> {
-  try {
-    await ctx.rpcAsUser(users.victimId, "public.delete_account");
-    return { name: "delete_account flow ran for the victim", passed: true };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return {
-      name: "delete_account flow ran for the victim",
-      passed: false,
-      notes: msg,
-    };
-  }
+async function runDeleteAccountFlow(users: TestUsers): Promise<CheckResult> {
+  const { error } = await users.victim.rpc("delete_account");
+
+  return {
+    name: "delete_account flow ran for the victim",
+    passed: !error,
+    notes: error?.message,
+  };
 }
 
 async function checkSessionsRevoked(

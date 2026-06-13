@@ -172,21 +172,6 @@ export interface ToolScoringContext {
   getClient: () => SupabaseClient;
   /** Run a SQL query in-process against the project database. */
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
-  /**
-   * Execute a Postgres function the way PostgREST serves an RPC call: inside
-   * a transaction under the authenticated role with the caller's JWT claims.
-   *
-   * TODO: replace callers with the supabase-js client's rpc() once
-   * @supabase/lite serves /rest/v1/rpc/*. Its postgrest translation layer
-   * already implements rpc end to end, but the HTTP server never routes rpc
-   * paths to it, so they fall through to the PGRST125 catch-all. Upstream
-   * fix: https://github.com/supabase-community/lite/pull/243 — switch once
-   * it ships in a release.
-   */
-  rpcAsUser: (
-    userId: string,
-    functionName: string,
-  ) => Promise<{ rows: Record<string, unknown>[] }>;
   /** Invoke a deployed edge function in-process. */
   invokeFunction: (
     input: EdgeFunctionsInvokeInput,
@@ -304,38 +289,6 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
   return {
     passed: output.passed,
     notes: output.notes,
-  };
-}
-
-/** Build the ToolScoringContext.rpcAsUser implementation from a query runner. */
-function makeRpcAsUser(
-  query: ToolScoringContext["query"],
-): ToolScoringContext["rpcAsUser"] {
-  return async (userId, functionName) => {
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$/.test(functionName)) {
-      throw new Error(`rpcAsUser: invalid function name: ${functionName}`);
-    }
-    if (!/^[0-9a-fA-F][0-9a-fA-F-]{34}[0-9a-fA-F]$/.test(userId)) {
-      throw new Error(`rpcAsUser: invalid user id: ${userId}`);
-    }
-
-    try {
-      return await query(`
-BEGIN;
-SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claim.sub = '${userId}';
-SET LOCAL request.jwt.claim.role = 'authenticated';
-SELECT ${functionName}();
-COMMIT;
-      `);
-    } catch (error) {
-      try {
-        await query("ROLLBACK;");
-      } catch {
-        // Clear aborted transactions left by the failed call.
-      }
-      throw error;
-    }
   };
 }
 
@@ -532,7 +485,6 @@ export function platformLiteRuntime(options: {
             client: backend.client,
             getClient: backend.getClient,
             query: backend.query,
-            rpcAsUser: backend.rpcAsUser,
             invokeFunction: backend.invokeFunction,
           },
           close: async () => {
@@ -781,10 +733,6 @@ export interface PlatformBackend {
   client: SupabaseClient;
   getClient: () => SupabaseClient;
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
-  rpcAsUser: (
-    userId: string,
-    functionName: string,
-  ) => Promise<{ rows: Record<string, unknown>[] }>;
   invokeFunction: (
     input: EdgeFunctionsInvokeInput,
   ) => Promise<EdgeFunctionsInvokeResult>;
@@ -828,12 +776,6 @@ export async function bootPlatformBackend(opts: {
 
     let closed = false;
 
-    const query = async (sql: string) => {
-      const results = await instance.pglite.exec(sql);
-      const lastRowSet = [...results].reverse().find(hasNamedFields);
-      return { rows: toRecordRows(lastRowSet?.rows) };
-    };
-
     return {
       url: server.url,
       ref,
@@ -841,8 +783,11 @@ export async function bootPlatformBackend(opts: {
       mgmt: createManagementApiClient(server.url, ACCESS_TOKEN),
       client: instance.app.getClient(),
       getClient: () => instance.app.getClient(),
-      query,
-      rpcAsUser: makeRpcAsUser(query),
+      query: async (sql) => {
+        const results = await instance.pglite.exec(sql);
+        const lastRowSet = [...results].reverse().find(hasNamedFields);
+        return { rows: toRecordRows(lastRowSet?.rows) };
+      },
       invokeFunction: (input) => invokeEdgeFunction(instance, input),
       close: async () => {
         if (closed) return;

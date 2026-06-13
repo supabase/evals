@@ -36,7 +36,6 @@ function scorerCtx(
     client: backend.client,
     getClient: backend.getClient,
     query: backend.query,
-    rpcAsUser: backend.rpcAsUser,
     invokeFunction: backend.invokeFunction,
     toolCalls: [],
     transcript: extra?.transcript ?? [],
