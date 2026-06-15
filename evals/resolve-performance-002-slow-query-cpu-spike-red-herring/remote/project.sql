@@ -1,11 +1,17 @@
 -- Red-herring CPU spike scenario.
 --
--- The real CPU hog is a fast-but-very-frequent per-user lookup on `events`
--- that never crosses the slow-query log threshold, so it is INVISIBLE in the
--- logs. The slow-query logs are instead dominated by a genuinely slow but rare
--- report query on `audit_log`. An agent that diagnoses from the logs (or sorts
--- pg_stat_statements by mean/max time) will "fix" the decoy and leave the CPU
--- spike in place. The only way to the correct fix is ranking
+-- Postgres only writes a statement to the logs when its execution time exceeds
+-- log_min_duration_statement (disabled by default at -1; when enabled it is set
+-- to a high threshold to capture only slow statements). So the slow-query logs
+-- structurally surface long-running statements and never a cheap, high-frequency
+-- query -- even when that frequent query is the real CPU driver.
+--
+-- The real CPU hog here is a fast-but-very-frequent per-user lookup on `events`
+-- (~22 ms x 486k calls) that stays below that threshold, so it is INVISIBLE in
+-- the logs. The slow-query logs are instead dominated by a genuinely slow but
+-- rare report query on `audit_log`. An agent that diagnoses from the logs (or
+-- sorts pg_stat_statements by mean/max time) will "fix" the decoy and leave the
+-- CPU spike in place. The only way to the correct fix is ranking
 -- pg_stat_statements by total_exec_time (calls x mean_exec_time).
 
 CREATE TABLE events (
