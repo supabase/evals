@@ -16,7 +16,7 @@
       "supabase-js"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -32,11 +32,11 @@
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": true
+        "passed": false
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": true
+        "passed": false
       }
     ],
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
@@ -74,7 +74,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019eccc4-2af3-76a2-8b33-8331b8846214/receipt-alpha.pdf, 019eccc4-2af3-76a2-8b33-8331b8846214/receipt-beta.pdf"
+        "notes": "saw: 019eccf2-0f77-72a2-9281-177931bc0567/receipt-alpha.pdf, 019eccf2-0f77-72a2-9281-177931bc0567/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -95,7 +95,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Configured a private user-files bucket, kept RLS enabled, added authenticated owner-scoped SELECT and INSERT policies on storage.objects, and provided supabase-js createSignedUrl code with an expiry."
+        "judgeNotes": "Configured a private user-files bucket, owner-scoped authenticated SELECT/INSERT storage.objects policies, kept access private, and provided createSignedUrl code with an expiry."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -123,12 +123,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase target is a placeholder rather than 0ad55f3638b24cf08c75.supabase.co/red, uses hardcoded basic_auth password instead of password_file, and docker-compose.yml does not mount or wire the password file via volume or Compose secret. Existing app scrape is preserved, but required secret wiring and endpoint target are not deployable."
+        "judgeNotes": "Fails: uses basic_auth password with env var instead of password_file; hardcodes/uses Secret API key via env expansion; target is variable ${SUPABASE_PROJECT_REF}.supabase.co rather than required a8c5767fb5a2473297bb.supabase.co or .red; docker-compose does not mount a password_file via volume or Compose secret. App scrape is preserved and HTTPS/path are correct."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README includes Supabase endpoint and Prometheus target verification, but it fails the requirements: it instructs placing the Secret API key directly in prometheus.yml instead of using a matching secret file, does not describe creating/placing that secret file, and restart/reload Compose steps are not concrete enough for making the integration live."
+        "judgeNotes": "README mentions adding SUPABASE_PROJECT_REF and SUPABASE_SECRET_API_KEY to .env.local and starting Compose, but it does not explain how to create the Secret API key, does not explicitly instruct restarting/reloading the Compose stack after adding secrets, and lacks concrete verification steps such as checking Prometheus targets or running PromQL/Grafana queries."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -177,7 +177,7 @@
     "checks": [
       {
         "name": "orders table added to supabase_realtime publication",
-        "passed": true
+        "passed": false
       },
       {
         "name": "courier_locations still in supabase_realtime publication",
@@ -189,17 +189,17 @@
       },
       {
         "name": "RLS still enabled on orders",
-        "passed": true
+        "passed": false
       },
       {
         "name": "staff can still read orders through RLS",
-        "passed": true,
-        "notes": "authenticated sees 0 of 0 orders"
+        "passed": false,
+        "notes": "relation \"orders\" does not exist"
       },
       {
         "name": "diagnosed missing publication membership",
         "passed": false,
-        "judgeNotes": "The answer identified the missing supabase_realtime publication membership, but it did not fix exactly that. It created/altered the orders table, added grants, and created a broad read RLS policy, which the rubric forbids because the fix should only add the existing orders table to the existing publication while preserving existing policies/RLS."
+        "judgeNotes": "The answer does not diagnose that the existing supabase_realtime publication is missing the orders table, nor does it fix that with ALTER PUBLICATION supabase_realtime ADD TABLE orders. Instead it creates the publication and says there are no orders/courier_locations tables, leaving the requested Realtime orders INSERT issue unresolved."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -225,17 +225,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified image-transform as the affected function and described the recurring pattern of eight HTTP 503 gateway failures spread across the morning of 2026-04-28 (07:00Z–12:00Z), while distinguishing it from other isolated/irrelevant errors."
+        "judgeNotes": "Assistant identified image-transform as affected and described recurring intermittent 503s throughout the morning, including the time-based pattern at :00/:30. It did not focus on billing-webhook or remain vague."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "The response identifies the recurring image-transform 503s as gateway-level rather than app-level stack traces, distinguishes them from the avatar-upload 500, and notes alternating successful nearby invocations. Although it suggests inspecting code for dependencies, it does not primarily blame or recommend redeploying the function code."
+        "judgeNotes": "The assistant attributes the recurring 503s to intermittent gateway/platform unavailability rather than function code, and grounds this in platform/API 503 logs, healthy Edge Function runtime logs with successful 200s on the same deployment/version, and no matching backend errors."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "Recommended concrete next steps including opening a Supabase support ticket with function slug, deployment/version, timestamps, and 503 gateway response details, plus inspecting function dependencies/logging."
+        "judgeNotes": "The assistant recommended concrete next steps, including checking external dependencies, adding retries/backoff, reviewing scheduled bursts, and opening a Supabase support ticket with timestamps and the 503 pattern."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -286,7 +286,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed deny-all RLS on bookmarks and added authenticated-only owner-scoped SELECT and INSERT policies with WITH CHECK, while leaving RLS enabled."
+        "judgeNotes": "The assistant correctly identified RLS deny-all as the cause, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using auth.uid() / user_id with WITH CHECK for inserts. Extra update/delete owner policies do not violate the rubric."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -323,7 +323,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -347,35 +347,35 @@
       "sql"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
-        "passed": true
+        "passed": false
       },
       {
         "name": "ranked query stats by total (cumulative) execution time",
-        "passed": true
+        "passed": false
       },
       {
         "name": "ran EXPLAIN on the expensive query",
-        "passed": true
+        "passed": false
       },
       {
         "name": "created index covering user_id and created_at on events",
-        "passed": true
+        "passed": false
       },
       {
         "name": "hog query plan uses an index and avoids sequential scan",
-        "passed": true,
-        "notes": "Limit  (cost=65.16..65.23 rows=30 width=88)\n  ->  Sort  (cost=65.16..65.23 rows=30 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.51..64.42 rows=30 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.51 rows=30 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "passed": false,
+        "notes": "Limit  (cost=141.55..141.61 rows=24 width=88)\n  ->  Sort  (cost=141.55..141.61 rows=24 width=88)\n        Sort Key: created_at DESC\n        ->  Seq Scan on events  (cost=0.00..141.00 rows=24 width=88)\n              Filter: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
         "passed": true
       }
     ],
-    "prompt": "My database CPU has been spiking and the app feels sluggish, but I can't tell what's driving it. Can you figure out which query is actually responsible for the load and make the database change needed to bring the CPU down?\n\nEnd your turn with a short summary of what you changed and why.",
+    "prompt": "My database CPU keeps spiking and the app gets slow. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
     "promptSourcePath": "evals/resolve-performance-002-slow-query-cpu-spike-red-herring/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/resolve-performance-002-slow-query-cpu-spike-red-herring.json"
@@ -512,7 +512,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019eccc4-639f-7168-9838-e864feb47f8f/receipt-alpha.pdf, 019eccc4-639f-7168-9838-e864feb47f8f/receipt-beta.pdf"
+        "notes": "saw: 019eccf2-79c5-743c-a546-fc7ac7ad33b3/receipt-alpha.pdf, 019eccf2-79c5-743c-a546-fc7ac7ad33b3/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -533,7 +533,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Private bucket created, authenticated owner-scoped SELECT and INSERT policies on storage.objects were provided, RLS was not disabled, and createSignedUrl with an expiry was included for temporary sharing. Service role usage was explicitly server-side only, not client-side."
+        "judgeNotes": "Configured a private user-files bucket, kept RLS enabled on storage.objects, added authenticated owner-scoped INSERT and SELECT policies, and provided supabase-js createSignedUrl code with expiry."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -561,12 +561,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase target is not explicitly 2d0f29aaa5af4811b3d1.supabase.co or .supabase.red, basic_auth uses an environment-variable password instead of password_file, and docker-compose.yml does not mount the password_file via a volume or Compose secret. App scrape is preserved and HTTPS/path are correct."
+        "judgeNotes": "No Supabase Metrics API scrape was added. prometheus.yml only preserves the app scrape, and docker-compose.yml does not mount or define any password_file/secret for HTTP Basic Auth."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README includes Secret API key creation, restart/recreate, and a concrete curl verification, but it does not instruct placing the matching secret file as required. It uses environment variables instead, so the required secret setup is missing/mismatched."
+        "judgeNotes": "README lacks required Secret API key creation, matching secret file placement, restart/reload steps, and concrete verification via Prometheus targets/PromQL/Grafana."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -637,7 +637,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": false,
-        "judgeNotes": "The answer does include adding public.orders to supabase_realtime, but it incorrectly identifies the primary key as the top culprit and recommends altering the orders primary key. The required diagnosis/fix was exactly that orders was missing from the existing supabase_realtime publication while preserving existing RLS/policies and other feeds."
+        "judgeNotes": "The assistant incorrectly diagnosed RLS/SELECT policies as the root cause and suggested changing policies/replica identity. It did not identify or fix the missing orders table in the supabase_realtime publication."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -658,22 +658,22 @@
       "logs"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant named image-transform as the affected function and described intermittent/recurring 503s throughout the morning of 2026-04-28 with successful 200s interleaved, covering the relevant 07:00Z-12:00Z pattern sufficiently."
+        "judgeNotes": "The assistant identified image-transform as the affected function and described intermittent/recurring 503 responses throughout the morning of 2026-04-28, covering most of the gateway failures from ~07:00Z to 12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": false,
-        "judgeNotes": "The answer attributes the 503s to transient dependency/runtime/function issues and recommends instrumentation, dependency pinning, retries inside the function, and redeploying. It does not attribute the recurring 503s to the gateway/platform layer or ground that attribution in observations like gateway-only logs with no invocation/runtime rows."
+        "passed": true,
+        "judgeNotes": "Attributes the 503s to the API/gateway/pre-function layer and grounds this in the observation that gateway logs show 503s while image-transform function logs show only successful 200 executions in the same window. Although it suggests adding logging/redeploying for observability, it does not primarily blame function code."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: instrumenting the Edge Function with structured error logging, pinning/replacing the npm dependency, adding retries/backoff, and checking correlation with scaling/cold starts via redeploy/instrumentation."
+        "judgeNotes": "The assistant recommended concrete next steps: implement retries, add Edge Function error logging, redeploy, and check Storage-specific logs / upload flow to isolate the failing path."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -724,7 +724,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies as deny-all, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "Diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -744,11 +744,11 @@
       "sql"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
-        "passed": true
+        "passed": false
       },
       {
         "name": "ran EXPLAIN on the expensive query",
@@ -761,7 +761,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -785,35 +785,35 @@
       "sql"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
-        "passed": false
+        "passed": true
       },
       {
         "name": "ranked query stats by total (cumulative) execution time",
-        "passed": false
+        "passed": true
       },
       {
         "name": "ran EXPLAIN on the expensive query",
-        "passed": false
+        "passed": true
       },
       {
         "name": "created index covering user_id and created_at on events",
-        "passed": false
+        "passed": true
       },
       {
         "name": "hog query plan uses an index and avoids sequential scan",
-        "passed": false,
-        "notes": "Limit  (cost=141.55..141.61 rows=24 width=88)\n  ->  Sort  (cost=141.55..141.61 rows=24 width=88)\n        Sort Key: created_at DESC\n        ->  Seq Scan on events  (cost=0.00..141.00 rows=24 width=88)\n              Filter: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "passed": true,
+        "notes": "Limit  (cost=65.16..65.23 rows=30 width=88)\n  ->  Sort  (cost=65.16..65.23 rows=30 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.51..64.42 rows=30 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.51 rows=30 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
         "passed": true
       }
     ],
-    "prompt": "My database CPU has been spiking and the app feels sluggish, but I can't tell what's driving it. Can you figure out which query is actually responsible for the load and make the database change needed to bring the CPU down?\n\nEnd your turn with a short summary of what you changed and why.",
+    "prompt": "My database CPU keeps spiking and the app gets slow. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
     "promptSourcePath": "evals/resolve-performance-002-slow-query-cpu-spike-red-herring/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/resolve-performance-002-slow-query-cpu-spike-red-herring.json"
