@@ -13,16 +13,23 @@ export function parseEvalMarkdown(
   source: string,
   sourceName = "eval markdown",
 ): ParsedEvalMarkdown {
+  // matter.test() inspects the raw source for a frontmatter delimiter without
+  // parsing. We must check it here rather than reading parsed.matter below:
+  // gray-matter caches parsed files keyed by content and returns a shallow
+  // Object.assign copy on cache hits, which drops the non-enumerable .matter
+  // field (it becomes undefined). Since export-results re-parses the same
+  // PROMPT.md once per result file, the second read would otherwise crash on
+  // parsed.matter.trim().
+  if (!matter.test(source)) {
+    throw new Error(`${sourceName} is missing eval metadata frontmatter`);
+  }
+
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(source);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     throw new Error(`${sourceName} has invalid frontmatter: ${msg}`);
-  }
-
-  if (!parsed.matter.trim()) {
-    throw new Error(`${sourceName} is missing eval metadata frontmatter`);
   }
 
   const raw = parsed.data as Record<string, unknown>;
