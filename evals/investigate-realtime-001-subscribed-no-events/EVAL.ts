@@ -13,7 +13,8 @@ const scorer: ToolScorer = async (ctx) => {
       await checkOrdersInPublication(ctx),
       await checkCourierFeedStillPublished(ctx),
       await checkPublicationStillPublishesInserts(ctx),
-      await checkOrdersRlsIntact(ctx),
+      await checkOrdersRlsEnabled(ctx),
+      await checkStaffCanReadOrders(ctx),
       await checkPublicationDiagnosis(ctx),
     ];
 
@@ -84,38 +85,58 @@ async function checkPublicationStillPublishesInserts(
   };
 }
 
-async function checkOrdersRlsIntact(ctx: ToolEvalContext): Promise<CheckResult> {
-  // Guard against debugging by weakening security: RLS stays enabled and
-  // staff can still read orders through it.
-  const { rows: rls } = await ctx.query(
+async function checkOrdersRlsEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
+  // Guard against debugging by weakening security: RLS must stay enabled.
+  const { rows } = await ctx.query(
     `SELECT relrowsecurity FROM pg_class WHERE relname = 'orders';`,
   );
-  if (rls[0]?.relrowsecurity !== true) {
-    return { name: "RLS still enabled on orders", passed: false };
-  }
+
+  return {
+    name: "RLS still enabled on orders",
+    passed: rows[0]?.relrowsecurity === true,
+  };
+}
+
+async function checkStaffCanReadOrders(ctx: ToolEvalContext): Promise<CheckResult> {
+  // The "staff can read orders" policy must survive the fix: an authenticated
+  // user should still see every order through PostgREST.
+  const name = "staff can still read orders through RLS";
 
   try {
-    const { rows } = await ctx.query(stripIndent`
-      BEGIN;
-      SET LOCAL ROLE authenticated;
-      SET LOCAL request.jwt.claim.role = 'authenticated';
-      SELECT count(*)::int AS count FROM orders;
-      COMMIT;
-    `);
+    const client = ctx.getClient();
+    const { error: signUpError } = await client.auth.signUp({
+      email: "dispatch-staff@example.com",
+      password: "secret123",
+    });
+    if (signUpError) {
+      return { name, passed: false, notes: signUpError.message };
+    }
+
+    const { rows: privileged } = await ctx.query(
+      `SELECT count(*)::int AS count FROM orders;`,
+    );
+
+    if (privileged.length === 0 || privileged[0].count === undefined) {
+      return { name, passed: false, notes: "failed to count orders with privileged SQL" };
+    }
+
+    const expected = privileged[0].count;
+
+    const { count: authenticatedCount, error: readError } = await client
+      .from("orders")
+      .select("*", { count: "exact", head: true });
+    if (readError) {
+      return { name, passed: false, notes: readError.message };
+    }
 
     return {
-      name: "RLS still enabled on orders",
-      passed: rows[0]?.count === 2,
-      notes: `authenticated sees ${rows[0]?.count} orders`,
+      name,
+      passed: authenticatedCount === expected,
+      notes: `authenticated sees ${authenticatedCount} of ${expected} orders`,
     };
   } catch (error) {
-    try {
-      await ctx.query("ROLLBACK;");
-    } catch {
-      // Clear aborted scorer transactions.
-    }
     const msg = error instanceof Error ? error.message : String(error);
-    return { name: "RLS still enabled on orders", passed: false, notes: msg };
+    return { name, passed: false, notes: msg };
   }
 }
 
