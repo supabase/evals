@@ -16,7 +16,7 @@
       "supabase-js"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -32,17 +32,76 @@
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": true
+        "passed": false
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": true
+        "passed": false
       }
     ],
     "prompt": "# Private Notes Function Review\n\nI built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 019ecbec-ee6b-700d-8900-eca9a4c10db6/receipt-alpha.pdf, 019ecbec-ee6b-700d-8900-eca9a4c10db6/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Meets requirements: private user-files bucket, authenticated owner/path-scoped SELECT and INSERT policies with WITH CHECK for upload, no RLS disable or public access, and uses createSignedUrl with an expiry for temporary sharing."
+      }
+    ],
+    "prompt": "# Private User Files in Storage\n\nOur app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/build-storage-001-private-bucket-access.json"
   },
   {
     "experiment": "openai-gpt-5.4-mini",
@@ -64,18 +123,64 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape uses basic_auth password instead of password_file, injects a Secret API key via env/template substitution, docker-compose does not mount a password_file via volume or secret, and the target is not explicitly wired to 94abbf064d3a42fa9874.supabase.co/red."
+        "judgeNotes": "Fails: Supabase target is not the required 37cd69fad56348979654.supabase.co or .supabase.red, basic_auth uses an expanded password env var instead of password_file, and docker-compose.yml does not mount/wire that password_file via volume or Compose secret. Existing app scrape is preserved and HTTPS/path are correct."
       },
       {
         "name": "documented live deployment and verification steps",
-        "passed": false,
-        "judgeNotes": "README lacks required matching secret file setup and concrete verification steps (Prometheus targets, PromQL/Grafana, or equivalent). Deploy/redeploy guidance is also env-var based rather than the required secret-file setup."
+        "passed": true,
+        "judgeNotes": "README includes creating a Supabase Secret API key, placing SUPABASE_PROJECT_REF and SUPABASE_SECRET_API_KEY in .env.local, restarting Prometheus to reload config, and verifying via the Prometheus supabase target/Grafana."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/deploy-database-001-prometheus-metrics/summary.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "investigate-realtime-001-subscribed-no-events",
+    "stage": "investigate",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "orders table added to supabase_realtime publication",
+        "passed": false
+      },
+      {
+        "name": "courier_locations still in supabase_realtime publication",
+        "passed": false
+      },
+      {
+        "name": "publication still publishes INSERT events",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on orders",
+        "passed": false
+      },
+      {
+        "name": "staff can still read orders through RLS",
+        "passed": false,
+        "notes": "relation \"orders\" does not exist"
+      },
+      {
+        "name": "diagnosed missing publication membership",
+        "passed": false,
+        "judgeNotes": "The assistant did not identify that `orders` was missing from the existing `supabase_realtime` publication, nor did it add `orders` to that publication. Instead it created/verified a publication and claimed none existed, which does not match the required root cause and risks not preserving the existing courier_locations setup."
+      }
+    ],
+    "prompt": "# Debug Realtime publication\n\nOur dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
+    "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/investigate-realtime-001-subscribed-no-events.json"
   },
   {
     "experiment": "openai-gpt-5.4-mini",
@@ -95,17 +200,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and noted the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z–12:00Z."
+        "judgeNotes": "The assistant correctly identified image-transform as the affected function and described the recurring HTTP 503 gateway failures throughout the morning of 2026-04-28, covering all 8 listed failures from 07:00Z to 12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "The assistant attributes the recurring image-transform 503s to API/gateway/platform routing rather than function code. This is grounded in the observation that 503s appear in API/gateway logs rather than function runtime failures, while successful function requests returned 200 nearby. It also distinguishes the separate avatar-upload 500 as an application error."
+        "judgeNotes": "The response attributes the recurring image-transform 503s to gateway/platform delivery before the function runtime, not the function code. It grounds this in valid observations: function-side logs show 200s on the same deployment/version, gateway logs show intermittent 503s, and there is a distinct function-level 500 for avatar-upload."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including inspecting Edge Function deployment/version health for the affected time window, checking upstream dependency outages, and adding retry/backoff for 503s."
+        "judgeNotes": "Assistant recommended concrete next steps: check platform incidents, inspect Edge Function runtime logs around exact 503s, add retry/backoff, and open a Supabase support ticket with timestamps and gateway log IDs."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -156,13 +261,54 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed deny-all RLS with no policies and created authenticated owner-scoped SELECT and INSERT policies using auth.uid() / WITH CHECK, without disabling RLS. Extra UPDATE policy does not violate the rubric."
+        "judgeNotes": "The assistant correctly identified RLS deny-all due to no policies, added authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts, and did not disable RLS."
       }
     ],
     "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-mini",
+    "eval": "resolve-performance-001-slow-query-cpu-spike",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "inspected pg_stat_statements for query performance",
+        "passed": true
+      },
+      {
+        "name": "ran EXPLAIN on the expensive query",
+        "passed": true
+      },
+      {
+        "name": "created index covering user_id and created_at",
+        "passed": true
+      },
+      {
+        "name": "query plan uses an index and avoids sequential scan",
+        "passed": true,
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+      },
+      {
+        "name": "inserts still work",
+        "passed": true
+      }
+    ],
+    "prompt": "My database CPU keeps spiking and the app gets slow when loading recent events for a user. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
+    "promptSourcePath": "evals/resolve-performance-001-slow-query-cpu-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-mini/resolve-performance-001-slow-query-cpu-spike.json"
   },
   {
     "experiment": "openai-gpt-5.4-mini",
@@ -238,7 +384,7 @@
       "supabase-js"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -246,25 +392,88 @@
       },
       {
         "name": "user A reads own note",
-        "passed": true
+        "passed": false,
+        "notes": "edge function import not supported: npm:@supabase/supabase-js"
       },
       {
         "name": "reads only with the caller's JWT",
-        "passed": true
+        "passed": false,
+        "notes": "edge function import not supported: npm:@supabase/supabase-js"
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": true
+        "passed": false,
+        "notes": "edge function import not supported: npm:@supabase/supabase-js"
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": true
+        "passed": false,
+        "notes": "edge function import not supported: npm:@supabase/supabase-js"
       }
     ],
     "prompt": "# Private Notes Function Review\n\nI built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 019ecbed-19f7-77dd-b494-9f412c34e683/receipt-alpha.pdf, 019ecbed-19f7-77dd-b494-9f412c34e683/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Configured a private user-files bucket, kept RLS enabled, added authenticated owner-scoped SELECT and INSERT policies with INSERT enforcing the user-id path prefix, and provided supabase-js createSignedUrl code with an expiry."
+      }
+    ],
+    "prompt": "# Private User Files in Storage\n\nOur app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/build-storage-001-private-bucket-access.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -286,18 +495,64 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an environment variable instead of password_file, and docker-compose.yml does not mount the password file via a volume or Compose secret. Existing app scrape and endpoint/target are otherwise present."
+        "judgeNotes": "Fails because prometheus.yml uses a hardcoded password field placeholder for a Secret API key instead of basic_auth password_file, and docker-compose.yml does not mount the password file via a volume or Compose secret. The app scrape is preserved and endpoint/target are otherwise correct."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README includes creating a Secret API key, restarting the Compose stack, and basic Prometheus/Grafana verification, but it does not require placing a matching secret file. It instead uses an environment variable, which fails the required secret-file setup."
+        "judgeNotes": "README includes creating a Supabase Secret API key, restarting the Compose stack, and basic Prometheus/Grafana verification. However, it instructs users to paste the key directly into prometheus.yml instead of placing it in a matching secret file, and the Compose/Prometheus config does not mount or reference such a secret file. This fails the required secret-file setup."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/deploy-database-001-prometheus-metrics/summary.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "investigate-realtime-001-subscribed-no-events",
+    "stage": "investigate",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "orders table added to supabase_realtime publication",
+        "passed": false
+      },
+      {
+        "name": "courier_locations still in supabase_realtime publication",
+        "passed": false
+      },
+      {
+        "name": "publication still publishes INSERT events",
+        "passed": false
+      },
+      {
+        "name": "RLS still enabled on orders",
+        "passed": false
+      },
+      {
+        "name": "staff can still read orders through RLS",
+        "passed": false,
+        "notes": "relation \"orders\" does not exist"
+      },
+      {
+        "name": "diagnosed missing publication membership",
+        "passed": false,
+        "judgeNotes": "The assistant did not diagnose and fix the required issue. It claimed the project had no app tables/publications and requested another project, and additionally suggested checking RLS. It did not add orders to the existing supabase_realtime publication."
+      }
+    ],
+    "prompt": "# Debug Realtime publication\n\nOur dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
+    "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/investigate-realtime-001-subscribed-no-events.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -317,17 +572,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Assistant identified image-transform as affected and described recurring intermittent 503s throughout the morning of 2026-04-28, covering the 07:00Z-12:00Z window with multiple examples. It did not focus on old billing-webhook logs."
+        "judgeNotes": "The assistant identified image-transform as the affected function and described a recurring pattern of HTTP 503 gateway failures throughout the morning of 2026-04-28, listing most of the failures from 07:00Z through 12:00Z and distinguishing them from other logs."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant attributes the 503s to Edge Function/application runtime issues (dependency, timeout/resource pressure, upstream call inside transform code) and recommends logging/redeploying/fixing the function, rather than identifying the gateway/platform layer. Although it mentions gateway-like HTTP status data and Storage absence, it does not ground the 503s as platform-layer failures distinct from function runtime errors."
+        "judgeNotes": "The response identifies 503s on the Functions gateway and notes only successful image-transform runtime logs, which is valid evidence. However, it then attributes the likely cause to the transform call/upstream dependency within the function path and recommends instrumenting, hardening, and redeploying the function. This treats the function/runtime as a likely remediation target rather than clearly concluding the recurring 503s originate at the gateway/platform layer."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: add structured runtime error logging and redeploy, check dependency/version changes around the incident window, add retry/backoff mitigation, and verify correlated Storage requests."
+        "judgeNotes": "The assistant recommended concrete next steps: add instrumentation, capture request IDs/durations for correlation, distinguish gateway-level vs function-level 503s, check concurrency/throughput limits, and harden with timeouts/retries."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -378,13 +633,54 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using user_id = auth.uid() / WITH CHECK. Extra UPDATE/DELETE owner policies do not violate the rubric."
+        "judgeNotes": "Diagnosed RLS enabled with no policies as the cause, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts. Extra update/delete policies and grants do not violate the rubric."
       }
     ],
     "prompt": "# Bookmarks Dashboard Shows Nothing\n\nOur app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "resolve-performance-001-slow-query-cpu-spike",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "inspected pg_stat_statements for query performance",
+        "passed": true
+      },
+      {
+        "name": "ran EXPLAIN on the expensive query",
+        "passed": true
+      },
+      {
+        "name": "created index covering user_id and created_at",
+        "passed": true
+      },
+      {
+        "name": "query plan uses an index and avoids sequential scan",
+        "passed": true,
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+      },
+      {
+        "name": "inserts still work",
+        "passed": true
+      }
+    ],
+    "prompt": "My database CPU keeps spiking and the app gets slow when loading recent events for a user. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
+    "promptSourcePath": "evals/resolve-performance-001-slow-query-cpu-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/resolve-performance-001-slow-query-cpu-spike.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
