@@ -84,14 +84,14 @@ function discoverEvals(): EvalManifest[] {
   for (const id of readdirSync(dir)) {
     const evalDir = join(dir, id);
     if (!statSync(evalDir).isDirectory()) continue;
-    const appDir = join(evalDir, "app");
+    const localDir = join(evalDir, "local");
     const promptPath = join(evalDir, "PROMPT.md");
     const evalPath = join(evalDir, "EVAL.ts");
     const metadata = parseEvalMarkdown(
       readFileSync(promptPath, "utf8"),
       `evals/${id}/PROMPT.md`,
     ).metadata;
-    const isProject = existsSync(appDir) && statSync(appDir).isDirectory();
+    const isProject = existsSync(localDir) && statSync(localDir).isDirectory();
     const mode = isProject ? "project" : "tool";
     out.push({
       id,
@@ -102,10 +102,10 @@ function discoverEvals(): EvalManifest[] {
       suite: metadata.suite,
       topic: metadata.topic,
       dir: evalDir,
-      appDir: isProject ? appDir : undefined,
+      localDir: isProject ? localDir : undefined,
       promptPath,
       evalPath,
-      seedDir: join(evalDir, "seed"),
+      remoteDir: join(evalDir, "remote"),
     });
   }
   return out;
@@ -145,8 +145,8 @@ function workspacePath(modelName: string, evalId: string, attempt: number) {
 function materializeWorkspace(ev: EvalManifest, workspace: string) {
   rmSync(workspace, { recursive: true, force: true });
   mkdirSync(dirname(workspace), { recursive: true });
-  if (!ev.appDir) throw new Error(`project eval ${ev.id} is missing app/`);
-  cpSync(ev.appDir, workspace, { recursive: true });
+  if (!ev.localDir) throw new Error(`project eval ${ev.id} is missing local/`);
+  cpSync(ev.localDir, workspace, { recursive: true });
   writeFileSync(
     join(workspace, ".env.local"),
     [
@@ -165,9 +165,9 @@ function copyWithheldTests(ev: EvalManifest, workspace: string) {
 }
 
 function readSessionSeedArgs(ev: EvalManifest) {
-  const projectSeedSql = join(ev.seedDir, "project.sql");
-  const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
-  const functionsSeedDir = join(ev.seedDir, "functions");
+  const projectSeedSql = join(ev.remoteDir, "project.sql");
+  const logsSeedJsonl = join(ev.remoteDir, "logs.jsonl");
+  const functionsSeedDir = join(ev.remoteDir, "functions");
 
   return {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,

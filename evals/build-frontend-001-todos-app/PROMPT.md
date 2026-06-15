@@ -20,14 +20,14 @@ The Supabase project already has a `todos` table with RLS policies:
 todos(id uuid, user_id uuid default auth.uid(), body text, done boolean, created_at timestamptz)
 ```
 
-The project files are under `app/`. `app/src/App.tsx` already contains the UI
+The project files are under `local/`. `local/src/App.tsx` already contains the UI
 markup and stable `data-testid`s used by the tests. Keep that UI shape intact
 and hook it up to Supabase.
 
 Requirements:
 
 1. Create a Supabase client using `@supabase/supabase-js`. You may create a
-   helper like `app/src/supabase.ts` or keep the client in `App.tsx`.
+   helper like `local/src/supabase.ts` or keep the client in `App.tsx`.
 2. Read `import.meta.env.VITE_SUPABASE_URL` and
    `import.meta.env.VITE_SUPABASE_ANON_KEY`.
 3. The sign-in form signs in with email/password.

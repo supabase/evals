@@ -51,8 +51,16 @@ export interface EvalManifest {
   suite: EvalSuite;
   topic: string[];
   dir: string;
-  appDir?: string;
+  /**
+   * `local/` — the agent's starting files (the developer's working
+   * directory); for project evals this is the app workspace the agent edits.
+   */
+  localDir?: string;
   promptPath: string;
   evalPath: string;
-  seedDir: string;
+  /**
+   * `remote/` — the hosted project's starting state, seeded into
+   * platform-lite (project.sql, logs.jsonl, functions/).
+   */
+  remoteDir: string;
 }
