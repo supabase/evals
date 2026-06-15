@@ -51,9 +51,9 @@ export {
   evalResultSchema,
   evalStageSchema,
   evalSuiteSchema,
-  parseEvalMarkdown,
   rawEvalResultSchema,
 } from "./eval-metadata.js";
+export { parseEvalMarkdown } from "./eval-markdown.js";
 export type {
   CheckResult,
   EvalMetadata,
