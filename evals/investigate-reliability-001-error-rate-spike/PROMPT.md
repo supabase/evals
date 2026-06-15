@@ -8,8 +8,6 @@ topic:
   - logs
 ---
 
-# Edge Function Reliability Review
-
 Audit the recent edge-function logs for any reliability problem worth flagging.
 
 If you find one, report:

@@ -8,8 +8,6 @@ topic:
   - observability
 ---
 
-# Audit this Supabase project for security issues
-
 You have access to the project's database schema and recent logs.
 
 Identify any tables exposed to the public/anon role without proper Row Level

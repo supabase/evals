@@ -10,8 +10,6 @@ topic:
   - supabase-js
 ---
 
-# Authenticated Todos Frontend
-
 Build the missing Supabase integration for this Vite + React todos app.
 
 The Supabase project already has a `todos` table with RLS policies:

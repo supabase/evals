@@ -8,8 +8,6 @@ topic:
   - reliability
 ---
 
-# Top Erroring Edge Function
-
 Identify the edge function with the most errors in the last 15 minutes.
 
 Report:

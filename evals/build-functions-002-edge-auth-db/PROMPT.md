@@ -11,8 +11,6 @@ topic:
   - supabase-js
 ---
 
-# Edge Function Auth + Database
-
 Create a Supabase Edge Function named `todo-create`.
 
 The function must:

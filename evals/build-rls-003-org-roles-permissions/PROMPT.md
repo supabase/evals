@@ -9,8 +9,6 @@ topic:
   - security
 ---
 
-# Organization Document RLS
-
 You are working on a Supabase project for a multi-tenant document app.
 
 The schema has three tables already created and seeded:

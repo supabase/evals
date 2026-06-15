@@ -9,8 +9,6 @@ topic:
   - policies
 ---
 
-# RLS Cross-User Access Review
-
 Audit the RLS policies on this Supabase project.
 
 If any policy lets one authenticated user access another user's data, fix it in
