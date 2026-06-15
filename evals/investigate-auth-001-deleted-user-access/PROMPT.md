@@ -9,8 +9,6 @@ topic:
 motivation: AI-820, AI-422, https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V
 ---
 
-# Revoke deleted user sessions
-
 Last week support removed a user through our app's delete-account flow — the
 app calls the `delete_account` function over RPC as the signed-in user. This
 morning that same person was back: still signed in, reading and saving their
