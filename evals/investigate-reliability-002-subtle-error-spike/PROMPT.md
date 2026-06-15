@@ -8,8 +8,6 @@ topic:
   - logs
 ---
 
-# Subtle Reliability Spike
-
 Audit recent edge-function logs for any reliability issue worth a human's
 attention.
 

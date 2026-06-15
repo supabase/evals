@@ -13,8 +13,6 @@ topic:
   - supabase-js
 ---
 
-# Private Notes Function Review
-
 I built an Edge Function called `private-notes` for showing a user's saved
 private notes.
 

@@ -7,8 +7,6 @@ topic:
   - api
 ---
 
-# Order Total Edge Function
-
 Create a Supabase Edge Function named `order-total`.
 
 The function should accept only `POST` requests with a JSON body:

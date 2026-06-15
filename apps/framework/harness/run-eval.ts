@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parseEvalMarkdown } from "@supabase-evals/core/eval-metadata";
+import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
 import {
   normalizeExperimentName,
   readRepeatedFlag,

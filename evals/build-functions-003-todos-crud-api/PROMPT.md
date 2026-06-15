@@ -10,8 +10,6 @@ topic:
   - crud
 ---
 
-# Todos CRUD Edge Function
-
 Create a Supabase Edge Function named `todos-api`.
 
 The function must use `@supabase/supabase-js` with:

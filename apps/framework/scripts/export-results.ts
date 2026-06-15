@@ -9,10 +9,8 @@ import {
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  parseEvalMarkdown,
-  rawEvalResultSchema,
-} from "@supabase-evals/core/eval-metadata";
+import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
+import { rawEvalResultSchema } from "@supabase-evals/core/eval-metadata";
 import type {
   EvalResult,
   EvalSuite,
