@@ -14,6 +14,19 @@
 -- CPU spike in place. The only way to the correct fix is ranking
 -- pg_stat_statements by total_exec_time (calls x mean_exec_time).
 
+-- Enable slow-query logging at a 1s threshold. log_min_duration_statement is
+-- disabled by default (-1), so without this nothing would be logged at all;
+-- setting it to 1s is what makes the ~3s audit_log report show up in the logs
+-- while the ~22ms events hog stays under the bar and never appears there.
+DO $$
+BEGIN
+  EXECUTE format(
+    'ALTER DATABASE %I SET log_min_duration_statement = %L',
+    current_database(),
+    '1s'
+  );
+END $$;
+
 CREATE TABLE events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
