@@ -172,16 +172,18 @@ export const checkResultSchema = z.object({
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
-// Exported results are historical display data, so product/topic stay loose
-// strings here rather than the authoring enums — older snapshots may carry
-// values from before an enum change. Authoring is validated strictly by
-// evalMetadataSchema; the web only renders these.
+// Every dimension that has an authoring enum is enforced against that same
+// enum here — the enum is the single source of truth for both authoring
+// (evalMetadataSchema) and results. Result files are gitignored, regenerated
+// artifacts; a snapshot whose value drifts from the current enum (e.g. a
+// renamed stage or topic) fails to parse and is dropped from the export rather
+// than rendered with a stale value, and is rebuilt on the next run.
 const evalResultShape = {
   experiment: z.string(),
   eval: z.string(),
   stage: evalStageSchema.optional(),
-  product: z.array(z.string()).optional(),
-  topic: z.array(z.string()).optional(),
+  product: z.array(evalProductSchema).optional(),
+  topic: z.array(evalTopicSchema).optional(),
   suite: evalSuiteSchema.optional(),
   interface: evalInterfaceSchema.optional(),
   passed: z.boolean().optional(),
