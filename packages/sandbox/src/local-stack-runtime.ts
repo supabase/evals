@@ -2,7 +2,7 @@ import { posix } from "node:path";
 import { jsonSchema, tool, type ToolSet } from "ai";
 import { createClient } from "@supabase/supabase-js";
 import {
-  docsMcpServer,
+  supabaseMcpServer,
   type LocalStackRuntime,
   type LocalStackScoringContext,
   type McpServerConfig,
@@ -47,10 +47,19 @@ export interface LocalStackRuntimeOptions {
 export function localStackRuntime(
   options: LocalStackRuntimeOptions = {},
 ): LocalStackRuntime {
-  const mcpServers = options.mcpServers ?? { "supabase-docs": docsMcpServer() };
   return {
     id: "local-stack",
     async startSession({ localDir, includeServices, projectRunning }) {
+      // Default to a docs-only Supabase MCP server (no platform context needed —
+      // `docs` is platform-independent), so the agent can `search_docs` even
+      // though the sandbox has no web tools.
+      const mcpServers =
+        options.mcpServers ??
+        {
+          "supabase-docs": (
+            await supabaseMcpServer({ features: ["docs"] }).createConfig()
+          ).config,
+        };
       const image = await ensureSupabaseSandboxImage(options.cliVersion);
       const sandbox = await DockerSandbox.create({
         image,
