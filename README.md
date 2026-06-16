@@ -53,7 +53,7 @@ pnpm web
 2. Add `PROMPT.md` with frontmatter metadata and the task the agent sees.
 3. Add `EVAL.ts` with the scorer.
 4. Add `remote/` data if the scenario needs hosted-project state (database, logs, functions).
-5. Add `local/` files if the agent starts from an existing workspace (project evals: the app it edits; CLI evals: the repo).
+5. Add `local/` files if the agent starts from an existing workspace (the app or repo it edits).
 
 ### Add an experiment
 
