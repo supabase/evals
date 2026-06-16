@@ -19,7 +19,9 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
 
     const parsed = await parseRunQueryBody(c.req.raw)
     if (!parsed.ok) return c.json({ message: parsed.error }, 400)
-    const { query, parameters } = parsed.body
+    const { query: rawQuery, parameters } = parsed.body
+    // ponytail: stubs are always-on; intercept CREATE EXTENSION for stubbed extensions so agents don't need to know
+    const query = rawQuery.replace(/CREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:pg_cron|pgmq)\b[^;]*/gi, 'SELECT 1')
 
     try {
       const result = parameters?.length
@@ -45,7 +47,8 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
     if (!project) return c.json({ message: 'Project not found' }, 404)
 
     const body = await c.req.json<{ name: string; query: string }>()
-    const { name, query } = body
+    const { name, query: rawMigrationQuery } = body
+    const query = rawMigrationQuery.replace(/CREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:pg_cron|pgmq)\b[^;]*/gi, 'SELECT 1')
 
     try {
       await project.app.connection.exec(query)

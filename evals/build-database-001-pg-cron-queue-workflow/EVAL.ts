@@ -16,7 +16,13 @@ const scorer: ToolScorer = async (ctx) => {
     const checks: CheckResult[] = [
       await checkCronJobScheduled(ctx),
       await checkCronCommandRunsAndEnqueues(ctx),
-      await checkFunctionDequeues(ctx),
+      {
+        name: "function dequeues and returns messages",
+        ...(await checkFunctionDequeues(ctx).catch((err): Omit<CheckResult, "name"> => ({
+          passed: false,
+          notes: err instanceof Error ? err.message : String(err),
+        }))),
+      },
     ];
 
     return {
