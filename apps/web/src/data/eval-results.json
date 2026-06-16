@@ -32,7 +32,7 @@
       {
         "name": "function dequeues and returns messages",
         "passed": false,
-        "notes": "edge function import not supported: https://deno.land/x/postgresjs@v3.4.5/mod.js"
+        "notes": "supabaseKey is required."
       }
     ],
     "prompt": "I want to set up a recurring background workflow on my project.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then deploy an Edge Function called `process-tasks` that an internal worker can call to drain the queue.",
@@ -57,7 +57,7 @@
       "supabase-js"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -65,23 +65,19 @@
       },
       {
         "name": "user A reads own note",
-        "passed": false,
-        "notes": "edge function import not supported: https://esm.sh/@supabase/supabase-js@2"
+        "passed": true
       },
       {
         "name": "reads only with the caller's JWT",
-        "passed": false,
-        "notes": "edge function import not supported: https://esm.sh/@supabase/supabase-js@2"
+        "passed": true
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": false,
-        "notes": "edge function import not supported: https://esm.sh/@supabase/supabase-js@2"
+        "passed": true
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": false,
-        "notes": "edge function import not supported: https://esm.sh/@supabase/supabase-js@2"
+        "passed": true
       }
     ],
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
@@ -119,7 +115,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019ecec3-887a-700b-a58d-9f8903ab989c/receipt-alpha.pdf, 019ecec3-887a-700b-a58d-9f8903ab989c/receipt-beta.pdf"
+        "notes": "saw: 019ed0ea-9afe-77c9-b201-d985a6e830d8/receipt-alpha.pdf, 019ed0ea-9afe-77c9-b201-d985a6e830d8/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -140,7 +136,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets requirements: private user-files bucket, RLS enabled, authenticated owner-scoped SELECT and INSERT policies on storage.objects, and supabase-js createSignedUrl with expiry for temporary sharing."
+        "judgeNotes": "Meets all requirements: private user-files bucket, RLS enabled, authenticated owner-scoped SELECT and INSERT policies on storage.objects, and supabase-js createSignedUrl with expiry for temporary sharing."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -168,12 +164,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase target is a placeholder rather than 5dab795bea3c42228e24.supabase.co/red, basic_auth uses hardcoded password instead of password_file, and docker-compose.yml does not mount/wire the password file via volume or Compose secret."
+        "judgeNotes": "Fails: Supabase target is not the required 8895d4b832f84965b1bf.supabase.co/red project endpoint, basic_auth uses password instead of password_file, and docker-compose.yml does not mount/wire the password file via volume or Compose secret."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README explains creating a Supabase Secret API key and restarting Prometheus, but it instructs replacing the key directly in prometheus.yml rather than placing a matching secret file. Compose/config do not use a secret file. Verification is also vague and lacks concrete Prometheus targets/PromQL/Grafana checks."
+        "judgeNotes": "README includes Secret API key creation, restart, and concrete verification, but it instructs users to paste the secret directly into prometheus.yml instead of placing a matching secret file. The Compose setup also does not provide the referenced environment variables/secrets, so the secret setup is mismatched and risks hardcoding secrets."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -244,7 +240,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": false,
-        "judgeNotes": "Failed: the answer diagnosed the publication as missing entirely rather than identifying that `orders` was missing from the existing `supabase_realtime` publication while courier_locations worked. It created a publication for the whole public schema instead of adding exactly the `orders` table to the existing publication, which the rubric explicitly disallows."
+        "judgeNotes": "The assistant did not diagnose or fix the specific issue: `orders` missing from the existing `supabase_realtime` publication. Instead it attempted to create/recreate the publication, including `FOR ALL TABLES IN SCHEMA public`, and never added `orders` with `ALTER PUBLICATION supabase_realtime ADD TABLE orders`. It also did not preserve/verify existing publication membership such as `courier_locations`."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -270,17 +266,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the affected function and described intermittent/recurring 503s throughout the morning of 2026-04-28, with successful responses in between. It did not explicitly mention all 8 gateway failures or the 07:00Z-12:00Z range, but it covered the required pattern sufficiently."
+        "judgeNotes": "The assistant identified `image-transform` as the affected function and described recurring intermittent 503s throughout the morning of 2026-04-28 across the 07:00Z–12:00Z window, while distinguishing it from storage and other isolated errors."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant blames the image-transform Edge Function/package logic or runtime/downstream dependencies as the likely cause and recommends inspecting/fixing function behavior/logging/retry. It does not attribute the recurring 503s to the gateway/platform layer, nor ground such attribution in observations like gateway-only HTTP logs with no invocation/runtime rows, unchanged deployment_id, or distinction from avatar-upload's function-level 500."
+        "judgeNotes": "The response is ambiguous rather than clearly attributing recurring image-transform 503s to the gateway/platform layer. It suggests deployment/runtime/app-side exceptions, recommends redeploying image-transform and checking function code paths, which violates the rubric. It also does not ground the gateway attribution in a strong observation such as missing invocation/runtime rows or unchanged deployment_id."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: inspect the underlying Edge Function package behavior, add targeted logging, check external dependency health, and implement retry/backoff or fallback for customer-facing uploads."
+        "judgeNotes": "Recommended concrete next steps including checking Edge Function deployments, redeploying image-transform, inspecting code paths/dependencies, and correlating edge-function logs at exact timestamps with platform incidents."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -331,7 +327,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API results, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() while leaving RLS enabled."
+        "judgeNotes": "The assistant correctly diagnosed RLS deny-all behavior, added authenticated SELECT and INSERT policies scoped to user_id = auth.uid(), and did not disable RLS."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -351,11 +347,11 @@
       "sql"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
-        "passed": false
+        "passed": true
       },
       {
         "name": "ran EXPLAIN on the expensive query",
@@ -457,20 +453,22 @@
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled",
-        "passed": true
+        "passed": false
       },
       {
         "name": "cron command enqueues to 'tasks' queue",
-        "passed": true
+        "passed": false,
+        "notes": "job not found"
       },
       {
         "name": "function requires authentication",
-        "passed": true
+        "passed": false,
+        "notes": "expected 401, got edge function not found: process-tasks"
       },
       {
         "name": "function dequeues and returns messages",
         "passed": false,
-        "notes": "HTTP 500: {\"error\":\"function read(queue_name => unknown, sleep_seconds => unknown, n => unknown) does not exist\"}"
+        "notes": "relation \"pgmq.q_tasks\" does not exist"
       }
     ],
     "prompt": "I want to set up a recurring background workflow on my project.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then deploy an Edge Function called `process-tasks` that an internal worker can call to drain the queue.",
@@ -553,7 +551,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019ecec3-c2ac-722b-82c1-e3415aaaf6e5/receipt-alpha.pdf, 019ecec3-c2ac-722b-82c1-e3415aaaf6e5/receipt-beta.pdf"
+        "notes": "saw: 019ed0eb-09b2-7177-b871-662c1aa2c75f/receipt-alpha.pdf, 019ed0eb-09b2-7177-b871-662c1aa2c75f/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -574,7 +572,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets requirements: private user-files bucket, RLS enabled on storage.objects, authenticated owner-scoped SELECT and INSERT WITH CHECK policies for paths under auth.uid(), and supabase-js uses createSignedUrl with expiry for temporary sharing."
+        "judgeNotes": "The answer creates a private user-files bucket, defines authenticated-only owner-scoped SELECT and INSERT policies on storage.objects with INSERT WITH CHECK scoped to the auth.uid() folder, does not make the bucket public or disable RLS, and provides supabase-js createSignedUrl code with an expiry for temporary sharing links."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -602,12 +600,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails because Supabase basic_auth uses password instead of password_file and docker-compose.yml does not mount/provide the password file via a volume or Compose secret. The app scrape and endpoint/target are otherwise present."
+        "judgeNotes": "Fails because the Supabase scrape uses a hardcoded/placeholder `basic_auth.password` instead of `password_file`, and docker-compose.yml does not mount or wire the password file via a volume or Compose secret. App scrape and endpoint are otherwise present."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README lacks required steps to create a Supabase Metrics Secret API key, place a matching secret/env file, and restart/reload the Compose stack. It also lacks concrete verification via Prometheus targets, PromQL, Grafana, or equivalent."
+        "judgeNotes": "README lacks required secret file setup, does not instruct restarting/reloading the Compose stack, and has no concrete verification steps via Prometheus targets, PromQL, Grafana, or equivalent. It also instructs placing the secret directly in prometheus.yml rather than using a matching secret file."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -678,7 +676,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": false,
-        "judgeNotes": "The answer identifies the missing supabase_realtime publication membership and includes ALTER PUBLICATION ... ADD TABLE public.orders, but it also recommends unrelated/unsafe changes (adding a primary key, REPLICA IDENTITY FULL, and client-side changes) rather than fixing exactly the publication. The rubric requires fixing exactly that and not suggesting client code as part of the fix."
+        "judgeNotes": "The answer blames the client subscription schema/table as the root cause and only suggests client-side changes. It does not identify the missing orders table in the supabase_realtime publication or fix it with ALTER PUBLICATION, so it fails the rubric."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -704,17 +702,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant named image-transform as the affected Edge Function and described intermittent/recurring HTTP 503 failures throughout the morning of 2026-04-28, with alternating 200/503 responses and image-transform as the source rather than old billing-webhook issues."
+        "judgeNotes": "The assistant identified `image-transform` as the affected function and described the recurring HTTP 503 pattern across the morning of 2026-04-28, including most/all of the eight failures from 07:00Z through 12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant attributes the 503s to the image-transform function/runtime/transformation step and recommends adding function logging, hardening dependency usage, and redeploying. It does not identify the gateway/Edge Functions platform layer as the source, nor ground that attribution in observations like gateway-only logs with no invocation/runtime rows, unchanged deployment_id/version, or distinction from function-level errors."
+        "judgeNotes": "The assistant noted 503s from the function gateway, but ultimately attributed the issue to a transient runtime/dependency/function-package problem and recommended code-level resilience and redeploying image-transform. It did not ground the attribution in observations showing the gateway/platform layer was the source rather than the function application code."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: add detailed Edge Function logging, inspect/harden the image-transform dependency, and correlate failures with deploy/runtime events."
+        "judgeNotes": "The assistant recommended concrete next steps: inspect time-correlated Edge Function logs/error payloads, add explicit error handling/timeouts, redeploy the function, investigate the dependency, and optimize/increase runtime capacity."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -765,7 +763,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed deny-all RLS due to no policies, kept RLS enabled, and added authenticated owner-scoped SELECT and INSERT policies using user_id = auth.uid() / WITH CHECK. Extra update/delete owner policies do not violate the rubric."
+        "judgeNotes": "Diagnosed deny-all RLS due to no policies and created authenticated owner-scoped SELECT and INSERT policies using user_id = auth.uid(), while keeping RLS enabled. Extra update/delete owner policies do not violate the rubric."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -785,11 +783,11 @@
       "sql"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
-        "passed": true
+        "passed": false
       },
       {
         "name": "ran EXPLAIN on the expensive query",
