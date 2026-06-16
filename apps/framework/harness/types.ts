@@ -19,9 +19,10 @@ export type {
   EdgeFunctionsInvokeInput,
   EdgeFunctionsInvokeResult,
   ToolEvalContext,
-  ProjectEvalContext,
+  LocalStackScoringContext,
+  LocalStackEvalContext,
   ToolScorer,
-  ProjectScorer,
+  LocalStackScorer,
   ExperimentConfig,
 } from "@supabase-evals/core";
 export {
@@ -29,18 +30,14 @@ export {
   serializeTranscript,
 } from "@supabase-evals/core";
 export type {
+  EvalInterface,
   EvalMetadata,
   EvalProduct,
   EvalStage,
   EvalSuite,
 } from "@supabase-evals/core/eval-metadata";
 
-export type EvalMode = "tool" | "project";
-export type FileEndpoint =
-  | "files.list"
-  | "files.read"
-  | "files.write"
-  | "files.edit";
+export type EvalMode = "tools" | "local-stack";
 
 export interface EvalManifest {
   id: string;
@@ -53,7 +50,8 @@ export interface EvalManifest {
   dir: string;
   /**
    * `local/` — the agent's starting files (the developer's working
-   * directory); for project evals this is the app workspace the agent edits.
+   * directory). Project evals copy it to the host workspace the agent edits;
+   * local-stack evals copy it into the sandbox.
    */
   localDir?: string;
   promptPath: string;

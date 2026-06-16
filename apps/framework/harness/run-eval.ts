@@ -18,13 +18,14 @@ import {
   readSuiteFilters,
 } from "../lib/cli-args.js";
 import { runScorer } from "../lib/scorer.js";
-import { buildFileTools } from "./file-tools.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
   ExperimentConfig,
+  EvalInterface,
   EvalManifest,
+  EvalMode,
   ToolScorer,
-  ProjectScorer,
+  LocalStackScorer,
   ScoreResult,
   TranscriptPart,
 } from "./types.js";
@@ -77,6 +78,22 @@ function readFlag(name: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Resolve the run mode. The sandbox (local-stack) is needed when the agent
+ * uses the Supabase CLI (`interface: cli`) — including bootstrap scenarios that
+ * start from an empty workspace — or when the eval ships a `local/` workspace
+ * of starting files. Everything else runs against the in-memory tools runtime.
+ *
+ * `interface` is otherwise a benchmark dimension (KPI), not a runtime switch.
+ */
+function resolveEvalMode(
+  interfaceKind: EvalInterface | undefined,
+  hasLocal: boolean,
+): EvalMode {
+  if (interfaceKind === "cli" || hasLocal) return "local-stack";
+  return "tools";
+}
+
 function discoverEvals(): EvalManifest[] {
   const dir = join(ROOT, "evals");
   if (!existsSync(dir)) return [];
@@ -91,8 +108,8 @@ function discoverEvals(): EvalManifest[] {
       readFileSync(promptPath, "utf8"),
       `evals/${id}/PROMPT.md`,
     ).metadata;
-    const isProject = existsSync(localDir) && statSync(localDir).isDirectory();
-    const mode = isProject ? "project" : "tool";
+    const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
+    const mode = resolveEvalMode(metadata.interface, hasLocal);
     out.push({
       id,
       mode,
@@ -102,7 +119,7 @@ function discoverEvals(): EvalManifest[] {
       suite: metadata.suite,
       topic: metadata.topic,
       dir: evalDir,
-      localDir: isProject ? localDir : undefined,
+      localDir: hasLocal ? localDir : undefined,
       promptPath,
       evalPath,
       remoteDir: join(evalDir, "remote"),
@@ -126,9 +143,7 @@ function loadSkills(skillNames: string[]): string {
 }
 
 function resultPath(modelName: string, ev: Pick<EvalManifest, "id" | "mode">) {
-  return ev.mode === "project"
-    ? join(ROOT, "results", modelName, ev.id, "summary.json")
-    : join(ROOT, "results", modelName, `${ev.id}.json`);
+  return join(ROOT, "results", modelName, `${ev.id}.json`);
 }
 
 function workspacePath(modelName: string, evalId: string, attempt: number) {
@@ -139,21 +154,6 @@ function workspacePath(modelName: string, evalId: string, attempt: number) {
     evalId,
     `attempt-${attempt}`,
     "workspace",
-  );
-}
-
-function materializeWorkspace(ev: EvalManifest, workspace: string) {
-  rmSync(workspace, { recursive: true, force: true });
-  mkdirSync(dirname(workspace), { recursive: true });
-  if (!ev.localDir) throw new Error(`project eval ${ev.id} is missing local/`);
-  cpSync(ev.localDir, workspace, { recursive: true });
-  writeFileSync(
-    join(workspace, ".env.local"),
-    [
-      "VITE_SUPABASE_URL=http://supabase-evals.local",
-      "VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key",
-      "",
-    ].join("\n"),
   );
 }
 
@@ -176,22 +176,28 @@ function readSessionSeedArgs(ev: EvalManifest) {
   };
 }
 
+function basePromptFor(mode: EvalMode): string {
+  if (mode === "local-stack") {
+    return (
+      "You are an agent solving a Supabase eval task in a Linux workspace. " +
+      "Use the provided tools to inspect and modify the workspace and run commands. " +
+      "When you are done, end your turn with a short summary of what you did."
+    );
+  }
+  return (
+    "You are an agent solving a Supabase eval task. " +
+    "Use the provided tools to inspect and modify the project. " +
+    "When you are done, end your turn with a short summary of what you did " +
+    "(or for audit tasks, your findings)."
+  );
+}
+
 function buildSystemPrompt(
-  mode: "tool" | "project",
+  mode: EvalMode,
   skillContext: string,
   addendum?: string,
 ): string {
-  const base =
-    mode === "project"
-      ? "You are an agent solving a Supabase project eval task. " +
-        "Use the provided tools to inspect Supabase context and modify project files in the workspace. " +
-        "Do not expect shell access. When you are done, end your turn with a short summary of what you changed."
-      : "You are an agent solving a Supabase eval task. " +
-        "Use the provided tools to inspect and modify the project. " +
-        "When you are done, end your turn with a short summary of what you did " +
-        "(or for audit tasks, your findings).";
-
-  const blocks = [base, addendum, skillContext].filter(Boolean);
+  const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
   return blocks.join("\n\n");
 }
 
@@ -214,8 +220,8 @@ async function runOne(
     ev.promptPath,
   ).body;
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
-    | ProjectScorer
-    | ToolScorer;
+    | ToolScorer
+    | LocalStackScorer;
   let last: ScoreResult = {
     passed: false,
     checks: [{ name: "ran at least one attempt", passed: false }],
@@ -226,51 +232,64 @@ async function runOne(
   let lastStoppedReason = "not_started";
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
-    if (ev.mode === "project") {
-      const workspace = workspacePath(expName, ev.id, attempt);
-      materializeWorkspace(ev, workspace);
-      const fileTools = buildFileTools(workspace);
-      const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
-
-      try {
-        const systemPrompt = buildSystemPrompt(
-          "project",
-          skillContext,
-          session.promptAddendum,
+    if (ev.mode === "local-stack") {
+      // Local-stack mode: the experiment's local-stack tool surface provides
+      // the sandbox session; one fresh session per attempt.
+      if (!exp.localStack) {
+        throw new Error(
+          `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
+            `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`,
         );
-
+      }
+      const session = await exp.localStack.startSession({
+        localDir: ev.localDir,
+        includeServices: ev.metadata.services,
+        projectRunning: ev.metadata.projectRunning,
+      });
+      try {
         const run = await exp.agent.run({
-          systemPrompt,
+          systemPrompt: buildSystemPrompt(
+            "local-stack",
+            skillContext,
+            session.promptAddendum,
+          ),
           userPrompt: prompt,
-          tools: fileTools,
-          mcpServers: session.mcpServers,
+          tools: session.tools,
           timeoutSec: TIMEOUT_SEC,
         });
-
-        let copiedWithheldTests = false;
-        const ensureWithheldTests = () => {
-          if (copiedWithheldTests) return;
-          copyWithheldTests(ev, workspace);
-          copiedWithheldTests = true;
-        };
 
         lastToolCalls = run.toolCalls;
         lastTranscript = run.transcript;
         lastAgentReport = run.agentReport;
         lastStoppedReason = run.stoppedReason;
+
+        // Export the agent's workspace to the host so scorers can run host
+        // tooling (vite/vitest from the repo root) against the produced files
+        // — the tools live on the host, not in the sandbox. Withheld tests are
+        // copied in lazily, only if the scorer asks to run Vitest.
+        const hostWorkspace = workspacePath(expName, ev.id, attempt);
+        rmSync(hostWorkspace, { recursive: true, force: true });
+        await session.exportWorkspace(hostWorkspace);
+        let copiedWithheldTests = false;
+        const ensureWithheldTests = () => {
+          if (copiedWithheldTests) return;
+          copyWithheldTests(ev, hostWorkspace);
+          copiedWithheldTests = true;
+        };
+
         last = await runScorer(
           () =>
-            (scorer as ProjectScorer)({
+            (scorer as LocalStackScorer)({
               ...session.scoringContext,
-              workspace,
-              runViteBuild: () => viteBuild(workspace),
-              runVitest: () => {
-                ensureWithheldTests();
-                return vitestRun(workspace);
-              },
               toolCalls: run.toolCalls,
               transcript: run.transcript,
               agentReport: run.agentReport,
+              hostWorkspace,
+              runViteBuild: () => viteBuild(hostWorkspace),
+              runVitest: () => {
+                ensureWithheldTests();
+                return vitestRun(hostWorkspace);
+              },
             }),
           { debug: DEBUG },
         );
@@ -291,12 +310,12 @@ async function runOne(
       continue;
     }
 
-    // Tool mode: boot runtime, expose MCP tools, run agent, score result.
+    // Tools mode: boot runtime, expose MCP tools, run agent, score result.
     const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
 
     try {
       const systemPrompt = buildSystemPrompt(
-        "tool",
+        "tools",
         skillContext,
         session.promptAddendum,
       );
@@ -345,6 +364,18 @@ async function runOne(
     agentReport: lastAgentReport,
     stoppedReason: lastStoppedReason,
   };
+}
+
+function formatPlanLine(
+  name: string,
+  config: ExperimentConfig,
+  ev: EvalManifest,
+): string {
+  const head = `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite}`;
+  if (ev.mode === "local-stack") {
+    return `${head} mode=local-stack runtime=${config.localStack?.id} model=${config.agent.modelId}`;
+  }
+  return `${head} mode=tools runtime=${config.runtime.id} model=${config.agent.modelId}`;
 }
 
 function formatRunSummary(res: ScoreResult & { attempts: number }): string {
@@ -446,12 +477,14 @@ async function main() {
         console.log(`SKIP ${name} x ${ev.id} (already ran)`);
         continue;
       }
-      if (DRY) {
+      if (ev.mode === "local-stack" && !config.localStack) {
         console.log(
-          ev.mode === "project"
-            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} mode=project tools=files.* runtime=${config.runtime.id}`
-            : `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} runtime=${config.runtime.id} model=${config.agent.modelId}`,
+          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`,
         );
+        continue;
+      }
+      if (DRY) {
+        console.log(formatPlanLine(name, config, ev));
         continue;
       }
       console.log(`RUN  ${name} x ${ev.id}`);

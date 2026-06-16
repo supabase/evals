@@ -8,6 +8,7 @@ topic:
   - frontend
   - rls
   - supabase-js
+projectRunning: false
 ---
 
 Build the missing Supabase integration for this Vite + React todos app.
