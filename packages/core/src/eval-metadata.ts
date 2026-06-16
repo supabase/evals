@@ -9,20 +9,36 @@ export const evalStageSchema = z.enum([
 export const EVAL_STAGES = evalStageSchema.options;
 export type EvalStage = z.infer<typeof evalStageSchema>;
 
+// Maps to the "Products" hierarchy on https://app.notion.com/p/supabase/Supa-bench-condensed-3675004b775f8066824ce11e9fd06304?source=copy_link#3675004b775f8061ad05e804ec30d425.
 export const evalProductSchema = z.enum([
   "database",
-  "storage",
   "auth",
-  "data api",
-  "sdk",
+  "storage",
+  "edge_functions",
   "realtime",
-  "functions",
-  "cli",
-  "docs",
-  "self-hosted",
+  "cron",
+  "queues",
+  "vectors",
+  "data_api",
 ]);
 export const EVAL_PRODUCTS = evalProductSchema.options;
 export type EvalProduct = z.infer<typeof evalProductSchema>;
+
+// Cross-cutting areas agents need to use products effectively. A closed set,
+// not freeform: each value is a tracked benchmark dimension.
+export const evalTopicSchema = z.enum([
+  "rls",
+  "security",
+  "migrations",
+  "sql",
+  "sdk",
+  "observability",
+  "self_hosting",
+  "tests",
+  "declarative_schema",
+]);
+export const EVAL_TOPICS = evalTopicSchema.options;
+export type EvalTopic = z.infer<typeof evalTopicSchema>;
 
 export const evalSuiteSchema = z.enum(["benchmark", "regression"]);
 export const EVAL_SUITES = evalSuiteSchema.options;
@@ -45,7 +61,7 @@ export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
 export type EvalMetadata = {
   stage: EvalStage;
   product: EvalProduct[];
-  topic: string[];
+  topic: EvalTopic[];
   suite: EvalSuite;
   interface?: EvalInterface;
   /**
@@ -72,12 +88,65 @@ export type ParsedEvalMarkdown = {
 export const evalMetadataSchema = z.object({
   stage: evalStageSchema,
   product: z.array(evalProductSchema).min(1),
-  topic: z.array(z.string().min(1)).min(1),
+  topic: z.array(evalTopicSchema).min(1),
   suite: evalSuiteSchema.default("regression"),
   interface: evalInterfaceSchema.optional(),
   services: z.array(z.string().min(1)).optional(),
-  projectRunning: z.boolean().optional(),
+  // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);
+  // anything else is rejected. Avoids z.coerce.boolean, which treats every
+  // non-empty string as true.
+  projectRunning: z.union([z.boolean(), z.stringbool()]).optional(),
 });
+
+// Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
+// runs of whitespace or hyphens to a single underscore. Lets authors write
+// `edge functions`, `edge-functions`, or `edge_functions` for the canonical
+// `edge_functions`. Enum fields are matched on this.
+const normalizeToken = (value: string): string =>
+  value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+// YAML scalars arrive as string | number | boolean; the metadata layer treats
+// them all as tokens. Non-scalars (objects/arrays/null) pass through unchanged
+// so the strict schema below rejects them with a clear error.
+const toToken = (value: unknown): unknown =>
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean"
+    ? normalizeToken(String(value))
+    : value;
+
+// A scalar or a list of scalars becomes a list of tokens with blanks dropped.
+// Absent stays absent so the schema can enforce "required, min 1".
+const toTokenList = (value: unknown): unknown => {
+  if (value === undefined) return undefined;
+  return (Array.isArray(value) ? value : [value])
+    .map(toToken)
+    .filter((item) => typeof item === "string" && item.length > 0);
+};
+
+/**
+ * Validates raw frontmatter (from gray-matter / YAML) against
+ * {@link evalMetadataSchema}, first normalizing it: scalar coercion, token
+ * normalization, `product`/`products` and `topic`/`topics` aliasing, and
+ * scalar-or-list widening.
+ */
+export const evalFrontmatterSchema = z.preprocess((raw) => {
+  if (raw === null || typeof raw !== "object") return raw;
+  const data = raw as Record<string, unknown>;
+  return {
+    stage: toToken(data.stage),
+    product: toTokenList(data.product ?? data.products),
+    topic: toTokenList(data.topic ?? data.topics),
+    suite: toToken(data.suite),
+    interface: toToken(data.interface),
+    // `services: []` means database only; an omitted key means the full stack.
+    // Only an explicit list is honored — any other value is treated as absent.
+    services: Array.isArray(data.services)
+      ? toTokenList(data.services)
+      : undefined,
+    projectRunning: data.projectRunning,
+  };
+}, evalMetadataSchema);
 
 export const checkResultSchema = z.object({
   name: z.string(),
@@ -87,11 +156,15 @@ export const checkResultSchema = z.object({
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
+// Exported results are historical display data, so product/topic stay loose
+// strings here rather than the authoring enums — older snapshots may carry
+// values from before an enum change. Authoring is validated strictly by
+// evalMetadataSchema; the web only renders these.
 const evalResultShape = {
   experiment: z.string(),
   eval: z.string(),
   stage: evalStageSchema.optional(),
-  product: z.array(evalProductSchema).optional(),
+  product: z.array(z.string()).optional(),
   topic: z.array(z.string()).optional(),
   suite: evalSuiteSchema.optional(),
   interface: evalInterfaceSchema.optional(),
