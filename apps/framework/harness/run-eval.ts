@@ -17,7 +17,7 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from "../lib/cli-args.js";
-import { runScorer } from "../lib/scorer.js";
+import { withSilencedErrors } from "../lib/console.js";
 import { buildFileTools } from "./file-tools.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
@@ -240,7 +240,7 @@ async function runOne(
           session.promptAddendum,
         );
 
-        const run = await runScorer(
+        const run = await withSilencedErrors(
           () =>
             exp.agent.run({
               systemPrompt,
@@ -263,7 +263,7 @@ async function runOne(
         lastTranscript = run.transcript;
         lastAgentReport = run.agentReport;
         lastStoppedReason = run.stoppedReason;
-        last = await runScorer(
+        last = await withSilencedErrors(
           () =>
             (scorer as ProjectScorer)({
               ...session.scoringContext,
@@ -305,7 +305,7 @@ async function runOne(
         skillContext,
         session.promptAddendum,
       );
-      const run = await runScorer(
+      const run = await withSilencedErrors(
         () =>
           exp.agent.run({
             systemPrompt,
@@ -320,7 +320,7 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
-      last = await runScorer(
+      last = await withSilencedErrors(
         () =>
           (scorer as ToolScorer)({
             ...session.scoringContext,
