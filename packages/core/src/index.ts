@@ -32,11 +32,19 @@ import {
 } from "@supabase-evals/platform-lite";
 import type { CheckResult } from "./eval-metadata.js";
 
-const EXECUTOR_BIN = join(
-  dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
-  "bin",
-  "executor"
-);
+// Resolved lazily on first use, not at module load: `import.meta.resolve` is a
+// load-time side effect that throws under bundler SSR transforms (e.g. vitest),
+// which would break every importer of this module — including ones that never
+// invoke the executor (the sandbox runtime only imports `docsMcpServer`).
+let executorBinPath: string | undefined;
+function getExecutorBin(): string {
+  executorBinPath ??= join(
+    dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
+    "bin",
+    "executor"
+  );
+  return executorBinPath;
+}
 const execFileAsync = promisify(execFile);
 
 export type { SupabaseClient };
@@ -730,7 +738,7 @@ export function executorMcpServer(): McpServerDefinition {
       return {
         config: {
           command: process.execPath,
-          args: [EXECUTOR_BIN, "mcp", "--scope", scopeDir],
+          args: [getExecutorBin(), "mcp", "--scope", scopeDir],
           env: { EXECUTOR_DATA_DIR: dataDir },
         },
         cleanup: async () => {
@@ -761,7 +769,7 @@ async function addExecutorOpenApiSource(input: {
   const { stdout } = await execFileAsync(
     process.execPath,
     [
-      EXECUTOR_BIN,
+      getExecutorBin(),
       "call",
       "executor",
       "openapi",
@@ -781,7 +789,7 @@ async function addExecutorOpenApiSource(input: {
   await execFileAsync(
     process.execPath,
     [
-      EXECUTOR_BIN,
+      getExecutorBin(),
       "resume",
       "--execution-id",
       executionId,
@@ -807,7 +815,7 @@ async function cleanupExecutorResources(input: {
   try {
     await execFileAsync(
       process.execPath,
-      [EXECUTOR_BIN, "daemon", "stop", "--base-url", input.daemonUrl],
+      [getExecutorBin(), "daemon", "stop", "--base-url", input.daemonUrl],
       { env: executorEnv(input.dataDir) }
     );
   } catch (err) {
