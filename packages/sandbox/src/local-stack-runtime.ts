@@ -48,7 +48,6 @@ export function localStackRuntime(
   options: LocalStackRuntimeOptions = {},
 ): LocalStackRuntime {
   const mcpServers = options.mcpServers ?? { "supabase-docs": docsMcpServer() };
-  const hasMcpServers = Object.keys(mcpServers).length > 0;
   return {
     id: "local-stack",
     async startSession({ localDir, includeServices, projectRunning }) {
@@ -81,10 +80,7 @@ export function localStackRuntime(
           "The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. " +
           "Use the bash tool to run commands (the working directory is always the workspace root) " +
           "and the files tools to inspect and modify files. " +
-          "Services started with `supabase start` are reachable on their default 127.0.0.1 ports." +
-          (hasMcpServers
-            ? " Use the `search_docs` tool to look up Supabase documentation."
-            : ""),
+          "Services started with `supabase start` are reachable on their default 127.0.0.1 ports.",
         scoringContext: buildLocalStackScoringContext(sandbox),
         exportWorkspace: (hostDir: string) => sandbox.copyToHost(hostDir),
         close: async () => {
