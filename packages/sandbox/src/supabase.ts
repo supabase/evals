@@ -77,7 +77,20 @@ export interface SetupSupabaseSandboxOptions {
    * agent types.
    */
   projectRunning?: boolean;
+  /**
+   * Link the CLI to a mocked hosted project (platform-lite) reachable on the
+   * host at this port via host.docker.internal. When set, a CLI profile,
+   * access token, and project ref are seeded so `supabase functions deploy` /
+   * `secrets set` reach platform-lite.
+   */
+  hosted?: { port: number; ref: string; accessToken: string };
 }
+
+/** Workspace-relative path of the seeded CLI profile. */
+const EVAL_PROFILE_PATH = ".supabase-eval-profile.yaml";
+
+/** Workspace-relative path `supabase link` writes the project ref to. */
+const PROJECT_REF_PATH = "supabase/.temp/project-ref";
 
 /**
  * Run the per-session setup inside a sandbox created from the image:
@@ -114,6 +127,10 @@ export async function setupSupabaseSandbox(
   }
   await setupIptablesDnat(sandbox, gateway);
 
+  if (options.hosted) {
+    await linkSandboxToHostedPlatform(sandbox, options.hosted);
+  }
+
   if (options.localDir) {
     await sandbox.copyHostDir(options.localDir);
   }
@@ -131,6 +148,48 @@ export async function setupSupabaseSandbox(
   } else {
     await restrictSupabaseServices(sandbox, options.includeServices);
   }
+}
+
+/**
+ * Link the sandbox CLI to the mocked hosted platform (platform-lite) without
+ * running `supabase link`: that command only writes the project ref to
+ * supabase/.temp/project-ref and caches remote config, all of which we supply
+ * directly. We write that same .temp/project-ref file so the linked ref
+ * resolves exactly as it would after a real link, point the CLI at platform-lite
+ * via a profile (api_url), and pass the token through $SUPABASE_ACCESS_TOKEN.
+ * $SUPABASE_PROJECT_ID is kept as a redundant fallback for commands invoked
+ * before a workspace project (config.toml) exists.
+ *
+ * platform-lite listens on the host (0.0.0.0); the sandbox reaches it at
+ * host.docker.internal (mapped to the host gateway at container creation).
+ */
+async function linkSandboxToHostedPlatform(
+  sandbox: DockerSandbox,
+  hosted: { port: number; ref: string; accessToken: string },
+): Promise<void> {
+  const apiUrl = `http://host.docker.internal:${hosted.port}`;
+  // Minimal valid profile: the CLI validates name/api_url/dashboard_url
+  // (http_url) and project_host (hostname). Only api_url is functionally used
+  // for `functions deploy` / `secrets set`.
+  const profile = [
+    "name: evals",
+    `api_url: ${apiUrl}`,
+    `dashboard_url: ${apiUrl}`,
+    "project_host: supabase.co",
+    "",
+  ].join("\n");
+  await sandbox.writeFiles({
+    [EVAL_PROFILE_PATH]: profile,
+    // Exactly what `supabase link` persists; the CLI reads (trimmed) the linked
+    // ref from here when a command doesn't get an explicit --project-ref.
+    [PROJECT_REF_PATH]: hosted.ref,
+  });
+  sandbox.extraEnv = {
+    ...sandbox.extraEnv,
+    SUPABASE_ACCESS_TOKEN: hosted.accessToken,
+    SUPABASE_PROFILE: `${sandbox.workdir}/${EVAL_PROFILE_PATH}`,
+    SUPABASE_PROJECT_ID: hosted.ref,
+  };
 }
 
 /**

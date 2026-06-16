@@ -55,6 +55,50 @@ export function createFunctionsRoutes(store: ProjectStore): ManagementApiRoutes 
     })
   })
 
+  // First-time deployment. `supabase functions deploy` lists the project's
+  // functions, then POSTs to create one that doesn't exist yet (the V1 create
+  // op): the eszip bundle is the request body and the metadata rides in query
+  // params (?slug=&name=&verify_jwt=&ezbr_sha256=). We keep the metadata so the
+  // deployment is listable/verifiable; the eszip body is opaque (platform-lite
+  // executes JS source, not compiled bundles), so it is not retained for invoke.
+  // Redeployment of an existing slug goes through PATCH below.
+  routes.post('/v1/projects/:ref/functions', async (c) => {
+    const { ref } = c.req.param()
+    const project = store.get(ref)
+    if (!project) return c.json({ message: 'Project not found' }, 404)
+
+    const slug = c.req.query('slug')
+    if (!slug) return c.json({ message: 'Missing slug query parameter' }, 400)
+    // Drain the eszip body so the connection closes cleanly; it is not stored.
+    await c.req.arrayBuffer().catch(() => undefined)
+
+    const existing = project.functions.get(slug)
+    const entry = buildFunctionEntry(slug, c.req.query(), existing)
+    project.functions.set(slug, entry)
+    return c.json(toPublicShape(entry), 201)
+  })
+
+  // Redeployment. Once a function exists, `supabase functions deploy` PATCHes
+  // the new bundle to update it in place — the slug is in the path and the
+  // metadata rides in query params (?entrypoint_path=&ezbr_sha256=&verify_jwt=,
+  // without name/slug). 404 if the function was never created, so a redeploy
+  // can't silently resurrect a deleted slug. (Verified against the live
+  // Management API: create is POST /functions, update is PATCH /functions/:slug.)
+  routes.app.patch('/v1/projects/:ref/functions/:slug', async (c) => {
+    const { ref, slug } = c.req.param()
+    const project = store.get(ref)
+    if (!project) return c.json({ message: 'Project not found' }, 404)
+
+    const existing = project.functions.get(slug)
+    if (!existing) return c.json({ message: 'Function not found' }, 404)
+    // Drain the eszip body so the connection closes cleanly; it is not stored.
+    await c.req.arrayBuffer().catch(() => undefined)
+
+    const entry = buildFunctionEntry(slug, c.req.query(), existing)
+    project.functions.set(slug, entry)
+    return c.json(toPublicShape(entry))
+  })
+
   routes.post('/v1/projects/:ref/functions/deploy', async (c) => {
     const { ref } = c.req.param()
     const slug = c.req.query('slug')
@@ -135,6 +179,32 @@ async function parseDeployBody(req: Request): Promise<{
   }
 
   return { ok: true, metadata: metadata.data, files }
+}
+
+// Build the stored entry for a create (POST) or update (PUT) from the deploy
+// query params, preserving identity/created_at across a redeployment and
+// bumping the version. The eszip body is opaque, so files are carried over from
+// the existing entry rather than extracted.
+function buildFunctionEntry(
+  slug: string,
+  query: Record<string, string>,
+  existing: EdgeFunctionEntry | undefined,
+): EdgeFunctionEntry {
+  const now = Date.now()
+  const verifyJwt = query.verify_jwt
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    slug,
+    name: query.name ?? existing?.name ?? slug,
+    status: 'ACTIVE',
+    version: (existing?.version ?? 0) + 1,
+    created_at: existing?.created_at ?? now,
+    updated_at: now,
+    verify_jwt: verifyJwt !== undefined ? verifyJwt === 'true' : (existing?.verify_jwt ?? true),
+    entrypoint_path: query.entrypoint_path ?? existing?.entrypoint_path,
+    import_map_path: existing?.import_map_path,
+    files: existing?.files ?? [],
+  }
 }
 
 function toFileUrl(path: string): string {

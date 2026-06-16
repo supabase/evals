@@ -18,6 +18,7 @@ import {
   readSuiteFilters,
 } from "../lib/cli-args.js";
 import { runScorer } from "../lib/scorer.js";
+import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
   ExperimentConfig,
@@ -32,6 +33,12 @@ import type {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
+
+// Fixed identifiers for the mocked hosted project a local-stack eval links to.
+// Both must satisfy the CLI's format checks: ref is `^[a-z]{20}$`, token is
+// `^sbp_[a-f0-9]{40}$`. platform-lite accepts whatever token it's booted with.
+const HOSTED_PROJECT_REF = "evalshostedprojectxy";
+const HOSTED_ACCESS_TOKEN = "sbp_" + "0".repeat(40);
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
@@ -241,10 +248,29 @@ async function runOne(
             `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`,
         );
       }
+      // When the eval links to a hosted project, boot a platform-lite backend
+      // (bound to 0.0.0.0 so the sandbox reaches it via host.docker.internal)
+      // and hand the CLI-valid ref/token to the session.
+      const hostedBackend = ev.metadata.hostedProject
+        ? await bootPlatformBackend({
+            ref: HOSTED_PROJECT_REF,
+            accessToken: HOSTED_ACCESS_TOKEN,
+            hostname: "0.0.0.0",
+          })
+        : undefined;
       const session = await exp.localStack.startSession({
         localDir: ev.localDir,
         includeServices: ev.metadata.services,
         projectRunning: ev.metadata.projectRunning,
+        hosted: hostedBackend
+          ? {
+              port: Number(new URL(hostedBackend.url).port),
+              ref: hostedBackend.ref,
+              accessToken: hostedBackend.accessToken,
+              mgmt: hostedBackend.mgmt,
+              invokeFunction: hostedBackend.invokeFunction,
+            }
+          : undefined,
       });
       try {
         const run = await exp.agent.run({
@@ -307,6 +333,7 @@ async function runOne(
         }
       } finally {
         await session.close();
+        await hostedBackend?.close();
       }
       continue;
     }
