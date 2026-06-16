@@ -124,6 +124,22 @@ const toTokenList = (value: unknown): unknown => {
     .filter((item) => typeof item === "string" && item.length > 0);
 };
 
+// `services` are real Supabase CLI service identifiers (e.g. `postgres-meta`,
+// `storage-api`, `edge-runtime`), matched verbatim against ALL_SUPABASE_SERVICES
+// in @supabase-evals/sandbox. They must NOT go through normalizeToken: folding
+// hyphens to underscores would turn `postgres-meta` into `postgres_meta` and
+// fail that match. Only trim + lowercase; preserve hyphens. Blanks are dropped.
+const toServiceList = (value: unknown): unknown =>
+  (Array.isArray(value) ? value : [value])
+    .map((item) =>
+      typeof item === "string" ||
+      typeof item === "number" ||
+      typeof item === "boolean"
+        ? String(item).trim().toLowerCase()
+        : item,
+    )
+    .filter((item) => typeof item === "string" && item.length > 0);
+
 /**
  * Validates raw frontmatter (from gray-matter / YAML) against
  * {@link evalMetadataSchema}, first normalizing it: scalar coercion, token
@@ -142,7 +158,7 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     // `services: []` means database only; an omitted key means the full stack.
     // Only an explicit list is honored — any other value is treated as absent.
     services: Array.isArray(data.services)
-      ? toTokenList(data.services)
+      ? toServiceList(data.services)
       : undefined,
     projectRunning: data.projectRunning,
   };

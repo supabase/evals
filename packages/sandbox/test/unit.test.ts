@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
 import { describe, expect, it } from "vitest";
 import {
   resolveSandboxPath,
@@ -77,6 +78,51 @@ describe("computeExcludedServices", () => {
     expect(() => computeExcludedServices(["auth"])).toThrowError(
       /invalid Supabase services: auth \(valid: gotrue/,
     );
+  });
+});
+
+describe("services frontmatter → computeExcludedServices (regression)", () => {
+  // Frontmatter token normalization folds hyphens to underscores for the enum
+  // dimensions (product/topic), but the same normalizer must NOT touch
+  // `services` — those are real CLI service ids (postgres-meta, storage-api,
+  // edge-runtime) that must match the Supabase service names verbatim:
+  // https://github.com/supabase/supabase/blob/d71717585e1b0fcadcdc03546211a7bfbdbe0959/apps/docs/spec/cli_v1_commands.yaml#L584
+  const buildMarkdown = (services: string) =>
+    [
+      "---",
+      "stage: build",
+      "product: [database]",
+      "topic: [migrations]",
+      `services: ${services}`,
+      "---",
+      "body",
+    ].join("\n");
+
+  it("preserves hyphens so parsed services match the Supabase service names", () => {
+    const { metadata } = parseEvalMarkdown(
+      buildMarkdown("[postgres-meta, storage-api, edge-runtime, gotrue]"),
+    );
+
+    // Folding to postgres_meta / storage_api / edge_runtime would break the
+    // match in computeExcludedServices and throw at sandbox startup.
+    expect(metadata.services).toEqual([
+      "postgres-meta",
+      "storage-api",
+      "edge-runtime",
+      "gotrue",
+    ]);
+
+    expect(() => computeExcludedServices(metadata.services)).not.toThrow();
+    const excluded = computeExcludedServices(metadata.services);
+    expect(excluded).not.toContain("postgres-meta");
+    expect(excluded).not.toContain("storage-api");
+    expect(excluded).not.toContain("edge-runtime");
+    expect(excluded).not.toContain("gotrue");
+  });
+
+  it("still trims and lowercases hyphenated service ids", () => {
+    const { metadata } = parseEvalMarkdown(buildMarkdown("[' Postgres-Meta ']"));
+    expect(metadata.services).toEqual(["postgres-meta"]);
   });
 });
 
