@@ -3,7 +3,7 @@ import { join } from "node:path";
 import {
   judge,
   type CheckResult,
-  type ProjectScorer,
+  type LocalStackScorer,
 } from "@supabase-evals/core";
 import { stripIndent } from "common-tags";
 
@@ -11,10 +11,10 @@ const PROMETHEUS_PATH = "observability/prometheus.yml";
 const COMPOSE_PATH = "observability/docker-compose.yml";
 const README_PATH = "observability/README.md";
 
-const scorer: ProjectScorer = async (ctx) => {
-  const prometheus = readWorkspaceFile(ctx.workspace, PROMETHEUS_PATH);
-  const compose = readWorkspaceFile(ctx.workspace, COMPOSE_PATH);
-  const readme = readWorkspaceFile(ctx.workspace, README_PATH);
+const scorer: LocalStackScorer = async (ctx) => {
+  const prometheus = readWorkspaceFile(ctx.hostWorkspace, PROMETHEUS_PATH);
+  const compose = readWorkspaceFile(ctx.hostWorkspace, COMPOSE_PATH);
+  const readme = readWorkspaceFile(ctx.hostWorkspace, README_PATH);
   const input = stripIndent`
     ${PROMETHEUS_PATH}:
     \`\`\`yaml
@@ -36,7 +36,7 @@ const scorer: ProjectScorer = async (ctx) => {
     judge({
       input,
       rubric: stripIndent`
-        Pass if prometheus.yml adds a deployable Supabase Metrics API scrape for ${ctx.ref}.supabase.co or ${ctx.ref}.supabase.red.
+        Pass if prometheus.yml adds a deployable Supabase Metrics API scrape for the Supabase project (a <project-ref>.supabase.co or <project-ref>.supabase.red target).
         Require HTTPS, /customer/v1/privileged/metrics, HTTP Basic Auth with password_file, the existing app scrape preserved, and docker-compose.yml mounting that password_file via a volume or Compose secret.
         Fail for bearer auth, hardcoded Secret API keys, missing/mismatched secret wiring, wrong endpoint, missing project target, or removing the app job.
       `,

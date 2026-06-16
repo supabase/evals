@@ -42,10 +42,12 @@ const execFileAsync = promisify(execFile);
 export type { SupabaseClient };
 export type { ManagementApiClient };
 export {
+  EVAL_INTERFACES,
   EVAL_PRODUCTS,
   EVAL_SUITES,
   EVAL_STAGES,
   checkResultSchema,
+  evalInterfaceSchema,
   evalMetadataSchema,
   evalProductSchema,
   evalResultSchema,
@@ -56,6 +58,7 @@ export {
 export { parseEvalMarkdown } from "./eval-markdown.js";
 export type {
   CheckResult,
+  EvalInterface,
   EvalMetadata,
   EvalProduct,
   EvalResult,
@@ -184,17 +187,57 @@ export interface ToolEvalContext extends ToolScoringContext {
   agentReport?: string;
 }
 
-export interface ProjectEvalContext extends ToolScoringContext {
+/**
+ * Scoring surface for local-stack evals. Everything runs inside the Docker
+ * sandbox the agent worked in, against the local Supabase stack it (or the
+ * harness) started.
+ */
+export interface LocalStackScoringContext {
+  /** Absolute workspace path inside the sandbox (also the bash tool's cwd). */
   workspace: string;
-  runViteBuild: () => Promise<CommandResult>;
-  runVitest: () => Promise<VitestResult>;
+  /** Run a shell command in the workspace as the sandbox user. */
+  exec: (
+    command: string,
+    options?: { timeoutMs?: number },
+  ) => Promise<CommandResult>;
+  /** Read a UTF-8 file; path relative to the workspace. */
+  readFile: (path: string) => Promise<string>;
+  /** Check a file exists; path relative to the workspace. */
+  fileExists: (path: string) => Promise<boolean>;
+  /**
+   * Run a single SELECT against the local stack's Postgres as the `postgres`
+   * superuser (bypasses RLS) and return its rows. For DDL or role-scoped
+   * checks, use `exec` with psql directly.
+   */
+  query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  /**
+   * Create a fresh supabase-js client against the running local stack, using
+   * the publishable key from `supabase status` (discovered lazily and cached
+   * — the stack may only exist after the agent starts it). Each call returns
+   * an independent client, so multi-user auth flows don't share session
+   * state. Connects host-side to the stack's published ports.
+   */
+  getClient: () => Promise<SupabaseClient>;
+}
+
+export interface LocalStackEvalContext extends LocalStackScoringContext {
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   agentReport?: string;
+  /**
+   * Host-side copy of the agent's workspace, exported from the sandbox after
+   * the run. Lets scorers run host tooling (vite/vitest from the repo root)
+   * against the produced files without that tooling existing in the sandbox.
+   */
+  hostWorkspace: string;
+  /** Build the produced project with Vite on the host (repo-root toolchain). */
+  runViteBuild: () => Promise<CommandResult>;
+  /** Run the eval's withheld Vitest suite against the produced project on the host. */
+  runVitest: () => Promise<VitestResult>;
 }
 
 export type ToolScorer = (ctx: ToolEvalContext) => Promise<ScoreResult>;
-export type ProjectScorer = (ctx: ProjectEvalContext) => Promise<ScoreResult>;
+export type LocalStackScorer = (ctx: LocalStackEvalContext) => Promise<ScoreResult>;
 
 export type AgentRunArgs = {
   systemPrompt: string;
@@ -219,9 +262,62 @@ export type AgentHarness = {
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };
 
+export type LocalStackSessionArgs = {
+  /**
+   * Host directory (the eval's `local/`) whose contents seed the sandbox
+   * workspace — the developer's working directory.
+   */
+  localDir?: string;
+  /**
+   * Local-stack services this eval needs (from `services:` frontmatter).
+   * Everything else is excluded from `supabase start` to keep boots fast;
+   * omitted means the full stack.
+   */
+  includeServices?: readonly string[];
+  /**
+   * Whether the local stack should be started before the agent runs
+   * (default true). Scenarios where starting the project is part of the
+   * task set false.
+   */
+  projectRunning?: boolean;
+};
+
+/**
+ * A live local-stack environment for one eval attempt: in-process tools the
+ * agent calls (bash with the Supabase CLI installed, file tools) plus the
+ * scoring handle into the same environment.
+ */
+export type LocalStackSession = {
+  tools: ToolSet;
+  promptAddendum?: string;
+  scoringContext: LocalStackScoringContext;
+  /**
+   * Copy the agent's workspace out of the sandbox to a host directory, so
+   * host-side tooling (vite/vitest) can score the produced files. Called after
+   * the agent finishes, before scoring.
+   */
+  exportWorkspace(hostDir: string): Promise<void>;
+  close(): Promise<void>;
+};
+
+/**
+ * Provider of a local-stack environment — a sandboxed developer machine where
+ * the Supabase CLI (the tool the agent wields) can run the local Docker stack.
+ * Declared per experiment like MCP servers and skills. Evals that need a
+ * sandbox (a `local/` workspace or `interface: cli`) run against this;
+ * experiments without one skip those evals. Distinct from the remote/hosted
+ * platform, which platform-lite mocks.
+ */
+export type LocalStackRuntime = {
+  id: string;
+  startSession(args: LocalStackSessionArgs): Promise<LocalStackSession>;
+};
+
 export type ExperimentConfig = {
   agent: AgentHarness;
   runtime: EvalRuntime;
+  /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
+  localStack?: LocalStackRuntime;
   skills: string[];
 };
 
@@ -1188,7 +1284,7 @@ function mergeToolSets(toolSets: ToolSet[]): ToolSet | undefined {
   for (const toolSet of toolSets) {
     for (const [name, tool] of Object.entries(toolSet)) {
       if (name in merged) {
-        throw new Error(`duplicate tool name from MCP servers: ${name}`);
+        throw new Error(`duplicate tool name across tool surfaces: ${name}`);
       }
       merged[name] = tool;
     }

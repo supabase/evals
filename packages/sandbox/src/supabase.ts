@@ -1,0 +1,316 @@
+/**
+ * Supabase CLI sandbox setup, adapted from supabase/agent-eval.
+ *
+ * Static setup (system packages, the pinned CLI) is described declaratively in
+ * a Dockerfile and baked into a cached image — one build per CLI version,
+ * instant sandbox creation afterwards. Only steps that depend on runtime
+ * state run inside the container: the docker socket's gid varies by host, the
+ * iptables DNAT rules need the live bridge gateway, and service restriction /
+ * workspace seeding vary per eval.
+ *
+ * Networking: the sandbox runs with bridge networking and the host Docker
+ * socket mounted, so `supabase start` spawns sibling containers whose
+ * published ports live on the Docker bridge gateway — not on the sandbox's
+ * own loopback. The CLI health-checks 127.0.0.1:<port>, so we install
+ * iptables DNAT rules that redirect loopback traffic for the Supabase ports
+ * to the gateway. This requires the sandbox to be created with
+ * `capAdd: ["NET_ADMIN"]`.
+ */
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import {
+  SANDBOX_CONTAINER_LABEL,
+  dockerCli,
+  type DockerSandbox,
+} from "./docker-sandbox.js";
+import { ALL_SUPABASE_SERVICES, type SupabaseService } from "./types.js";
+
+export const SUPABASE_CLI_VERSION = "2.67.1";
+
+const SANDBOX_IMAGE_REPOSITORY = "supabase-evals-sandbox";
+
+/** The sandbox image definition lives in an actual Dockerfile for editability. */
+export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
+  new URL("../Dockerfile", import.meta.url),
+);
+
+/** Ports that `supabase start` publishes and health-checks. */
+const SUPABASE_PORTS = [54321, 54322, 54323, 54324, 54327, 54329];
+
+/**
+ * Build (or reuse) the sandbox image for a CLI version and return its tag.
+ * The Dockerfile is piped to `docker build -` (stdin, no build context), and
+ * the layer cache makes repeat calls effectively free.
+ */
+export async function ensureSupabaseSandboxImage(
+  cliVersion: string = SUPABASE_CLI_VERSION,
+): Promise<string> {
+  const tag = `${SANDBOX_IMAGE_REPOSITORY}:${cliVersion}`;
+  const existing = await dockerCli(["image", "inspect", tag]);
+  if (existing.ok) return tag;
+
+  const build = await dockerCli(
+    ["build", "--build-arg", `CLI_VERSION=${cliVersion}`, "--tag", tag, "-"],
+    { input: readFileSync(SANDBOX_DOCKERFILE_PATH, "utf8") },
+  );
+  if (!build.ok) {
+    throw new Error(`failed to build sandbox image ${tag}: ${build.stderr}`);
+  }
+  return tag;
+}
+
+export interface SetupSupabaseSandboxOptions {
+  /**
+   * Local-stack services this session needs; every other service is excluded
+   * from `supabase start` to keep boots fast. Omitted means the full stack.
+   */
+  includeServices?: readonly string[];
+  /** Host directory whose contents seed the sandbox workspace. */
+  localDir?: string;
+  /**
+   * Whether the local stack should already be running when the agent starts
+   * (default true): the workspace must then contain supabase/config.toml and
+   * `supabase start` runs with the exclude flag appended directly. When
+   * false, starting the project is the agent's job, so the exclusion is
+   * installed as a CLI wrapper instead — the only seam into commands the
+   * agent types.
+   */
+  projectRunning?: boolean;
+}
+
+/**
+ * Run the per-session setup inside a sandbox created from the image:
+ * docker socket access, leftover cleanup, loopback DNAT, optional service
+ * restriction, and optional workspace seeding.
+ */
+export async function setupSupabaseSandbox(
+  sandbox: DockerSandbox,
+  options: SetupSupabaseSandboxOptions = {},
+): Promise<void> {
+  // Let the non-root sandbox user talk to the mounted Docker socket by
+  // joining the socket's group. chmod would also work but mutates the host
+  // inode through the bind mount, leaving the host socket world-writable.
+  await runOrThrow(
+    sandbox,
+    `SOCK_GID=$(stat -c '%g' /var/run/docker.sock) && ` +
+      `GRP=$(getent group "$SOCK_GID" | cut -d: -f1) && ` +
+      `[ -n "$GRP" ] || { groupadd -g "$SOCK_GID" docker-host && GRP=docker-host; } && ` +
+      `usermod -aG "$GRP" node`,
+    "grant docker socket access",
+    { asRoot: true },
+  );
+
+  // Remove leftovers from previous eval runs that died before teardown.
+  await cleanupEvalSupabaseResources(sandbox);
+
+  const gateway = (
+    await sandbox.runShellAsRoot("ip route show default | awk '{print $3}' | head -1")
+  ).stdout.trim();
+  if (!gateway) {
+    throw new Error(
+      "could not determine Docker bridge gateway IP; supabase start health checks would fail",
+    );
+  }
+  await setupIptablesDnat(sandbox, gateway);
+
+  if (options.localDir) {
+    await sandbox.copyHostDir(options.localDir);
+  }
+
+  if (options.projectRunning ?? true) {
+    // Fail with a clear authoring error before `supabase start` does with a
+    // confusing one: a prestarted project needs a config in the workspace.
+    if (!(await sandbox.fileExists("supabase/config.toml"))) {
+      throw new Error(
+        "projectRunning is enabled (the default) but the workspace has no supabase/config.toml — " +
+          "ship one in the eval's local/ directory or set `projectRunning: false` in the eval frontmatter",
+      );
+    }
+    await startSupabaseProject(sandbox, options.includeServices);
+  } else {
+    await restrictSupabaseServices(sandbox, options.includeServices);
+  }
+}
+
+/**
+ * Redirect 127.0.0.1:<port> to <gateway>:<port> for every Supabase port.
+ * Kernel-level DNAT preserves real TCP behavior (connection refused while a
+ * service is still booting), which the CLI's health checks rely on.
+ */
+async function setupIptablesDnat(
+  sandbox: DockerSandbox,
+  gateway: string,
+): Promise<void> {
+  await sandbox.runShellAsRoot("iptables -t nat -F OUTPUT 2>/dev/null || true");
+  await sandbox.runShellAsRoot("iptables -t nat -F POSTROUTING 2>/dev/null || true");
+
+  for (const port of SUPABASE_PORTS) {
+    await runOrThrow(
+      sandbox,
+      `iptables -t nat -A OUTPUT -p tcp -d 127.0.0.1 --dport ${port} -j DNAT --to-destination ${gateway}:${port}`,
+      `iptables DNAT for port ${port}`,
+      { asRoot: true },
+    );
+  }
+
+  // Without MASQUERADE, DNAT'd packets keep 127.0.0.1 as source and replies
+  // never make it back.
+  await runOrThrow(
+    sandbox,
+    `iptables -t nat -A POSTROUTING -p tcp -d ${gateway} -j MASQUERADE`,
+    "iptables MASQUERADE",
+    { asRoot: true },
+  );
+}
+
+/**
+ * Start the local Supabase stack, excluding the services the session does not
+ * need. Requires a workspace with supabase/config.toml.
+ */
+export async function startSupabaseProject(
+  sandbox: DockerSandbox,
+  includeServices?: readonly string[],
+): Promise<void> {
+  await runOrThrow(
+    sandbox,
+    buildSupabaseStartCommand(includeServices),
+    "supabase start",
+  );
+}
+
+/** `supabase start`, with the exclude flag when an include list is given. */
+export function buildSupabaseStartCommand(
+  includeServices: readonly string[] | undefined,
+): string {
+  const excluded = computeExcludedServices(includeServices);
+  return excluded.length > 0
+    ? `supabase start -x ${excluded.join(",")}`
+    : "supabase start";
+}
+
+/**
+ * Stop this workspace's local stack and remove any eval-created Supabase
+ * containers/volumes/networks. Best-effort: never throws, so teardown cannot
+ * mask an eval failure or block sandbox cleanup.
+ */
+export async function teardownSupabaseProject(sandbox: DockerSandbox): Promise<void> {
+  try {
+    // Scoped stop for this workspace's project (no --all: a developer's own
+    // unrelated local stacks must survive eval runs).
+    await sandbox.runShell("supabase stop --no-backup", { timeoutMs: 120_000 });
+  } catch (err) {
+    console.warn(
+      "[sandbox] supabase stop failed (continuing with docker cleanup):",
+      err instanceof Error ? err.message : err,
+    );
+  }
+  await cleanupEvalSupabaseResources(sandbox);
+}
+
+/**
+ * Remove Supabase containers/volumes/networks belonging to eval workspaces,
+ * plus sandbox containers leaked by crashed runs. Eval project ids start with
+ * `sandbox-` (the `supabase init` default is the workspace directory
+ * basename, and seeded workspaces follow the same convention), so matching is
+ * anchored on that prefix — a substring filter would catch developers' own
+ * resources that merely contain "sandbox-".
+ */
+async function cleanupEvalSupabaseResources(sandbox: DockerSandbox): Promise<void> {
+  // Stack resources, identified by the Supabase CLI's own project label.
+  const projectLabel = "com.supabase.cli.project";
+  const selfId = sandbox.id.slice(0, 12);
+  const commands = [
+    `docker ps -a --filter label=${projectLabel} --format '{{.ID}} {{.Label "${projectLabel}"}}' | awk '$2 ~ /^sandbox-/ {print $1}' | xargs -r docker rm -f`,
+    `docker volume ls -q | grep -E '^supabase_[a-z_]+_sandbox-' | xargs -r docker volume rm -f`,
+    `docker network ls --format '{{.Name}}' | grep -E '^supabase_network_sandbox-' | xargs -r docker network rm`,
+    // Sandbox containers from runs that died before stop() (never this one).
+    `docker ps -aq --filter label=${SANDBOX_CONTAINER_LABEL} | grep -v '^${selfId}' | xargs -r docker rm -f`,
+  ];
+  for (const command of commands) {
+    try {
+      await sandbox.runShellAsRoot(`{ ${command}; } 2>/dev/null || true`);
+    } catch (err) {
+      console.warn(
+        "[sandbox] docker cleanup error (best-effort):",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+}
+
+/**
+ * The CLI only has an exclude flag (`supabase start -x`), so invert a list of
+ * required services into the services to exclude. Validates service names.
+ */
+export function computeExcludedServices(
+  includeServices: readonly string[] | undefined,
+): SupabaseService[] {
+  // Omitted → full stack (exclude nothing). An explicit empty list is distinct:
+  // it means "only the always-on database", so it falls through and excludes
+  // every optional service below.
+  if (includeServices === undefined) return [];
+
+  const invalid = includeServices.filter(
+    (service) => !ALL_SUPABASE_SERVICES.includes(service as SupabaseService),
+  );
+  if (invalid.length > 0) {
+    throw new Error(
+      `invalid Supabase services: ${invalid.join(", ")} (valid: ${ALL_SUPABASE_SERVICES.join(", ")})`,
+    );
+  }
+  const included = new Set(includeServices);
+  return ALL_SUPABASE_SERVICES.filter((service) => !included.has(service));
+}
+
+/**
+ * Wrapper that replaces the CLI binary so every `supabase start` — harness-
+ * or agent-initiated — gets the exclude flag appended. There is no other seam
+ * to inject the flag into commands the agent types. `-x` is a slice flag, so
+ * an agent-passed exclude list merges with ours.
+ */
+export function buildServiceWrapperScript(
+  excluded: readonly SupabaseService[],
+): string {
+  return [
+    "#!/bin/bash",
+    `if [ "$1" = "start" ]; then`,
+    `  shift`,
+    `  exec /usr/local/bin/supabase-cli start "$@" -x ${excluded.join(",")}`,
+    `fi`,
+    `exec /usr/local/bin/supabase-cli "$@"`,
+  ].join("\n");
+}
+
+async function restrictSupabaseServices(
+  sandbox: DockerSandbox,
+  includeServices: readonly string[] | undefined,
+): Promise<void> {
+  const excluded = computeExcludedServices(includeServices);
+  if (excluded.length === 0) return;
+
+  await runOrThrow(
+    sandbox,
+    // Idempotent: only move the real binary aside once; rewriting the wrapper
+    // is safe.
+    `[ -e /usr/local/bin/supabase-cli ] || mv "$(command -v supabase)" /usr/local/bin/supabase-cli\n` +
+      `cat > /usr/local/bin/supabase <<'WRAPPER'\n${buildServiceWrapperScript(excluded)}\nWRAPPER\n` +
+      `chmod +x /usr/local/bin/supabase`,
+    "restrict supabase services",
+    { asRoot: true },
+  );
+}
+
+async function runOrThrow(
+  sandbox: DockerSandbox,
+  command: string,
+  label: string,
+  options: { asRoot?: boolean } = {},
+): Promise<void> {
+  const result = options.asRoot
+    ? await sandbox.runShellAsRoot(command)
+    : await sandbox.runShell(command);
+  if (!result.ok) {
+    throw new Error(`[${label}] failed: ${result.stderr || result.stdout}`);
+  }
+}
