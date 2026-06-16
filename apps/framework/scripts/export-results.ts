@@ -74,6 +74,7 @@ async function readResultFile(
     product: promptData?.product ?? parsedResult.product,
     topic: promptData?.topic ?? parsedResult.topic,
     suite: promptData?.suite ?? parsedResult.suite,
+    interface: promptData?.interface ?? parsedResult.interface,
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
     prompt: promptData?.prompt,

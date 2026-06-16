@@ -258,7 +258,7 @@ ORDER BY grantee;
   console.log("PASS investigate security scorer + database shim");
 }
 
-async function smokeProjectEval() {
+async function smokeFrontendBuildTooling() {
   const source = join(ROOT, FRONTEND_EVAL, "local");
   const workspace = join(ROOT, "results", "_smoke", "build-frontend-001-todos-app");
   rmSync(workspace, { recursive: true, force: true });
@@ -279,7 +279,7 @@ async function smokeProjectEval() {
   const vitest = await vitestRun(workspace);
   assert.equal(vitest.ok, true, vitest.stderr || vitest.stdout);
 
-  console.log("PASS project-mode vite/react/supalite scorer");
+  console.log("PASS frontend vite/react/supalite build + test tooling");
 }
 
 async function main() {
@@ -291,7 +291,7 @@ async function main() {
   await smokeLogsSeeding();
   await smokeInvestigateLogsEval();
   await smokeInvestigateSecurityEval();
-  await smokeProjectEval();
+  await smokeFrontendBuildTooling();
   console.log("PASS framework smoke");
 }
 

@@ -28,11 +28,40 @@ export const evalSuiteSchema = z.enum(["benchmark", "regression"]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
+/**
+ * Interface(s) the agent uses to act on Supabase — a benchmark dimension
+ * (cross-team KPI), not the runtime switch. `mcp` = the platform-lite MCP/tool
+ * surface; `cli` = the real Supabase CLI inside a local-stack Docker sandbox.
+ *
+ * Whether a sandbox boots is decided separately by the presence of a `local/`
+ * directory (see the eval runner): `local/` ⇒ sandbox, otherwise the in-memory
+ * tools runtime. `interface: cli` additionally forces a sandbox for scenarios
+ * that start from an empty workspace (no `local/`).
+ */
+export const evalInterfaceSchema = z.enum(["mcp", "cli"]);
+export const EVAL_INTERFACES = evalInterfaceSchema.options;
+export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
+
 export type EvalMetadata = {
   stage: EvalStage;
   product: EvalProduct[];
   topic: string[];
   suite: EvalSuite;
+  interface?: EvalInterface;
+  /**
+   * Local-stack services this scenario needs (sandbox evals only); everything
+   * else is excluded from `supabase start` to keep boots fast. An empty list
+   * (`services: []`) means "only the always-on database, no other services";
+   * omit the key entirely for the full stack. Validated against the known
+   * service list when the sandbox session starts.
+   */
+  services?: string[];
+  /**
+   * Whether the local stack is already running when the agent starts (sandbox
+   * evals only). Defaults to true; scenarios where starting the project is
+   * part of the task set false.
+   */
+  projectRunning?: boolean;
 };
 
 export type ParsedEvalMarkdown = {
@@ -45,6 +74,9 @@ export const evalMetadataSchema = z.object({
   product: z.array(evalProductSchema).min(1),
   topic: z.array(z.string().min(1)).min(1),
   suite: evalSuiteSchema.default("regression"),
+  interface: evalInterfaceSchema.optional(),
+  services: z.array(z.string().min(1)).optional(),
+  projectRunning: z.boolean().optional(),
 });
 
 export const checkResultSchema = z.object({
@@ -62,6 +94,7 @@ const evalResultShape = {
   product: z.array(evalProductSchema).optional(),
   topic: z.array(z.string()).optional(),
   suite: evalSuiteSchema.optional(),
+  interface: evalInterfaceSchema.optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
   attempts: z.number().optional(),

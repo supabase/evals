@@ -34,6 +34,10 @@ export function parseEvalMarkdown(
 
   const raw = parsed.data as Record<string, unknown>;
   const rawSuite = readOptionalScalar(raw, "suite");
+  const rawInterface = readOptionalScalar(raw, "interface");
+  // Preserve the empty-vs-absent distinction: `services: []` means database
+  // only, while an omitted key means the full stack.
+  const rawServices = readOptionalStringArray(raw, "services");
   const parsedMetadata = evalMetadataSchema.safeParse({
     stage: normalizeToken(readRequiredScalar(raw, "stage", sourceName)),
     product: readRequiredArray(raw, ["product", "products"], sourceName).map(
@@ -43,6 +47,9 @@ export function parseEvalMarkdown(
       normalizeToken,
     ),
     suite: rawSuite ? normalizeToken(rawSuite) : undefined,
+    interface: rawInterface ? normalizeToken(rawInterface) : undefined,
+    services: rawServices?.map(normalizeToken),
+    projectRunning: readOptionalBoolean(raw, "projectRunning"),
   });
 
   if (!parsedMetadata.success) {
@@ -113,6 +120,34 @@ function toScalar(value: unknown): string | undefined {
     return String(value);
   }
   return undefined;
+}
+
+// Returns the array as-is (incl. an explicit empty array, which is meaningful
+// for `services`); absent or non-array values become undefined. Items are
+// coerced to scalars and blanks dropped, but an empty input array stays empty.
+function readOptionalStringArray(
+  raw: Record<string, unknown>,
+  key: string,
+): string[] | undefined {
+  const value = raw[key];
+  if (!Array.isArray(value)) return undefined;
+  return value.map((item) => toScalar(item)?.trim() ?? "").filter(Boolean);
+}
+
+// YAML parses `true`/`false` as booleans; tolerate string forms too. Absent
+// stays undefined; an unparseable value is returned verbatim so the schema
+// rejects it with a clear error.
+function readOptionalBoolean(
+  raw: Record<string, unknown>,
+  key: string,
+): unknown {
+  const value = raw[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "boolean") return value;
+  const token = toScalar(value)?.trim().toLowerCase();
+  if (token === "true") return true;
+  if (token === "false") return false;
+  return value;
 }
 
 function formatZodIssues(issues: z.core.$ZodIssue[]): string {
