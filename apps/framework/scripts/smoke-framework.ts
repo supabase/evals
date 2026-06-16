@@ -37,6 +37,7 @@ function scorerCtx(
     getClient: backend.getClient,
     query: backend.query,
     invokeFunction: backend.invokeFunction,
+    serviceRoleKey: backend.serviceRoleKey,
     toolCalls: [],
     transcript: extra?.transcript ?? [],
     agentReport: extra?.agentReport,

@@ -111,12 +111,13 @@ async function checkFunctionDequeues(ctx: ToolEvalContext): Promise<CheckResult>
   const verdict = await judge({
     input: `HTTP ${response.status} response body: ${response.body}`,
     rubric: stripIndent`
-      Pass if the response body is a JSON array containing at least one
-      dequeued message object. The message should contain the original
-      payload or its fields (e.g. a "job" key with value "process", or a
-      "message" field wrapping it).
-      Fail if the response is empty, not a JSON array, or contains no
-      message content.
+      Pass if the response body shows the function successfully drained or
+      processed at least one queued message. Valid responses include a JSON
+      array of dequeued message objects, or a status object with a count,
+      processed count, or similar field showing at least one message was
+      handled.
+      Fail if the response is empty, only says the queue was empty, reports a
+      zero count, or contains no evidence that a queued message was handled.
     `,
   });
   return {

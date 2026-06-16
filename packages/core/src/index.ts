@@ -739,6 +739,7 @@ export interface PlatformBackend {
   invokeFunction: (
     input: EdgeFunctionsInvokeInput,
   ) => Promise<EdgeFunctionsInvokeResult>;
+  serviceRoleKey: string;
   close: () => Promise<void>;
 }
 
