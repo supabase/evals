@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -6,16 +12,24 @@ import type { CommandResult, VitestResult } from "@supabase-evals/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
+const FRAMEWORK_NODE_MODULES = join(__dirname, "..", "node_modules");
+const VITE_BIN = join(
+  dirname(fileURLToPath(import.meta.resolve("vite/package.json"))),
+  "bin",
+  "vite.js",
+);
+const VITEST_BIN = join(
+  dirname(fileURLToPath(import.meta.resolve("vitest/package.json"))),
+  "vitest.mjs",
+);
 
 export async function viteBuild(workspace: string): Promise<CommandResult> {
-  return runNodeBin(
-    join(ROOT, "node_modules", "vite", "bin", "vite.js"),
-    ["build"],
-    workspace
-  );
+  linkWorkspaceDependencies(workspace);
+  return runNodeBin(VITE_BIN, ["build"], workspace);
 }
 
 export async function vitestRun(workspace: string): Promise<VitestResult> {
+  linkWorkspaceDependencies(workspace);
   const reportPath = join(workspace, "vitest-report.json");
   const configPath = join(workspace, "vitest.evals.config.ts");
   const setupDir = join(workspace, ".evals");
@@ -38,13 +52,53 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
     ].join("\n")
   );
   const result = await runNodeBin(
-    join(ROOT, "node_modules", "vitest", "vitest.mjs"),
+    VITEST_BIN,
     ["run", "--config", configPath, "--reporter=json", `--outputFile=${reportPath}`],
     workspace,
     { SUPABASE_EVALS_WORKSPACE: workspace }
   );
   const parsed = existsSync(reportPath) ? parseVitestReport(reportPath) : undefined;
   return { ...result, ...parsed, ok: parsed?.ok ?? result.ok };
+}
+
+function linkWorkspaceDependencies(workspace: string) {
+  const nodeModules = join(workspace, "node_modules");
+  mkdirSync(nodeModules, { recursive: true });
+
+  for (const packageName of workspaceDependencyNames(workspace)) {
+    const source = join(FRAMEWORK_NODE_MODULES, ...packageName.split("/"));
+    if (!existsSync(source)) continue;
+
+    const target = join(nodeModules, ...packageName.split("/"));
+    if (existsSync(target)) continue;
+
+    mkdirSync(dirname(target), { recursive: true });
+    symlinkSync(source, target, "junction");
+  }
+}
+
+function workspaceDependencyNames(workspace: string): string[] {
+  const packageJsonPath = join(workspace, "package.json");
+  if (!existsSync(packageJsonPath)) return ["@supabase/lite"];
+
+  const parsed: unknown = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  if (!isRecord(parsed)) return ["@supabase/lite"];
+
+  return Array.from(
+    new Set([
+      ...dependencyKeys(parsed.dependencies),
+      ...dependencyKeys(parsed.devDependencies),
+      "@supabase/lite",
+    ]),
+  );
+}
+
+function dependencyKeys(value: unknown): string[] {
+  return isRecord(value) ? Object.keys(value) : [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function setupSource() {

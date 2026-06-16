@@ -6,6 +6,7 @@ product:
 topic:
   - observability
 motivation: AI-817
+projectRunning: false
 ---
 
 Can you wire my Supabase project metrics into our existing observability stack and document

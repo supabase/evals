@@ -6,7 +6,6 @@ product:
 topic:
   - rls
   - sdk
-  - supabase-js
   - security
 ---
 

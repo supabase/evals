@@ -3,11 +3,10 @@ stage: build
 product:
   - database
   - auth
-  - sdk
 topic:
-  - frontend
   - rls
-  - supabase-js
+  - sdk
+projectRunning: false
 ---
 
 Build the missing Supabase integration for this Vite + React todos app.

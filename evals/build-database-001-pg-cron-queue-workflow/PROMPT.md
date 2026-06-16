@@ -2,13 +2,11 @@
 stage: build
 product:
   - database
-  - functions
+  - edge-functions
   - cron
   - queues
 topic:
   - sql
-  - pg_cron
-  - pgmq
 suite: benchmark
 motivation: AI-812, https://supabase.com/docs/guides/ai/automatic-embeddings
 ---
