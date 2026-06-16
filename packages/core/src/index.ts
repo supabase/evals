@@ -289,6 +289,12 @@ export type LocalStackSessionArgs = {
  */
 export type LocalStackSession = {
   tools: ToolSet;
+  /**
+   * MCP servers to expose to the agent alongside the sandbox tools (e.g. the
+   * docs server for `search_docs`). Spawned host-side; merged with `tools` by
+   * the agent harness.
+   */
+  mcpServers?: Record<string, McpServerConfig>;
   promptAddendum?: string;
   scoringContext: LocalStackScoringContext;
   /**
@@ -663,6 +669,34 @@ export function supabaseMcpServer(
         },
       };
     },
+  };
+}
+
+/**
+ * A Supabase MCP server limited to the `docs` feature group — i.e. the
+ * `search_docs` tool, which queries the public Supabase docs GraphQL API
+ * (https://supabase.com/docs/api/graphql) and needs no project, api-url, or
+ * platform connection. Returns a ready-to-run config (no platform-lite
+ * context), so the local-stack runtime can give CLI/sandbox evals the one
+ * capability they otherwise lack: documentation search (the custom harness has
+ * no web tools).
+ */
+export function docsMcpServer(
+  options: { version?: string } = {},
+): McpServerConfig {
+  const version = options.version ?? MCP_SERVER_VERSION;
+  return {
+    command: "npx",
+    args: [
+      `@supabase/mcp-server-supabase@${version}`,
+      "--features",
+      "docs",
+      // The server refuses to boot without a token, but with only `docs`
+      // enabled it never authenticates against the management API, so a
+      // well-formed throwaway token is enough.
+      "--access-token",
+      `sbp_${"0".repeat(40)}`,
+    ],
   };
 }
 

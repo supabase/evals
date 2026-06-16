@@ -255,6 +255,7 @@ async function runOne(
           ),
           userPrompt: prompt,
           tools: session.tools,
+          mcpServers: session.mcpServers,
           timeoutSec: TIMEOUT_SEC,
         });
 

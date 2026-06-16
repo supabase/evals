@@ -1,9 +1,11 @@
 import { posix } from "node:path";
 import { jsonSchema, tool, type ToolSet } from "ai";
 import { createClient } from "@supabase/supabase-js";
-import type {
-  LocalStackRuntime,
-  LocalStackScoringContext,
+import {
+  docsMcpServer,
+  type LocalStackRuntime,
+  type LocalStackScoringContext,
+  type McpServerConfig,
 } from "@supabase-evals/core";
 import { DockerSandbox } from "./docker-sandbox.js";
 import {
@@ -33,11 +35,20 @@ const MAX_TOOL_OUTPUT_CHARS = 16_000;
 export interface LocalStackRuntimeOptions {
   /** Supabase CLI version baked into the sandbox image (pinned default). */
   cliVersion?: string;
+  /**
+   * MCP servers exposed to the agent alongside the sandbox tools, keyed by
+   * name. Defaults to a docs-only Supabase MCP server so the agent can
+   * `search_docs` (the sandbox has no web tools). Pass `{}` to disable, or add
+   * more servers. These run host-side; they do not connect to the sandbox.
+   */
+  mcpServers?: Record<string, McpServerConfig>;
 }
 
 export function localStackRuntime(
   options: LocalStackRuntimeOptions = {},
 ): LocalStackRuntime {
+  const mcpServers = options.mcpServers ?? { "supabase-docs": docsMcpServer() };
+  const hasMcpServers = Object.keys(mcpServers).length > 0;
   return {
     id: "local-stack",
     async startSession({ localDir, includeServices, projectRunning }) {
@@ -65,11 +76,15 @@ export function localStackRuntime(
 
       return {
         tools: buildLocalStackTools(sandbox),
+        mcpServers,
         promptAddendum:
           "The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. " +
           "Use the bash tool to run commands (the working directory is always the workspace root) " +
           "and the files tools to inspect and modify files. " +
-          "Services started with `supabase start` are reachable on their default 127.0.0.1 ports.",
+          "Services started with `supabase start` are reachable on their default 127.0.0.1 ports." +
+          (hasMcpServers
+            ? " Use the `search_docs` tool to look up Supabase documentation."
+            : ""),
         scoringContext: buildLocalStackScoringContext(sandbox),
         exportWorkspace: (hostDir: string) => sandbox.copyToHost(hostDir),
         close: async () => {
