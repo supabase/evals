@@ -87,6 +87,7 @@ function discoverEvals(): EvalManifest[] {
     const localDir = join(evalDir, "local");
     const promptPath = join(evalDir, "PROMPT.md");
     const evalPath = join(evalDir, "EVAL.ts");
+    if (!existsSync(promptPath)) continue;
     const metadata = parseEvalMarkdown(
       readFileSync(promptPath, "utf8"),
       `evals/${id}/PROMPT.md`,
@@ -239,13 +240,17 @@ async function runOne(
           session.promptAddendum,
         );
 
-        const run = await exp.agent.run({
-          systemPrompt,
-          userPrompt: prompt,
-          tools: fileTools,
-          mcpServers: session.mcpServers,
-          timeoutSec: TIMEOUT_SEC,
-        });
+        const run = await runScorer(
+          () =>
+            exp.agent.run({
+              systemPrompt,
+              userPrompt: prompt,
+              tools: fileTools,
+              mcpServers: session.mcpServers,
+              timeoutSec: TIMEOUT_SEC,
+            }),
+          { debug: DEBUG },
+        );
 
         let copiedWithheldTests = false;
         const ensureWithheldTests = () => {
@@ -300,12 +305,16 @@ async function runOne(
         skillContext,
         session.promptAddendum,
       );
-      const run = await exp.agent.run({
-        systemPrompt,
-        userPrompt: prompt,
-        mcpServers: session.mcpServers,
-        timeoutSec: TIMEOUT_SEC,
-      });
+      const run = await runScorer(
+        () =>
+          exp.agent.run({
+            systemPrompt,
+            userPrompt: prompt,
+            mcpServers: session.mcpServers,
+            timeoutSec: TIMEOUT_SEC,
+          }),
+        { debug: DEBUG },
+      );
 
       lastToolCalls = run.toolCalls;
       lastTranscript = run.transcript;

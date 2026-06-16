@@ -20,6 +20,8 @@ export const evalProductSchema = z.enum([
   "cli",
   "docs",
   "self-hosted",
+  "cron",
+  "queues",
 ]);
 export const EVAL_PRODUCTS = evalProductSchema.options;
 export type EvalProduct = z.infer<typeof evalProductSchema>;
