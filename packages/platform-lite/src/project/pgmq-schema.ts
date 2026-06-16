@@ -121,22 +121,38 @@ CREATE OR REPLACE VIEW pgmq_public.queues AS
   SELECT queue_name, is_partitioned, is_unlogged, created_at FROM pgmq.meta;
 
 CREATE OR REPLACE FUNCTION pgmq_public.send(queue_name text, message jsonb, sleep_seconds int DEFAULT 0)
-RETURNS bigint LANGUAGE sql AS $$
+RETURNS bigint
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pgmq_public, pgmq, public
+AS $$
   SELECT pgmq.send(queue_name, message, sleep_seconds);
 $$;
 
 CREATE OR REPLACE FUNCTION pgmq_public.read(queue_name text, sleep_seconds int, n int)
-RETURNS SETOF pgmq.message_record LANGUAGE sql AS $$
+RETURNS SETOF pgmq.message_record
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pgmq_public, pgmq, public
+AS $$
   SELECT * FROM pgmq.read(queue_name, sleep_seconds, n);
 $$;
 
 CREATE OR REPLACE FUNCTION pgmq_public.pop(queue_name text)
-RETURNS SETOF pgmq.message_record LANGUAGE sql AS $$
+RETURNS SETOF pgmq.message_record
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pgmq_public, pgmq, public
+AS $$
   SELECT * FROM pgmq.pop(queue_name);
 $$;
 
 CREATE OR REPLACE FUNCTION pgmq_public.delete(queue_name text, msg_id bigint)
-RETURNS boolean LANGUAGE sql AS $$
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pgmq_public, pgmq, public
+AS $$
   SELECT pgmq.delete(queue_name, msg_id);
 $$;
 `;

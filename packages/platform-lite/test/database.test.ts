@@ -158,4 +158,69 @@ describe('database', () => {
       await platform.dispose()
     }
   })
+
+  it('routes supabase-js schema rpc calls to pgmq_public', async () => {
+    const ref = 'pgmq-rpc-proj'
+    const platform = await createPlatform({
+      projects: [
+        {
+          ref,
+          sql: `
+            SELECT pgmq.create('tasks');
+
+            GRANT USAGE ON SCHEMA pgmq_public TO anon;
+            GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pgmq_public TO anon;
+          `,
+        },
+      ],
+    })
+
+    try {
+      const instance = platform.getProject(ref)
+      if (!instance) throw new Error(`project missing: ${ref}`)
+
+      const { data: keys } = await request<Array<{ name: string; api_key: string }>>(
+        platform.app,
+        'GET',
+        `/v1/projects/${ref}/api-keys`
+      )
+      const anon = keys.find((key) => key.name === 'anon')
+      if (!anon) throw new Error(`anon key missing: ${ref}`)
+
+      const supabase = createClient('http://supabase-evals.local', anon.api_key, {
+        global: {
+          fetch: (input, init) => {
+            const req = new Request(input, init)
+            return instance.app.fetch(req)
+          },
+        },
+      })
+
+      const { error: sendError } = await supabase
+        .schema('pgmq_public')
+        .rpc('send', {
+          queue_name: 'tasks',
+          message: { job: 'process' },
+        })
+
+      expect(sendError).toBeNull()
+
+      const { data, error } = await supabase
+        .schema('pgmq_public')
+        .rpc('read', {
+          queue_name: 'tasks',
+          sleep_seconds: 30,
+          n: 1,
+        })
+
+      expect(error).toBeNull()
+      expect(data).toEqual([
+        expect.objectContaining({
+          message: { job: 'process' },
+        }),
+      ])
+    } finally {
+      await platform.dispose()
+    }
+  })
 })
