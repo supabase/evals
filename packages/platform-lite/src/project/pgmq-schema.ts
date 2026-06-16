@@ -110,4 +110,33 @@ RETURNS TABLE (queue_name text, is_partitioned boolean, is_unlogged boolean, cre
 LANGUAGE sql AS $$
   SELECT queue_name, is_partitioned, is_unlogged, created_at FROM pgmq.meta;
 $$;
+
+-- pgmq_public schema: mirrors the real Supabase Queues REST API surface so that
+-- supabase-js schema/rpc calls against pgmq_public work.
+-- The view is required because @supabase/lite only exposes schemas that own at
+-- least one table or view; function-only schemas are rejected as "Invalid schema".
+CREATE SCHEMA IF NOT EXISTS pgmq_public;
+
+CREATE OR REPLACE VIEW pgmq_public.queues AS
+  SELECT queue_name, is_partitioned, is_unlogged, created_at FROM pgmq.meta;
+
+CREATE OR REPLACE FUNCTION pgmq_public.send(queue_name text, message jsonb, sleep_seconds int DEFAULT 0)
+RETURNS bigint LANGUAGE sql AS $$
+  SELECT pgmq.send(queue_name, message, sleep_seconds);
+$$;
+
+CREATE OR REPLACE FUNCTION pgmq_public.read(queue_name text, sleep_seconds int, n int)
+RETURNS SETOF pgmq.message_record LANGUAGE sql AS $$
+  SELECT * FROM pgmq.read(queue_name, sleep_seconds, n);
+$$;
+
+CREATE OR REPLACE FUNCTION pgmq_public.pop(queue_name text)
+RETURNS SETOF pgmq.message_record LANGUAGE sql AS $$
+  SELECT * FROM pgmq.pop(queue_name);
+$$;
+
+CREATE OR REPLACE FUNCTION pgmq_public.delete(queue_name text, msg_id bigint)
+RETURNS boolean LANGUAGE sql AS $$
+  SELECT pgmq.delete(queue_name, msg_id);
+$$;
 `;
