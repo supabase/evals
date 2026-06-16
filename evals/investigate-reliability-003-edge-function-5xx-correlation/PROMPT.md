@@ -2,7 +2,7 @@
 stage: investigate
 suite: benchmark
 product:
-  - edge_functions
+  - edge-functions
 topic:
   - observability
 motivation: AI-818, SU-341553, SU-341817

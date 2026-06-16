@@ -1,7 +1,7 @@
 ---
 stage: build
 product:
-  - edge_functions
+  - edge-functions
   - database
 topic:
   - sdk

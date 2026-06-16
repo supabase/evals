@@ -2,7 +2,7 @@
 stage: build
 suite: benchmark
 product:
-  - edge_functions
+  - edge-functions
   - auth
   - database
 topic:

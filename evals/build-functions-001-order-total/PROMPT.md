@@ -1,8 +1,8 @@
 ---
 stage: build
 product:
-  - edge_functions
-  - data_api
+  - edge-functions
+  - data-api
 topic:
   - sdk
 ---

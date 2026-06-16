@@ -4,7 +4,7 @@ suite: benchmark
 interface: cli
 product:
   - database
-  - data_api
+  - data-api
 topic:
   - migrations
   - rls

@@ -14,12 +14,12 @@ export const evalProductSchema = z.enum([
   "database",
   "auth",
   "storage",
-  "edge_functions",
+  "edge-functions",
   "realtime",
   "cron",
   "queues",
   "vectors",
-  "data_api",
+  "data-api",
 ]);
 export const EVAL_PRODUCTS = evalProductSchema.options;
 export type EvalProduct = z.infer<typeof evalProductSchema>;
@@ -33,9 +33,9 @@ export const evalTopicSchema = z.enum([
   "sql",
   "sdk",
   "observability",
-  "self_hosting",
+  "self-hosting",
   "tests",
-  "declarative_schema",
+  "declarative-schema",
 ]);
 export const EVAL_TOPICS = evalTopicSchema.options;
 export type EvalTopic = z.infer<typeof evalTopicSchema>;
@@ -99,11 +99,11 @@ export const evalMetadataSchema = z.object({
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
-// runs of whitespace or hyphens to a single underscore. Lets authors write
-// `edge functions`, `edge-functions`, or `edge_functions` for the canonical
-// `edge_functions`. Enum fields are matched on this.
+// runs of whitespace or underscores to a single hyphen. Lets authors write
+// `edge functions`, `edge_functions`, or `edge-functions` for the canonical
+// `edge-functions`. Enum fields are matched on this.
 const normalizeToken = (value: string): string =>
-  value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  value.trim().toLowerCase().replace(/[\s_]+/g, "-");
 
 // YAML scalars arrive as string | number | boolean; the metadata layer treats
 // them all as tokens. Non-scalars (objects/arrays/null) pass through unchanged

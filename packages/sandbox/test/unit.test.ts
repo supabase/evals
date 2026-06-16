@@ -82,7 +82,7 @@ describe("computeExcludedServices", () => {
 });
 
 describe("services frontmatter → computeExcludedServices (regression)", () => {
-  // Frontmatter token normalization folds hyphens to underscores for the enum
+  // Frontmatter token normalization folds underscores to hyphens for the enum
   // dimensions (product/topic), but the same normalizer must NOT touch
   // `services` — those are real CLI service ids (postgres-meta, storage-api,
   // edge-runtime) that must match the Supabase service names verbatim:

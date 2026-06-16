@@ -1,7 +1,7 @@
 ---
 stage: investigate
 product:
-  - edge_functions
+  - edge-functions
 topic:
   - observability
 ---
