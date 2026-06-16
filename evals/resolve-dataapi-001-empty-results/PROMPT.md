@@ -2,7 +2,7 @@
 stage: resolve
 suite: benchmark
 product:
-  - data api
+  - data_api
   - database
   - auth
 topic:

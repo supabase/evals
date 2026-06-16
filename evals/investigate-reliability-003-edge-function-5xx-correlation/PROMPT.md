@@ -2,11 +2,9 @@
 stage: investigate
 suite: benchmark
 product:
-  - functions
+  - edge_functions
 topic:
-  - reliability
   - observability
-  - logs
 motivation: AI-818, SU-341553, SU-341817
 ---
 
