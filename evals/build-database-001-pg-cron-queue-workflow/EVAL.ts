@@ -16,6 +16,7 @@ const scorer: ToolScorer = async (ctx) => {
     const checks: CheckResult[] = [
       await checkCronJobScheduled(ctx),
       await checkCronCommandRunsAndEnqueues(ctx),
+      await checkFunctionRequiresAuth(ctx),
       {
         name: "function dequeues and returns messages",
         ...(await checkFunctionDequeues(ctx).catch((err): Omit<CheckResult, "name"> => ({
@@ -76,11 +77,27 @@ async function checkCronCommandRunsAndEnqueues(ctx: ToolEvalContext): Promise<Ch
   };
 }
 
+async function checkFunctionRequiresAuth(ctx: ToolEvalContext): Promise<CheckResult> {
+  const result = await ctx.invokeFunction({ name: FUNCTION, method: "POST" });
+  const passed = result.type === "response" && result.status === 401;
+  return {
+    name: "function requires authentication",
+    passed,
+    notes: passed
+      ? undefined
+      : `expected 401, got ${result.type === "response" ? result.status : result.error}`,
+  };
+}
+
 async function checkFunctionDequeues(ctx: ToolEvalContext): Promise<CheckResult> {
   await ctx.query(`SELECT pgmq.send('${QUEUE}', '{"job":"process"}'::jsonb)`);
 
   const response = unwrapEdgeFunctionResponse(
-    await ctx.invokeFunction({ name: FUNCTION, method: "POST" }),
+    await ctx.invokeFunction({
+      name: FUNCTION,
+      method: "POST",
+      headers: { Authorization: `Bearer ${ctx.serviceRoleKey}` },
+    }),
   );
 
   if (response.status < 200 || response.status >= 300) {

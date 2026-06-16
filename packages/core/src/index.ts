@@ -176,6 +176,8 @@ export interface ToolScoringContext {
   invokeFunction: (
     input: EdgeFunctionsInvokeInput,
   ) => Promise<EdgeFunctionsInvokeResult>;
+  /** Service role JWT for this project — pass as Authorization header when invoking authenticated edge functions. */
+  serviceRoleKey: string;
 }
 
 export interface ToolEvalContext extends ToolScoringContext {
@@ -486,6 +488,7 @@ export function platformLiteRuntime(options: {
             getClient: backend.getClient,
             query: backend.query,
             invokeFunction: backend.invokeFunction,
+            serviceRoleKey: backend.serviceRoleKey,
           },
           close: async () => {
             const errors: unknown[] = [];
@@ -789,6 +792,7 @@ export async function bootPlatformBackend(opts: {
         return { rows: toRecordRows(lastRowSet?.rows) };
       },
       invokeFunction: (input) => invokeEdgeFunction(instance, input),
+      serviceRoleKey: generateProjectKey(instance.ref, instance.jwtSecret, "service_role"),
       close: async () => {
         if (closed) return;
         closed = true;
