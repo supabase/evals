@@ -3,9 +3,8 @@ stage: build
 suite: benchmark
 interface: cli
 product:
-  - cli
   - database
-  - data api
+  - data-api
 topic:
   - migrations
   - rls

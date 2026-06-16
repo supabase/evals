@@ -3,7 +3,6 @@ stage: investigate
 product:
   - database
 topic:
-  - schema
   - observability
 ---
 

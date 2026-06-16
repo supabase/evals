@@ -1,11 +1,9 @@
 ---
 stage: investigate
 product:
-  - functions
+  - edge-functions
 topic:
   - observability
-  - logs
-  - reliability
 ---
 
 Identify the edge function with the most errors in the last 15 minutes.
