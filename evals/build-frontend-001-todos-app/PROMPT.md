@@ -3,11 +3,9 @@ stage: build
 product:
   - database
   - auth
-  - sdk
 topic:
-  - frontend
   - rls
-  - supabase-js
+  - sdk
 projectRunning: false
 ---
 

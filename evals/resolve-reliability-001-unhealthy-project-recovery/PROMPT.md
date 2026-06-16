@@ -3,8 +3,7 @@ stage: resolve
 product:
   - database
 topic:
-  - reliability
-  - troubleshooting
+  - observability
 ---
 
 My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.

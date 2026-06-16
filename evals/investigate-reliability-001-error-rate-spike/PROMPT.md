@@ -1,11 +1,9 @@
 ---
 stage: investigate
 product:
-  - functions
+  - edge_functions
 topic:
-  - reliability
   - observability
-  - logs
 ---
 
 Audit the recent edge-function logs for any reliability problem worth flagging.

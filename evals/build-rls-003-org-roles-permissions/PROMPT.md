@@ -5,7 +5,6 @@ product:
   - auth
 topic:
   - rls
-  - permissions
   - security
 ---
 

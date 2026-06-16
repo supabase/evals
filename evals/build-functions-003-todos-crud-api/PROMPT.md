@@ -1,13 +1,10 @@
 ---
 stage: build
 product:
-  - functions
+  - edge_functions
   - database
-  - sdk
 topic:
-  - edge-functions
-  - supabase-js
-  - crud
+  - sdk
 ---
 
 Create a Supabase Edge Function named `todos-api`.

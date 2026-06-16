@@ -6,7 +6,6 @@ product:
 topic:
   - rls
   - security
-  - policies
 ---
 
 Audit the RLS policies on this Supabase project.
