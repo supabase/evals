@@ -46,7 +46,7 @@ async function checkNewMigrationGenerated(ctx: LocalStackEvalContext): Promise<C
   return {
     name,
     passed: result.ok && count >= 2,
-    notes: `found ${isNaN(count) ? 0 : count} migration file(s)`,
+    notes: result.ok && count >= 2 ? undefined : `found ${isNaN(count) ? 0 : count} migration file(s)`,
   };
 }
 
