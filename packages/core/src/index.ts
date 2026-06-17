@@ -32,11 +32,19 @@ import {
 } from "@supabase-evals/platform-lite";
 import type { CheckResult } from "./eval-metadata.js";
 
-const EXECUTOR_BIN = join(
-  dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
-  "bin",
-  "executor"
-);
+// Resolved lazily on first use, not at module load: `import.meta.resolve` is a
+// load-time side effect that throws under bundler SSR transforms (e.g. vitest),
+// which would break every importer of this module — including ones that never
+// invoke the executor (the sandbox runtime only imports `supabaseMcpServer`).
+let executorBinPath: string | undefined;
+function getExecutorBin(): string {
+  executorBinPath ??= join(
+    dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
+    "bin",
+    "executor"
+  );
+  return executorBinPath;
+}
 const execFileAsync = promisify(execFile);
 
 export type { SupabaseClient };
@@ -289,6 +297,12 @@ export type LocalStackSessionArgs = {
  */
 export type LocalStackSession = {
   tools: ToolSet;
+  /**
+   * MCP servers to expose to the agent alongside the sandbox tools (e.g. the
+   * docs server for `search_docs`). Spawned host-side; merged with `tools` by
+   * the agent harness.
+   */
+  mcpServers?: Record<string, McpServerConfig>;
   promptAddendum?: string;
   scoringContext: LocalStackScoringContext;
   /**
@@ -519,8 +533,10 @@ export type EvalSession = {
 };
 
 export type PlatformLiteMcpContext = {
-  apiUrl: string;
-  accessToken: string;
+  // Both optional: a docs-only Supabase MCP server is platform-independent, so
+  // it needs neither a project api-url nor a real token.
+  apiUrl?: string;
+  accessToken?: string;
 };
 
 export type McpServerConfig = {
@@ -542,7 +558,7 @@ type McpClientHandle = {
 export type McpServerDefinition = {
   name: string;
   promptAddendum?: string;
-  createConfig(context: PlatformLiteMcpContext): Promise<ResolvedMcpServer>;
+  createConfig(context?: PlatformLiteMcpContext): Promise<ResolvedMcpServer>;
 };
 
 export function platformLiteRuntime(options: {
@@ -647,21 +663,22 @@ export function supabaseMcpServer(
 
   return {
     name: "supabase-mcp",
-    async createConfig({ apiUrl, accessToken }) {
-      return {
-        config: {
-          command: "npx",
-          args: [
-            `@supabase/mcp-server-supabase@${version}`,
-            "--access-token",
-            accessToken,
-            "--api-url",
-            apiUrl,
-            "--features",
-            features.join(","),
-          ],
-        },
-      };
+    async createConfig({ apiUrl, accessToken } = {}) {
+      const args = [
+        `@supabase/mcp-server-supabase@${version}`,
+        // The server refuses to boot without a token; with only platform-
+        // independent features (docs) it never authenticates against the
+        // management API, so a well-formed throwaway is enough.
+        "--access-token",
+        accessToken ?? THROWAWAY_ACCESS_TOKEN,
+        "--features",
+        features.join(","),
+      ];
+      // Only point the server at a platform when one is given. `docs` is
+      // platform-independent (it queries the public docs GraphQL API), so a
+      // docs-only server runs standalone with no `--api-url`.
+      if (apiUrl) args.push("--api-url", apiUrl);
+      return { config: { command: "npx", args } };
     },
   };
 }
@@ -671,7 +688,15 @@ export function executorMcpServer(): McpServerDefinition {
     name: "executor-mcp",
     promptAddendum:
       "When execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept.",
-    async createConfig({ apiUrl, accessToken }) {
+    async createConfig({ apiUrl, accessToken } = {}) {
+      // Unlike the docs-only Supabase MCP, the executor proxies the platform's
+      // OpenAPI, so it genuinely needs both — fail fast rather than register a
+      // broken source.
+      if (!apiUrl || !accessToken) {
+        throw new Error(
+          "executor MCP requires a platform context (apiUrl + accessToken)",
+        );
+      }
       const scopeDir = mkdtempSync(join(tmpdir(), "eval-executor-scope-"));
       const dataDir = mkdtempSync(join(tmpdir(), "eval-executor-data-"));
       // Keep source registration isolated from any user daemon already listening on 4788.
@@ -696,7 +721,7 @@ export function executorMcpServer(): McpServerDefinition {
       return {
         config: {
           command: process.execPath,
-          args: [EXECUTOR_BIN, "mcp", "--scope", scopeDir],
+          args: [getExecutorBin(), "mcp", "--scope", scopeDir],
           env: { EXECUTOR_DATA_DIR: dataDir },
         },
         cleanup: async () => {
@@ -727,7 +752,7 @@ async function addExecutorOpenApiSource(input: {
   const { stdout } = await execFileAsync(
     process.execPath,
     [
-      EXECUTOR_BIN,
+      getExecutorBin(),
       "call",
       "executor",
       "openapi",
@@ -747,7 +772,7 @@ async function addExecutorOpenApiSource(input: {
   await execFileAsync(
     process.execPath,
     [
-      EXECUTOR_BIN,
+      getExecutorBin(),
       "resume",
       "--execution-id",
       executionId,
@@ -773,7 +798,7 @@ async function cleanupExecutorResources(input: {
   try {
     await execFileAsync(
       process.execPath,
-      [EXECUTOR_BIN, "daemon", "stop", "--base-url", input.daemonUrl],
+      [getExecutorBin(), "daemon", "stop", "--base-url", input.daemonUrl],
       { env: executorEnv(input.dataDir) }
     );
   } catch (err) {
@@ -820,6 +845,9 @@ async function getAvailablePort(): Promise<number> {
 
 export const ACCESS_TOKEN = "eval-token";
 export const MCP_SERVER_VERSION = "0.8.1";
+// Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
+// server requires a token to boot but never authenticates without a platform.
+const THROWAWAY_ACCESS_TOKEN = `sbp_${"0".repeat(40)}`;
 
 export interface PlatformBackend {
   url: string;

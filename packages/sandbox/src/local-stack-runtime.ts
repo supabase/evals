@@ -1,9 +1,11 @@
 import { posix } from "node:path";
 import { jsonSchema, tool, type ToolSet } from "ai";
 import { createClient } from "@supabase/supabase-js";
-import type {
-  LocalStackRuntime,
-  LocalStackScoringContext,
+import {
+  supabaseMcpServer,
+  type LocalStackRuntime,
+  type LocalStackScoringContext,
+  type McpServerConfig,
 } from "@supabase-evals/core";
 import { DockerSandbox } from "./docker-sandbox.js";
 import {
@@ -33,6 +35,13 @@ const MAX_TOOL_OUTPUT_CHARS = 16_000;
 export interface LocalStackRuntimeOptions {
   /** Supabase CLI version baked into the sandbox image (pinned default). */
   cliVersion?: string;
+  /**
+   * MCP servers exposed to the agent alongside the sandbox tools, keyed by
+   * name. Defaults to a docs-only Supabase MCP server so the agent can
+   * `search_docs` (the sandbox has no web tools). Pass `{}` to disable, or add
+   * more servers. These run host-side; they do not connect to the sandbox.
+   */
+  mcpServers?: Record<string, McpServerConfig>;
 }
 
 export function localStackRuntime(
@@ -41,6 +50,16 @@ export function localStackRuntime(
   return {
     id: "local-stack",
     async startSession({ localDir, includeServices, projectRunning }) {
+      // Default to a docs-only Supabase MCP server (no platform context needed —
+      // `docs` is platform-independent), so the agent can `search_docs` even
+      // though the sandbox has no web tools.
+      const mcpServers =
+        options.mcpServers ??
+        {
+          "supabase-docs": (
+            await supabaseMcpServer({ features: ["docs"] }).createConfig()
+          ).config,
+        };
       const image = await ensureSupabaseSandboxImage(options.cliVersion);
       const sandbox = await DockerSandbox.create({
         image,
@@ -65,6 +84,7 @@ export function localStackRuntime(
 
       return {
         tools: buildLocalStackTools(sandbox),
+        mcpServers,
         promptAddendum:
           "The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. " +
           "Use the bash tool to run commands (the working directory is always the workspace root) " +
