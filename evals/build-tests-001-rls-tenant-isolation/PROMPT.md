@@ -11,6 +11,4 @@ services: []
 motivation: AI-813, FDBKIN-9635, FDBKIN-8983
 ---
 
-We have a multi-tenant app where `notes` and `posts` both belong to orgs, and the `memberships` table controls who's in each org. Both tables are supposed to enforce org-level tenant isolation with RLS.
-
-Can you write pgTAP tests that verify the isolation is working on both tables? Cover both the happy path (a member reading their own org's data) and the negative case (a member trying to read another org's data). Run `supabase test db` when you're done and share what you find.
+Can you write some database tests to verify the tenant isolation is working? Cover both the happy path and the negative case, run them, and share what you find.
