@@ -8,7 +8,7 @@ topic:
   - tests
   - rls
 services: []
-motivation: AI-813
+motivation: AI-813, FDBKIN-9635, FDBKIN-8983
 ---
 
 We have a multi-tenant app where `notes` and `posts` both belong to orgs, and the `memberships` table controls who's in each org. Both tables are supposed to enforce org-level tenant isolation with RLS.
