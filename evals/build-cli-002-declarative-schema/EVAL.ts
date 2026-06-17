@@ -17,6 +17,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
 export default scorer;
 
+/** Checks that the agent ran `supabase db diff` rather than hand-writing the migration. */
 function checkDbDiffUsed(ctx: LocalStackEvalContext): CheckResult {
   const name = "supabase db diff used to generate the migration";
   const used = ctx.toolCalls.some(
@@ -25,8 +26,7 @@ function checkDbDiffUsed(ctx: LocalStackEvalContext): CheckResult {
   return { name, passed: used };
 }
 
-// The key signal: agent recognised the declarative-schema pattern and edited
-// the schema file rather than writing a raw migration.
+/** Checks that the schema file was updated to reflect the new column. */
 async function checkSchemaFileUpdated(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = "schema file updated to include description column";
   const result = await ctx.exec("cat supabase/schemas/*.sql 2>/dev/null");
@@ -38,6 +38,7 @@ async function checkSchemaFileUpdated(ctx: LocalStackEvalContext): Promise<Check
   };
 }
 
+/** Checks that a new migration file was created on top of the seeded one. */
 async function checkNewMigrationGenerated(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = "a new migration was generated for the change";
   const result = await ctx.exec("ls supabase/migrations/*.sql 2>/dev/null | wc -l");
@@ -49,6 +50,7 @@ async function checkNewMigrationGenerated(ctx: LocalStackEvalContext): Promise<C
   };
 }
 
+/** Checks that the migration was applied and the column is actually in the database. */
 async function checkDescriptionColumnLive(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = "description column exists in the live database";
   try {
