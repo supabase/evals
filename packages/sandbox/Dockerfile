@@ -5,7 +5,7 @@
 FROM node:22-slim
 
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    ca-certificates curl git docker.io postgresql-client iptables iproute2 \
+    ca-certificates curl git docker.io postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 
 ARG CLI_VERSION
