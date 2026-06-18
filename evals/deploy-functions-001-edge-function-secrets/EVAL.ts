@@ -1,9 +1,11 @@
 import {
+  judge,
   readEnvVariable,
   type CheckResult,
   type LocalStackEvalContext,
   type LocalStackScorer,
 } from "@supabase-evals/core";
+import { stripIndent } from "common-tags";
 
 const SECRET_NAME = "WEATHER_API_KEY";
 const FUNCTION_SLUG = "weather";
@@ -94,36 +96,41 @@ async function checkFunctionDeployed(ctx: LocalStackEvalContext): Promise<CheckR
   return { name, passed: res.data.status === "ACTIVE", notes: `status ${res.data.status}` };
 }
 
-// The deployed function reads the secret from the environment at runtime,
-// rather than expecting it from request input or a config file. platform-lite
-// injects project secrets into the function env (covered by its unit tests), so
-// a function that reads WEATHER_API_KEY from the Deno env resolves the deployed
-// secret.
+// The deployed function must obtain the secret from the runtime environment,
+// rather than from request input, a config file, or a hardcoded literal.
+// platform-lite injects project secrets into the function env (covered by its
+// unit tests), so a function that reads WEATHER_API_KEY from the environment
+// resolves the deployed secret at runtime.
 //
-// We can't observe the value the deployed function actually uses (it proxies an
-// external API, unreachable from the sandbox), so we assert two independent
-// static signals instead of matching one exact call shape: the source (1) reads
-// from the Deno environment at all, and (2) references the secret by name. That
-// accepts equivalent-correct styles — a helper indirection
-// (`getEnv("WEATHER_API_KEY")` -> `Deno.env.get(name)`), `Deno.env.toObject()`
-// destructuring, or a renamed variable — while still rejecting a function that
-// pulls the key from request input, a config file, or a hardcoded literal.
+// There are too many valid ways to read an env var to enumerate with a regex
+// (Deno.env.get, Deno.env.toObject, process.env via Deno's Node compat,
+// std/dotenv, a helper that wraps any of these), and we can't observe the value
+// the deployed function actually uses (it proxies an external API unreachable
+// from the sandbox). So we hand the source to a judge to assess intent.
 async function checkFunctionReadsSecret(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = `the ${FUNCTION_SLUG} function reads ${SECRET_NAME} from the environment`;
   const source = await readFunctionSource(ctx);
   if (source === undefined) {
     return { name, passed: false, notes: `could not read supabase/functions/${FUNCTION_SLUG}/*` };
   }
-  const readsFromEnv = /Deno\.env\.(get|toObject)\s*\(/.test(source);
-  const referencesSecret = new RegExp(`\\b${SECRET_NAME}\\b`).test(source);
-  const passed = readsFromEnv && referencesSecret;
-  const missing = [
-    readsFromEnv ? undefined : "no Deno.env.get(...) / Deno.env.toObject() call",
-    referencesSecret ? undefined : `no reference to ${SECRET_NAME}`,
-  ]
-    .filter(Boolean)
-    .join("; ");
-  return { name, passed, notes: passed ? undefined : `function source has ${missing}` };
+  const verdict = await judge({
+    input: source,
+    rubric: stripIndent`
+      The input is the source of a Supabase Edge Function (Deno runtime).
+
+      Pass if the function obtains the value of the environment variable
+      ${SECRET_NAME} from the runtime environment by ANY means — e.g.
+      Deno.env.get("${SECRET_NAME}"), Deno.env.toObject(), process.env (Deno's
+      Node compatibility), an std/dotenv loader, or a helper/indirection that
+      ultimately reads it from the environment (including reading it under a
+      different local variable name).
+
+      Fail if the function instead takes ${SECRET_NAME} from request input
+      (query string, headers, or body), reads it from a committed config/JSON
+      file, hardcodes it as a literal, or never reads ${SECRET_NAME} at all.
+    `,
+  });
+  return { name, passed: verdict.passed, judgeNotes: verdict.notes };
 }
 
 // The key must not be committed. Because the scenario seeds a known value
