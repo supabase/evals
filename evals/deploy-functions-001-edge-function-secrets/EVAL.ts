@@ -1,9 +1,11 @@
-import  {
-  type CheckResult,
-  type LocalStackEvalContext,
-  type LocalStackScorer,
+import { readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
+
+import type {
+  CheckResult,
+  LocalStackEvalContext,
+  LocalStackScorer,
 } from "@supabase-evals/core";
-import { readEnvFile } from "@supabase-evals/core/env-file";
 
 const SECRET_NAME = "WEATHER_API_KEY";
 const FUNCTION_SLUG = "weather";
@@ -12,7 +14,8 @@ const FUNCTION_SLUG = "weather";
 // rather than duplicating the literal — guarantees the leak check hunts for
 // exactly the value that was seeded, even if the fixture is rotated.
 const SECRET_VALUE = (() => {
-  const value = readEnvFile(new URL("./local/.env", import.meta.url))[SECRET_NAME];
+  const envPath = new URL("./local/.env", import.meta.url);
+  const value = parseEnv(readFileSync(envPath, "utf8"))[SECRET_NAME];
   if (!value) throw new Error(`${SECRET_NAME} not found in seeded local/.env`);
   return value;
 })();
