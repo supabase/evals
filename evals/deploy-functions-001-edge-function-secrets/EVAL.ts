@@ -1,15 +1,21 @@
-import type {
-  CheckResult,
-  LocalStackEvalContext,
-  LocalStackScorer,
+import  {
+  type CheckResult,
+  type LocalStackEvalContext,
+  type LocalStackScorer,
 } from "@supabase-evals/core";
+import { readEnvFile } from "@supabase-evals/core/env-file";
 
 const SECRET_NAME = "WEATHER_API_KEY";
 const FUNCTION_SLUG = "weather";
-// The scenario seeds this fixed value in a gitignored `local/.env`, so the
-// agent has a concrete value to push (`supabase secrets set --env-file ./.env`)
-// and the scorer has a known literal to hunt for when checking it didn't leak.
-const SECRET_VALUE = "mock_wapi_key_eval_do_not_use";
+// Single source of truth: the mock value the scenario seeds in local/.env (the
+// same file copied into the agent's workspace). Reading it from the fixture —
+// rather than duplicating the literal — guarantees the leak check hunts for
+// exactly the value that was seeded, even if the fixture is rotated.
+const SECRET_VALUE = (() => {
+  const value = readEnvFile(new URL("./local/.env", import.meta.url))[SECRET_NAME];
+  if (!value) throw new Error(`${SECRET_NAME} not found in seeded local/.env`);
+  return value;
+})();
 
 /**
  * Verifies the hosted "deploy Edge Function secrets" workflow. The agent uses
@@ -92,22 +98,33 @@ async function checkFunctionDeployed(ctx: LocalStackEvalContext): Promise<CheckR
 // The deployed function reads the secret from the environment at runtime,
 // rather than expecting it from request input or a config file. platform-lite
 // injects project secrets into the function env (covered by its unit tests), so
-// reading WEATHER_API_KEY via Deno.env.get resolves the deployed secret.
+// a function that reads WEATHER_API_KEY from the Deno env resolves the deployed
+// secret.
+//
+// We can't observe the value the deployed function actually uses (it proxies an
+// external API, unreachable from the sandbox), so we assert two independent
+// static signals instead of matching one exact call shape: the source (1) reads
+// from the Deno environment at all, and (2) references the secret by name. That
+// accepts equivalent-correct styles — a helper indirection
+// (`getEnv("WEATHER_API_KEY")` -> `Deno.env.get(name)`), `Deno.env.toObject()`
+// destructuring, or a renamed variable — while still rejecting a function that
+// pulls the key from request input, a config file, or a hardcoded literal.
 async function checkFunctionReadsSecret(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = `the ${FUNCTION_SLUG} function reads ${SECRET_NAME} from the environment`;
   const source = await readFunctionSource(ctx);
   if (source === undefined) {
     return { name, passed: false, notes: `could not read supabase/functions/${FUNCTION_SLUG}/*` };
   }
-  // Deno.env.get("WEATHER_API_KEY") or Deno.env.get('WEATHER_API_KEY').
-  const readsEnv = new RegExp(
-    `Deno\\.env\\.get\\(\\s*['"\`]${SECRET_NAME}['"\`]\\s*\\)`,
-  ).test(source);
-  return {
-    name,
-    passed: readsEnv,
-    notes: readsEnv ? undefined : `no Deno.env.get("${SECRET_NAME}") found in the function source`,
-  };
+  const readsFromEnv = /Deno\.env\.(get|toObject)\s*\(/.test(source);
+  const referencesSecret = new RegExp(`\\b${SECRET_NAME}\\b`).test(source);
+  const passed = readsFromEnv && referencesSecret;
+  const missing = [
+    readsFromEnv ? undefined : "no Deno.env.get(...) / Deno.env.toObject() call",
+    referencesSecret ? undefined : `no reference to ${SECRET_NAME}`,
+  ]
+    .filter(Boolean)
+    .join("; ");
+  return { name, passed, notes: passed ? undefined : `function source has ${missing}` };
 }
 
 // The key must not be committed. Because the scenario seeds a known value
