@@ -52,6 +52,15 @@ export interface SkillEntry {
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 /**
+ * Drop the YAML frontmatter, returning just the skill's instruction body. Used
+ * by tools-mode evals, where a `load_skill` tool returns this body on demand
+ * (the agent has no filesystem to read SKILL.md itself).
+ */
+export function stripFrontmatter(markdown: string): string {
+  return markdown.replace(FRONTMATTER_RE, "").trim();
+}
+
+/**
  * Read the `description` field from a SKILL.md's frontmatter (the one-line
  * "when to use this skill" text shown in the discovery listing). Returns "" if
  * there is no frontmatter or no description. Assumes the conventional

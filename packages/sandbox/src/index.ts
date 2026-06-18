@@ -24,6 +24,7 @@ export {
   buildSkillsPrompt,
   frontmatterDescription,
   installSkills,
+  stripFrontmatter,
 } from "./skills.js";
 export type { SkillEntry } from "./skills.js";
 export { ALL_SUPABASE_SERVICES } from "./types.js";
