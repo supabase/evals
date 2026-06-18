@@ -3,6 +3,7 @@ import { jsonSchema, tool, type ToolSet } from "ai";
 import { createClient } from "@supabase/supabase-js";
 import {
   supabaseMcpServer,
+  type HostedLink,
   type LocalStackRuntime,
   type LocalStackScoringContext,
   type McpServerConfig,
@@ -36,30 +37,42 @@ export interface LocalStackRuntimeOptions {
   /** Supabase CLI version baked into the sandbox image (pinned default). */
   cliVersion?: string;
   /**
-   * MCP servers exposed to the agent alongside the sandbox tools, keyed by
-   * name. Defaults to a docs-only Supabase MCP server so the agent can
-   * `search_docs` (the sandbox has no web tools). Pass `{}` to disable, or add
-   * more servers. These run host-side; they do not connect to the sandbox.
+   * Supabase MCP feature groups to expose to the agent when the eval links to
+   * a hosted project (`hostedProject: true`). The MCP server runs host-side and
+   * is pointed at the mocked hosted platform (platform-lite), so its tools act
+   * on the same project the agent's CLI is linked to. Restrict this list to
+   * limit the tools available. Defaults to the groups platform-lite implements
+   * (`storage`/`branching` are omitted — platform-lite has no such endpoints).
+   * For evals with no hosted project, the agent still gets a docs-only server
+   * (`search_docs`), since the other groups need a platform to talk to.
+   */
+  mcpFeatures?: string[];
+  /**
+   * Explicit MCP server map, keyed by name. When set it overrides the default
+   * Supabase MCP wiring entirely. These run host-side and do not connect to the
+   * sandbox; pass `{}` to disable MCP altogether.
    */
   mcpServers?: Record<string, McpServerConfig>;
 }
+
+/**
+ * Supabase MCP feature groups exposed by default: `docs` only. The sandbox has
+ * no web tools, so `search_docs` is the one capability the agent otherwise
+ * lacks. Every other group is withheld on purpose — these are CLI evals, and
+ * exposing e.g. `functions`/`database` would let the agent bypass the very CLI
+ * workflow under test (it could deploy via the MCP instead of `supabase
+ * functions deploy`). Widen per experiment via `mcpFeatures` for evals that
+ * genuinely want the agent to drive the platform through MCP; the
+ * platform-dependent groups then require a hosted project to point at.
+ */
+const DEFAULT_MCP_FEATURES = ["docs"];
 
 export function localStackRuntime(
   options: LocalStackRuntimeOptions = {},
 ): LocalStackRuntime {
   return {
     id: "local-stack",
-    async startSession({ localDir, includeServices, projectRunning }) {
-      // Default to a docs-only Supabase MCP server (no platform context needed —
-      // `docs` is platform-independent), so the agent can `search_docs` even
-      // though the sandbox has no web tools.
-      const mcpServers =
-        options.mcpServers ??
-        {
-          "supabase-docs": (
-            await supabaseMcpServer({ features: ["docs"] }).createConfig()
-          ).config,
-        };
+    async startSession({ localDir, includeServices, projectRunning, hosted }) {
       const image = await ensureSupabaseSandboxImage(options.cliVersion);
       const sandbox = await DockerSandbox.create({
         image,
@@ -76,11 +89,16 @@ export function localStackRuntime(
           includeServices,
           localDir,
           projectRunning,
+          hosted: hosted
+            ? { port: hosted.port, ref: hosted.ref, accessToken: hosted.accessToken }
+            : undefined,
         });
       } catch (err) {
         await sandbox.stop();
         throw err;
       }
+
+      const mcpServers = await resolveMcpServers(options, hosted);
 
       return {
         tools: buildLocalStackTools(sandbox),
@@ -90,7 +108,7 @@ export function localStackRuntime(
           "Use the bash tool to run commands (the working directory is always the workspace root) " +
           "and the files tools to inspect and modify files. " +
           "Services started with `supabase start` are reachable on their default 127.0.0.1 ports.",
-        scoringContext: buildLocalStackScoringContext(sandbox),
+        scoringContext: buildLocalStackScoringContext(sandbox, hosted),
         exportWorkspace: (hostDir: string) => sandbox.copyToHost(hostDir),
         close: async () => {
           await teardownSupabaseProject(sandbox);
@@ -99,6 +117,35 @@ export function localStackRuntime(
       };
     },
   };
+}
+
+/**
+ * Build the MCP server map for a session. An explicit `options.mcpServers`
+ * wins. Otherwise, when the eval links to a hosted project, expose a Supabase
+ * MCP server pointed at the mocked hosted platform (platform-lite) — host-side,
+ * reaching it on the loopback port it's published on — filtered to the
+ * requested feature groups so its tools act on the linked project. With no
+ * hosted project there's no platform to talk to, so fall back to the
+ * platform-independent docs server (`search_docs`).
+ */
+async function resolveMcpServers(
+  options: LocalStackRuntimeOptions,
+  hosted?: HostedLink,
+): Promise<Record<string, McpServerConfig>> {
+  if (options.mcpServers) return options.mcpServers;
+
+  const features = options.mcpFeatures ?? DEFAULT_MCP_FEATURES;
+  // Anything beyond `docs` talks to a project, so it needs a platform to point
+  // at — the mocked hosted one (platform-lite), reached host-side on the
+  // loopback port it's published on. `docs` alone runs standalone, with no
+  // context (supabaseMcpServer omits --api-url and supplies a throwaway token).
+  const platformDependent = features.some((feature) => feature !== "docs");
+  const { config } = await supabaseMcpServer({ features }).createConfig(
+    platformDependent && hosted
+      ? { apiUrl: `http://127.0.0.1:${hosted.port}`, accessToken: hosted.accessToken }
+      : undefined,
+  );
+  return { supabase: config };
 }
 
 export function buildLocalStackTools(sandbox: DockerSandbox): ToolSet {
@@ -227,6 +274,7 @@ export function buildLocalStackTools(sandbox: DockerSandbox): ToolSet {
 
 export function buildLocalStackScoringContext(
   sandbox: DockerSandbox,
+  hosted?: HostedLink,
 ): LocalStackScoringContext {
   let stackConfig: { apiUrl: string; publishableKey: string } | undefined;
 
@@ -276,6 +324,9 @@ export function buildLocalStackScoringContext(
         auth: { persistSession: false, autoRefreshToken: false },
       });
     },
+    hostedRef: hosted?.ref,
+    hostedMgmt: hosted?.mgmt,
+    invokeHostedFunction: hosted?.invokeFunction,
   };
 }
 

@@ -5,6 +5,7 @@ import { loadSeedDir } from './seed.js'
 import { createAccountRoutes } from './management-api/account.js'
 import { createDatabaseRoutes } from './management-api/database.js'
 import { createFunctionsRoutes } from './management-api/functions.js'
+import { createSecretsRoutes } from './management-api/secrets.js'
 import { createDebuggingRoutes } from './management-api/debugging.js'
 import { createDevelopmentRoutes } from './management-api/development.js'
 import { createOpenApiRoutes } from './management-api/openapi.js'
@@ -52,6 +53,7 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
     createAccountRoutes(store),
     createDatabaseRoutes(store),
     createFunctionsRoutes(store),
+    createSecretsRoutes(store),
     createDebuggingRoutes(store),
     createDevelopmentRoutes(store),
   ]
