@@ -5,6 +5,7 @@ import { vector } from '@electric-sql/pglite/vector'
 import type { EdgeFunctionSeed, LogRow } from '../types.js'
 import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js'
 import { STORAGE_SCHEMA_SQL } from './storage-schema.js'
+import { startPgliteWireServer, type PgWireServer } from './pg-wire.js'
 
 export type Migration = {
   version: string
@@ -63,6 +64,8 @@ export class ProjectInstance {
   /** Edge Function secrets, by name. Injected into the function env at invoke. */
   secrets: Map<string, string>
   createdAt: string
+  /** Postgres-wire endpoint for DB CLI workflows; started on demand. */
+  pgWire?: PgWireServer
 
   constructor(ref: string, name: string, organizationId: string) {
     this.ref = ref
@@ -128,7 +131,21 @@ export class ProjectInstance {
     }
   }
 
+  /**
+   * Expose this project's database over the Postgres wire protocol and return
+   * the port. Idempotent — repeated calls return the same listener. Bind to
+   * `0.0.0.0` (via `host`) so a sandbox container can reach it through
+   * host.docker.internal.
+   */
+  async startPgWire(opts: { host?: string; port?: number } = {}): Promise<number> {
+    if (this.pgWire) return this.pgWire.port
+    this.pgWire = await startPgliteWireServer(this.pglite, opts)
+    return this.pgWire.port
+  }
+
   async close(): Promise<void> {
+    // Stop the wire server before tearing down PGlite — it holds the instance.
+    await this.pgWire?.close()
     await this.logsDb.close()
     await this.pglite?.close()
   }

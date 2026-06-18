@@ -387,6 +387,9 @@ async function runOne(
               ref: HOSTED_PROJECT_REF,
               accessToken: HOSTED_ACCESS_TOKEN,
               hostname: "0.0.0.0",
+              // Expose Postgres-wire too, so linked DB workflows (`db push`,
+              // `migration repair`) reach the same project over the wire.
+              pgWire: true,
             }),
           )
         : undefined;
@@ -398,6 +401,7 @@ async function runOne(
           hosted: hostedBackend
             ? {
                 port: Number(new URL(hostedBackend.url).port),
+                pgPort: hostedBackend.pgPort,
                 ref: hostedBackend.ref,
                 accessToken: hostedBackend.accessToken,
                 mgmt: hostedBackend.mgmt,

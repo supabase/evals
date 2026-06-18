@@ -90,7 +90,12 @@ export function localStackRuntime(
           includeServices,
           projectRunning,
           hosted: hosted
-            ? { port: hosted.port, ref: hosted.ref, accessToken: hosted.accessToken }
+            ? {
+                port: hosted.port,
+                pgPort: hosted.pgPort,
+                ref: hosted.ref,
+                accessToken: hosted.accessToken,
+              }
             : undefined,
         },
       });

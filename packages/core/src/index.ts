@@ -406,6 +406,9 @@ export type LocalStackSessionArgs = {
 export type HostedLink = {
   /** Port the platform-lite server is bound to (reached via host.docker.internal). */
   port: number;
+  /** Postgres-wire port for DB CLI workflows (`db push`/`migration repair`), when
+   * the platform backend exposed one. Reached via host.docker.internal. */
+  pgPort?: number;
   /** Project ref — must satisfy the CLI's `^[a-z]{20}$` format. */
   ref: string;
   /** Access token — must satisfy the CLI's `^sbp_[a-f0-9]{40}$` format. */
@@ -1024,6 +1027,9 @@ export interface PlatformBackend {
   url: string;
   ref: string;
   accessToken: string;
+  /** Postgres-wire port for DB CLI workflows (`db push`/`migration repair`),
+   * when `pgWire` was requested. Reached from a sandbox via host.docker.internal. */
+  pgPort?: number;
   mgmt: ManagementApiClient;
   client: SupabaseClient;
   getClient: () => SupabaseClient;
@@ -1046,6 +1052,10 @@ export async function bootPlatformBackend(opts: {
   /** Bind host for the HTTP server; defaults to 127.0.0.1. Use 0.0.0.0 to
    * reach the server from inside a sandbox container via host.docker.internal. */
   hostname?: string;
+  /** Also expose the project's database over the Postgres wire protocol (for
+   * `db push` / `migration repair`). Bound to `hostname` so the sandbox can
+   * reach it; the chosen port is returned as `pgPort`. */
+  pgWire?: boolean;
 }): Promise<PlatformBackend> {
   const sql =
     opts.projectSeedSql && existsSync(opts.projectSeedSql)
@@ -1080,12 +1090,20 @@ export async function bootPlatformBackend(opts: {
     const instance = platform.getProject(ref);
     if (!instance) throw new Error(`platform backend: project missing: ${ref}`);
 
+    // Expose the database over the Postgres wire protocol when requested, bound
+    // to the same host as the HTTP server so the sandbox reaches both the same
+    // way (host.docker.internal). Stopped via instance.close() in dispose.
+    const pgPort = opts.pgWire
+      ? await instance.startPgWire({ host: opts.hostname ?? "127.0.0.1" })
+      : undefined;
+
     let closed = false;
 
     return {
       url: server.url,
       ref,
       accessToken,
+      pgPort,
       mgmt: createManagementApiClient(server.url, accessToken),
       client: instance.app.getClient(),
       getClient: () => instance.app.getClient(),

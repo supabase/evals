@@ -25,7 +25,7 @@ export interface LocalStackSetup {
   /** Whether the stack is already running when the agent starts (default true). */
   projectRunning?: boolean;
   /** Link the CLI to a mocked hosted project (platform-lite) at this host port. */
-  hosted?: { port: number; ref: string; accessToken: string };
+  hosted?: { port: number; pgPort?: number; ref: string; accessToken: string };
 }
 
 export interface AgentEnvironmentOptions {

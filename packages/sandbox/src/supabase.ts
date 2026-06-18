@@ -108,7 +108,7 @@ export interface SetupSupabaseSandboxOptions {
    * access token, and project ref are seeded so `supabase functions deploy` /
    * `secrets set` reach platform-lite.
    */
-  hosted?: { port: number; ref: string; accessToken: string };
+  hosted?: { port: number; pgPort?: number; ref: string; accessToken: string };
 }
 
 /** Workspace-relative path of the seeded CLI profile. */
@@ -116,6 +116,19 @@ const EVAL_PROFILE_PATH = ".supabase-eval-profile.yaml";
 
 /** Workspace-relative path `supabase link` writes the project ref to. */
 const PROJECT_REF_PATH = "supabase/.temp/project-ref";
+
+/**
+ * Workspace-relative `.temp` files `supabase link` caches and the linked DB
+ * commands read. `pooler-url` is the connection string `db push`/`db pull`/
+ * `migration repair` dial; the version files satisfy the CLI's compat probes.
+ */
+const POOLER_URL_PATH = "supabase/.temp/pooler-url";
+const REMOTE_VERSION_FILES: Record<string, string> = {
+  "supabase/.temp/postgres-version": "15.8.1.040",
+  "supabase/.temp/gotrue-version": "v2.177.0",
+  "supabase/.temp/rest-version": "v12.2.12",
+  "supabase/.temp/storage-version": "v1.25.7",
+};
 
 /**
  * Run the per-session setup inside a sandbox created from the image:
@@ -185,7 +198,7 @@ export async function setupSupabaseSandbox(
  */
 async function linkSandboxToHostedPlatform(
   sandbox: DockerSandbox,
-  hosted: { port: number; ref: string; accessToken: string },
+  hosted: { port: number; pgPort?: number; ref: string; accessToken: string },
 ): Promise<void> {
   const apiUrl = `http://host.docker.internal:${hosted.port}`;
   // Minimal valid profile: the CLI validates name/api_url/dashboard_url
@@ -198,17 +211,31 @@ async function linkSandboxToHostedPlatform(
     "project_host: supabase.co",
     "",
   ].join("\n");
-  await sandbox.writeFiles({
+  const files: Record<string, string> = {
     [EVAL_PROFILE_PATH]: profile,
     // Exactly what `supabase link` persists; the CLI reads (trimmed) the linked
     // ref from here when a command doesn't get an explicit --project-ref.
     [PROJECT_REF_PATH]: hosted.ref,
-  });
+  };
+
+  // When platform-lite exposed a Postgres-wire port, seed the same `.temp`
+  // files a real `supabase link` would: the pooler connection string the
+  // linked DB commands dial, and the version files their compat probes read.
+  // platform-lite's wire server ignores credentials, so any password connects;
+  // we set SUPABASE_DB_PASSWORD too so `db push` never prompts.
+  if (hosted.pgPort !== undefined) {
+    files[POOLER_URL_PATH] =
+      `postgresql://postgres:postgres@host.docker.internal:${hosted.pgPort}/postgres`;
+    Object.assign(files, REMOTE_VERSION_FILES);
+  }
+
+  await sandbox.writeFiles(files);
   sandbox.extraEnv = {
     ...sandbox.extraEnv,
     SUPABASE_ACCESS_TOKEN: hosted.accessToken,
     SUPABASE_PROFILE: `${sandbox.workdir}/${EVAL_PROFILE_PATH}`,
     SUPABASE_PROJECT_ID: hosted.ref,
+    ...(hosted.pgPort !== undefined ? { SUPABASE_DB_PASSWORD: "postgres" } : {}),
   };
 }
 
