@@ -160,6 +160,11 @@ Skills come from [`supabase/agent-skills`](https://github.com/supabase/agent-ski
 
 To use a skill in an experiment, reference its directory name in the experiment's `skills` array.
 
+How a skill reaches the agent depends on the runtime:
+
+- **Local-stack (sandbox) mode:** skills are installed into the workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network) under `.claude/skills/`. Only each skill's name+description is in the system prompt; when a task matches, the agent reads `.claude/skills/<name>/SKILL.md` (and any files it references) with its file tools — progressive disclosure, [the AI SDK agent-skills pattern](https://ai-sdk.dev/cookbook/guides/agent-skills).
+- **Tools mode:** the agent has no filesystem, so each skill's full `SKILL.md` is injected into the system prompt.
+
 ## Framework Checks
 
 ```bash

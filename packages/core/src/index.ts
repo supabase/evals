@@ -289,6 +289,12 @@ export type AgentHarness = {
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };
 
+/**
+ * An agent skill to install into the sandbox: its name and the host directory
+ * holding its SKILL.md (and any bundled reference files).
+ */
+export type SkillSource = { name: string; dir: string };
+
 export type LocalStackSessionArgs = {
   /**
    * Host directory (the eval's `local/`) whose contents seed the sandbox
@@ -314,6 +320,14 @@ export type LocalStackSessionArgs = {
    * sandbox and exposes the hosted handle to the scorer.
    */
   hosted?: HostedLink;
+  /**
+   * Agent skills to install into the sandbox (one host source dir per skill).
+   * Installed with Vercel's `skills` CLI and discovered by the agent reading
+   * each skill's SKILL.md with its file tools — not preloaded into the system
+   * prompt. Tools-mode evals (no filesystem) inject skills into the prompt
+   * instead, so they ignore this.
+   */
+  skills?: readonly SkillSource[];
 };
 
 /** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */

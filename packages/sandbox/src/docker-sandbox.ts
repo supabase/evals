@@ -220,8 +220,8 @@ export class DockerSandbox {
    * Copy between the host and the container with `docker cp`. Either endpoint
    * may carry the `container:` prefix (`<id>:<path>`); direction is implied by
    * which side does. Binary-safe and streamed straight through the engine — no
-   * buffering into memory. The shared primitive behind copyHostDir, copyToHost,
-   * and writeFiles.
+   * buffering into memory. The shared primitive behind copyToContainer,
+   * copyToHost, and writeFiles.
    */
   private async dockerCopy(source: string, dest: string): Promise<void> {
     const result = await dockerCli(["cp", source, dest]);
@@ -230,28 +230,30 @@ export class DockerSandbox {
     }
   }
 
-  /** `container:<workdir>` reference for docker cp. */
-  private get containerWorkdir(): string {
-    return `${this.containerId}:${this.workdir}`;
+  /** `container:<path>` reference for docker cp. */
+  private containerRef(path: string): string {
+    return `${this.containerId}:${path}`;
   }
 
   /**
-   * Copy a host directory's contents into the workspace root, then drop
-   * VCS/dependency noise and hand ownership to the sandbox user. Use this to
-   * seed a workspace; use writeFiles for the in-memory single-file case (the
-   * file tools).
+   * Copy a host directory's contents to a path inside the container, drop
+   * VCS/dependency noise, and hand ownership to the sandbox user. Seeds the
+   * workspace (`containerPath` = workdir) and stages auxiliary files such as
+   * agent-skill sources alike; use writeFiles for the in-memory single-file
+   * case (the file tools).
    */
-  async copyHostDir(hostDir: string): Promise<void> {
+  async copyToContainer(hostDir: string, containerPath: string): Promise<void> {
     this.assertRunning();
-    await this.dockerCopy(`${hostDir}/.`, `${this.containerWorkdir}/`);
-    // Drop VCS/dependency noise that shouldn't seed the workspace; a cheap
-    // no-op when none of these are present in the source directory.
+    await this.runShellAsRoot(`mkdir -p ${shellQuote(containerPath)}`);
+    await this.dockerCopy(`${hostDir}/.`, `${this.containerRef(containerPath)}/`);
+    // Drop VCS/dependency noise that shouldn't be copied into the sandbox; a
+    // cheap no-op when none of these are present in the source directory.
     await this.runShellAsRoot(
-      `find ${this.workdir} -depth \\( -name .git -o -name node_modules -o -name .DS_Store \\) -exec rm -rf {} + 2>/dev/null || true`,
+      `find ${shellQuote(containerPath)} -depth \\( -name .git -o -name node_modules -o -name .DS_Store \\) -exec rm -rf {} + 2>/dev/null || true`,
     );
     // docker cp preserves host ownership; hand the files to the sandbox user.
     const chown = await this.runShellAsRoot(
-      `chown -R ${SANDBOX_UID}:${SANDBOX_GID} ${this.workdir}`,
+      `chown -R ${SANDBOX_UID}:${SANDBOX_GID} ${shellQuote(containerPath)}`,
     );
     if (!chown.ok) {
       throw new Error(`failed to chown copied files: ${chown.stderr}`);
@@ -259,15 +261,15 @@ export class DockerSandbox {
   }
 
   /**
-   * Copy the workspace contents out of the container into a host directory
-   * (the `docker cp` reverse of copyHostDir). Lets host-side tooling — e.g.
-   * vite/vitest from the repo root — score the agent's produced files without
-   * that tooling having to exist inside the sandbox.
+   * Copy a container path's contents out to a host directory (the `docker cp`
+   * reverse of copyToContainer). Lets host-side tooling — e.g. vite/vitest from
+   * the repo root — score the agent's produced files without that tooling
+   * having to exist inside the sandbox.
    */
-  async copyToHost(hostDir: string): Promise<void> {
+  async copyToHost(containerPath: string, hostDir: string): Promise<void> {
     this.assertRunning();
     mkdirSync(hostDir, { recursive: true });
-    await this.dockerCopy(`${this.containerWorkdir}/.`, `${hostDir}/`);
+    await this.dockerCopy(`${this.containerRef(containerPath)}/.`, `${hostDir}/`);
   }
 
   /** Write files into the workspace. Paths are relative to the workspace root. */
@@ -285,7 +287,7 @@ export class DockerSandbox {
         mkdirSync(dirname(target), { recursive: true });
         writeFileSync(target, content);
       }
-      await this.dockerCopy(`${staging}/.`, `${this.containerWorkdir}/`);
+      await this.dockerCopy(`${staging}/.`, `${this.containerRef(this.workdir)}/`);
     } finally {
       rmSync(staging, { recursive: true, force: true });
     }

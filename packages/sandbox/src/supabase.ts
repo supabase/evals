@@ -24,6 +24,7 @@ import {
   dockerCli,
   type DockerSandbox,
 } from "./docker-sandbox.js";
+import { SKILLS_CLI_VERSION } from "./skills.js";
 import { ALL_SUPABASE_SERVICES, type SupabaseService } from "./types.js";
 
 export const SUPABASE_CLI_VERSION = "2.67.1";
@@ -46,12 +47,23 @@ const SUPABASE_PORTS = [54321, 54322, 54323, 54324, 54327, 54329];
 export async function ensureSupabaseSandboxImage(
   cliVersion: string = SUPABASE_CLI_VERSION,
 ): Promise<string> {
-  const tag = `${SANDBOX_IMAGE_REPOSITORY}:${cliVersion}`;
+  // The skills CLI version is part of the tag so bumping it rebuilds rather
+  // than reusing a stale cached image.
+  const tag = `${SANDBOX_IMAGE_REPOSITORY}:${cliVersion}-skills-${SKILLS_CLI_VERSION}`;
   const existing = await dockerCli(["image", "inspect", tag]);
   if (existing.ok) return tag;
 
   const build = await dockerCli(
-    ["build", "--build-arg", `CLI_VERSION=${cliVersion}`, "--tag", tag, "-"],
+    [
+      "build",
+      "--build-arg",
+      `CLI_VERSION=${cliVersion}`,
+      "--build-arg",
+      `SKILLS_CLI_VERSION=${SKILLS_CLI_VERSION}`,
+      "--tag",
+      tag,
+      "-",
+    ],
     { input: readFileSync(SANDBOX_DOCKERFILE_PATH, "utf8") },
   );
   if (!build.ok) {
@@ -132,7 +144,7 @@ export async function setupSupabaseSandbox(
   }
 
   if (options.localDir) {
-    await sandbox.copyHostDir(options.localDir);
+    await sandbox.copyToContainer(options.localDir, sandbox.workdir);
   }
 
   if (options.projectRunning ?? true) {

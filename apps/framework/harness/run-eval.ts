@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -135,6 +136,11 @@ function discoverEvals(): EvalManifest[] {
   return out;
 }
 
+/**
+ * Tools-mode skill loading: the agent has no filesystem, so each skill's full
+ * SKILL.md is injected into the system prompt. (Local-stack mode installs the
+ * skills into the sandbox instead — see resolveSkillSources.)
+ */
 function loadSkills(skillNames: string[]): string {
   const blocks: string[] = [];
   for (const name of skillNames) {
@@ -147,6 +153,30 @@ function loadSkills(skillNames: string[]): string {
       );
   }
   return blocks.join("\n\n---\n\n");
+}
+
+/**
+ * Local-stack skill sources: resolve each skill name to its host directory so
+ * the sandbox can install it with Vercel's `skills` CLI and the agent can
+ * discover it via the load_skill tool. The `skills/` entries are symlinks into
+ * the agent-skills submodule; realpath them so `docker cp` copies real files,
+ * not dangling links. Missing skills are skipped with a warning.
+ */
+function resolveSkillSources(
+  skillNames: string[],
+): Array<{ name: string; dir: string }> {
+  const sources: Array<{ name: string; dir: string }> = [];
+  for (const name of skillNames) {
+    const dir = join(ROOT, "skills", name);
+    if (!existsSync(dir)) {
+      console.warn(
+        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`,
+      );
+      continue;
+    }
+    sources.push({ name, dir: realpathSync(dir) });
+  }
+  return sources;
 }
 
 function resultPath(modelName: string, ev: Pick<EvalManifest, "id" | "mode">) {
@@ -201,8 +231,8 @@ function basePromptFor(mode: EvalMode): string {
 
 function buildSystemPrompt(
   mode: EvalMode,
-  skillContext: string,
   addendum?: string,
+  skillContext?: string,
 ): string {
   const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
   return blocks.join("\n\n");
@@ -221,7 +251,6 @@ async function runOne(
     stoppedReason: string;
   }
 > {
-  const skillContext = loadSkills(exp.skills);
   const prompt = parseEvalMarkdown(
     readFileSync(ev.promptPath, "utf8"),
     ev.promptPath,
@@ -271,12 +300,15 @@ async function runOne(
               invokeFunction: hostedBackend.invokeFunction,
             }
           : undefined,
+        // Skills are installed into the sandbox and discovered by the agent
+        // (the session folds the discovery listing into its promptAddendum),
+        // so no skill text is injected into the prompt here.
+        skills: resolveSkillSources(exp.skills),
       });
       try {
         const run = await exp.agent.run({
           systemPrompt: buildSystemPrompt(
             "local-stack",
-            skillContext,
             session.promptAddendum,
           ),
           userPrompt: prompt,
@@ -342,10 +374,12 @@ async function runOne(
     const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
 
     try {
+      // Tools mode has no filesystem: inject each skill's full text into the
+      // system prompt (local-stack installs them into the sandbox instead).
       const systemPrompt = buildSystemPrompt(
         "tools",
-        skillContext,
         session.promptAddendum,
+        loadSkills(exp.skills),
       );
       const run = await exp.agent.run({
         systemPrompt,
