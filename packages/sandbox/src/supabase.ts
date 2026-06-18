@@ -4,17 +4,14 @@
  * Static setup (system packages, the pinned CLI) is described declaratively in
  * a Dockerfile and baked into a cached image — one build per CLI version,
  * instant sandbox creation afterwards. Only steps that depend on runtime
- * state run inside the container: the docker socket's gid varies by host, the
- * iptables DNAT rules need the live bridge gateway, and service restriction /
- * workspace seeding vary per eval.
+ * state run inside the container: the docker socket's gid varies by host, and
+ * service restriction / workspace seeding vary per eval.
  *
- * Networking: the sandbox runs with bridge networking and the host Docker
- * socket mounted, so `supabase start` spawns sibling containers whose
- * published ports live on the Docker bridge gateway — not on the sandbox's
- * own loopback. The CLI health-checks 127.0.0.1:<port>, so we install
- * iptables DNAT rules that redirect loopback traffic for the Supabase ports
- * to the gateway. This requires the sandbox to be created with
- * `capAdd: ["NET_ADMIN"]`.
+ * Networking: the sandbox runs with host networking (see local-stack-runtime)
+ * and the host Docker socket mounted, so `supabase start` spawns sibling
+ * containers whose published ports land on the shared host loopback — exactly
+ * the 127.0.0.1:<port> the CLI health-checks. No loopback redirection is
+ * needed.
  */
 
 import { readFileSync } from "node:fs";
@@ -34,9 +31,6 @@ const SANDBOX_IMAGE_REPOSITORY = "supabase-evals-sandbox";
 export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
   new URL("../Dockerfile", import.meta.url),
 );
-
-/** Ports that `supabase start` publishes and health-checks. */
-const SUPABASE_PORTS = [54321, 54322, 54323, 54324, 54327, 54329];
 
 /**
  * Build (or reuse) the sandbox image for a CLI version and return its tag.
@@ -94,8 +88,8 @@ const PROJECT_REF_PATH = "supabase/.temp/project-ref";
 
 /**
  * Run the per-session setup inside a sandbox created from the image:
- * docker socket access, leftover cleanup, loopback DNAT, optional service
- * restriction, and optional workspace seeding.
+ * docker socket access, leftover cleanup, optional service restriction, and
+ * optional workspace seeding.
  */
 export async function setupSupabaseSandbox(
   sandbox: DockerSandbox,
@@ -116,16 +110,6 @@ export async function setupSupabaseSandbox(
 
   // Remove leftovers from previous eval runs that died before teardown.
   await cleanupEvalSupabaseResources(sandbox);
-
-  const gateway = (
-    await sandbox.runShellAsRoot("ip route show default | awk '{print $3}' | head -1")
-  ).stdout.trim();
-  if (!gateway) {
-    throw new Error(
-      "could not determine Docker bridge gateway IP; supabase start health checks would fail",
-    );
-  }
-  await setupIptablesDnat(sandbox, gateway);
 
   if (options.hosted) {
     await linkSandboxToHostedPlatform(sandbox, options.hosted);
@@ -190,37 +174,6 @@ async function linkSandboxToHostedPlatform(
     SUPABASE_PROFILE: `${sandbox.workdir}/${EVAL_PROFILE_PATH}`,
     SUPABASE_PROJECT_ID: hosted.ref,
   };
-}
-
-/**
- * Redirect 127.0.0.1:<port> to <gateway>:<port> for every Supabase port.
- * Kernel-level DNAT preserves real TCP behavior (connection refused while a
- * service is still booting), which the CLI's health checks rely on.
- */
-async function setupIptablesDnat(
-  sandbox: DockerSandbox,
-  gateway: string,
-): Promise<void> {
-  await sandbox.runShellAsRoot("iptables -t nat -F OUTPUT 2>/dev/null || true");
-  await sandbox.runShellAsRoot("iptables -t nat -F POSTROUTING 2>/dev/null || true");
-
-  for (const port of SUPABASE_PORTS) {
-    await runOrThrow(
-      sandbox,
-      `iptables -t nat -A OUTPUT -p tcp -d 127.0.0.1 --dport ${port} -j DNAT --to-destination ${gateway}:${port}`,
-      `iptables DNAT for port ${port}`,
-      { asRoot: true },
-    );
-  }
-
-  // Without MASQUERADE, DNAT'd packets keep 127.0.0.1 as source and replies
-  // never make it back.
-  await runOrThrow(
-    sandbox,
-    `iptables -t nat -A POSTROUTING -p tcp -d ${gateway} -j MASQUERADE`,
-    "iptables MASQUERADE",
-    { asRoot: true },
-  );
 }
 
 /**

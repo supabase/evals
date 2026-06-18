@@ -15,7 +15,8 @@ import {
   teardownSupabaseProject,
 } from "./supabase.js";
 
-/** Local-stack Postgres as published by `supabase start` (DNAT'd in-sandbox). */
+/** Local-stack Postgres as published by `supabase start`, reachable on the
+ * sandbox's 127.0.0.1 via host networking. */
 const LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
@@ -76,13 +77,13 @@ export function localStackRuntime(
       const image = await ensureSupabaseSandboxImage(options.cliVersion);
       const sandbox = await DockerSandbox.create({
         image,
-        // The loopback DNAT below (redirecting Supabase ports to sibling
-        // containers) needs NET_ADMIN to install the iptables rules and
-        // route_localnet so the kernel doesn't drop 127.0.0.1-destined packets
-        // rerouted out eth0. route_localnet is only writable at container
-        // creation, so it must be set here rather than during setup.
-        capAdd: ["NET_ADMIN"],
-        sysctls: { "net.ipv4.conf.all.route_localnet": "1" },
+        // Host networking so the ports `supabase start` publishes (on sibling
+        // containers, via the mounted host docker socket) are reachable from
+        // the sandbox on 127.0.0.1 — exactly where the Supabase CLI health-
+        // checks them. This is what the kernel does natively when the sandbox
+        // shares the host network namespace, so no loopback DNAT, NET_ADMIN,
+        // or route_localnet sysctl is needed.
+        network: "host",
       });
       try {
         await setupSupabaseSandbox(sandbox, {

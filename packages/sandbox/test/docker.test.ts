@@ -29,8 +29,7 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)("local-stack sandbox (docker)",
       const image = await ensureSupabaseSandboxImage();
       const sandbox = await DockerSandbox.create({
         image,
-        capAdd: ["NET_ADMIN"],
-        sysctls: { "net.ipv4.conf.all.route_localnet": "1" },
+        network: "host",
       });
       try {
         // The default (projectRunning: true) must refuse an empty workspace
@@ -79,7 +78,7 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)("local-stack sandbox (docker)",
 
         await startSupabaseProject(sandbox, ["gotrue", "kong", "postgrest"]);
 
-        // Postgres reachable through the loopback DNAT, structured rows back.
+        // Postgres reachable on the sandbox's 127.0.0.1 (host networking), structured rows back.
         const ctx = buildLocalStackScoringContext(sandbox);
         const { rows } = await ctx.query("select 1 as one");
         expect(rows).toEqual([{ one: 1 }]);

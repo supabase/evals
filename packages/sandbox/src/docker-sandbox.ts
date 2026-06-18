@@ -71,15 +71,13 @@ export interface DockerSandboxOptions {
   image?: string;
   /** Default timeout for commands, in milliseconds. */
   timeoutMs?: number;
-  /** Linux capabilities to add (e.g. ["NET_ADMIN"] for iptables DNAT). */
-  capAdd?: string[];
   /**
-   * Kernel sysctls to set at container creation (e.g.
-   * { "net.ipv4.conf.all.route_localnet": "1" }). Some sysctls — route_localnet
-   * among them — are only writable at creation, not at runtime, so they cannot
-   * be set from inside the container even with NET_ADMIN.
+   * Docker network mode, passed through to `docker run --network` (e.g.
+   * "host"). Host networking lets the sandbox reach the ports that
+   * `supabase start` publishes on 127.0.0.1 directly, with no loopback DNAT.
+   * Omitted means Docker's default bridge.
    */
-  sysctls?: Record<string, string>;
+  network?: string;
 }
 
 export interface RunCommandOptions {
@@ -90,8 +88,7 @@ export interface RunCommandOptions {
 export class DockerSandbox {
   private containerId: string | null = null;
   private defaultTimeoutMs: number;
-  private capAdd: string[];
-  private sysctls: Record<string, string>;
+  private network: string | undefined;
   private image: string;
   readonly workdir: string;
   /**
@@ -103,8 +100,7 @@ export class DockerSandbox {
 
   private constructor(options: DockerSandboxOptions) {
     this.defaultTimeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    this.capAdd = options.capAdd ?? [];
-    this.sysctls = options.sysctls ?? {};
+    this.network = options.network;
     this.image = options.image ?? DEFAULT_IMAGE;
     this.workdir = `${WORKSPACE_BASE}-${randomUUID().slice(0, 8)}`;
   }
@@ -144,11 +140,7 @@ export class DockerSandbox {
         // host.docker.internal on Linux/CI and Docker Desktop alike.
         "--add-host",
         "host.docker.internal:host-gateway",
-        ...this.capAdd.flatMap((cap) => ["--cap-add", cap]),
-        ...Object.entries(this.sysctls).flatMap(([key, value]) => [
-          "--sysctl",
-          `${key}=${value}`,
-        ]),
+        ...(this.network ? ["--network", this.network] : []),
         this.image,
         "sleep",
         "infinity",
