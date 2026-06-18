@@ -81,6 +81,7 @@ export type {
   AgentSandbox,
   CliAgentSpec,
   CliAgentExecArgs,
+  CliAgentExecResult,
 } from "./cli-agent.js";
 // Generic transcript vocabulary + parser layer used by CLI agents.
 export { createParser, supportedParsers } from "./parsers/registry.js";

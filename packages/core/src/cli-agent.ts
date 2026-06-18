@@ -86,10 +86,27 @@ export interface CliAgentSpec<M extends string = string> {
   buildMcpConfig(servers: Record<string, McpServerConfig>): string;
   /** Install the CLI into the sandbox at `version`. */
   install(sandbox: AgentSandbox, version: string): Promise<void>;
-  /** Run the CLI to completion. stdout is treated as the agent's final report. */
-  exec(args: CliAgentExecArgs<M>): Promise<CommandResult>;
-  /** Read the raw transcript the CLI left behind, or undefined if none was found. */
-  captureTranscript(sandbox: AgentSandbox): Promise<string | undefined>;
+  /**
+   * Run the CLI to completion and return both the process result and the raw
+   * transcript (JSONL). Anthropic recommends streaming the transcript to stdout
+   * (`--output-format stream-json`) over reading the on-disk session file, so
+   * for Claude Code `raw` is just `command.stdout`; an agent that only writes to
+   * disk would read it back here instead.
+   */
+  exec(args: CliAgentExecArgs<M>): Promise<CliAgentExecResult>;
+  /**
+   * Map the run to a stop reason, given the raw transcript and process result
+   * (e.g. read the final `result` event's subtype). Falls back to a
+   * process-exit-based reason when omitted.
+   */
+  deriveStopReason?(raw: string | undefined, command: CommandResult): string;
+}
+
+/** What a `CliAgentSpec.exec` returns: the process result and the raw transcript. */
+export interface CliAgentExecResult {
+  command: CommandResult;
+  /** Raw transcript JSONL — stdout for stream-json CLIs, or read from disk. */
+  raw?: string;
 }
 
 /** Scratch dir (outside the workspace, so it is never exported/scored). */
@@ -137,7 +154,7 @@ export function createCliAgent<M extends string = string>(
         mcpConfigPath = MCP_CONFIG_PATH;
       }
 
-      const command = await spec.exec({
+      const { command, raw } = await spec.exec({
         sandbox,
         model: options.model,
         apiKey,
@@ -147,22 +164,20 @@ export function createCliAgent<M extends string = string>(
         timeoutSec: args.timeoutSec,
       });
 
-      const raw = await spec.captureTranscript(sandbox);
       const { events } = raw
         ? spec.parser.parseTranscript(raw)
         : { events: [] };
       const adapted = adaptTranscript(events);
 
-      // Prefer the CLI's own stdout for the final report (the closing text it
-      // prints); fall back to the last assistant message from the transcript.
-      const agentReport = command.stdout.trim() || adapted.agentReport;
-
       return {
-        agentReport,
+        // The transcript carries the final report (Claude Code's `result`
+        // event / closing assistant message) — stdout is JSONL, not prose.
+        agentReport: adapted.agentReport,
         toolCalls: adapted.toolCalls,
         transcript: adapted.transcript,
         steps: adapted.steps,
-        stoppedReason: deriveStopReason(command),
+        stoppedReason:
+          spec.deriveStopReason?.(raw, command) ?? deriveStopReason(command),
       };
     },
   };
@@ -248,9 +263,10 @@ export const claudeCodeSpec: CliAgentSpec<AnthropicModel> = {
   parser: claudeCodeParser,
 
   buildMcpConfig(servers) {
-    const mcpServers: Record<string, McpServerConfig> = {};
+    const mcpServers: Record<string, unknown> = {};
     for (const [name, server] of Object.entries(servers)) {
       mcpServers[name] = {
+        type: "stdio",
         command: server.command,
         ...(server.args ? { args: server.args } : {}),
         ...(server.env ? { env: server.env } : {}),
@@ -273,34 +289,57 @@ export const claudeCodeSpec: CliAgentSpec<AnthropicModel> = {
     const claude = `${NPM_PREFIX}/bin/claude`;
     const flags = [
       "--print",
+      // Anthropic's recommended programmatic output: newline-delimited JSON
+      // events on stdout (no on-disk session-file race). Requires --verbose.
+      "--output-format stream-json",
+      "--verbose",
       `--model ${shellQuote(model)}`,
+      // Append (not replace) so Claude Code keeps its default coding-agent
+      // system prompt, tool guidance, and safety instructions.
       `--append-system-prompt "$(cat ${systemPromptPath})"`,
-      ...(mcpConfigPath ? [`--mcp-config ${mcpConfigPath}`] : []),
+      // Load only our MCP servers; ignore any .mcp.json in the workspace.
+      ...(mcpConfigPath ? [`--mcp-config ${mcpConfigPath}`, "--strict-mcp-config"] : []),
+      // The sandbox is an isolated container — the context Anthropic sanctions
+      // for skipping permission prompts in automation.
       "--dangerously-skip-permissions",
     ].join(" ");
     // User prompt as the positional arg, read from its file so no length/quoting limit.
-    return sandbox.exec(`${claude} ${flags} "$(cat ${userPromptPath})"`, {
+    const command = await sandbox.exec(`${claude} ${flags} "$(cat ${userPromptPath})"`, {
       timeoutMs: timeoutSec * 1000,
       env: { ANTHROPIC_API_KEY: apiKey },
     });
+    return { command, raw: command.stdout };
   },
 
-  async captureTranscript(sandbox) {
-    // Claude Code writes one JSONL session file per run under
-    // ~/.claude/projects/<escaped-cwd>/. Take the most recent across all
-    // project dirs — robust to however the cwd was escaped.
-    const found = await sandbox.exec(
-      `ls -t "$HOME"/.claude/projects/*/*.jsonl 2>/dev/null | head -1`,
-    );
-    const path = found.stdout.trim();
-    if (!found.ok || !path) return undefined;
-    try {
-      return await sandbox.readFile(path);
-    } catch {
-      return undefined;
+  deriveStopReason(raw, command) {
+    // The final stream-json line is `{ type: "result", subtype, is_error, ... }`.
+    const result = lastResultEvent(raw);
+    if (result) {
+      const subtype = typeof result.subtype === "string" ? result.subtype : undefined;
+      // "success" → a normal stop; surface other subtypes (e.g. error_max_turns) verbatim.
+      if (subtype && subtype !== "success") return subtype;
+      if (subtype === "success") return "stop";
     }
+    return deriveStopReason(command);
   },
 };
+
+/** Parse the last `type: "result"` event out of a stream-json transcript. */
+function lastResultEvent(raw: string | undefined): Record<string, unknown> | undefined {
+  if (!raw) return undefined;
+  const lines = raw.split("\n");
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    try {
+      const data = JSON.parse(line) as Record<string, unknown>;
+      if (data.type === "result") return data;
+    } catch {
+      // ignore non-JSON lines
+    }
+  }
+  return undefined;
+}
 
 /** Claude Code as an `AgentHarness`. Runs only against local-stack evals. */
 export function claudeCodeAgent(
