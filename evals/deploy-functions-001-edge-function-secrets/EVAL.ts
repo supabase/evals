@@ -1,10 +1,8 @@
-import { readFileSync } from "node:fs";
-import { parseEnv } from "node:util";
-
-import type {
-  CheckResult,
-  LocalStackEvalContext,
-  LocalStackScorer,
+import {
+  readEnvVariable,
+  type CheckResult,
+  type LocalStackEvalContext,
+  type LocalStackScorer,
 } from "@supabase-evals/core";
 
 const SECRET_NAME = "WEATHER_API_KEY";
@@ -13,12 +11,10 @@ const FUNCTION_SLUG = "weather";
 // same file copied into the agent's workspace). Reading it from the fixture —
 // rather than duplicating the literal — guarantees the leak check hunts for
 // exactly the value that was seeded, even if the fixture is rotated.
-const SECRET_VALUE = (() => {
-  const envPath = new URL("./local/.env", import.meta.url);
-  const value = parseEnv(readFileSync(envPath, "utf8"))[SECRET_NAME];
-  if (!value) throw new Error(`${SECRET_NAME} not found in seeded local/.env`);
-  return value;
-})();
+const SECRET_VALUE = readEnvVariable(
+  new URL("./local/.env", import.meta.url),
+  SECRET_NAME,
+);
 
 /**
  * Verifies the hosted "deploy Edge Function secrets" workflow. The agent uses
