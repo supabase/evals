@@ -6,13 +6,20 @@ import type {
 
 const SECRET_NAME = "WEATHER_API_KEY";
 const FUNCTION_SLUG = "weather";
+// The scenario seeds this fixed value in a gitignored `local/.env`, so the
+// agent has a concrete value to push (`supabase secrets set --env-file ./.env`)
+// and the scorer has a known literal to hunt for when checking it didn't leak.
+const SECRET_VALUE = "mock_wapi_key_eval_do_not_use";
 
 /**
  * Verifies the hosted "deploy Edge Function secrets" workflow. The agent uses
  * the linked CLI to `supabase secrets set` and `supabase functions deploy`;
  * the scorer reads the resulting state directly from the mocked hosted platform
  * (platform-lite) via the management client — ground truth, not the CLI under
- * test — plus the workspace files for the "not committed" requirement.
+ * test — plus the workspace files for the "not committed" requirement. The
+ * scenario seeds a known secret value (in a gitignored `local/.env`) so the
+ * agent has something concrete to push and the scorer can detect that exact
+ * value leaking into committed source.
  */
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -103,39 +110,51 @@ async function checkFunctionReadsSecret(ctx: LocalStackEvalContext): Promise<Che
   };
 }
 
-// The key must not be committed: the function source must not hardcode it, and
-// any env file holding it must be gitignored (the CLI's `supabase init` already
-// gitignores supabase/.env). We can't know the value the agent chose, so we
-// flag assignment-to-a-literal patterns rather than the env-read reference.
+// The key must not be committed. Because the scenario seeds a known value
+// (SECRET_VALUE), we can hunt for the literal itself anywhere in the workspace
+// rather than guessing at variable-name patterns — this catches the secret
+// whatever name it's bound to, and even when inlined with no name at all
+// (e.g. `fetch(url + "wapi_...")`). The value legitimately lives only in
+// `.env` files, the gitignored home a `--env-file` push reads from, so those
+// are the sole allowed location; the value showing up anywhere else is a leak.
 async function checkSecretNotInRepo(ctx: LocalStackEvalContext): Promise<CheckResult> {
-  const name = `${SECRET_NAME} is not committed to the repo`;
+  const name = `${SECRET_NAME} value is not committed to the repo`;
 
-  // Hardcoded assignment in the function source (e.g. const WEATHER_API_KEY = "...").
-  const source = (await readFunctionSource(ctx)) ?? "";
-  const hardcoded = new RegExp(
-    `${SECRET_NAME}\\s*[:=]\\s*['"\`][^'"\`]+['"\`]`,
-  ).test(source);
-  if (hardcoded) {
-    return { name, passed: false, notes: "the function source hardcodes the key as a literal" };
-  }
-
-  // An env file that holds the key must be gitignored. List tracked files (if
-  // the workspace is a git repo) and ensure none assign the secret a value.
-  const tracked = await ctx.exec(
-    `git ls-files -z 2>/dev/null | xargs -0 grep -lI '${SECRET_NAME}' 2>/dev/null | xargs -I{} grep -lE '${SECRET_NAME}[[:space:]]*[:=][[:space:]]*[^[:space:]]' {} 2>/dev/null || true`,
+  // Search every file for the raw secret value, excluding only `.env` files
+  // (its expected, gitignored home) plus VCS/dependency dirs. -F: fixed string,
+  // -I: skip binaries, -l: just the paths.
+  const found = await ctx.exec(
+    `grep -rIlF '${SECRET_VALUE}' . ` +
+      `--exclude-dir=.git --exclude-dir=node_modules ` +
+      `--exclude='.env' --exclude='.env.*' 2>/dev/null || true`,
   );
-  const offenders = tracked.stdout
+  const offenders = found.stdout
     .split("\n")
     .map((l) => l.trim())
-    .filter(Boolean)
-    // The function source legitimately references the name via Deno.env.get;
-    // it already passed the hardcode check above, so exclude it here.
-    .filter((path) => !path.includes(`functions/${FUNCTION_SLUG}/`));
+    .filter(Boolean);
   if (offenders.length > 0) {
     return {
       name,
       passed: false,
-      notes: `secret value committed in tracked file(s): ${offenders.join(", ")}`,
+      notes: `secret value found in non-env file(s): ${offenders.join(", ")}`,
+    };
+  }
+
+  // Defense in depth: if the workspace is a git repo, the `.env` holding the
+  // value must be gitignored — a tracked file containing it (e.g. a committed
+  // `.env`) is a leak even though the value-grep above excludes `.env` by name.
+  const tracked = await ctx.exec(
+    `git ls-files -z 2>/dev/null | xargs -0 grep -lIF '${SECRET_VALUE}' 2>/dev/null || true`,
+  );
+  const trackedOffenders = tracked.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (trackedOffenders.length > 0) {
+    return {
+      name,
+      passed: false,
+      notes: `secret value committed in tracked file(s): ${trackedOffenders.join(", ")}`,
     };
   }
 

@@ -17,9 +17,8 @@ leaks our API key. I want to move that behind a Supabase Edge Function called
 `weather` that holds the key server-side and proxies the request.
 
 The function should read the key from an environment variable named
-`WEATHER_API_KEY`. The key is sensitive, so it must not be committed to the
-repo — configure it as a Function secret on our project instead of hardcoding
-it or checking it in.
+`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project
+root.
 
 Deploy the function to our project so it's live, and make sure the deployed
 function can actually read the key at runtime.
