@@ -54,6 +54,8 @@ export class ProjectInstance {
   logsDb: PGlite
   migrations: Migration[]
   functions: Map<string, EdgeFunctionEntry>
+  /** Edge Function secrets, by name. Injected into the function env at invoke. */
+  secrets: Map<string, string>
   createdAt: string
 
   constructor(ref: string, name: string, organizationId: string) {
@@ -64,6 +66,7 @@ export class ProjectInstance {
     this.logsDb = new PGlite()
     this.migrations = []
     this.functions = new Map()
+    this.secrets = new Map()
     this.createdAt = new Date().toISOString()
   }
 

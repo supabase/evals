@@ -78,6 +78,12 @@ export type EvalMetadata = {
    * part of the task set false.
    */
   projectRunning?: boolean;
+  /**
+   * Link the sandbox CLI to a mocked hosted project (platform-lite) so hosted
+   * workflows (`supabase functions deploy`, `secrets set`) reach it (sandbox
+   * evals only). Defaults to false.
+   */
+  hostedProject?: boolean;
 };
 
 export type ParsedEvalMarkdown = {
@@ -96,6 +102,7 @@ export const evalMetadataSchema = z.object({
   // anything else is rejected. Avoids z.coerce.boolean, which treats every
   // non-empty string as true.
   projectRunning: z.union([z.boolean(), z.stringbool()]).optional(),
+  hostedProject: z.union([z.boolean(), z.stringbool()]).optional(),
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
@@ -161,6 +168,7 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
       ? toServiceList(data.services)
       : undefined,
     projectRunning: data.projectRunning,
+    hostedProject: data.hostedProject,
   };
 }, evalMetadataSchema);
 

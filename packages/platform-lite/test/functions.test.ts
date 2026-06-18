@@ -54,6 +54,49 @@ describe('functions', () => {
     expect(list[0].slug).toBe('hello')
   })
 
+  it('creates a function via POST then redeploys it via PATCH', async () => {
+    const app = await createTestApp([{ ref: 'redeploy-fn-proj' }])
+    const eszip = new Blob([new Uint8Array([1, 2, 3])])
+
+    // First-time deployment: POST creates the function (201, version 1).
+    const createRes = await app.request(
+      '/v1/projects/redeploy-fn-proj/functions?slug=weather&name=weather&verify_jwt=false',
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-token' },
+        body: eszip,
+      },
+    )
+    expect(createRes.status).toBe(201)
+    expect(await createRes.json()).toMatchObject({ slug: 'weather', version: 1, status: 'ACTIVE' })
+
+    // Redeployment: PATCH updates it in place (200, version bumped, id preserved).
+    const created = await app
+      .request('/v1/projects/redeploy-fn-proj/functions/weather', {
+        headers: { Authorization: 'Bearer test-token' },
+      })
+      .then((r) => r.json() as Promise<{ id: string }>)
+
+    const updateRes = await app.request('/v1/projects/redeploy-fn-proj/functions/weather', {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer test-token' },
+      body: eszip,
+    })
+    expect(updateRes.status).toBe(200)
+    expect(await updateRes.json()).toMatchObject({ slug: 'weather', version: 2, id: created.id })
+  })
+
+  it('rejects a PATCH redeploy of a function that was never created', async () => {
+    const app = await createTestApp([{ ref: 'missing-fn-proj' }])
+
+    const res = await app.request('/v1/projects/missing-fn-proj/functions/ghost', {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer test-token' },
+      body: new Blob([new Uint8Array([1])]),
+    })
+    expect(res.status).toBe(404)
+  })
+
   it('rejects malformed multipart deploy body', async () => {
     const app = await createTestApp([{ ref: 'bad-multipart-fn-proj' }])
 

@@ -226,6 +226,25 @@ export interface LocalStackScoringContext {
    * state. Connects host-side to the stack's published ports.
    */
   getClient: () => Promise<SupabaseClient>;
+  /**
+   * The mocked hosted project's ref, when the eval links to platform-lite
+   * (`hostedProject: true`). Undefined for purely-local evals.
+   */
+  hostedRef?: string;
+  /**
+   * Management API client for the mocked hosted platform (platform-lite) the
+   * agent's CLI is linked to. Use this — not the CLI under test — to read
+   * hosted state like Edge Function secrets and deployments.
+   */
+  hostedMgmt?: ManagementApiClient;
+  /**
+   * Invoke a function the agent deployed to the mocked hosted platform, with
+   * its hosted secrets injected into the runtime env. Use to verify the
+   * deployed function reads its secrets at runtime.
+   */
+  invokeHostedFunction?: (
+    input: EdgeFunctionsInvokeInput,
+  ) => Promise<EdgeFunctionsInvokeResult>;
 }
 
 export interface LocalStackEvalContext extends LocalStackScoringContext {
@@ -288,6 +307,29 @@ export type LocalStackSessionArgs = {
    * task set false.
    */
   projectRunning?: boolean;
+  /**
+   * When set, link the sandbox CLI to a mocked hosted project (platform-lite)
+   * so hosted workflows (`supabase functions deploy`, `secrets set`) reach it.
+   * The runtime seeds a CLI profile + access token + project ref into the
+   * sandbox and exposes the hosted handle to the scorer.
+   */
+  hosted?: HostedLink;
+};
+
+/** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */
+export type HostedLink = {
+  /** Port the platform-lite server is bound to (reached via host.docker.internal). */
+  port: number;
+  /** Project ref — must satisfy the CLI's `^[a-z]{20}$` format. */
+  ref: string;
+  /** Access token — must satisfy the CLI's `^sbp_[a-f0-9]{40}$` format. */
+  accessToken: string;
+  /** Management API client (host-side, in-process) for scorer assertions. */
+  mgmt: ManagementApiClient;
+  /** Invoke a deployed function in-process, with hosted secrets injected. */
+  invokeFunction: (
+    input: EdgeFunctionsInvokeInput,
+  ) => Promise<EdgeFunctionsInvokeResult>;
 };
 
 /**
@@ -867,6 +909,13 @@ export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
+  /** Management API access token; defaults to the in-process eval token. */
+  accessToken?: string;
+  /** Fixed project ref; defaults to a generated one. */
+  ref?: string;
+  /** Bind host for the HTTP server; defaults to 127.0.0.1. Use 0.0.0.0 to
+   * reach the server from inside a sandbox container via host.docker.internal. */
+  hostname?: string;
 }): Promise<PlatformBackend> {
   const sql =
     opts.projectSeedSql && existsSync(opts.projectSeedSql)
@@ -882,15 +931,18 @@ export async function bootPlatformBackend(opts: {
     ? await loadFunctionSeeds(opts.functionsSeedDir)
     : undefined;
 
+  const accessToken = opts.accessToken ?? ACCESS_TOKEN;
   const platform = await createPlatform({
-    accessToken: ACCESS_TOKEN,
-    projects: [{ sql, logs, functions }],
+    accessToken,
+    projects: [{ ref: opts.ref, sql, logs, functions }],
   });
 
   let server: ServerHandle | undefined;
 
   try {
-    server = await platform.listen();
+    server = await platform.listen(
+      opts.hostname ? { hostname: opts.hostname } : undefined,
+    );
 
     const refs = platform.refs();
     if (refs.length === 0) throw new Error("platform backend: no projects");
@@ -903,8 +955,8 @@ export async function bootPlatformBackend(opts: {
     return {
       url: server.url,
       ref,
-      accessToken: ACCESS_TOKEN,
-      mgmt: createManagementApiClient(server.url, ACCESS_TOKEN),
+      accessToken,
+      mgmt: createManagementApiClient(server.url, accessToken),
       client: instance.app.getClient(),
       getClient: () => instance.app.getClient(),
       query: async (sql) => {
@@ -1122,6 +1174,10 @@ async function invokeEdgeFunction(
     // Legacy JWT keys are the only kind platform-lite authenticates:
     // https://github.com/supabase-community/lite/blob/aff4e9fa6f75289f3d7eb021b2b7a8198e4665ec/app/src/server/data/auth-guard.ts#L25-L76
     const env: Record<string, string> = {
+      // Project secrets (set via `supabase secrets set`) are exposed to the
+      // function as env vars, exactly as the hosted Edge Runtime does. Listed
+      // first so the reserved SUPABASE_ keys below always win.
+      ...Object.fromEntries(instance.secrets),
       SUPABASE_URL: RUNTIME_URL,
       SUPABASE_ANON_KEY: generateProjectKey(
         instance.ref,
@@ -1336,3 +1392,5 @@ function isString(value: unknown): value is string {
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
+
+export { readEnvVariable } from "./env-file.js";

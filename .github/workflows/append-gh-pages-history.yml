@@ -1,0 +1,39 @@
+name: Append gh-pages history
+
+on:
+  push:
+    branches: [main]
+    paths: [apps/web/src/data/eval-results.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  append:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Append results to gh-pages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin gh-pages:gh-pages
+          git checkout gh-pages
+
+          git show ${{ github.sha }}:apps/web/src/data/eval-results.json \
+            | jq -c --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '{ts: $ts, results: .}' \
+            >> results.jsonl
+
+          git add results.jsonl
+          git commit -m "chore: append eval results"
+          git push origin gh-pages
+          git checkout -

@@ -94,6 +94,12 @@ export class DockerSandbox {
   private sysctls: Record<string, string>;
   private image: string;
   readonly workdir: string;
+  /**
+   * Env vars injected into every `runShell` (non-root) command — both the
+   * agent's bash tool and scorer `exec`. Used to link the CLI to a mocked
+   * hosted project (SUPABASE_ACCESS_TOKEN / SUPABASE_PROFILE / SUPABASE_PROJECT_ID).
+   */
+  extraEnv: Record<string, string> = {};
 
   private constructor(options: DockerSandboxOptions) {
     this.defaultTimeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -134,6 +140,10 @@ export class DockerSandbox {
         `${this.workdir}:${this.workdir}`,
         "--workdir",
         this.workdir,
+        // Reach host-side servers (e.g. the linked platform-lite) at
+        // host.docker.internal on Linux/CI and Docker Desktop alike.
+        "--add-host",
+        "host.docker.internal:host-gateway",
         ...this.capAdd.flatMap((cap) => ["--cap-add", cap]),
         ...Object.entries(this.sysctls).flatMap(([key, value]) => [
           "--sysctl",
@@ -175,7 +185,12 @@ export class DockerSandbox {
   ): Promise<SandboxCommandResult> {
     return this.execCommand(command, {
       ...options,
-      env: { PATH: SANDBOX_PATH, HOME: "/home/node", ...options.env },
+      env: {
+        PATH: SANDBOX_PATH,
+        HOME: "/home/node",
+        ...this.extraEnv,
+        ...options.env,
+      },
       user: "node",
     });
   }
