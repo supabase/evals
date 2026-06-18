@@ -27,6 +27,7 @@ import {
   createPlatform,
   loadFunctionSeeds,
   type ManagementApiClient,
+  type PgServerHandle,
   type PlatformHandle,
   type ProjectInstance,
   type ServerHandle,
@@ -1078,6 +1079,7 @@ export async function bootPlatformBackend(opts: {
   });
 
   let server: ServerHandle | undefined;
+  let pgServer: PgServerHandle | undefined;
 
   try {
     server = await platform.listen(
@@ -1090,12 +1092,15 @@ export async function bootPlatformBackend(opts: {
     const instance = platform.getProject(ref);
     if (!instance) throw new Error(`platform backend: project missing: ${ref}`);
 
-    // Expose the database over the Postgres wire protocol when requested, bound
-    // to the same host as the HTTP server so the sandbox reaches both the same
-    // way (host.docker.internal). Stopped via instance.close() in dispose.
-    const pgPort = opts.pgWire
-      ? await instance.startPgWire({ host: opts.hostname ?? "127.0.0.1" })
+    // Expose the database over the Postgres wire (the "pooler") when requested,
+    // bound to the same host as the HTTP server so the sandbox reaches both the
+    // same way (host.docker.internal). Closed alongside the HTTP server.
+    pgServer = opts.pgWire
+      ? await platform.listenPg(
+          opts.hostname ? { hostname: opts.hostname } : undefined,
+        )
       : undefined;
+    const pgPort = pgServer?.port;
 
     let closed = false;
 
@@ -1116,11 +1121,11 @@ export async function bootPlatformBackend(opts: {
       close: async () => {
         if (closed) return;
         closed = true;
-        await closePlatformResources(platform, server);
+        await closePlatformResources(platform, server, pgServer);
       },
     };
   } catch (err) {
-    await closePlatformResources(platform, server);
+    await closePlatformResources(platform, server, pgServer);
     throw err;
   }
 }
@@ -1216,11 +1221,15 @@ function withOpenAiZdrDefaults(
 async function closePlatformResources(
   platform: PlatformHandle,
   server?: ServerHandle,
+  pgServer?: PgServerHandle,
 ): Promise<void> {
   const errors: unknown[] = [];
 
+  // Close the network listeners before disposing the projects (which closes
+  // their PGlite instances the pg-wire backends bridge to).
   for (const dispose of [
     server?.dispose.bind(server),
+    pgServer?.close.bind(pgServer),
     platform.dispose.bind(platform),
   ]) {
     if (!dispose) continue;

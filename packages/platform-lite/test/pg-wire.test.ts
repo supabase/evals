@@ -1,39 +1,51 @@
 import { describe, it, expect } from 'vitest'
 import { connect, type Socket } from 'node:net'
-import { ProjectInstance } from '../src/project/ProjectInstance.js'
+import { createPlatform } from '../src/app.js'
 
 /**
- * Coverage for the Postgres-wire endpoint and its SSL/GSS negotiation shim. A
- * full `supabase db push` round-trip is exercised by the sandbox docker e2e (it
- * needs the real CLI); here we drive the wire protocol directly: send an
- * SSLRequest probe (as libpq/pgx do under the default sslmode), expect the shim
- * to refuse it with "N", then complete a real StartupMessage + query.
+ * Coverage for the platform's Postgres-wire surface: the SSL negotiation shim
+ * and tenant routing. A full `supabase db push` round-trip is exercised by the
+ * sandbox docker e2e (it needs the real CLI); here we drive the wire protocol
+ * directly — send an SSLRequest probe (as libpq/pgx do under default sslmode),
+ * expect the shim to refuse it with "N", then complete a StartupMessage + query
+ * routed to the right project by its `postgres.<ref>` tenant.
  */
-describe('project pg-wire endpoint', () => {
-  it('refuses SSL, then serves a query over the wire; closes with the project', async () => {
-    const project = new ProjectInstance('pgwireprojectxxxxxxx', 'pg-wire', 'default-org')
-    await project.init('create table widgets (id int); insert into widgets values (1),(2),(3);')
+describe('platform pg-wire surface', () => {
+  it('refuses SSL, routes by tenant, and serves queries per project', async () => {
+    const platform = await createPlatform({
+      projects: [
+        { ref: 'projectonexxxxxxxxxxx', sql: 'create table t (id int); insert into t values (1),(2),(3);' },
+        { ref: 'projecttwoxxxxxxxxxxx', sql: 'create table t (id int); insert into t values (9);' },
+      ],
+    })
+    const pg = await platform.listenPg({ hostname: '127.0.0.1' })
 
-    const port = await project.startPgWire({ host: '127.0.0.1' })
-    expect(port).toBeGreaterThan(0)
-    // Idempotent: a second call reuses the same listener.
-    expect(await project.startPgWire({ host: '127.0.0.1' })).toBe(port)
+    try {
+      const one = await wireRoundTrip(pg.port, 'projectonexxxxxxxxxxx', 'select id from t;')
+      expect(one.sslResponse).toBe('N')
+      expect(one.rowCount).toBe(3)
 
-    const result = await wireRoundTrip(port, 'select id from widgets order by id;')
-    expect(result.sslResponse).toBe('N')
-    expect(result.rowCount).toBe(3)
+      // A different tenant on the SAME listener hits a different database.
+      const two = await wireRoundTrip(pg.port, 'projecttwoxxxxxxxxxxx', 'select id from t;')
+      expect(two.rowCount).toBe(1)
 
-    await project.close()
-    await expect(wireRoundTrip(port, 'select 1;')).rejects.toThrow()
+      // An unknown tenant is rejected (FATAL ErrorResponse), not hung.
+      await expect(wireRoundTrip(pg.port, 'nope', 'select 1;')).rejects.toThrow()
+    } finally {
+      await pg.close()
+      await platform.dispose()
+    }
   })
 })
 
 /**
- * Connect, send an SSLRequest then a v3 StartupMessage + simple Query, and
- * report the SSL byte and the number of DataRow ('D') messages received.
+ * Connect, send an SSLRequest then a v3 StartupMessage (user = postgres.<ref>)
+ * + simple Query, and report the SSL byte and number of DataRow ('D') messages.
+ * Rejects on a FATAL ErrorResponse ('E') so unknown-tenant routing is testable.
  */
 function wireRoundTrip(
   port: number,
+  ref: string,
   sql: string,
 ): Promise<{ sslResponse: string; rowCount: number }> {
   return new Promise((resolve, reject) => {
@@ -41,33 +53,31 @@ function wireRoundTrip(
     let sslResponse = ''
     let started = false
     let rowCount = 0
-    const tags: string[] = []
 
     const timer = setTimeout(() => {
       sock.destroy()
       reject(new Error('wire round-trip timed out'))
     }, 5000)
+    const fail = (err: Error) => {
+      clearTimeout(timer)
+      sock.destroy()
+      reject(err)
+    }
 
     sock.on('connect', () => sock.write(sslRequest()))
-    sock.on('error', (err) => {
-      clearTimeout(timer)
-      reject(err)
-    })
+    sock.on('error', fail)
     sock.on('data', (data) => {
       let offset = 0
-      // First byte after the SSLRequest is the single-byte 'S'/'N' reply.
       if (!sslResponse) {
         sslResponse = String.fromCharCode(data[0])
         offset = 1
-        sock.write(startupMessage())
+        sock.write(startupMessage(`postgres.${ref}`))
       }
-      // Remaining bytes are tagged protocol messages (type byte + int32 length).
       while (offset + 5 <= data.length) {
         const tag = String.fromCharCode(data[offset])
         const len = data.readInt32BE(offset + 1)
-        tags.push(tag)
+        if (tag === 'E') return fail(new Error('server returned ErrorResponse'))
         if (tag === 'D') rowCount++
-        // First ReadyForQuery ⇒ auth complete; send the query. Second ⇒ done.
         if (tag === 'Z') {
           if (!started) {
             started = true
@@ -92,8 +102,8 @@ function sslRequest(): Buffer {
   return buf
 }
 
-function startupMessage(): Buffer {
-  const params = Buffer.from('user\0postgres\0database\0postgres\0\0', 'utf8')
+function startupMessage(user: string): Buffer {
+  const params = Buffer.from(`user\0${user}\0database\0postgres\0\0`, 'utf8')
   const buf = Buffer.alloc(8 + params.length)
   buf.writeInt32BE(buf.length, 0)
   buf.writeInt32BE(196608, 4)
