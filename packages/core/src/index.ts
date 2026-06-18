@@ -72,17 +72,13 @@ export {
   rawEvalResultSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
-// CLI agent harnesses (Claude Code, and the shared framework for adding more).
-export {
-  createCliAgent,
-  claudeCodeAgent,
-  claudeCodeSpec,
-} from "./cli-agent.js";
+// CLI agent harnesses (Claude Code, and the runner/parser framework for adding more).
+export { createCliAgent, claudeCodeAgent } from "./cli-agent.js";
 export type {
   AgentSandbox,
-  CliAgentSpec,
-  CliAgentExecArgs,
-  CliAgentExecResult,
+  AgentRunner,
+  RunnerExecArgs,
+  RunnerExecResult,
 } from "./cli-agent.js";
 // Generic transcript vocabulary + parser layer used by CLI agents.
 export { createParser, supportedParsers } from "./parsers/registry.js";
@@ -330,9 +326,16 @@ export type AgentHarness = {
   modelId: string;
   /**
    * True for CLI agents that must run inside a sandbox (so they get the
-   * workspace + their tools). The harness skips tools-mode evals for these.
+   * workspace + their tools).
    */
   requiresSandbox?: boolean;
+  /**
+   * Whether the agent can run tools-mode evals (which require confining a CLI
+   * to the MCP surface). Undefined = supported (in-process agents). A CLI that
+   * can't be confined sets this false and the harness skips tools-mode evals
+   * for it.
+   */
+  supportsToolsMode?: boolean;
   assertReady(): void;
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };

@@ -650,6 +650,16 @@ async function main() {
         );
         continue;
       }
+      if (
+        ev.mode === "tools" &&
+        config.agent.requiresSandbox &&
+        config.agent.supportsToolsMode === false
+      ) {
+        console.log(
+          `SKIP ${name} x ${ev.id} (${config.agent.id} can't be confined to the MCP surface — runs local-stack evals only)`,
+        );
+        continue;
+      }
       if (DRY) {
         console.log(formatPlanLine(name, config, ev));
         continue;

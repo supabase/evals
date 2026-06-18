@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claudeCodeSpec } from "./cli-agent.js";
+import { claudeCodeRunner } from "./runners/claude-code.js";
 import type { CommandResult } from "./index.js";
 
 const ok: CommandResult = { ok: true, exitCode: 0, stdout: "", stderr: "" };
@@ -26,8 +26,8 @@ function streamJson(subtype: string, isError = false): string {
   ].join("\n");
 }
 
-describe("claudeCodeSpec.deriveStopReason", () => {
-  const derive = claudeCodeSpec.deriveStopReason!;
+describe("claudeCodeRunner.deriveStopReason", () => {
+  const derive = claudeCodeRunner.deriveStopReason!;
 
   it("maps a successful result event to a normal stop", () => {
     expect(derive(streamJson("success"), ok)).toBe("stop");
