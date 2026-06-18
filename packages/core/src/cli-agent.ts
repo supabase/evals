@@ -20,6 +20,7 @@
  * CLI agent is a new spec + a new parser — nothing else changes.
  */
 
+import type { Model as AnthropicModel } from "@anthropic-ai/sdk/resources/messages";
 import type {
   AgentHarness,
   AgentRunResult,
@@ -49,9 +50,9 @@ export interface AgentSandbox {
 
 /** Arguments handed to a `CliAgentSpec.exec`. Prompt/config files are already
  * written into the sandbox; paths are shell expressions (e.g. `"$HOME/.eval/x"`). */
-export interface CliAgentExecArgs {
+export interface CliAgentExecArgs<M extends string = string> {
   sandbox: AgentSandbox;
-  model: string;
+  model: M;
   apiKey: string;
   /** Shell path to a file holding the system prompt. */
   systemPromptPath: string;
@@ -62,8 +63,12 @@ export interface CliAgentExecArgs {
   timeoutSec: number;
 }
 
-/** Per-agent strategy for a CLI coding agent. */
-export interface CliAgentSpec {
+/**
+ * Per-agent strategy for a CLI coding agent. `M` is the agent's model-id type,
+ * sourced from its official SDK (e.g. Anthropic's `Model`) so model ids are
+ * validated and autocompleted rather than free strings.
+ */
+export interface CliAgentSpec<M extends string = string> {
   /** Stable agent id, also the transcript-parser key (e.g. `"claude-code"`). */
   id: string;
   displayName: string;
@@ -73,6 +78,8 @@ export interface CliAgentSpec {
   cliPackage: string;
   /** Pinned CLI version — pinned so transcript-format drift can't silently break parsing. */
   defaultCliVersion: string;
+  /** Model used when the caller doesn't pick one. */
+  defaultModel: M;
   /** Parser for the transcript this CLI writes. */
   parser: AgentTranscriptParser;
   /** Render our MCP server map into the CLI's own MCP config file contents. */
@@ -80,7 +87,7 @@ export interface CliAgentSpec {
   /** Install the CLI into the sandbox at `version`. */
   install(sandbox: AgentSandbox, version: string): Promise<void>;
   /** Run the CLI to completion. stdout is treated as the agent's final report. */
-  exec(args: CliAgentExecArgs): Promise<CommandResult>;
+  exec(args: CliAgentExecArgs<M>): Promise<CommandResult>;
   /** Read the raw transcript the CLI left behind, or undefined if none was found. */
   captureTranscript(sandbox: AgentSandbox): Promise<string | undefined>;
 }
@@ -94,9 +101,9 @@ const MCP_CONFIG_PATH = '"$HOME/.eval/mcp.json"';
 const INSTALL_TIMEOUT_MS = 300_000;
 
 /** Build an `AgentHarness` from a CLI agent strategy. */
-export function createCliAgent(
-  spec: CliAgentSpec,
-  options: { model: string; cliVersion?: string },
+export function createCliAgent<M extends string = string>(
+  spec: CliAgentSpec<M>,
+  options: { model: M; cliVersion?: string },
 ): AgentHarness {
   const version = options.cliVersion ?? spec.defaultCliVersion;
   return {
@@ -229,7 +236,7 @@ function deriveStopReason(command: CommandResult): string {
 /** npm prefix for the per-run global CLI install (outside the workspace). */
 const NPM_PREFIX = '"$HOME/.npm-global"';
 
-export const claudeCodeSpec: CliAgentSpec = {
+export const claudeCodeSpec: CliAgentSpec<AnthropicModel> = {
   id: "claude-code",
   displayName: "Claude Code",
   apiKeyEnvVar: "ANTHROPIC_API_KEY",
@@ -237,6 +244,7 @@ export const claudeCodeSpec: CliAgentSpec = {
   // Pinned: Claude Code's transcript format evolves; bump deliberately and
   // re-check the parser. See packages/core/src/parsers/claude-code.ts.
   defaultCliVersion: "2.1.101",
+  defaultModel: "claude-sonnet-4-6",
   parser: claudeCodeParser,
 
   buildMcpConfig(servers) {
@@ -295,13 +303,18 @@ export const claudeCodeSpec: CliAgentSpec = {
 };
 
 /** Claude Code as an `AgentHarness`. Runs only against local-stack evals. */
-export function claudeCodeAgent(options: {
-  /** CLI model id, e.g. `"claude-sonnet-4-6"`. */
-  model: string;
-  /** Override the pinned CLI version. */
-  cliVersion?: string;
-}): AgentHarness {
-  return createCliAgent(claudeCodeSpec, options);
+export function claudeCodeAgent(
+  options: {
+    /** Anthropic model id (typed from `@anthropic-ai/sdk`). Defaults to Sonnet. */
+    model?: AnthropicModel;
+    /** Override the pinned CLI version. */
+    cliVersion?: string;
+  } = {},
+): AgentHarness {
+  return createCliAgent(claudeCodeSpec, {
+    model: options.model ?? claudeCodeSpec.defaultModel,
+    cliVersion: options.cliVersion,
+  });
 }
 
 function shellQuote(value: string): string {
