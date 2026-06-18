@@ -5,13 +5,19 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { jsonSchema, tool, type ToolSet } from "ai";
 import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
+import {
+  frontmatterDescription,
+  stripFrontmatter,
+} from "@supabase-evals/sandbox";
 import {
   normalizeExperimentName,
   readRepeatedFlag,
@@ -135,18 +141,116 @@ function discoverEvals(): EvalManifest[] {
   return out;
 }
 
-function loadSkills(skillNames: string[]): string {
-  const blocks: string[] = [];
+type ToolsSkill = { name: string; description: string; body: string };
+
+/**
+ * Tools-mode skills, read from the host `skills/` dir. Unlike local-stack
+ * (where skills are installed into the sandbox and the agent reads SKILL.md
+ * with its file tools), a tools-mode agent has no filesystem — so only each
+ * skill's name+description is advertised in the prompt and a `load_skill` tool
+ * returns the full body on demand. Same lazy/progressive-disclosure property,
+ * different load mechanism. Missing skills are skipped with a warning.
+ */
+function loadToolsSkills(skillNames: string[]): ToolsSkill[] {
+  const skills: ToolsSkill[] = [];
   for (const name of skillNames) {
     const p = join(ROOT, "skills", name, "SKILL.md");
-    if (existsSync(p))
-      blocks.push(`# Skill: ${name}\n\n${readFileSync(p, "utf8")}`);
-    else
-      blocks.push(
-        `# Skill: ${name}\n\n(not found — ensure submodule is initialised: \`git submodule update --init\`)`,
+    if (!existsSync(p)) {
+      console.warn(
+        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`,
       );
+      continue;
+    }
+    const md = readFileSync(p, "utf8");
+    skills.push({
+      name,
+      description: frontmatterDescription(md),
+      body: stripFrontmatter(md),
+    });
   }
-  return blocks.join("\n\n---\n\n");
+  return skills;
+}
+
+/**
+ * Discovery listing for the tools-mode system prompt: only names+descriptions,
+ * so the agent knows when a skill is relevant without its full text in context.
+ * Empty when there are no skills.
+ */
+function buildToolsSkillsPrompt(skills: readonly ToolsSkill[]): string {
+  if (skills.length === 0) return "";
+  return [
+    "## Available skills",
+    "",
+    "The following agent skills are available. Only their names and descriptions are shown — " +
+      "the full instructions are not loaded yet. When a task matches a skill, call the `load_skill` " +
+      "tool with its name to load its full instructions.",
+    "",
+    ...skills.map((s) => `- ${s.name}: ${s.description}`),
+  ].join("\n");
+}
+
+/**
+ * The agent-invoked `load_skill` tool: given a skill name it returns that
+ * skill's full instructions. This is how tools-mode evals load a skill lazily
+ * (the local-stack equivalent is the agent reading SKILL.md with files_read).
+ * Empty toolset when there are no skills.
+ */
+function buildLoadSkillTool(skills: readonly ToolsSkill[]): ToolSet {
+  if (skills.length === 0) return {};
+  const byName = new Map(skills.map((s) => [s.name, s]));
+  return {
+    load_skill: tool({
+      description:
+        "Load an agent skill's full instructions by name. Available skills are listed in the system prompt.",
+      inputSchema: jsonSchema({
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description:
+              "The skill name to load (as listed under Available skills).",
+            enum: skills.map((s) => s.name),
+          },
+        },
+        required: ["name"],
+      }),
+      execute: async (input) => {
+        const name = String((input as { name?: unknown })?.name ?? "");
+        const entry = byName.get(name);
+        if (!entry) {
+          throw new Error(
+            `unknown skill "${name}"; available: ${skills.map((s) => s.name).join(", ")}`,
+          );
+        }
+        return { instructions: entry.body };
+      },
+    }),
+  };
+}
+
+/**
+ * Local-stack skill sources: resolve each skill name to its host directory so
+ * the sandbox can install it with Vercel's `skills` CLI; the agent then
+ * discovers each skill by reading its SKILL.md with its file tools. The
+ * `skills/` entries are symlinks into the agent-skills submodule; realpath them
+ * so `docker cp` copies real files, not dangling links. Missing skills are
+ * skipped with a warning.
+ */
+function resolveSkillSources(
+  skillNames: string[],
+): Array<{ name: string; dir: string }> {
+  const sources: Array<{ name: string; dir: string }> = [];
+  for (const name of skillNames) {
+    const dir = join(ROOT, "skills", name);
+    if (!existsSync(dir)) {
+      console.warn(
+        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`,
+      );
+      continue;
+    }
+    sources.push({ name, dir: realpathSync(dir) });
+  }
+  return sources;
 }
 
 function resultPath(modelName: string, ev: Pick<EvalManifest, "id" | "mode">) {
@@ -201,8 +305,8 @@ function basePromptFor(mode: EvalMode): string {
 
 function buildSystemPrompt(
   mode: EvalMode,
-  skillContext: string,
   addendum?: string,
+  skillContext?: string,
 ): string {
   const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
   return blocks.join("\n\n");
@@ -221,11 +325,13 @@ async function runOne(
     stoppedReason: string;
   }
 > {
-  const skillContext = loadSkills(exp.skills);
   const prompt = parseEvalMarkdown(
     readFileSync(ev.promptPath, "utf8"),
     ev.promptPath,
   ).body;
+  // Tools-mode skills are advertised in the prompt and loaded via the
+  // load_skill tool; local-stack installs them into the sandbox instead.
+  const toolsSkills = ev.mode === "tools" ? loadToolsSkills(exp.skills) : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ToolScorer
     | LocalStackScorer;
@@ -271,12 +377,15 @@ async function runOne(
               invokeFunction: hostedBackend.invokeFunction,
             }
           : undefined,
+        // Skills are installed into the sandbox and discovered by the agent
+        // (the session folds the discovery listing into its promptAddendum),
+        // so no skill text is injected into the prompt here.
+        skills: resolveSkillSources(exp.skills),
       });
       try {
         const run = await exp.agent.run({
           systemPrompt: buildSystemPrompt(
             "local-stack",
-            skillContext,
             session.promptAddendum,
           ),
           userPrompt: prompt,
@@ -342,14 +451,18 @@ async function runOne(
     const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
 
     try {
+      // Tools mode has no filesystem: advertise only each skill's
+      // name+description and let the agent pull a skill's full body on demand
+      // via the load_skill tool (lazy, like local-stack's files_read).
       const systemPrompt = buildSystemPrompt(
         "tools",
-        skillContext,
         session.promptAddendum,
+        buildToolsSkillsPrompt(toolsSkills),
       );
       const run = await exp.agent.run({
         systemPrompt,
         userPrompt: prompt,
+        tools: buildLoadSkillTool(toolsSkills),
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
