@@ -2,10 +2,9 @@
  * CLI-agent harnesses.
  *
  * `aiSdkAgent` drives the model loop in-process: we own the tools and record
- * the transcript as it happens. A CLI agent (Claude Code, and later Codex /
- * Gemini CLI / …) is the opposite — its own harness with its own tools, loop,
- * and MCP client. So we run it inside the eval sandbox and parse the transcript
- * it produces.
+ * the transcript as it happens. A CLI agent (Claude Code, Codex, …) is the
+ * opposite — its own harness with its own tools, loop, and MCP client. So we
+ * run it inside the eval sandbox and parse the transcript it produces.
  *
  * Three concerns are split so each lives in one place:
  *   - runner (`./runners/<agent>.ts`): install + exec + permission flags + MCP
@@ -24,7 +23,9 @@ import type { AgentHarness, AgentRunResult } from "./index.js";
 import { adaptTranscript } from "./parsers/adapt.js";
 import type { AgentTranscriptParser } from "./parsers/types.js";
 import { claudeCodeParser } from "./parsers/claude-code.js";
+import { codexParser } from "./parsers/codex.js";
 import { claudeCodeRunner } from "./runners/claude-code.js";
+import { codexRunner, type CodexModel } from "./runners/codex.js";
 import type { AgentRunner } from "./runners/types.js";
 import {
   SCRATCH,
@@ -121,6 +122,21 @@ export function claudeCodeAgent(
 ): AgentHarness {
   return createCliAgent(claudeCodeRunner, claudeCodeParser, {
     model: options.model ?? claudeCodeRunner.defaultModel,
+    cliVersion: options.cliVersion,
+  });
+}
+
+/** OpenAI Codex as an `AgentHarness`. Runs in both modes, like Claude Code. */
+export function codexAgent(
+  options: {
+    /** OpenAI model id (typed from `openai`; any string accepted). */
+    model?: CodexModel;
+    /** Override the pinned CLI version. */
+    cliVersion?: string;
+  } = {},
+): AgentHarness {
+  return createCliAgent(codexRunner, codexParser, {
+    model: options.model ?? codexRunner.defaultModel,
     cliVersion: options.cliVersion,
   });
 }

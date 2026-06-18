@@ -72,8 +72,12 @@ export {
   rawEvalResultSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
-// CLI agent harnesses (Claude Code, and the runner/parser framework for adding more).
-export { createCliAgent, claudeCodeAgent } from "./cli-agent.js";
+// CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
+export {
+  createCliAgent,
+  claudeCodeAgent,
+  codexAgent,
+} from "./cli-agent.js";
 export type {
   AgentSandbox,
   AgentRunner,

@@ -7,9 +7,11 @@
 
 import type { AgentTranscriptParser } from "./types.js";
 import { claudeCodeParser } from "./claude-code.js";
+import { codexParser } from "./codex.js";
 
 const PARSERS: Record<string, AgentTranscriptParser> = {
   "claude-code": claudeCodeParser,
+  codex: codexParser,
 };
 
 /** Agent ids with a registered transcript parser. */
