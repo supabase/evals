@@ -27,6 +27,7 @@ import type {
   CommandResult,
   McpServerConfig,
 } from "./index.js";
+import { parseJsonlRecords } from "./json.js";
 import { adaptTranscript } from "./parsers/adapt.js";
 import { claudeCodeParser } from "./parsers/claude-code.js";
 import type { AgentTranscriptParser } from "./parsers/types.js";
@@ -60,12 +61,15 @@ export interface CliAgentExecArgs<M extends string = string> {
   userPromptPath: string;
   /** Shell path to the CLI's MCP config file, or undefined when no MCP servers. */
   mcpConfigPath?: string;
+  /** MCP server names exposed this run (keys of the MCP config). */
+  mcpServerNames: string[];
   /**
-   * When set, the agent may use only these tools (canonical CLI tool names,
-   * e.g. `mcp__supabase`). Native tools are denied. Used for the MCP-only
-   * tools-mode surface; undefined means the agent's full native tool set.
+   * Confine the agent to the MCP surface (deny native Bash/file/web tools).
+   * Set in tools mode. Each runner translates this into its own permission
+   * flags; a runner that cannot enforce it MUST throw rather than silently run
+   * unrestricted (that would invalidate the eval).
    */
-  allowedTools?: string[];
+  restrictToMcp: boolean;
   timeoutSec: number;
 }
 
@@ -161,13 +165,6 @@ export function createCliAgent<M extends string = string>(
         mcpConfigPath = MCP_CONFIG_PATH;
       }
 
-      // In tools mode the CLI is confined to the MCP surface so it can't bypass
-      // the tools the eval measures. Each MCP server name maps to a Claude Code
-      // tool-permission entry (`mcp__<server>` allows all of that server's tools).
-      const allowedTools = args.restrictToMcp
-        ? serverNames.map((name) => `mcp__${name}`)
-        : undefined;
-
       const { command, raw } = await spec.exec({
         sandbox,
         model: options.model,
@@ -175,7 +172,10 @@ export function createCliAgent<M extends string = string>(
         systemPromptPath: SYSTEM_PROMPT_PATH,
         userPromptPath: USER_PROMPT_PATH,
         mcpConfigPath,
-        allowedTools,
+        mcpServerNames: serverNames,
+        // Tools mode confines the CLI to the MCP surface so it can't bypass the
+        // tools the eval measures; the runner decides how to enforce it.
+        restrictToMcp: args.restrictToMcp ?? false,
         timeoutSec: args.timeoutSec,
       });
 
@@ -232,11 +232,13 @@ async function writeSandboxFile(
 function rewriteLoopback(
   servers: Record<string, McpServerConfig>,
 ): Record<string, McpServerConfig> {
+  // Rewrite only the host of a URL authority (after `://`), so we don't clobber
+  // a loopback-looking substring inside a token, ref, or password.
   const swap = (value: string) =>
-    value
-      .replaceAll("127.0.0.1", "host.docker.internal")
-      .replaceAll("0.0.0.0", "host.docker.internal")
-      .replaceAll("localhost", "host.docker.internal");
+    value.replace(
+      /(:\/\/)(127\.0\.0\.1|0\.0\.0\.0|localhost)/g,
+      "$1host.docker.internal",
+    );
   const out: Record<string, McpServerConfig> = {};
   for (const [name, server] of Object.entries(servers)) {
     out[name] = {
@@ -303,8 +305,14 @@ export const claudeCodeSpec: CliAgentSpec<AnthropicModel> = {
     }
   },
 
-  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpConfigPath, allowedTools, timeoutSec }) {
+  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpConfigPath, mcpServerNames, restrictToMcp, timeoutSec }) {
     const claude = `${NPM_PREFIX}/bin/claude`;
+    // MCP-only confinement: allow every exposed server's tools (`mcp__<server>`
+    // covers all of that server's tools) and nothing else. In print mode any
+    // tool not on the allowlist is auto-denied, so the CLI can't reach past MCP.
+    const allowedTools = restrictToMcp
+      ? mcpServerNames.map((name) => `mcp__${name}`)
+      : undefined;
     const flags = [
       "--print",
       // Anthropic's recommended programmatic output: newline-delimited JSON
@@ -312,18 +320,14 @@ export const claudeCodeSpec: CliAgentSpec<AnthropicModel> = {
       "--output-format stream-json",
       "--verbose",
       `--model ${shellQuote(model)}`,
-      // Append (not replace) so Claude Code keeps its default coding-agent
-      // system prompt, tool guidance, and safety instructions.
-      `--append-system-prompt "$(cat ${systemPromptPath})"`,
+      // Append (not replace), from a file (no ARG_MAX/shell-expansion surface),
+      // so Claude Code keeps its default coding-agent prompt + tool guidance.
+      `--append-system-prompt-file ${systemPromptPath}`,
       // Load only our MCP servers; ignore any .mcp.json in the workspace.
       ...(mcpConfigPath ? [`--mcp-config ${mcpConfigPath}`, "--strict-mcp-config"] : []),
-      // Tool permissions. When confined to a tool allowlist (tools mode), pass
-      // it explicitly and DON'T skip permissions — in print mode any tool not on
-      // the list is auto-denied, so the CLI can't reach beyond the MCP surface.
-      // Otherwise (local-stack) the sandbox is isolated, so skip prompts entirely.
-      // `--allowedTools` is variadic, so it must come last (nothing positional
-      // after it for it to swallow). The prompt goes on stdin, not as a
-      // positional arg — which also sidesteps any ARG_MAX limit.
+      // Tool permissions. Confined: explicit allowlist, no skip. Otherwise the
+      // sandbox is isolated, so skip prompts entirely. `--allowedTools` is
+      // variadic, so it must come last (the prompt is on stdin, not positional).
       ...(allowedTools
         ? [`--allowedTools ${allowedTools.map(shellQuote).join(" ")}`]
         : ["--dangerously-skip-permissions"]),
@@ -352,18 +356,8 @@ export const claudeCodeSpec: CliAgentSpec<AnthropicModel> = {
 /** Parse the last `type: "result"` event out of a stream-json transcript. */
 function lastResultEvent(raw: string | undefined): Record<string, unknown> | undefined {
   if (!raw) return undefined;
-  const lines = raw.split("\n");
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    try {
-      const data = JSON.parse(line) as Record<string, unknown>;
-      if (data.type === "result") return data;
-    } catch {
-      // ignore non-JSON lines
-    }
-  }
-  return undefined;
+  const { records } = parseJsonlRecords(raw);
+  return [...records].reverse().find((r) => r.type === "result");
 }
 
 /** Claude Code as an `AgentHarness`. Runs only against local-stack evals. */

@@ -15,6 +15,7 @@ import type {
   TranscriptEvent,
 } from "../transcript/types.js";
 import type { AgentTranscriptParser } from "./types.js";
+import { isRecord, parseJsonlRecords } from "../json.js";
 import { normalizeToolName } from "./shared/normalize.js";
 import { extractCommand, extractFilePath, extractUrl } from "./shared/extract.js";
 
@@ -102,9 +103,8 @@ function enrich(event: TranscriptEvent): TranscriptEvent {
   return event;
 }
 
-function parseLine(line: string): TranscriptEvent[] {
+function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   const events: TranscriptEvent[] = [];
-  const data = JSON.parse(line) as Record<string, unknown>;
   const timestamp = typeof data.timestamp === "string" ? data.timestamp : undefined;
   const type = data.type;
 
@@ -192,12 +192,11 @@ function errorMessage(data: Record<string, unknown>): string {
 
 export const claudeCodeParser: AgentTranscriptParser = {
   parseTranscript(raw: string): ParsedTranscript {
+    const { records, errors } = parseJsonlRecords(raw);
     const events: TranscriptEvent[] = [];
-    const errors: string[] = [];
-    for (const line of raw.split("\n")) {
-      if (!line.trim()) continue;
+    for (const record of records) {
       try {
-        events.push(...parseLine(line));
+        events.push(...recordToEvents(record));
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
       }
@@ -205,7 +204,3 @@ export const claudeCodeParser: AgentTranscriptParser = {
     return { events, errors };
   },
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}

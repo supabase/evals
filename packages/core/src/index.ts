@@ -33,6 +33,7 @@ import {
 } from "@supabase-evals/platform-lite";
 import type { CheckResult } from "./eval-metadata.js";
 import type { AgentSandbox } from "./cli-agent.js";
+import { isRecord } from "./json.js";
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -1508,10 +1509,6 @@ function mergeToolSets(toolSets: ToolSet[]): ToolSet | undefined {
 function throwIfCloseErrors(errors: unknown[], message: string): void {
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) throw new AggregateError(errors, message);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isString(value: unknown): value is string {
