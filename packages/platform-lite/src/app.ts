@@ -92,7 +92,13 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
 export async function createPlatform(options: AppOptions = {}): Promise<PlatformHandle> {
   const { app, store } = await build(options)
 
+  // Track open pg-wire listeners so dispose() tears them down too. They must be
+  // closed before the projects, since each holds a backend bridged to a
+  // project's PGlite.
+  const pgServers = new Set<PgServerHandle>()
+
   const dispose = async () => {
+    await Promise.all([...pgServers].map((s) => s.close()))
     await Promise.all([...store.values()].map((p) => p.close()))
   }
 
@@ -111,12 +117,22 @@ export async function createPlatform(options: AppOptions = {}): Promise<Platform
         [Symbol.asyncDispose]: serverDispose,
       }
     },
-    listenPg: (options) =>
-      startPgWireServer(
+    listenPg: async (options) => {
+      const handle = await startPgWireServer(
         (ref) => store.get(ref),
         () => [...store.keys()],
         { host: options?.hostname, port: options?.port },
-      ),
+      )
+      pgServers.add(handle)
+      // De-register on explicit close so dispose() doesn't double-close it.
+      return {
+        ...handle,
+        close: async () => {
+          pgServers.delete(handle)
+          await handle.close()
+        },
+      }
+    },
     dispose,
     [Symbol.asyncDispose]: dispose,
   }

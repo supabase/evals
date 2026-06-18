@@ -221,11 +221,14 @@ async function linkSandboxToHostedPlatform(
   // When platform-lite exposed a Postgres-wire port, seed the same `.temp`
   // files a real `supabase link` would: the pooler connection string the
   // linked DB commands dial, and the version files their compat probes read.
-  // platform-lite's wire server ignores credentials, so any password connects;
-  // we set SUPABASE_DB_PASSWORD too so `db push` never prompts.
+  // The username carries the tenant (`postgres.<ref>`, Supavisor convention) so
+  // platform-lite's pooler routes to the right project — matching the shape
+  // PgServerHandle.connectionString() produces, not relying on its single-
+  // project fallback. The wire server ignores credentials, so any password
+  // connects; we set SUPABASE_DB_PASSWORD too so `db push` never prompts.
   if (hosted.pgPort !== undefined) {
     files[POOLER_URL_PATH] =
-      `postgresql://postgres:postgres@host.docker.internal:${hosted.pgPort}/postgres`;
+      `postgresql://postgres.${hosted.ref}:postgres@host.docker.internal:${hosted.pgPort}/postgres`;
     Object.assign(files, REMOTE_VERSION_FILES);
   }
 

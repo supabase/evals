@@ -56,23 +56,39 @@ export async function startPgWireServer(
   opts: { host?: string; port?: number } = {},
 ): Promise<PgServerHandle> {
   const host = opts.host ?? '127.0.0.1'
-  // One loopback protocol server per project, created on first use.
-  const backends = new Map<string, { server: PGLiteSocketServer; port: number }>()
+  // One loopback protocol server per project, created on first use. Keyed by the
+  // in-flight *promise* (not the resolved value) so concurrent connections for
+  // the same project — e.g. the several `db push` opens — share a single backend
+  // rather than each racing to start a second PGLiteSocketServer on the same
+  // PGlite (which would leak and break the single-connection query serialization).
+  const backends = new Map<string, Promise<{ server: PGLiteSocketServer; port: number }>>()
 
-  const backendPortFor = async (project: ProjectInstance): Promise<number> => {
-    const existing = backends.get(project.ref)
-    if (existing) return existing.port
-    const server = new PGLiteSocketServer({
-      db: project.pglite,
-      host: '127.0.0.1',
-      port: 0,
-      maxConnections: 100,
-    })
-    await server.start()
-    const port = Number(server.getServerConn().match(/:(\d+)$/)?.[1])
-    backends.set(project.ref, { server, port })
-    return port
+  const backendFor = (
+    project: ProjectInstance,
+  ): Promise<{ server: PGLiteSocketServer; port: number }> => {
+    let pending = backends.get(project.ref)
+    if (!pending) {
+      pending = (async () => {
+        const server = new PGLiteSocketServer({
+          db: project.pglite,
+          host: '127.0.0.1',
+          port: 0,
+          maxConnections: 100,
+        })
+        await server.start()
+        const port = Number(server.getServerConn().match(/:(\d+)$/)?.[1])
+        return { server, port }
+      })()
+      // Evict a failed attempt so a later connection can retry instead of
+      // inheriting the cached rejection forever.
+      pending.catch(() => backends.delete(project.ref))
+      backends.set(project.ref, pending)
+    }
+    return pending
   }
+
+  const backendPortFor = async (project: ProjectInstance): Promise<number> =>
+    (await backendFor(project)).port
 
   const proxy = createServer((client) =>
     handleClient(client, resolve, listRefs, backendPortFor),
@@ -87,7 +103,15 @@ export async function startPgWireServer(
       `postgresql://postgres.${ref}:${o.password ?? 'postgres'}@${o.host ?? host}:${port}/postgres`,
     close: async () => {
       await new Promise<void>((resolve) => proxy.close(() => resolve()))
-      await Promise.all([...backends.values()].map((b) => b.server.stop()))
+      await Promise.all(
+        [...backends.values()].map(async (pending) => {
+          try {
+            await (await pending).server.stop()
+          } catch {
+            // a backend that never started has nothing to stop
+          }
+        }),
+      )
       backends.clear()
     },
   }

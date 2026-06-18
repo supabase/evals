@@ -36,6 +36,35 @@ describe('platform pg-wire surface', () => {
       await platform.dispose()
     }
   })
+
+  it('serves concurrent connections to one project from a shared backend', async () => {
+    const ref = 'concurrentprojxxxxxx'
+    const platform = await createPlatform({
+      projects: [{ ref, sql: 'create table t (id int); insert into t values (1),(2),(3);' }],
+    })
+    const pg = await platform.listenPg({ hostname: '127.0.0.1' })
+    try {
+      // Fire several at once — they must share the single lazily-started backend
+      // (no race creating duplicate servers on the same PGlite).
+      const results = await Promise.all(
+        Array.from({ length: 4 }, () => wireRoundTrip(pg.port, ref, 'select id from t;')),
+      )
+      for (const r of results) expect(r.rowCount).toBe(3)
+    } finally {
+      await pg.close()
+      await platform.dispose()
+    }
+  })
+
+  it('dispose() closes the pg-wire listener even without an explicit handle close', async () => {
+    const platform = await createPlatform({
+      projects: [{ ref: 'disposeprojxxxxxxxxx', sql: 'create table t (id int);' }],
+    })
+    const pg = await platform.listenPg({ hostname: '127.0.0.1' })
+    const { port } = pg
+    await platform.dispose() // deliberately not calling pg.close()
+    await expect(wireRoundTrip(port, 'disposeprojxxxxxxxxx', 'select 1;')).rejects.toThrow()
+  })
 })
 
 /**
