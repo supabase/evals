@@ -304,9 +304,15 @@ export type AgentRunArgs = {
    * Execution environment for CLI agents (Claude Code, Codex, …). In-process
    * agents like `aiSdkAgent` ignore it; CLI agents need it to run their binary,
    * edit the workspace, and read back their transcript. Provided by the
-   * local-stack session; absent in tools mode.
+   * local-stack session, or by a bare sandbox the harness boots for tools mode.
    */
   sandbox?: AgentSandbox;
+  /**
+   * Restrict a CLI agent to the MCP tool surface only (deny its native
+   * Bash/file/web tools). Set in tools mode, where the eval measures MCP usage
+   * and native tools would let the CLI bypass it. In-process agents ignore it.
+   */
+  restrictToMcp?: boolean;
   timeoutSec: number;
 };
 
@@ -627,6 +633,12 @@ export type EvalSessionArgs = {
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
   pgvector?: boolean;
+  /**
+   * Host to bind the platform-lite server to. Defaults to 127.0.0.1 (host-side,
+   * for in-process agents). The harness sets 0.0.0.0 for CLI agents in tools
+   * mode so their in-container MCP servers can reach it via host.docker.internal.
+   */
+  hostname?: string;
 };
 
 export type EvalSession = {

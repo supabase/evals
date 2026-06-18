@@ -28,5 +28,7 @@ export {
   stripFrontmatter,
 } from "./skills.js";
 export type { SkillEntry } from "./skills.js";
+export { createBareSandbox } from "./bare-sandbox.js";
+export type { BareSandboxHandle } from "./bare-sandbox.js";
 export { ALL_SUPABASE_SERVICES } from "./types.js";
 export type { SandboxCommandResult, SupabaseService } from "./types.js";

@@ -60,6 +60,12 @@ export interface CliAgentExecArgs<M extends string = string> {
   userPromptPath: string;
   /** Shell path to the CLI's MCP config file, or undefined when no MCP servers. */
   mcpConfigPath?: string;
+  /**
+   * When set, the agent may use only these tools (canonical CLI tool names,
+   * e.g. `mcp__supabase`). Native tools are denied. Used for the MCP-only
+   * tools-mode surface; undefined means the agent's full native tool set.
+   */
+  allowedTools?: string[];
   timeoutSec: number;
 }
 
@@ -147,12 +153,20 @@ export function createCliAgent<M extends string = string>(
       await writeSandboxFile(sandbox, SYSTEM_PROMPT_PATH, args.systemPrompt);
       await writeSandboxFile(sandbox, USER_PROMPT_PATH, args.userPrompt);
 
+      const serverNames = Object.keys(args.mcpServers ?? {});
       let mcpConfigPath: string | undefined;
-      if (args.mcpServers && Object.keys(args.mcpServers).length > 0) {
-        const contents = spec.buildMcpConfig(rewriteLoopback(args.mcpServers));
+      if (serverNames.length > 0) {
+        const contents = spec.buildMcpConfig(rewriteLoopback(args.mcpServers!));
         await writeSandboxFile(sandbox, MCP_CONFIG_PATH, contents);
         mcpConfigPath = MCP_CONFIG_PATH;
       }
+
+      // In tools mode the CLI is confined to the MCP surface so it can't bypass
+      // the tools the eval measures. Each MCP server name maps to a Claude Code
+      // tool-permission entry (`mcp__<server>` allows all of that server's tools).
+      const allowedTools = args.restrictToMcp
+        ? serverNames.map((name) => `mcp__${name}`)
+        : undefined;
 
       const { command, raw } = await spec.exec({
         sandbox,
@@ -161,6 +175,7 @@ export function createCliAgent<M extends string = string>(
         systemPromptPath: SYSTEM_PROMPT_PATH,
         userPromptPath: USER_PROMPT_PATH,
         mcpConfigPath,
+        allowedTools,
         timeoutSec: args.timeoutSec,
       });
 
@@ -218,7 +233,10 @@ function rewriteLoopback(
   servers: Record<string, McpServerConfig>,
 ): Record<string, McpServerConfig> {
   const swap = (value: string) =>
-    value.replaceAll("127.0.0.1", "host.docker.internal").replaceAll("localhost", "host.docker.internal");
+    value
+      .replaceAll("127.0.0.1", "host.docker.internal")
+      .replaceAll("0.0.0.0", "host.docker.internal")
+      .replaceAll("localhost", "host.docker.internal");
   const out: Record<string, McpServerConfig> = {};
   for (const [name, server] of Object.entries(servers)) {
     out[name] = {
@@ -285,7 +303,7 @@ export const claudeCodeSpec: CliAgentSpec<AnthropicModel> = {
     }
   },
 
-  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpConfigPath, timeoutSec }) {
+  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpConfigPath, allowedTools, timeoutSec }) {
     const claude = `${NPM_PREFIX}/bin/claude`;
     const flags = [
       "--print",
@@ -299,12 +317,19 @@ export const claudeCodeSpec: CliAgentSpec<AnthropicModel> = {
       `--append-system-prompt "$(cat ${systemPromptPath})"`,
       // Load only our MCP servers; ignore any .mcp.json in the workspace.
       ...(mcpConfigPath ? [`--mcp-config ${mcpConfigPath}`, "--strict-mcp-config"] : []),
-      // The sandbox is an isolated container — the context Anthropic sanctions
-      // for skipping permission prompts in automation.
-      "--dangerously-skip-permissions",
+      // Tool permissions. When confined to a tool allowlist (tools mode), pass
+      // it explicitly and DON'T skip permissions — in print mode any tool not on
+      // the list is auto-denied, so the CLI can't reach beyond the MCP surface.
+      // Otherwise (local-stack) the sandbox is isolated, so skip prompts entirely.
+      // `--allowedTools` is variadic, so it must come last (nothing positional
+      // after it for it to swallow). The prompt goes on stdin, not as a
+      // positional arg — which also sidesteps any ARG_MAX limit.
+      ...(allowedTools
+        ? [`--allowedTools ${allowedTools.map(shellQuote).join(" ")}`]
+        : ["--dangerously-skip-permissions"]),
     ].join(" ");
-    // User prompt as the positional arg, read from its file so no length/quoting limit.
-    const command = await sandbox.exec(`${claude} ${flags} "$(cat ${userPromptPath})"`, {
+    // Prompt piped on stdin: `claude -p` with no positional reads it from stdin.
+    const command = await sandbox.exec(`cat ${userPromptPath} | ${claude} ${flags}`, {
       timeoutMs: timeoutSec * 1000,
       env: { ANTHROPIC_API_KEY: apiKey },
     });

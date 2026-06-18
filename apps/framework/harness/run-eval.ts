@@ -23,6 +23,8 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from "../lib/cli-args.js";
+import { createBareSandbox } from "@supabase-evals/sandbox";
+import { runScorer } from "../lib/scorer.js";
 import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
@@ -445,8 +447,17 @@ async function runOne(
       continue;
     }
 
-    // Tools mode: boot runtime, expose MCP tools, run agent, score result.
-    const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
+    // Tools mode: the eval's tool surface is MCP (platform-lite). In-process
+    // agents run host-side; a CLI agent needs an execution substrate, so boot a
+    // bare sandbox and confine it to the MCP surface (so it can't bypass the
+    // tools under test). Binding platform-lite to 0.0.0.0 lets the sandbox's
+    // in-container MCP servers reach it via host.docker.internal.
+    const needsSandbox = exp.agent.requiresSandbox ?? false;
+    const cliSandbox = needsSandbox ? await createBareSandbox() : undefined;
+    const session = await exp.runtime.startSession({
+      ...readSessionSeedArgs(ev),
+      hostname: needsSandbox ? "0.0.0.0" : undefined,
+    });
 
     try {
       // Tools mode has no filesystem: advertise only each skill's
@@ -462,6 +473,8 @@ async function runOne(
         userPrompt: prompt,
         tools: buildLoadSkillTool(toolsSkills),
         mcpServers: session.mcpServers,
+        sandbox: cliSandbox?.sandbox,
+        restrictToMcp: needsSandbox,
         timeoutSec: TIMEOUT_SEC,
       });
 
@@ -488,6 +501,7 @@ async function runOne(
       }
     } finally {
       await session.close();
+      await cliSandbox?.close();
     }
   }
 
@@ -633,12 +647,6 @@ async function main() {
       if (ev.mode === "local-stack" && !config.localStack) {
         console.log(
           `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`,
-        );
-        continue;
-      }
-      if (ev.mode === "tools" && config.agent.requiresSandbox) {
-        console.log(
-          `SKIP ${name} x ${ev.id} (${config.agent.id} is a CLI agent and only runs against local-stack evals — interface: cli or a local/ workspace)`,
         );
         continue;
       }
