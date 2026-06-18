@@ -3,6 +3,7 @@ import { jsonSchema, tool, type ToolSet } from "ai";
 import { createClient } from "@supabase/supabase-js";
 import {
   supabaseMcpServer,
+  type AgentSandbox,
   type HostedLink,
   type LocalStackRuntime,
   type LocalStackScoringContext,
@@ -125,6 +126,7 @@ export function localStackRuntime(
 
       return {
         tools: buildLocalStackTools(sandbox),
+        sandbox: toAgentSandbox(sandbox),
         mcpServers,
         promptAddendum: [baseAddendum, buildSkillsPrompt(skillEntries)]
           .filter(Boolean)
@@ -168,6 +170,19 @@ async function resolveMcpServers(
       : undefined,
   );
   return { supabase: config };
+}
+
+/**
+ * Adapt the Docker sandbox to the minimal `AgentSandbox` surface a CLI agent
+ * needs: run a command in the workspace and read files back out. CLI agents
+ * (Claude Code) use this directly instead of the ai-sdk `tools` above.
+ */
+export function toAgentSandbox(sandbox: DockerSandbox): AgentSandbox {
+  return {
+    workspace: sandbox.workdir,
+    exec: (command, options) => sandbox.runShell(command, options),
+    readFile: (path) => sandbox.readFile(path),
+  };
 }
 
 export function buildLocalStackTools(sandbox: DockerSandbox): ToolSet {

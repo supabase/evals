@@ -16,6 +16,7 @@ export {
   buildLocalStackScoringContext,
   buildLocalStackTools,
   localStackRuntime,
+  toAgentSandbox,
 } from "./local-stack-runtime.js";
 export type { LocalStackRuntimeOptions } from "./local-stack-runtime.js";
 export {

@@ -391,6 +391,7 @@ async function runOne(
           ),
           userPrompt: prompt,
           tools: session.tools,
+          sandbox: session.sandbox,
           mcpServers: session.mcpServers,
           timeoutSec: TIMEOUT_SEC,
         });
@@ -632,6 +633,12 @@ async function main() {
       if (ev.mode === "local-stack" && !config.localStack) {
         console.log(
           `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`,
+        );
+        continue;
+      }
+      if (ev.mode === "tools" && config.agent.requiresSandbox) {
+        console.log(
+          `SKIP ${name} x ${ev.id} (${config.agent.id} is a CLI agent and only runs against local-stack evals — interface: cli or a local/ workspace)`,
         );
         continue;
       }

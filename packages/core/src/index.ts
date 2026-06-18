@@ -32,6 +32,7 @@ import {
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
 import type { CheckResult } from "./eval-metadata.js";
+import type { AgentSandbox } from "./cli-agent.js";
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -70,6 +71,27 @@ export {
   rawEvalResultSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
+// CLI agent harnesses (Claude Code, and the shared framework for adding more).
+export {
+  createCliAgent,
+  claudeCodeAgent,
+  claudeCodeSpec,
+} from "./cli-agent.js";
+export type {
+  AgentSandbox,
+  CliAgentSpec,
+  CliAgentExecArgs,
+} from "./cli-agent.js";
+// Generic transcript vocabulary + parser layer used by CLI agents.
+export { createParser, supportedParsers } from "./parsers/registry.js";
+export { adaptTranscript } from "./parsers/adapt.js";
+export type { AdaptedTranscript } from "./parsers/adapt.js";
+export type { AgentTranscriptParser } from "./parsers/types.js";
+export type {
+  ToolName,
+  TranscriptEvent,
+  ParsedTranscript,
+} from "./transcript/types.js";
 export type {
   CheckResult,
   EvalInterface,
@@ -277,6 +299,13 @@ export type AgentRunArgs = {
   userPrompt: string;
   tools?: ToolSet;
   mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * Execution environment for CLI agents (Claude Code, Codex, …). In-process
+   * agents like `aiSdkAgent` ignore it; CLI agents need it to run their binary,
+   * edit the workspace, and read back their transcript. Provided by the
+   * local-stack session; absent in tools mode.
+   */
+  sandbox?: AgentSandbox;
   timeoutSec: number;
 };
 
@@ -291,6 +320,11 @@ export type AgentRunResult = {
 export type AgentHarness = {
   id: string;
   modelId: string;
+  /**
+   * True for CLI agents that must run inside a sandbox (so they get the
+   * workspace + their tools). The harness skips tools-mode evals for these.
+   */
+  requiresSandbox?: boolean;
   assertReady(): void;
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };
@@ -359,6 +393,12 @@ export type HostedLink = {
  */
 export type LocalStackSession = {
   tools: ToolSet;
+  /**
+   * Direct handle to the underlying sandbox, for CLI agents that run their own
+   * binary in the workspace rather than going through the ai-sdk `tools` above.
+   * In-process agents (`aiSdkAgent`) use `tools` and ignore this.
+   */
+  sandbox: AgentSandbox;
   /**
    * MCP servers to expose to the agent alongside the sandbox tools (e.g. the
    * docs server for `search_docs`). Spawned host-side; merged with `tools` by
