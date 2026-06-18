@@ -245,6 +245,26 @@ jobs:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
+      - name: Append results to gh-pages
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/${{ github.repository }}.git"
+
+          git fetch origin gh-pages:gh-pages
+          git worktree add /tmp/gh-pages gh-pages
+
+          jq -c --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '{ts: $ts, results: .}' \
+            apps/web/src/data/eval-results.json >> /tmp/gh-pages/results.jsonl
+
+          git -C /tmp/gh-pages add results.jsonl
+          git -C /tmp/gh-pages commit -m "chore: append eval results"
+          git -C /tmp/gh-pages push origin gh-pages
+
       - name: Create results pull request
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
