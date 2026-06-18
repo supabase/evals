@@ -6,10 +6,13 @@ import { bootPlatformBackend } from "../harness/platform-backend.js";
 import { viteBuild, vitestRun } from "../harness/project-runner.js";
 import type { ToolScorer, TranscriptPart } from "../harness/types.js";
 import type { PlatformBackend } from "../harness/platform-backend.js";
-import { runScorer } from "../lib/scorer.js";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
+
+// Scorers trigger expected-fail supabase-js calls that log via console.error.
+// Silence it globally so smoke runs stay quiet on those.
+const stderr = console.error;
+console.error = () => undefined;
 
 const CLIENT_RLS_EVAL = "evals/build-rls-002-own-todos-client";
 const FUNCTIONS_EVAL = "evals/build-functions-001-order-total";
@@ -20,10 +23,7 @@ const FRONTEND_EVAL = "evals/build-frontend-001-todos-app";
 
 async function loadScorer(relDir: string): Promise<ToolScorer> {
   const mod = await import(pathToFileURL(join(ROOT, relDir, "EVAL.ts")).href);
-  const scorer = mod.default as ToolScorer;
-  // Route scorers through the same silencing wrapper the runner uses, so smoke
-  // runs stay quiet on expected-fail supabase-js calls.
-  return (ctx) => runScorer(() => scorer(ctx));
+  return mod.default as ToolScorer;
 }
 
 function scorerCtx(

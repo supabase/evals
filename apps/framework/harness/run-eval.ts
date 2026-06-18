@@ -17,7 +17,6 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from "../lib/cli-args.js";
-import { runScorer } from "../lib/scorer.js";
 import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
@@ -53,6 +52,7 @@ const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
+const CONCURRENCY = Number(readFlag("concurrency") ?? 10);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
 const DEBUG = args.has("--debug");
 
@@ -304,22 +304,18 @@ async function runOne(
           copiedWithheldTests = true;
         };
 
-        last = await runScorer(
-          () =>
-            (scorer as LocalStackScorer)({
-              ...session.scoringContext,
-              toolCalls: run.toolCalls,
-              transcript: run.transcript,
-              agentReport: run.agentReport,
-              hostWorkspace,
-              runViteBuild: () => viteBuild(hostWorkspace),
-              runVitest: () => {
-                ensureWithheldTests();
-                return vitestRun(hostWorkspace);
-              },
-            }),
-          { debug: DEBUG },
-        );
+        last = await (scorer as LocalStackScorer)({
+          ...session.scoringContext,
+          toolCalls: run.toolCalls,
+          transcript: run.transcript,
+          agentReport: run.agentReport,
+          hostWorkspace,
+          runViteBuild: () => viteBuild(hostWorkspace),
+          runVitest: () => {
+            ensureWithheldTests();
+            return vitestRun(hostWorkspace);
+          },
+        });
 
         if (STOP_ON_PASS && last.passed) {
           return {
@@ -358,16 +354,12 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
-      last = await runScorer(
-        () =>
-          (scorer as ToolScorer)({
-            ...session.scoringContext,
-            toolCalls: run.toolCalls,
-            transcript: run.transcript,
-            agentReport: run.agentReport,
-          }),
-        { debug: DEBUG },
-      );
+      last = await (scorer as ToolScorer)({
+        ...session.scoringContext,
+        toolCalls: run.toolCalls,
+        transcript: run.transcript,
+        agentReport: run.agentReport,
+      });
 
       if (STOP_ON_PASS && last.passed) {
         return {
@@ -415,6 +407,18 @@ function formatRunSummary(res: ScoreResult & { attempts: number }): string {
   parts.push(`attempts ${res.attempts}`);
 
   return parts.join(", ");
+}
+
+async function runConcurrent<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (queue.length) await fn(queue.shift()!);
+  });
+  await Promise.all(workers);
 }
 
 async function main() {
@@ -483,22 +487,29 @@ async function main() {
     throw new Error(`no evals matched ${filter}`);
   }
 
+  // Scorers trigger supabase-js operations expected to fail (e.g. RLS cross-user
+  // writes) which log via console.error even when handled as values. Silence it
+  // globally so the noise doesn't bury real output. --debug keeps it visible.
+  const stderr = console.error;
+  if (!DEBUG) console.error = () => undefined;
+
   console.log(
     `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
-      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
+      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
   );
+
+  const allWork: Array<{ name: string; config: ExperimentConfig; ev: EvalManifest }> = [];
 
   for (const { name, config } of experiments) {
     if (!DRY) {
       try {
         config.agent.assertReady();
       } catch (e) {
-        console.error(
-          `SKIP ${name} (${e instanceof Error ? e.message : String(e)})`,
-        );
+        stderr(`SKIP ${name} (${e instanceof Error ? e.message : String(e)})`);
         continue;
       }
     }
+
     for (const ev of suiteFiltered) {
       const out = resultPath(name, ev);
       if (!FORCE && existsSync(out)) {
@@ -515,7 +526,18 @@ async function main() {
         console.log(formatPlanLine(name, config, ev));
         continue;
       }
-      console.log(`RUN  ${name} x ${ev.id}`);
+      allWork.push({ name, config, ev });
+    }
+  }
+
+  // ponytail: serial local-stack — supabase start binds fixed ports; use random port allocation if concurrency needed
+  let localStackTurn = Promise.resolve();
+
+  const runWork = async ({ name, config, ev }: (typeof allWork)[number]) => {
+    const out = resultPath(name, ev);
+    const start = Date.now();
+    console.log(`⏳ RUN  ${name} x ${ev.id}`);
+    const run = async () => {
       try {
         const res = await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
@@ -527,16 +549,28 @@ async function main() {
             2,
           ),
         );
+        const elapsed = Math.round((Date.now() - start) / 1000);
         console.log(
-          `  -> ${res.passed ? "PASS" : "FAIL"} (${formatRunSummary(res)})`,
+          `${res.passed ? "✅ PASS" : "❌ FAIL"} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)`,
         );
       } catch (e) {
-        console.error(
-          `  -> ERROR ${e instanceof Error ? e.message : String(e)}`,
-        );
+        const elapsed = Math.round((Date.now() - start) / 1000);
+        stderr(`💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`);
       }
+    };
+    if (ev.mode !== "local-stack") return run();
+    const prev = localStackTurn;
+    let release!: () => void;
+    localStackTurn = new Promise((r) => (release = r));
+    await prev;
+    try {
+      await run();
+    } finally {
+      release();
     }
-  }
+  };
+
+  await runConcurrent(allWork, CONCURRENCY, runWork);
 }
 
 main()
