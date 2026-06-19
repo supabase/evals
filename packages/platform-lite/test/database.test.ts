@@ -108,7 +108,7 @@ describe('database', () => {
   })
 
   it('supports pgvector: extension, vector column, HNSW index, similarity query', async () => {
-    const app = await createTestApp([{ ref: 'vector-proj' }])
+    const app = await createTestApp([{ ref: 'vector-proj', pgvector: true }])
 
     const setup = await request(app, 'POST', '/v1/projects/vector-proj/database/query', {
       query: `

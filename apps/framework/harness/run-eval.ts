@@ -284,6 +284,7 @@ function readSessionSeedArgs(ev: EvalManifest) {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
     logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
     functionsSeedDir: existsSync(functionsSeedDir) ? functionsSeedDir : undefined,
+    pgvector: ev.metadata.product.includes("vectors"),
   };
 }
 

@@ -76,12 +76,12 @@ export class ProjectInstance {
     this.createdAt = new Date().toISOString()
   }
 
-  async init(sql?: string, logs?: LogRow[], functions?: EdgeFunctionSeed[]): Promise<void> {
+  async init(sql?: string, logs?: LogRow[], functions?: EdgeFunctionSeed[], pgvector = false): Promise<void> {
     // createPgliteConnection is async; App.init() can't handle Promise<Connection>
     // so we resolve it before constructing the App.
-    const connection = await createPgliteConnection({
-      pgliteOptions: { extensions: { vector } },
-    })
+    const connection = await createPgliteConnection(
+      pgvector ? { pgliteOptions: { extensions: { vector } } } : {},
+    )
     this.pglite = (connection as PgliteConnection).driver
     this.app = new App({
       connection,
