@@ -6,10 +6,15 @@ import { bootPlatformBackend } from "../harness/platform-backend.js";
 import { viteBuild, vitestRun } from "../harness/project-runner.js";
 import type { ToolScorer, TranscriptPart } from "../harness/types.js";
 import type { PlatformBackend } from "../harness/platform-backend.js";
-import { runScorer } from "../lib/scorer.js";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
+
+const DEBUG = process.argv.includes("--debug");
+
+// Scorers trigger expected-fail supabase-js calls that log via console.error.
+// Silence it globally so smoke runs stay quiet on those.
+const stderr = console.error;
+if (!DEBUG) console.error = () => undefined;
 
 const CLIENT_RLS_EVAL = "evals/build-rls-002-own-todos-client";
 const FUNCTIONS_EVAL = "evals/build-functions-001-order-total";
@@ -20,10 +25,7 @@ const FRONTEND_EVAL = "evals/build-frontend-001-todos-app";
 
 async function loadScorer(relDir: string): Promise<ToolScorer> {
   const mod = await import(pathToFileURL(join(ROOT, relDir, "EVAL.ts")).href);
-  const scorer = mod.default as ToolScorer;
-  // Route scorers through the same silencing wrapper the runner uses, so smoke
-  // runs stay quiet on expected-fail supabase-js calls.
-  return (ctx) => runScorer(() => scorer(ctx));
+  return mod.default as ToolScorer;
 }
 
 function scorerCtx(
@@ -60,7 +62,7 @@ async function withBackend<T>(
 }
 
 function seedPath(relDir: string, file: string): string {
-  return join(ROOT, relDir, "seed", file);
+  return join(ROOT, relDir, "remote", file);
 }
 
 async function smokeClientRlsEval() {
@@ -258,8 +260,8 @@ ORDER BY grantee;
   console.log("PASS investigate security scorer + database shim");
 }
 
-async function smokeProjectEval() {
-  const source = join(ROOT, FRONTEND_EVAL, "app");
+async function smokeFrontendBuildTooling() {
+  const source = join(ROOT, FRONTEND_EVAL, "local");
   const workspace = join(ROOT, "results", "_smoke", "build-frontend-001-todos-app");
   rmSync(workspace, { recursive: true, force: true });
   mkdirSync(dirname(workspace), { recursive: true });
@@ -279,7 +281,7 @@ async function smokeProjectEval() {
   const vitest = await vitestRun(workspace);
   assert.equal(vitest.ok, true, vitest.stderr || vitest.stdout);
 
-  console.log("PASS project-mode vite/react/supalite scorer");
+  console.log("PASS frontend vite/react/supalite build + test tooling");
 }
 
 async function main() {
@@ -291,7 +293,7 @@ async function main() {
   await smokeLogsSeeding();
   await smokeInvestigateLogsEval();
   await smokeInvestigateSecurityEval();
-  await smokeProjectEval();
+  await smokeFrontendBuildTooling();
   console.log("PASS framework smoke");
 }
 

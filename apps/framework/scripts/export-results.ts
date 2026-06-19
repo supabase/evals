@@ -9,10 +9,8 @@ import {
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  parseEvalMarkdown,
-  rawEvalResultSchema,
-} from "@supabase-evals/core/eval-metadata";
+import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
+import { rawEvalResultSchema } from "@supabase-evals/core/eval-metadata";
 import type {
   EvalResult,
   EvalSuite,
@@ -76,6 +74,7 @@ async function readResultFile(
     product: promptData?.product ?? parsedResult.product,
     topic: promptData?.topic ?? parsedResult.topic,
     suite: promptData?.suite ?? parsedResult.suite,
+    interface: promptData?.interface ?? parsedResult.interface,
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
     prompt: promptData?.prompt,

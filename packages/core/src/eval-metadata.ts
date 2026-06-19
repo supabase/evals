@@ -9,31 +9,81 @@ export const evalStageSchema = z.enum([
 export const EVAL_STAGES = evalStageSchema.options;
 export type EvalStage = z.infer<typeof evalStageSchema>;
 
+// Maps to the "Products" hierarchy on https://app.notion.com/p/supabase/Supa-bench-condensed-3675004b775f8066824ce11e9fd06304?source=copy_link#3675004b775f8061ad05e804ec30d425.
 export const evalProductSchema = z.enum([
   "database",
-  "storage",
   "auth",
-  "data api",
-  "sdk",
+  "storage",
+  "edge-functions",
   "realtime",
-  "functions",
+  "cron",
+  "queues",
   "vectors",
-  "cli",
-  "docs",
-  "self-hosted",
+  "data-api",
 ]);
 export const EVAL_PRODUCTS = evalProductSchema.options;
 export type EvalProduct = z.infer<typeof evalProductSchema>;
+
+// Cross-cutting areas agents need to use products effectively. A closed set,
+// not freeform: each value is a tracked benchmark dimension.
+export const evalTopicSchema = z.enum([
+  "rls",
+  "security",
+  "migrations",
+  "sql",
+  "sdk",
+  "observability",
+  "self-hosting",
+  "tests",
+  "declarative-schema",
+]);
+export const EVAL_TOPICS = evalTopicSchema.options;
+export type EvalTopic = z.infer<typeof evalTopicSchema>;
 
 export const evalSuiteSchema = z.enum(["benchmark", "regression"]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
+/**
+ * Interface(s) the agent uses to act on Supabase — a benchmark dimension
+ * (cross-team KPI), not the runtime switch. `mcp` = the platform-lite MCP/tool
+ * surface; `cli` = the real Supabase CLI inside a local-stack Docker sandbox.
+ *
+ * Whether a sandbox boots is decided separately by the presence of a `local/`
+ * directory (see the eval runner): `local/` ⇒ sandbox, otherwise the in-memory
+ * tools runtime. `interface: cli` additionally forces a sandbox for scenarios
+ * that start from an empty workspace (no `local/`).
+ */
+export const evalInterfaceSchema = z.enum(["mcp", "cli"]);
+export const EVAL_INTERFACES = evalInterfaceSchema.options;
+export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
+
 export type EvalMetadata = {
   stage: EvalStage;
   product: EvalProduct[];
-  topic: string[];
+  topic: EvalTopic[];
   suite: EvalSuite;
+  interface?: EvalInterface;
+  /**
+   * Local-stack services this scenario needs (sandbox evals only); everything
+   * else is excluded from `supabase start` to keep boots fast. An empty list
+   * (`services: []`) means "only the always-on database, no other services";
+   * omit the key entirely for the full stack. Validated against the known
+   * service list when the sandbox session starts.
+   */
+  services?: string[];
+  /**
+   * Whether the local stack is already running when the agent starts (sandbox
+   * evals only). Defaults to true; scenarios where starting the project is
+   * part of the task set false.
+   */
+  projectRunning?: boolean;
+  /**
+   * Link the sandbox CLI to a mocked hosted project (platform-lite) so hosted
+   * workflows (`supabase functions deploy`, `secrets set`) reach it (sandbox
+   * evals only). Defaults to false.
+   */
+  hostedProject?: boolean;
 };
 
 export type ParsedEvalMarkdown = {
@@ -44,9 +94,83 @@ export type ParsedEvalMarkdown = {
 export const evalMetadataSchema = z.object({
   stage: evalStageSchema,
   product: z.array(evalProductSchema).min(1),
-  topic: z.array(z.string().min(1)).min(1),
+  topic: z.array(evalTopicSchema).min(1),
   suite: evalSuiteSchema.default("regression"),
+  interface: evalInterfaceSchema.optional(),
+  services: z.array(z.string().min(1)).optional(),
+  // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);
+  // anything else is rejected. Avoids z.coerce.boolean, which treats every
+  // non-empty string as true.
+  projectRunning: z.union([z.boolean(), z.stringbool()]).optional(),
+  hostedProject: z.union([z.boolean(), z.stringbool()]).optional(),
 });
+
+// Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
+// runs of whitespace or underscores to a single hyphen. Lets authors write
+// `edge functions`, `edge_functions`, or `edge-functions` for the canonical
+// `edge-functions`. Enum fields are matched on this.
+const normalizeToken = (value: string): string =>
+  value.trim().toLowerCase().replace(/[\s_]+/g, "-");
+
+// YAML scalars arrive as string | number | boolean; the metadata layer treats
+// them all as tokens. Non-scalars (objects/arrays/null) pass through unchanged
+// so the strict schema below rejects them with a clear error.
+const toToken = (value: unknown): unknown =>
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean"
+    ? normalizeToken(String(value))
+    : value;
+
+// A scalar or a list of scalars becomes a list of tokens with blanks dropped.
+// Absent stays absent so the schema can enforce "required, min 1".
+const toTokenList = (value: unknown): unknown => {
+  if (value === undefined) return undefined;
+  return (Array.isArray(value) ? value : [value])
+    .map(toToken)
+    .filter((item) => typeof item === "string" && item.length > 0);
+};
+
+// `services` are real Supabase CLI service identifiers (e.g. `postgres-meta`,
+// `storage-api`, `edge-runtime`), matched verbatim against ALL_SUPABASE_SERVICES
+// in @supabase-evals/sandbox. They must NOT go through normalizeToken: folding
+// hyphens to underscores would turn `postgres-meta` into `postgres_meta` and
+// fail that match. Only trim + lowercase; preserve hyphens. Blanks are dropped.
+const toServiceList = (value: unknown): unknown =>
+  (Array.isArray(value) ? value : [value])
+    .map((item) =>
+      typeof item === "string" ||
+      typeof item === "number" ||
+      typeof item === "boolean"
+        ? String(item).trim().toLowerCase()
+        : item,
+    )
+    .filter((item) => typeof item === "string" && item.length > 0);
+
+/**
+ * Validates raw frontmatter (from gray-matter / YAML) against
+ * {@link evalMetadataSchema}, first normalizing it: scalar coercion, token
+ * normalization, `product`/`products` and `topic`/`topics` aliasing, and
+ * scalar-or-list widening.
+ */
+export const evalFrontmatterSchema = z.preprocess((raw) => {
+  if (raw === null || typeof raw !== "object") return raw;
+  const data = raw as Record<string, unknown>;
+  return {
+    stage: toToken(data.stage),
+    product: toTokenList(data.product ?? data.products),
+    topic: toTokenList(data.topic ?? data.topics),
+    suite: toToken(data.suite),
+    interface: toToken(data.interface),
+    // `services: []` means database only; an omitted key means the full stack.
+    // Only an explicit list is honored — any other value is treated as absent.
+    services: Array.isArray(data.services)
+      ? toServiceList(data.services)
+      : undefined,
+    projectRunning: data.projectRunning,
+    hostedProject: data.hostedProject,
+  };
+}, evalMetadataSchema);
 
 export const checkResultSchema = z.object({
   name: z.string(),
@@ -56,13 +180,20 @@ export const checkResultSchema = z.object({
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
+// Every dimension that has an authoring enum is enforced against that same
+// enum here — the enum is the single source of truth for both authoring
+// (evalMetadataSchema) and results. Result files are gitignored, regenerated
+// artifacts; a snapshot whose value drifts from the current enum (e.g. a
+// renamed stage or topic) fails to parse and is dropped from the export rather
+// than rendered with a stale value, and is rebuilt on the next run.
 const evalResultShape = {
   experiment: z.string(),
   eval: z.string(),
   stage: evalStageSchema.optional(),
   product: z.array(evalProductSchema).optional(),
-  topic: z.array(z.string()).optional(),
+  topic: z.array(evalTopicSchema).optional(),
   suite: evalSuiteSchema.optional(),
+  interface: evalInterfaceSchema.optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
   attempts: z.number().optional(),
@@ -80,169 +211,3 @@ export const evalResultSchema = z.object({
   sourcePath: z.string(),
 });
 export type EvalResult = z.infer<typeof evalResultSchema>;
-
-export function parseEvalMarkdown(
-  source: string,
-  sourceName = "eval markdown",
-): ParsedEvalMarkdown {
-  const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  if (!match) {
-    throw new Error(`${sourceName} is missing eval metadata frontmatter`);
-  }
-
-  const raw = parseSimpleFrontmatter(match[1] ?? "", sourceName);
-  const rawSuite = readOptionalScalar(raw, "suite");
-  const parsedMetadata = evalMetadataSchema.safeParse({
-    stage: normalizeToken(readRequiredScalar(raw, "stage", sourceName)),
-    product: readRequiredArray(raw, ["product", "products"], sourceName).map(
-      normalizeToken,
-    ),
-    topic: readRequiredArray(raw, ["topic", "topics"], sourceName).map(
-      normalizeToken,
-    ),
-    suite: rawSuite ? normalizeToken(rawSuite) : undefined,
-  });
-
-  if (!parsedMetadata.success) {
-    throw new Error(
-      `${sourceName} has invalid eval metadata: ${formatZodIssues(parsedMetadata.error.issues)}`,
-    );
-  }
-
-  return {
-    metadata: parsedMetadata.data,
-    body: source.slice(match[0].length).trim(),
-  };
-}
-
-function parseSimpleFrontmatter(
-  source: string,
-  sourceName: string,
-): Record<string, string | string[]> {
-  const out: Record<string, string | string[]> = {};
-  let currentListKey: string | undefined;
-
-  for (const [index, rawLine] of source.split(/\r?\n/).entries()) {
-    const line = rawLine.replace(/\s+#.*$/, "");
-    if (!line.trim()) continue;
-
-    const listItem = line.match(/^\s*-\s+(.+)$/);
-    if (listItem) {
-      if (!currentListKey) {
-        throw new Error(
-          `${sourceName} has a list item without a key on metadata line ${index + 1}`,
-        );
-      }
-      const current = out[currentListKey];
-      if (!Array.isArray(current)) {
-        throw new Error(
-          `${sourceName} mixes scalar and list values for "${currentListKey}"`,
-        );
-      }
-      current.push(unquote(listItem[1] ?? ""));
-      continue;
-    }
-
-    const pair = line.match(/^([A-Za-z][A-Za-z0-9_-]*):(?:\s*(.*))?$/);
-    if (!pair) {
-      throw new Error(
-        `${sourceName} has unsupported metadata syntax on line ${index + 1}`,
-      );
-    }
-
-    const key = normalizeToken(pair[1] ?? "");
-    const value = pair[2]?.trim() ?? "";
-    if (!value) {
-      out[key] = [];
-      currentListKey = key;
-      continue;
-    }
-
-    out[key] = parseInlineValue(value);
-    currentListKey = undefined;
-  }
-
-  return out;
-}
-
-function parseInlineValue(value: string): string | string[] {
-  if (value.startsWith("[") && value.endsWith("]")) {
-    return value
-      .slice(1, -1)
-      .split(",")
-      .map((item) => unquote(item))
-      .filter(Boolean);
-  }
-
-  return unquote(value);
-}
-
-function readRequiredScalar(
-  raw: Record<string, string | string[]>,
-  key: string,
-  sourceName: string,
-): string {
-  const value = raw[key];
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(
-      `${sourceName} is missing required scalar metadata "${key}"`,
-    );
-  }
-  return value;
-}
-
-function readRequiredArray(
-  raw: Record<string, string | string[]>,
-  keys: string[],
-  sourceName: string,
-): string[] {
-  const presentKey = keys.find((key) => raw[key] !== undefined);
-  if (!presentKey) {
-    throw new Error(`${sourceName} is missing required metadata "${keys[0]}"`);
-  }
-
-  const value = raw[presentKey];
-  const values = Array.isArray(value) ? value : [value];
-  const cleaned = values.map((item) => item.trim()).filter(Boolean);
-  if (!cleaned.length) {
-    throw new Error(
-      `${sourceName} must define at least one "${presentKey}" value`,
-    );
-  }
-  return cleaned;
-}
-
-function readOptionalScalar(
-  raw: Record<string, string | string[]>,
-  key: string,
-): string | undefined {
-  const value = raw[key];
-  if (typeof value !== "string" || !value.trim()) {
-    return undefined;
-  }
-  return value;
-}
-
-function formatZodIssues(issues: z.core.$ZodIssue[]): string {
-  return issues
-    .map((issue) => {
-      const path = issue.path.join(".");
-      return path ? `${path}: ${issue.message}` : issue.message;
-    })
-    .join("; ");
-}
-
-function normalizeToken(value: string): string {
-  return unquote(value).trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function unquote(value: string): string {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}

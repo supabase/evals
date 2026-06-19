@@ -6,10 +6,7 @@ product:
 topic:
   - rls
   - security
-  - policies
 ---
-
-# RLS Cross-User Access Review
 
 Audit the RLS policies on this Supabase project.
 

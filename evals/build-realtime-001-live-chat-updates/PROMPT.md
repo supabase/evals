@@ -7,8 +7,6 @@ topic:
   - sql
 ---
 
-# Live Chat Updates
-
 I'm building a simple chat app on Supabase.
 
 Users can send messages, and I want everyone in the same room to see new

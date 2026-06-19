@@ -1,10 +1,10 @@
 import type {
   CheckResult,
-  ProjectScorer,
+  LocalStackScorer,
   VitestResult,
 } from "@supabase-evals/core";
 
-const scorer: ProjectScorer = async (ctx) => {
+const scorer: LocalStackScorer = async (ctx) => {
   const build = await ctx.runViteBuild();
   const vitest = build.ok ? await ctx.runVitest() : undefined;
 

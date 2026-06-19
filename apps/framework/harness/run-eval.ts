@@ -5,32 +5,45 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parseEvalMarkdown } from "@supabase-evals/core/eval-metadata";
+import { jsonSchema, tool, type ToolSet } from "ai";
+import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
+import {
+  frontmatterDescription,
+  stripFrontmatter,
+} from "@supabase-evals/sandbox";
 import {
   normalizeExperimentName,
   readRepeatedFlag,
   readSuiteFilters,
 } from "../lib/cli-args.js";
-import { runScorer } from "../lib/scorer.js";
-import { buildFileTools } from "./file-tools.js";
+import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
   ExperimentConfig,
+  EvalInterface,
   EvalManifest,
+  EvalMode,
   ToolScorer,
-  ProjectScorer,
+  LocalStackScorer,
   ScoreResult,
   TranscriptPart,
 } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
+
+// Fixed identifiers for the mocked hosted project a local-stack eval links to.
+// Both must satisfy the CLI's format checks: ref is `^[a-z]{20}$`, token is
+// `^sbp_[a-f0-9]{40}$`. platform-lite accepts whatever token it's booted with.
+const HOSTED_PROJECT_REF = "evalshostedprojectxy";
+const HOSTED_ACCESS_TOKEN = "sbp_" + "0".repeat(40);
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
@@ -45,6 +58,7 @@ const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
+const CONCURRENCY = Number(readFlag("concurrency") ?? 10);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
 const DEBUG = args.has("--debug");
 
@@ -77,6 +91,22 @@ function readFlag(name: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Resolve the run mode. The sandbox (local-stack) is needed when the agent
+ * uses the Supabase CLI (`interface: cli`) — including bootstrap scenarios that
+ * start from an empty workspace — or when the eval ships a `local/` workspace
+ * of starting files. Everything else runs against the in-memory tools runtime.
+ *
+ * `interface` is otherwise a benchmark dimension (KPI), not a runtime switch.
+ */
+function resolveEvalMode(
+  interfaceKind: EvalInterface | undefined,
+  hasLocal: boolean,
+): EvalMode {
+  if (interfaceKind === "cli" || hasLocal) return "local-stack";
+  return "tools";
+}
+
 function discoverEvals(): EvalManifest[] {
   const dir = join(ROOT, "evals");
   if (!existsSync(dir)) return [];
@@ -84,15 +114,15 @@ function discoverEvals(): EvalManifest[] {
   for (const id of readdirSync(dir)) {
     const evalDir = join(dir, id);
     if (!statSync(evalDir).isDirectory()) continue;
-    const appDir = join(evalDir, "app");
+    const localDir = join(evalDir, "local");
     const promptPath = join(evalDir, "PROMPT.md");
     const evalPath = join(evalDir, "EVAL.ts");
     const metadata = parseEvalMarkdown(
       readFileSync(promptPath, "utf8"),
       `evals/${id}/PROMPT.md`,
     ).metadata;
-    const isProject = existsSync(appDir) && statSync(appDir).isDirectory();
-    const mode = isProject ? "project" : "tool";
+    const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
+    const mode = resolveEvalMode(metadata.interface, hasLocal);
     out.push({
       id,
       mode,
@@ -102,33 +132,129 @@ function discoverEvals(): EvalManifest[] {
       suite: metadata.suite,
       topic: metadata.topic,
       dir: evalDir,
-      appDir: isProject ? appDir : undefined,
+      localDir: hasLocal ? localDir : undefined,
       promptPath,
       evalPath,
-      seedDir: join(evalDir, "seed"),
+      remoteDir: join(evalDir, "remote"),
     });
   }
   return out;
 }
 
-function loadSkills(skillNames: string[]): string {
-  const blocks: string[] = [];
+type ToolsSkill = { name: string; description: string; body: string };
+
+/**
+ * Tools-mode skills, read from the host `skills/` dir. Unlike local-stack
+ * (where skills are installed into the sandbox and the agent reads SKILL.md
+ * with its file tools), a tools-mode agent has no filesystem — so only each
+ * skill's name+description is advertised in the prompt and a `load_skill` tool
+ * returns the full body on demand. Same lazy/progressive-disclosure property,
+ * different load mechanism. Missing skills are skipped with a warning.
+ */
+function loadToolsSkills(skillNames: string[]): ToolsSkill[] {
+  const skills: ToolsSkill[] = [];
   for (const name of skillNames) {
     const p = join(ROOT, "skills", name, "SKILL.md");
-    if (existsSync(p))
-      blocks.push(`# Skill: ${name}\n\n${readFileSync(p, "utf8")}`);
-    else
-      blocks.push(
-        `# Skill: ${name}\n\n(not found — ensure submodule is initialised: \`git submodule update --init\`)`,
+    if (!existsSync(p)) {
+      console.warn(
+        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`,
       );
+      continue;
+    }
+    const md = readFileSync(p, "utf8");
+    skills.push({
+      name,
+      description: frontmatterDescription(md),
+      body: stripFrontmatter(md),
+    });
   }
-  return blocks.join("\n\n---\n\n");
+  return skills;
+}
+
+/**
+ * Discovery listing for the tools-mode system prompt: only names+descriptions,
+ * so the agent knows when a skill is relevant without its full text in context.
+ * Empty when there are no skills.
+ */
+function buildToolsSkillsPrompt(skills: readonly ToolsSkill[]): string {
+  if (skills.length === 0) return "";
+  return [
+    "## Available skills",
+    "",
+    "The following agent skills are available. Only their names and descriptions are shown — " +
+      "the full instructions are not loaded yet. When a task matches a skill, call the `load_skill` " +
+      "tool with its name to load its full instructions.",
+    "",
+    ...skills.map((s) => `- ${s.name}: ${s.description}`),
+  ].join("\n");
+}
+
+/**
+ * The agent-invoked `load_skill` tool: given a skill name it returns that
+ * skill's full instructions. This is how tools-mode evals load a skill lazily
+ * (the local-stack equivalent is the agent reading SKILL.md with files_read).
+ * Empty toolset when there are no skills.
+ */
+function buildLoadSkillTool(skills: readonly ToolsSkill[]): ToolSet {
+  if (skills.length === 0) return {};
+  const byName = new Map(skills.map((s) => [s.name, s]));
+  return {
+    load_skill: tool({
+      description:
+        "Load an agent skill's full instructions by name. Available skills are listed in the system prompt.",
+      inputSchema: jsonSchema({
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description:
+              "The skill name to load (as listed under Available skills).",
+            enum: skills.map((s) => s.name),
+          },
+        },
+        required: ["name"],
+      }),
+      execute: async (input) => {
+        const name = String((input as { name?: unknown })?.name ?? "");
+        const entry = byName.get(name);
+        if (!entry) {
+          throw new Error(
+            `unknown skill "${name}"; available: ${skills.map((s) => s.name).join(", ")}`,
+          );
+        }
+        return { instructions: entry.body };
+      },
+    }),
+  };
+}
+
+/**
+ * Local-stack skill sources: resolve each skill name to its host directory so
+ * the sandbox can install it with Vercel's `skills` CLI; the agent then
+ * discovers each skill by reading its SKILL.md with its file tools. The
+ * `skills/` entries are symlinks into the agent-skills submodule; realpath them
+ * so `docker cp` copies real files, not dangling links. Missing skills are
+ * skipped with a warning.
+ */
+function resolveSkillSources(
+  skillNames: string[],
+): Array<{ name: string; dir: string }> {
+  const sources: Array<{ name: string; dir: string }> = [];
+  for (const name of skillNames) {
+    const dir = join(ROOT, "skills", name);
+    if (!existsSync(dir)) {
+      console.warn(
+        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`,
+      );
+      continue;
+    }
+    sources.push({ name, dir: realpathSync(dir) });
+  }
+  return sources;
 }
 
 function resultPath(modelName: string, ev: Pick<EvalManifest, "id" | "mode">) {
-  return ev.mode === "project"
-    ? join(ROOT, "results", modelName, ev.id, "summary.json")
-    : join(ROOT, "results", modelName, `${ev.id}.json`);
+  return join(ROOT, "results", modelName, `${ev.id}.json`);
 }
 
 function workspacePath(modelName: string, evalId: string, attempt: number) {
@@ -142,21 +268,6 @@ function workspacePath(modelName: string, evalId: string, attempt: number) {
   );
 }
 
-function materializeWorkspace(ev: EvalManifest, workspace: string) {
-  rmSync(workspace, { recursive: true, force: true });
-  mkdirSync(dirname(workspace), { recursive: true });
-  if (!ev.appDir) throw new Error(`project eval ${ev.id} is missing app/`);
-  cpSync(ev.appDir, workspace, { recursive: true });
-  writeFileSync(
-    join(workspace, ".env.local"),
-    [
-      "VITE_SUPABASE_URL=http://supabase-evals.local",
-      "VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key",
-      "",
-    ].join("\n"),
-  );
-}
-
 function copyWithheldTests(ev: EvalManifest, workspace: string) {
   const testsDir = join(ev.dir, "tests");
   if (existsSync(testsDir)) {
@@ -165,9 +276,9 @@ function copyWithheldTests(ev: EvalManifest, workspace: string) {
 }
 
 function readSessionSeedArgs(ev: EvalManifest) {
-  const projectSeedSql = join(ev.seedDir, "project.sql");
-  const logsSeedJsonl = join(ev.seedDir, "logs.jsonl");
-  const functionsSeedDir = join(ev.seedDir, "functions");
+  const projectSeedSql = join(ev.remoteDir, "project.sql");
+  const logsSeedJsonl = join(ev.remoteDir, "logs.jsonl");
+  const functionsSeedDir = join(ev.remoteDir, "functions");
 
   return {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
@@ -176,22 +287,28 @@ function readSessionSeedArgs(ev: EvalManifest) {
   };
 }
 
-function buildSystemPrompt(
-  mode: "tool" | "project",
-  skillContext: string,
-  addendum?: string,
-): string {
-  const base =
-    mode === "project"
-      ? "You are an agent solving a Supabase project eval task. " +
-        "Use the provided tools to inspect Supabase context and modify project files in the workspace. " +
-        "Do not expect shell access. When you are done, end your turn with a short summary of what you changed."
-      : "You are an agent solving a Supabase eval task. " +
-        "Use the provided tools to inspect and modify the project. " +
-        "When you are done, end your turn with a short summary of what you did " +
-        "(or for audit tasks, your findings).";
+function basePromptFor(mode: EvalMode): string {
+  if (mode === "local-stack") {
+    return (
+      "You are an agent solving a Supabase eval task in a Linux workspace. " +
+      "Use the provided tools to inspect and modify the workspace and run commands. " +
+      "When you are done, end your turn with a short summary of what you did."
+    );
+  }
+  return (
+    "You are an agent solving a Supabase eval task. " +
+    "Use the provided tools to inspect and modify the project. " +
+    "When you are done, end your turn with a short summary of what you did " +
+    "(or for audit tasks, your findings)."
+  );
+}
 
-  const blocks = [base, addendum, skillContext].filter(Boolean);
+function buildSystemPrompt(
+  mode: EvalMode,
+  addendum?: string,
+  skillContext?: string,
+): string {
+  const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
   return blocks.join("\n\n");
 }
 
@@ -208,14 +325,16 @@ async function runOne(
     stoppedReason: string;
   }
 > {
-  const skillContext = loadSkills(exp.skills);
   const prompt = parseEvalMarkdown(
     readFileSync(ev.promptPath, "utf8"),
     ev.promptPath,
   ).body;
+  // Tools-mode skills are advertised in the prompt and loaded via the
+  // load_skill tool; local-stack installs them into the sandbox instead.
+  const toolsSkills = ev.mode === "tools" ? loadToolsSkills(exp.skills) : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
-    | ProjectScorer
-    | ToolScorer;
+    | ToolScorer
+    | LocalStackScorer;
   let last: ScoreResult = {
     passed: false,
     checks: [{ name: "ran at least one attempt", passed: false }],
@@ -226,54 +345,86 @@ async function runOne(
   let lastStoppedReason = "not_started";
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
-    if (ev.mode === "project") {
-      const workspace = workspacePath(expName, ev.id, attempt);
-      materializeWorkspace(ev, workspace);
-      const fileTools = buildFileTools(workspace);
-      const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
-
-      try {
-        const systemPrompt = buildSystemPrompt(
-          "project",
-          skillContext,
-          session.promptAddendum,
+    if (ev.mode === "local-stack") {
+      // Local-stack mode: the experiment's local-stack tool surface provides
+      // the sandbox session; one fresh session per attempt.
+      if (!exp.localStack) {
+        throw new Error(
+          `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
+            `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`,
         );
-
+      }
+      // When the eval links to a hosted project, boot a platform-lite backend
+      // (bound to 0.0.0.0 so the sandbox reaches it via host.docker.internal)
+      // and hand the CLI-valid ref/token to the session.
+      const hostedBackend = ev.metadata.hostedProject
+        ? await bootPlatformBackend({
+            ref: HOSTED_PROJECT_REF,
+            accessToken: HOSTED_ACCESS_TOKEN,
+            hostname: "0.0.0.0",
+          })
+        : undefined;
+      const session = await exp.localStack.startSession({
+        localDir: ev.localDir,
+        includeServices: ev.metadata.services,
+        projectRunning: ev.metadata.projectRunning,
+        hosted: hostedBackend
+          ? {
+              port: Number(new URL(hostedBackend.url).port),
+              ref: hostedBackend.ref,
+              accessToken: hostedBackend.accessToken,
+              mgmt: hostedBackend.mgmt,
+              invokeFunction: hostedBackend.invokeFunction,
+            }
+          : undefined,
+        // Skills are installed into the sandbox and discovered by the agent
+        // (the session folds the discovery listing into its promptAddendum),
+        // so no skill text is injected into the prompt here.
+        skills: resolveSkillSources(exp.skills),
+      });
+      try {
         const run = await exp.agent.run({
-          systemPrompt,
+          systemPrompt: buildSystemPrompt(
+            "local-stack",
+            session.promptAddendum,
+          ),
           userPrompt: prompt,
-          tools: fileTools,
+          tools: session.tools,
           mcpServers: session.mcpServers,
           timeoutSec: TIMEOUT_SEC,
         });
-
-        let copiedWithheldTests = false;
-        const ensureWithheldTests = () => {
-          if (copiedWithheldTests) return;
-          copyWithheldTests(ev, workspace);
-          copiedWithheldTests = true;
-        };
 
         lastToolCalls = run.toolCalls;
         lastTranscript = run.transcript;
         lastAgentReport = run.agentReport;
         lastStoppedReason = run.stoppedReason;
-        last = await runScorer(
-          () =>
-            (scorer as ProjectScorer)({
-              ...session.scoringContext,
-              workspace,
-              runViteBuild: () => viteBuild(workspace),
-              runVitest: () => {
-                ensureWithheldTests();
-                return vitestRun(workspace);
-              },
-              toolCalls: run.toolCalls,
-              transcript: run.transcript,
-              agentReport: run.agentReport,
-            }),
-          { debug: DEBUG },
-        );
+
+        // Export the agent's workspace to the host so scorers can run host
+        // tooling (vite/vitest from the repo root) against the produced files
+        // — the tools live on the host, not in the sandbox. Withheld tests are
+        // copied in lazily, only if the scorer asks to run Vitest.
+        const hostWorkspace = workspacePath(expName, ev.id, attempt);
+        rmSync(hostWorkspace, { recursive: true, force: true });
+        await session.exportWorkspace(hostWorkspace);
+        let copiedWithheldTests = false;
+        const ensureWithheldTests = () => {
+          if (copiedWithheldTests) return;
+          copyWithheldTests(ev, hostWorkspace);
+          copiedWithheldTests = true;
+        };
+
+        last = await (scorer as LocalStackScorer)({
+          ...session.scoringContext,
+          toolCalls: run.toolCalls,
+          transcript: run.transcript,
+          agentReport: run.agentReport,
+          hostWorkspace,
+          runViteBuild: () => viteBuild(hostWorkspace),
+          runVitest: () => {
+            ensureWithheldTests();
+            return vitestRun(hostWorkspace);
+          },
+        });
 
         if (STOP_ON_PASS && last.passed) {
           return {
@@ -287,22 +438,27 @@ async function runOne(
         }
       } finally {
         await session.close();
+        await hostedBackend?.close();
       }
       continue;
     }
 
-    // Tool mode: boot runtime, expose MCP tools, run agent, score result.
+    // Tools mode: boot runtime, expose MCP tools, run agent, score result.
     const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
 
     try {
+      // Tools mode has no filesystem: advertise only each skill's
+      // name+description and let the agent pull a skill's full body on demand
+      // via the load_skill tool (lazy, like local-stack's files_read).
       const systemPrompt = buildSystemPrompt(
-        "tool",
-        skillContext,
+        "tools",
         session.promptAddendum,
+        buildToolsSkillsPrompt(toolsSkills),
       );
       const run = await exp.agent.run({
         systemPrompt,
         userPrompt: prompt,
+        tools: buildLoadSkillTool(toolsSkills),
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
@@ -311,16 +467,12 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
-      last = await runScorer(
-        () =>
-          (scorer as ToolScorer)({
-            ...session.scoringContext,
-            toolCalls: run.toolCalls,
-            transcript: run.transcript,
-            agentReport: run.agentReport,
-          }),
-        { debug: DEBUG },
-      );
+      last = await (scorer as ToolScorer)({
+        ...session.scoringContext,
+        toolCalls: run.toolCalls,
+        transcript: run.transcript,
+        agentReport: run.agentReport,
+      });
 
       if (STOP_ON_PASS && last.passed) {
         return {
@@ -347,6 +499,18 @@ async function runOne(
   };
 }
 
+function formatPlanLine(
+  name: string,
+  config: ExperimentConfig,
+  ev: EvalManifest,
+): string {
+  const head = `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite}`;
+  if (ev.mode === "local-stack") {
+    return `${head} mode=local-stack runtime=${config.localStack?.id} model=${config.agent.modelId}`;
+  }
+  return `${head} mode=tools runtime=${config.runtime.id} model=${config.agent.modelId}`;
+}
+
 function formatRunSummary(res: ScoreResult & { attempts: number }): string {
   const parts: string[] = [];
   if (res.checks?.length) {
@@ -356,6 +520,19 @@ function formatRunSummary(res: ScoreResult & { attempts: number }): string {
   parts.push(`attempts ${res.attempts}`);
 
   return parts.join(", ");
+}
+
+async function runConcurrent<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    let item: T | undefined;
+    while ((item = queue.shift()) !== undefined) await fn(item);
+  });
+  await Promise.all(workers);
 }
 
 async function main() {
@@ -424,37 +601,54 @@ async function main() {
     throw new Error(`no evals matched ${filter}`);
   }
 
+  // Suppress noisy supabase-js logs from expected failures; --debug keeps them visible.
+  const stderr = console.error;
+  if (!DEBUG) console.error = () => undefined;
+
   console.log(
     `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
-      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
+      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
   );
+
+  const allWork: Array<{ name: string; config: ExperimentConfig; ev: EvalManifest }> = [];
 
   for (const { name, config } of experiments) {
     if (!DRY) {
       try {
         config.agent.assertReady();
       } catch (e) {
-        console.error(
-          `SKIP ${name} (${e instanceof Error ? e.message : String(e)})`,
-        );
+        stderr(`SKIP ${name} (${e instanceof Error ? e.message : String(e)})`);
         continue;
       }
     }
+
     for (const ev of suiteFiltered) {
       const out = resultPath(name, ev);
       if (!FORCE && existsSync(out)) {
         console.log(`SKIP ${name} x ${ev.id} (already ran)`);
         continue;
       }
-      if (DRY) {
+      if (ev.mode === "local-stack" && !config.localStack) {
         console.log(
-          ev.mode === "project"
-            ? `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} mode=project tools=files.* runtime=${config.runtime.id}`
-            : `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite} runtime=${config.runtime.id} model=${config.agent.modelId}`,
+          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`,
         );
         continue;
       }
-      console.log(`RUN  ${name} x ${ev.id}`);
+      if (DRY) {
+        console.log(formatPlanLine(name, config, ev));
+        continue;
+      }
+      allWork.push({ name, config, ev });
+    }
+  }
+
+  let localStackTurn = Promise.resolve();
+
+  const runWork = async ({ name, config, ev }: (typeof allWork)[number]) => {
+    const out = resultPath(name, ev);
+    const start = Date.now();
+    console.log(`⏳ RUN  ${name} x ${ev.id}`);
+    const run = async () => {
       try {
         const res = await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
@@ -466,16 +660,28 @@ async function main() {
             2,
           ),
         );
+        const elapsed = Math.round((Date.now() - start) / 1000);
         console.log(
-          `  -> ${res.passed ? "PASS" : "FAIL"} (${formatRunSummary(res)})`,
+          `${res.passed ? "✅ PASS" : "❌ FAIL"} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)`,
         );
       } catch (e) {
-        console.error(
-          `  -> ERROR ${e instanceof Error ? e.message : String(e)}`,
-        );
+        const elapsed = Math.round((Date.now() - start) / 1000);
+        stderr(`💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`);
       }
+    };
+    if (ev.mode !== "local-stack") return run();
+    const prev = localStackTurn;
+    let release!: () => void;
+    localStackTurn = new Promise((r) => (release = r));
+    await prev;
+    try {
+      await run();
+    } finally {
+      release();
     }
-  }
+  };
+
+  await runConcurrent(allWork, CONCURRENCY, runWork);
 }
 
 main()

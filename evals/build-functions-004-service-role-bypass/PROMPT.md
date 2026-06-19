@@ -2,18 +2,14 @@
 stage: build
 suite: benchmark
 product:
-  - functions
+  - edge-functions
   - auth
   - database
-  - sdk
 topic:
-  - edge-functions
   - rls
   - security
-  - supabase-js
+  - sdk
 ---
-
-# Private Notes Function Review
 
 I built an Edge Function called `private-notes` for showing a user's saved
 private notes.

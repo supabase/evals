@@ -1,17 +1,13 @@
 ---
 stage: build
 product:
-  - functions
+  - edge-functions
   - database
   - auth
-  - sdk
 topic:
-  - edge-functions
-  - auth
-  - supabase-js
+  - security
+  - sdk
 ---
-
-# Edge Function Auth + Database
 
 Create a Supabase Edge Function named `todo-create`.
 

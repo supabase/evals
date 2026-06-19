@@ -32,30 +32,41 @@ import {
 } from "@supabase-evals/platform-lite";
 import type { CheckResult } from "./eval-metadata.js";
 
-const EXECUTOR_BIN = join(
-  dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
-  "bin",
-  "executor"
-);
+// Resolved lazily on first use, not at module load: `import.meta.resolve` is a
+// load-time side effect that throws under bundler SSR transforms (e.g. vitest),
+// which would break every importer of this module — including ones that never
+// invoke the executor (the sandbox runtime only imports `supabaseMcpServer`).
+let executorBinPath: string | undefined;
+function getExecutorBin(): string {
+  executorBinPath ??= join(
+    dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
+    "bin",
+    "executor"
+  );
+  return executorBinPath;
+}
 const execFileAsync = promisify(execFile);
 
 export type { SupabaseClient };
 export type { ManagementApiClient };
 export {
+  EVAL_INTERFACES,
   EVAL_PRODUCTS,
   EVAL_SUITES,
   EVAL_STAGES,
   checkResultSchema,
+  evalInterfaceSchema,
   evalMetadataSchema,
   evalProductSchema,
   evalResultSchema,
   evalStageSchema,
   evalSuiteSchema,
-  parseEvalMarkdown,
   rawEvalResultSchema,
 } from "./eval-metadata.js";
+export { parseEvalMarkdown } from "./eval-markdown.js";
 export type {
   CheckResult,
+  EvalInterface,
   EvalMetadata,
   EvalProduct,
   EvalResult,
@@ -184,17 +195,76 @@ export interface ToolEvalContext extends ToolScoringContext {
   agentReport?: string;
 }
 
-export interface ProjectEvalContext extends ToolScoringContext {
+/**
+ * Scoring surface for local-stack evals. Everything runs inside the Docker
+ * sandbox the agent worked in, against the local Supabase stack it (or the
+ * harness) started.
+ */
+export interface LocalStackScoringContext {
+  /** Absolute workspace path inside the sandbox (also the bash tool's cwd). */
   workspace: string;
-  runViteBuild: () => Promise<CommandResult>;
-  runVitest: () => Promise<VitestResult>;
+  /** Run a shell command in the workspace as the sandbox user. */
+  exec: (
+    command: string,
+    options?: { timeoutMs?: number },
+  ) => Promise<CommandResult>;
+  /** Read a UTF-8 file; path relative to the workspace. */
+  readFile: (path: string) => Promise<string>;
+  /** Check a file exists; path relative to the workspace. */
+  fileExists: (path: string) => Promise<boolean>;
+  /**
+   * Run a single SELECT against the local stack's Postgres as the `postgres`
+   * superuser (bypasses RLS) and return its rows. For DDL or role-scoped
+   * checks, use `exec` with psql directly.
+   */
+  query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  /**
+   * Create a fresh supabase-js client against the running local stack, using
+   * the publishable key from `supabase status` (discovered lazily and cached
+   * — the stack may only exist after the agent starts it). Each call returns
+   * an independent client, so multi-user auth flows don't share session
+   * state. Connects host-side to the stack's published ports.
+   */
+  getClient: () => Promise<SupabaseClient>;
+  /**
+   * The mocked hosted project's ref, when the eval links to platform-lite
+   * (`hostedProject: true`). Undefined for purely-local evals.
+   */
+  hostedRef?: string;
+  /**
+   * Management API client for the mocked hosted platform (platform-lite) the
+   * agent's CLI is linked to. Use this — not the CLI under test — to read
+   * hosted state like Edge Function secrets and deployments.
+   */
+  hostedMgmt?: ManagementApiClient;
+  /**
+   * Invoke a function the agent deployed to the mocked hosted platform, with
+   * its hosted secrets injected into the runtime env. Use to verify the
+   * deployed function reads its secrets at runtime.
+   */
+  invokeHostedFunction?: (
+    input: EdgeFunctionsInvokeInput,
+  ) => Promise<EdgeFunctionsInvokeResult>;
+}
+
+export interface LocalStackEvalContext extends LocalStackScoringContext {
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   agentReport?: string;
+  /**
+   * Host-side copy of the agent's workspace, exported from the sandbox after
+   * the run. Lets scorers run host tooling (vite/vitest from the repo root)
+   * against the produced files without that tooling existing in the sandbox.
+   */
+  hostWorkspace: string;
+  /** Build the produced project with Vite on the host (repo-root toolchain). */
+  runViteBuild: () => Promise<CommandResult>;
+  /** Run the eval's withheld Vitest suite against the produced project on the host. */
+  runVitest: () => Promise<VitestResult>;
 }
 
 export type ToolScorer = (ctx: ToolEvalContext) => Promise<ScoreResult>;
-export type ProjectScorer = (ctx: ProjectEvalContext) => Promise<ScoreResult>;
+export type LocalStackScorer = (ctx: LocalStackEvalContext) => Promise<ScoreResult>;
 
 export type AgentRunArgs = {
   systemPrompt: string;
@@ -219,9 +289,105 @@ export type AgentHarness = {
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };
 
+/**
+ * An agent skill to install into the sandbox: its name and the host directory
+ * holding its SKILL.md (and any bundled reference files).
+ */
+export type SkillSource = { name: string; dir: string };
+
+export type LocalStackSessionArgs = {
+  /**
+   * Host directory (the eval's `local/`) whose contents seed the sandbox
+   * workspace — the developer's working directory.
+   */
+  localDir?: string;
+  /**
+   * Local-stack services this eval needs (from `services:` frontmatter).
+   * Everything else is excluded from `supabase start` to keep boots fast;
+   * omitted means the full stack.
+   */
+  includeServices?: readonly string[];
+  /**
+   * Whether the local stack should be started before the agent runs
+   * (default true). Scenarios where starting the project is part of the
+   * task set false.
+   */
+  projectRunning?: boolean;
+  /**
+   * When set, link the sandbox CLI to a mocked hosted project (platform-lite)
+   * so hosted workflows (`supabase functions deploy`, `secrets set`) reach it.
+   * The runtime seeds a CLI profile + access token + project ref into the
+   * sandbox and exposes the hosted handle to the scorer.
+   */
+  hosted?: HostedLink;
+  /**
+   * Agent skills to install into the sandbox (one host source dir per skill).
+   * Installed with Vercel's `skills` CLI and discovered by the agent reading
+   * each skill's SKILL.md with its file tools — not preloaded into the system
+   * prompt. Tools-mode evals (no filesystem) inject skills into the prompt
+   * instead, so they ignore this.
+   */
+  skills?: readonly SkillSource[];
+};
+
+/** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */
+export type HostedLink = {
+  /** Port the platform-lite server is bound to (reached via host.docker.internal). */
+  port: number;
+  /** Project ref — must satisfy the CLI's `^[a-z]{20}$` format. */
+  ref: string;
+  /** Access token — must satisfy the CLI's `^sbp_[a-f0-9]{40}$` format. */
+  accessToken: string;
+  /** Management API client (host-side, in-process) for scorer assertions. */
+  mgmt: ManagementApiClient;
+  /** Invoke a deployed function in-process, with hosted secrets injected. */
+  invokeFunction: (
+    input: EdgeFunctionsInvokeInput,
+  ) => Promise<EdgeFunctionsInvokeResult>;
+};
+
+/**
+ * A live local-stack environment for one eval attempt: in-process tools the
+ * agent calls (bash with the Supabase CLI installed, file tools) plus the
+ * scoring handle into the same environment.
+ */
+export type LocalStackSession = {
+  tools: ToolSet;
+  /**
+   * MCP servers to expose to the agent alongside the sandbox tools (e.g. the
+   * docs server for `search_docs`). Spawned host-side; merged with `tools` by
+   * the agent harness.
+   */
+  mcpServers?: Record<string, McpServerConfig>;
+  promptAddendum?: string;
+  scoringContext: LocalStackScoringContext;
+  /**
+   * Copy the agent's workspace out of the sandbox to a host directory, so
+   * host-side tooling (vite/vitest) can score the produced files. Called after
+   * the agent finishes, before scoring.
+   */
+  exportWorkspace(hostDir: string): Promise<void>;
+  close(): Promise<void>;
+};
+
+/**
+ * Provider of a local-stack environment — a sandboxed developer machine where
+ * the Supabase CLI (the tool the agent wields) can run the local Docker stack.
+ * Declared per experiment like MCP servers and skills. Evals that need a
+ * sandbox (a `local/` workspace or `interface: cli`) run against this;
+ * experiments without one skip those evals. Distinct from the remote/hosted
+ * platform, which platform-lite mocks.
+ */
+export type LocalStackRuntime = {
+  id: string;
+  startSession(args: LocalStackSessionArgs): Promise<LocalStackSession>;
+};
+
 export type ExperimentConfig = {
   agent: AgentHarness;
   runtime: EvalRuntime;
+  /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
+  localStack?: LocalStackRuntime;
   skills: string[];
 };
 
@@ -423,8 +589,10 @@ export type EvalSession = {
 };
 
 export type PlatformLiteMcpContext = {
-  apiUrl: string;
-  accessToken: string;
+  // Both optional: a docs-only Supabase MCP server is platform-independent, so
+  // it needs neither a project api-url nor a real token.
+  apiUrl?: string;
+  accessToken?: string;
 };
 
 export type McpServerConfig = {
@@ -446,7 +614,7 @@ type McpClientHandle = {
 export type McpServerDefinition = {
   name: string;
   promptAddendum?: string;
-  createConfig(context: PlatformLiteMcpContext): Promise<ResolvedMcpServer>;
+  createConfig(context?: PlatformLiteMcpContext): Promise<ResolvedMcpServer>;
 };
 
 export function platformLiteRuntime(options: {
@@ -551,21 +719,22 @@ export function supabaseMcpServer(
 
   return {
     name: "supabase-mcp",
-    async createConfig({ apiUrl, accessToken }) {
-      return {
-        config: {
-          command: "npx",
-          args: [
-            `@supabase/mcp-server-supabase@${version}`,
-            "--access-token",
-            accessToken,
-            "--api-url",
-            apiUrl,
-            "--features",
-            features.join(","),
-          ],
-        },
-      };
+    async createConfig({ apiUrl, accessToken } = {}) {
+      const args = [
+        `@supabase/mcp-server-supabase@${version}`,
+        // The server refuses to boot without a token; with only platform-
+        // independent features (docs) it never authenticates against the
+        // management API, so a well-formed throwaway is enough.
+        "--access-token",
+        accessToken ?? THROWAWAY_ACCESS_TOKEN,
+        "--features",
+        features.join(","),
+      ];
+      // Only point the server at a platform when one is given. `docs` is
+      // platform-independent (it queries the public docs GraphQL API), so a
+      // docs-only server runs standalone with no `--api-url`.
+      if (apiUrl) args.push("--api-url", apiUrl);
+      return { config: { command: "npx", args } };
     },
   };
 }
@@ -575,7 +744,15 @@ export function executorMcpServer(): McpServerDefinition {
     name: "executor-mcp",
     promptAddendum:
       "When execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept.",
-    async createConfig({ apiUrl, accessToken }) {
+    async createConfig({ apiUrl, accessToken } = {}) {
+      // Unlike the docs-only Supabase MCP, the executor proxies the platform's
+      // OpenAPI, so it genuinely needs both — fail fast rather than register a
+      // broken source.
+      if (!apiUrl || !accessToken) {
+        throw new Error(
+          "executor MCP requires a platform context (apiUrl + accessToken)",
+        );
+      }
       const scopeDir = mkdtempSync(join(tmpdir(), "eval-executor-scope-"));
       const dataDir = mkdtempSync(join(tmpdir(), "eval-executor-data-"));
       // Keep source registration isolated from any user daemon already listening on 4788.
@@ -600,7 +777,7 @@ export function executorMcpServer(): McpServerDefinition {
       return {
         config: {
           command: process.execPath,
-          args: [EXECUTOR_BIN, "mcp", "--scope", scopeDir],
+          args: [getExecutorBin(), "mcp", "--scope", scopeDir],
           env: { EXECUTOR_DATA_DIR: dataDir },
         },
         cleanup: async () => {
@@ -631,7 +808,7 @@ async function addExecutorOpenApiSource(input: {
   const { stdout } = await execFileAsync(
     process.execPath,
     [
-      EXECUTOR_BIN,
+      getExecutorBin(),
       "call",
       "executor",
       "openapi",
@@ -651,7 +828,7 @@ async function addExecutorOpenApiSource(input: {
   await execFileAsync(
     process.execPath,
     [
-      EXECUTOR_BIN,
+      getExecutorBin(),
       "resume",
       "--execution-id",
       executionId,
@@ -677,7 +854,7 @@ async function cleanupExecutorResources(input: {
   try {
     await execFileAsync(
       process.execPath,
-      [EXECUTOR_BIN, "daemon", "stop", "--base-url", input.daemonUrl],
+      [getExecutorBin(), "daemon", "stop", "--base-url", input.daemonUrl],
       { env: executorEnv(input.dataDir) }
     );
   } catch (err) {
@@ -724,6 +901,9 @@ async function getAvailablePort(): Promise<number> {
 
 export const ACCESS_TOKEN = "eval-token";
 export const MCP_SERVER_VERSION = "0.8.1";
+// Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
+// server requires a token to boot but never authenticates without a platform.
+const THROWAWAY_ACCESS_TOKEN = `sbp_${"0".repeat(40)}`;
 
 export interface PlatformBackend {
   url: string;
@@ -743,6 +923,13 @@ export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
+  /** Management API access token; defaults to the in-process eval token. */
+  accessToken?: string;
+  /** Fixed project ref; defaults to a generated one. */
+  ref?: string;
+  /** Bind host for the HTTP server; defaults to 127.0.0.1. Use 0.0.0.0 to
+   * reach the server from inside a sandbox container via host.docker.internal. */
+  hostname?: string;
 }): Promise<PlatformBackend> {
   const sql =
     opts.projectSeedSql && existsSync(opts.projectSeedSql)
@@ -758,15 +945,18 @@ export async function bootPlatformBackend(opts: {
     ? await loadFunctionSeeds(opts.functionsSeedDir)
     : undefined;
 
+  const accessToken = opts.accessToken ?? ACCESS_TOKEN;
   const platform = await createPlatform({
-    accessToken: ACCESS_TOKEN,
-    projects: [{ sql, logs, functions }],
+    accessToken,
+    projects: [{ ref: opts.ref, sql, logs, functions }],
   });
 
   let server: ServerHandle | undefined;
 
   try {
-    server = await platform.listen();
+    server = await platform.listen(
+      opts.hostname ? { hostname: opts.hostname } : undefined,
+    );
 
     const refs = platform.refs();
     if (refs.length === 0) throw new Error("platform backend: no projects");
@@ -779,8 +969,8 @@ export async function bootPlatformBackend(opts: {
     return {
       url: server.url,
       ref,
-      accessToken: ACCESS_TOKEN,
-      mgmt: createManagementApiClient(server.url, ACCESS_TOKEN),
+      accessToken,
+      mgmt: createManagementApiClient(server.url, accessToken),
       client: instance.app.getClient(),
       getClient: () => instance.app.getClient(),
       query: async (sql) => {
@@ -998,6 +1188,10 @@ async function invokeEdgeFunction(
     // Legacy JWT keys are the only kind platform-lite authenticates:
     // https://github.com/supabase-community/lite/blob/aff4e9fa6f75289f3d7eb021b2b7a8198e4665ec/app/src/server/data/auth-guard.ts#L25-L76
     const env: Record<string, string> = {
+      // Project secrets (set via `supabase secrets set`) are exposed to the
+      // function as env vars, exactly as the hosted Edge Runtime does. Listed
+      // first so the reserved SUPABASE_ keys below always win.
+      ...Object.fromEntries(instance.secrets),
       SUPABASE_URL: RUNTIME_URL,
       SUPABASE_ANON_KEY: generateProjectKey(
         instance.ref,
@@ -1188,7 +1382,7 @@ function mergeToolSets(toolSets: ToolSet[]): ToolSet | undefined {
   for (const toolSet of toolSets) {
     for (const [name, tool] of Object.entries(toolSet)) {
       if (name in merged) {
-        throw new Error(`duplicate tool name from MCP servers: ${name}`);
+        throw new Error(`duplicate tool name across tool surfaces: ${name}`);
       }
       merged[name] = tool;
     }
@@ -1212,3 +1406,5 @@ function isString(value: unknown): value is string {
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
+
+export { readEnvVariable } from "./env-file.js";

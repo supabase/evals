@@ -6,11 +6,8 @@ product:
 topic:
   - rls
   - sdk
-  - supabase-js
   - security
 ---
-
-# Own Todos RLS via Supabase Client
 
 You are working on a Supabase project for a todos app.
 
