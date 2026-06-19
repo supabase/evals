@@ -50,6 +50,7 @@ jobs:
     outputs:
       experiments: ${{ steps.inputs.outputs.experiments }}
       eval: ${{ steps.inputs.outputs.eval }}
+      evals: ${{ steps.discover.outputs.evals }}
       suite: ${{ steps.inputs.outputs.suite }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
@@ -85,6 +86,45 @@ jobs:
             echo "timeout_sec=$timeout_sec"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+
+      - name: Discover evals
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          eval_id="${{ steps.inputs.outputs.eval }}"
+          if [ -n "$eval_id" ]; then
+            echo "evals=$(jq -n --arg id "$eval_id" '[$id]')" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          suite_json='${{ steps.inputs.outputs.suite }}'
+          matching=()
+          for dir in evals/*/; do
+            [ -d "$dir" ] || continue
+            id=$(basename "$dir")
+            prompt="$dir/PROMPT.md"
+            [ -f "$prompt" ] || continue
+            suite_val=$(sed -n 's/^suite:[[:space:]]*//p' "$prompt" | head -n 1)
+            suite_val="${suite_val:-regression}"
+            if jq -e --arg s "$suite_val" 'index($s) != null' <<< "$suite_json" > /dev/null 2>&1; then
+              matching+=("$id")
+            fi
+          done
+
+          if [ "${#matching[@]}" -eq 0 ]; then
+            echo "No evals found for suites: $suite_json" >&2
+            exit 1
+          fi
+
+          evals_json=$(printf '%s\n' "${matching[@]}" | jq -Rcs 'split("\n") | map(select(length > 0))')
+          echo "evals=$evals_json" >> "$GITHUB_OUTPUT"
+
   run-evals:
     needs: prepare
     runs-on: ubuntu-latest
@@ -92,6 +132,7 @@ jobs:
       fail-fast: false
       matrix:
         experiment: ${{ fromJSON(needs.prepare.outputs.experiments) }}
+        eval_id: ${{ fromJSON(needs.prepare.outputs.evals) }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -129,30 +170,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          args=(
-            "--experiment"
-            "${{ matrix.experiment }}"
-            "--runs"
-            "${{ needs.prepare.outputs.runs }}"
-            "--timeout-sec"
-            "${{ needs.prepare.outputs.timeout_sec }}"
-            "--force"
-          )
-
-          while IFS= read -r suite; do
-            args+=("--suite" "$suite")
-          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
-
-          if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
-            args+=("--eval" "${{ needs.prepare.outputs.eval }}")
-          fi
-
-          pnpm eval -- "${args[@]}"
+          pnpm eval -- \
+            --experiment "${{ matrix.experiment }}" \
+            --eval "${{ matrix.eval_id }}" \
+            --runs "${{ needs.prepare.outputs.runs }}" \
+            --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}" \
+            --force
 
       - name: Upload raw results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: raw-results-${{ matrix.experiment }}
+          name: raw-results-${{ matrix.experiment }}__${{ matrix.eval_id }}
           path: results/${{ matrix.experiment }}/
           retention-days: 3
 
@@ -191,11 +219,10 @@ jobs:
           mkdir -p results
           export_args=()
           while IFS= read -r experiment; do
-            artifact_dir="downloaded-results/raw-results-$experiment"
-            if [ -d "$artifact_dir" ]; then
-              mkdir -p "results/$experiment"
-              cp -R "$artifact_dir"/. "results/$experiment"/
-            fi
+            mkdir -p "results/$experiment"
+            for artifact_dir in "downloaded-results/raw-results-${experiment}__"*/; do
+              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
+            done
             export_args+=("--experiment" "$experiment")
           done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiments }}')
 

@@ -58,7 +58,7 @@ const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
-const CONCURRENCY = Number(readFlag("concurrency") ?? 4);
+const CONCURRENCY = Number(readFlag("concurrency") ?? 1);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
 const DEBUG = args.has("--debug");
 
