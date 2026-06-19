@@ -27,14 +27,12 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
   // re-check the parser. See packages/core/src/parsers/claude-code.ts.
   defaultCliVersion: "2.1.101",
   defaultModel: "claude-sonnet-4-6",
-  // Print mode auto-denies any tool not on --allowedTools, so we can confine it.
-  canRestrictToMcp: true,
 
   async install(sandbox, version) {
     await npmInstallGlobal(sandbox, `${this.cliPackage}@${version}`, this.displayName);
   },
 
-  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpServers, restrictToMcp, timeoutSec }) {
+  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpServers, timeoutSec }) {
     const claude = npmGlobalBin("claude");
     const serverNames = Object.keys(mcpServers);
 
@@ -44,12 +42,6 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       // Load only our servers; ignore any .mcp.json in the workspace.
       mcpFlags = [`--mcp-config ${MCP_CONFIG_PATH}`, "--strict-mcp-config"];
     }
-
-    // MCP-only confinement: allow every exposed server's tools (`mcp__<server>`
-    // covers all of that server's tools) and nothing else.
-    const allowedTools = restrictToMcp
-      ? serverNames.map((name) => `mcp__${name}`)
-      : undefined;
 
     const flags = [
       "--print",
@@ -61,12 +53,9 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       // so Claude Code keeps its default coding-agent prompt + tool guidance.
       `--append-system-prompt-file ${systemPromptPath}`,
       ...mcpFlags,
-      // Confined: explicit allowlist, no skip. Otherwise the sandbox is
-      // isolated, so skip prompts entirely. `--allowedTools` is variadic, so it
-      // must come last (the prompt is on stdin, not a positional arg).
-      ...(allowedTools
-        ? [`--allowedTools ${allowedTools.map(shellQuote).join(" ")}`]
-        : ["--dangerously-skip-permissions"]),
+      // The sandbox is the isolation boundary, so skip permission prompts and
+      // give the agent its full native toolset (same in both modes).
+      "--dangerously-skip-permissions",
     ].join(" ");
 
     // Prompt on stdin: `claude -p` with no positional reads it from stdin.

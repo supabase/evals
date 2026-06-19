@@ -46,12 +46,6 @@ export interface RunnerExecArgs<M extends string = string> {
   userPromptPath: string;
   /** MCP servers to expose, already loopback-rewritten. Empty when none. */
   mcpServers: Record<string, McpServerConfig>;
-  /**
-   * Confine the agent to the MCP surface (deny native tools). Set in tools
-   * mode. A runner whose CLI cannot enforce this MUST throw rather than run
-   * unrestricted — see `canRestrictToMcp`.
-   */
-  restrictToMcp: boolean;
   timeoutSec: number;
 }
 
@@ -75,12 +69,6 @@ export interface AgentRunner<M extends string = string> {
   defaultCliVersion: string;
   /** Model used when the caller doesn't pick one. */
   defaultModel: M;
-  /**
-   * Whether the CLI can be confined to the MCP tool surface (an allowlist or
-   * equivalent). Drives tools-mode support: a CLI that always has shell access
-   * (e.g. Codex) sets this false and runs local-stack only.
-   */
-  canRestrictToMcp: boolean;
   /** Install the CLI into the sandbox at `version` (and authenticate if needed). */
   install(sandbox: AgentSandbox, version: string, apiKey: string): Promise<void>;
   /** Run the CLI to completion and return the process result + raw transcript. */

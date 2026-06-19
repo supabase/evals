@@ -304,12 +304,6 @@ export type AgentRunArgs = {
    * local-stack session, or by a bare sandbox the harness boots for tools mode.
    */
   sandbox?: AgentSandbox;
-  /**
-   * Restrict a CLI agent to the MCP tool surface only (deny its native
-   * Bash/file/web tools). Set in tools mode, where the eval measures MCP usage
-   * and native tools would let the CLI bypass it. In-process agents ignore it.
-   */
-  restrictToMcp?: boolean;
   timeoutSec: number;
 };
 
@@ -329,13 +323,6 @@ export type AgentHarness = {
    * workspace + their tools).
    */
   requiresSandbox?: boolean;
-  /**
-   * Whether the agent can run tools-mode evals (which require confining a CLI
-   * to the MCP surface). Undefined = supported (in-process agents). A CLI that
-   * can't be confined sets this false and the harness skips tools-mode evals
-   * for it.
-   */
-  supportsToolsMode?: boolean;
   assertReady(): void;
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };

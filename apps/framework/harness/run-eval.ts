@@ -332,9 +332,14 @@ async function runOne(
     readFileSync(ev.promptPath, "utf8"),
     ev.promptPath,
   ).body;
-  // Tools-mode skills are advertised in the prompt and loaded via the
-  // load_skill tool; local-stack installs them into the sandbox instead.
-  const toolsSkills = ev.mode === "tools" ? loadToolsSkills(exp.skills) : [];
+  // A CLI agent always runs in a sandbox and reads skills from disk with its
+  // file tools (both modes). An in-process (ai-sdk) agent has no sandbox, so in
+  // tools mode its skills are advertised in the prompt and loaded via the
+  // load_skill tool. Skill sources (name+dir) are shared by both paths.
+  const cliAgent = exp.agent.requiresSandbox ?? false;
+  const skillSources = resolveSkillSources(exp.skills);
+  const toolsSkills =
+    ev.mode === "tools" && !cliAgent ? loadToolsSkills(exp.skills) : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ToolScorer
     | LocalStackScorer;
@@ -383,7 +388,7 @@ async function runOne(
         // Skills are installed into the sandbox and discovered by the agent
         // (the session folds the discovery listing into its promptAddendum),
         // so no skill text is injected into the prompt here.
-        skills: resolveSkillSources(exp.skills),
+        skills: skillSources,
       });
       try {
         const run = await exp.agent.run({
@@ -447,34 +452,38 @@ async function runOne(
       continue;
     }
 
-    // Tools mode: the eval's tool surface is MCP (platform-lite). In-process
-    // agents run host-side; a CLI agent needs an execution substrate, so boot a
-    // bare sandbox and confine it to the MCP surface (so it can't bypass the
-    // tools under test). Binding platform-lite to 0.0.0.0 lets the sandbox's
-    // in-container MCP servers reach it via host.docker.internal.
-    const needsSandbox = exp.agent.requiresSandbox ?? false;
-    const cliSandbox = needsSandbox ? await createBareSandbox() : undefined;
+    // Tools mode: the eval's tool surface is MCP (platform-lite). A CLI agent
+    // gets the same sandbox as local-stack minus the running stack — with its
+    // skills installed — and reaches the in-container MCP servers' host-side
+    // platform-lite via host.docker.internal (so platform-lite binds 0.0.0.0).
+    // An in-process agent runs host-side with no sandbox.
+    const cliSandbox = cliAgent
+      ? await createBareSandbox({ skills: skillSources })
+      : undefined;
     const session = await exp.runtime.startSession({
       ...readSessionSeedArgs(ev),
-      hostname: needsSandbox ? "0.0.0.0" : undefined,
+      hostname: cliAgent ? "0.0.0.0" : undefined,
     });
 
     try {
-      // Tools mode has no filesystem: advertise only each skill's
-      // name+description and let the agent pull a skill's full body on demand
-      // via the load_skill tool (lazy, like local-stack's files_read).
+      // CLI agents read their installed skills from disk (the bare sandbox folds
+      // the discovery listing into its promptAddendum). In-process agents have
+      // no filesystem, so their skills are advertised in the prompt and pulled
+      // on demand via the load_skill tool.
+      const skillsPrompt = cliAgent
+        ? cliSandbox!.promptAddendum
+        : buildToolsSkillsPrompt(toolsSkills);
       const systemPrompt = buildSystemPrompt(
         "tools",
         session.promptAddendum,
-        buildToolsSkillsPrompt(toolsSkills),
+        skillsPrompt,
       );
       const run = await exp.agent.run({
         systemPrompt,
         userPrompt: prompt,
-        tools: buildLoadSkillTool(toolsSkills),
+        tools: cliAgent ? undefined : buildLoadSkillTool(toolsSkills),
         mcpServers: session.mcpServers,
         sandbox: cliSandbox?.sandbox,
-        restrictToMcp: needsSandbox,
         timeoutSec: TIMEOUT_SEC,
       });
 
@@ -647,16 +656,6 @@ async function main() {
       if (ev.mode === "local-stack" && !config.localStack) {
         console.log(
           `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`,
-        );
-        continue;
-      }
-      if (
-        ev.mode === "tools" &&
-        config.agent.requiresSandbox &&
-        config.agent.supportsToolsMode === false
-      ) {
-        console.log(
-          `SKIP ${name} x ${ev.id} (${config.agent.id} can't be confined to the MCP surface — runs local-stack evals only)`,
         );
         continue;
       }

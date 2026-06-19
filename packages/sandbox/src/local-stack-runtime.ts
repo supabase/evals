@@ -10,12 +10,9 @@ import {
   type McpServerConfig,
 } from "@supabase-evals/core";
 import { DockerSandbox } from "./docker-sandbox.js";
-import {
-  ensureSupabaseSandboxImage,
-  setupSupabaseSandbox,
-  teardownSupabaseProject,
-} from "./supabase.js";
-import { buildSkillsPrompt, installSkills, type SkillEntry } from "./skills.js";
+import { createAgentEnvironment } from "./agent-environment.js";
+import { teardownSupabaseProject } from "./supabase.js";
+import { buildSkillsPrompt } from "./skills.js";
 
 /** Local-stack Postgres as published by `supabase start`, reachable on the
  * sandbox's 127.0.0.1 via host networking. */
@@ -86,35 +83,22 @@ export function localStackRuntime(
       hosted,
       skills,
     }) {
-      const image = await ensureSupabaseSandboxImage(options.cliVersion);
-      const sandbox = await DockerSandbox.create({
-        image,
-        // Host networking so the ports `supabase start` publishes (on sibling
-        // containers, via the mounted host docker socket) are reachable from
-        // the sandbox on 127.0.0.1 — exactly where the Supabase CLI health-
-        // checks them. This is what the kernel does natively when the sandbox
-        // shares the host network namespace, so no loopback DNAT, NET_ADMIN,
-        // or route_localnet sysctl is needed.
-        network: "host",
-      });
-      let skillEntries: SkillEntry[] = [];
-      try {
-        await setupSupabaseSandbox(sandbox, {
+      // Local-stack mode = the shared agent environment with the Supabase local
+      // stack started. Everything else (image, tooling, skills) is identical to
+      // tools mode; only the `localStack` component differs.
+      const env = await createAgentEnvironment({
+        cliVersion: options.cliVersion,
+        localDir,
+        skills,
+        localStack: {
           includeServices,
-          localDir,
           projectRunning,
           hosted: hosted
             ? { port: hosted.port, ref: hosted.ref, accessToken: hosted.accessToken }
             : undefined,
-        });
-        // Install requested skills into the sandbox after the workspace is
-        // seeded, so the agent can discover them (it reads each SKILL.md on
-        // demand via its file tools).
-        skillEntries = await installSkills(sandbox, skills ?? []);
-      } catch (err) {
-        await sandbox.stop();
-        throw err;
-      }
+        },
+      });
+      const sandbox = env.sandbox;
 
       const mcpServers = await resolveMcpServers(options, hosted);
 
@@ -128,7 +112,7 @@ export function localStackRuntime(
         tools: buildLocalStackTools(sandbox),
         sandbox: toAgentSandbox(sandbox),
         mcpServers,
-        promptAddendum: [baseAddendum, buildSkillsPrompt(skillEntries)]
+        promptAddendum: [baseAddendum, buildSkillsPrompt(env.skills)]
           .filter(Boolean)
           .join("\n\n"),
         scoringContext: buildLocalStackScoringContext(sandbox, hosted),
@@ -136,7 +120,7 @@ export function localStackRuntime(
           sandbox.copyToHost(sandbox.workdir, hostDir),
         close: async () => {
           await teardownSupabaseProject(sandbox);
-          await sandbox.stop();
+          await env.close();
         },
       };
     },

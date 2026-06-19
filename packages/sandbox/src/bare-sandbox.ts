@@ -1,33 +1,34 @@
-import type { AgentSandbox } from "@supabase-evals/core";
-import { DockerSandbox, type DockerSandboxOptions } from "./docker-sandbox.js";
+import type { AgentSandbox, SkillSource } from "@supabase-evals/core";
+import { createAgentEnvironment } from "./agent-environment.js";
 import { toAgentSandbox } from "./local-stack-runtime.js";
+import { buildSkillsPrompt } from "./skills.js";
 
 export interface BareSandboxHandle {
   sandbox: AgentSandbox;
+  /** Skills-discovery text to fold into the agent's system prompt. */
+  promptAddendum: string;
   close(): Promise<void>;
 }
 
 /**
- * A minimal execution substrate for CLI agents in tools mode: a bare Node
- * container (no Supabase CLI, no local stack), just somewhere to install and
- * run the agent binary. The eval's tools come from MCP, not the Supabase CLI.
+ * The agent's execution environment for tools mode: the shared agent
+ * environment (image, tooling, skills) **without** the Supabase local stack.
+ * Identical to what a local-stack session gives the agent, minus the running
+ * stack — so the CLI agent has the same tools and the same skills in both modes.
  *
- * This is a thin composition of two primitives we already have —
- * `DockerSandbox.create` + `toAgentSandbox` — and reuses the `AgentSandbox`
- * adapter `localStackRuntime` also uses. The difference from `localStackRuntime`
- * is purely that it skips the expensive Supabase provisioning (image build +
- * `supabase start`); pass `DockerSandboxOptions` through to tune the container
- * (image, timeout, network).
- *
- * The container's MCP servers reach host-side platform-lite via
- * `host.docker.internal` (DockerSandbox always adds that host mapping).
+ * The eval's tools come from MCP (the in-container servers reach host-side
+ * platform-lite via `host.docker.internal` on the default bridge).
  */
 export async function createBareSandbox(
-  options: DockerSandboxOptions = {},
+  options: { cliVersion?: string; skills?: readonly SkillSource[] } = {},
 ): Promise<BareSandboxHandle> {
-  const sandbox = await DockerSandbox.create(options);
+  const env = await createAgentEnvironment({
+    cliVersion: options.cliVersion,
+    skills: options.skills,
+  });
   return {
-    sandbox: toAgentSandbox(sandbox),
-    close: () => sandbox.stop(),
+    sandbox: toAgentSandbox(env.sandbox),
+    promptAddendum: buildSkillsPrompt(env.skills),
+    close: env.close,
   };
 }

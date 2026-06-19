@@ -53,9 +53,6 @@ export function createCliAgent<M extends string = string>(
     id: runner.id,
     modelId: options.model,
     requiresSandbox: true,
-    // Tools mode requires confining the CLI to the MCP surface; only runners
-    // that can do so support it.
-    supportsToolsMode: runner.canRestrictToMcp,
     assertReady() {
       requireApiKey(runner);
     },
@@ -64,8 +61,7 @@ export function createCliAgent<M extends string = string>(
       const sandbox = args.sandbox;
       if (!sandbox) {
         throw new Error(
-          `${runner.displayName} is a CLI agent and needs a sandbox to run in. ` +
-            `It runs against local-stack evals (and, when it can be confined to MCP, tools mode).`,
+          `${runner.displayName} is a CLI agent and needs a sandbox to run in.`,
         );
       }
 
@@ -85,7 +81,6 @@ export function createCliAgent<M extends string = string>(
         // Rewrite loopback hosts so in-container MCP servers can reach host-side
         // platform-lite; the runner writes them in its own config format.
         mcpServers: rewriteLoopback(args.mcpServers ?? {}),
-        restrictToMcp: args.restrictToMcp ?? false,
         timeoutSec: args.timeoutSec,
       });
 
