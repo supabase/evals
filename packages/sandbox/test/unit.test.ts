@@ -12,6 +12,12 @@ import {
   buildSupabaseStartCommand,
   computeExcludedServices,
 } from "../src/supabase.js";
+import {
+  SKILLS_CLI_VERSION,
+  SKILLS_INSTALL_DIR,
+  buildSkillsPrompt,
+  frontmatterDescription,
+} from "../src/skills.js";
 import { ALL_SUPABASE_SERVICES } from "../src/types.js";
 
 describe("sandbox Dockerfile", () => {
@@ -23,6 +29,65 @@ describe("sandbox Dockerfile", () => {
       "https://github.com/supabase/cli/releases/download/v${CLI_VERSION}/supabase_${CLI_VERSION}_linux_${ARCH}.deb",
     );
     expect(dockerfile).toContain("dpkg -i /tmp/supabase.deb");
+  });
+
+  it("bakes in Vercel's skills CLI pinned via build arg", () => {
+    const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, "utf8");
+    expect(dockerfile).toContain("ARG SKILLS_CLI_VERSION");
+    expect(dockerfile).toContain('npm install -g "skills@${SKILLS_CLI_VERSION}"');
+  });
+});
+
+describe("frontmatterDescription", () => {
+  it("reads a quoted description containing colons", () => {
+    const md = [
+      "---",
+      "name: supabase",
+      'description: "Use when doing X. Triggers: a, b, c."',
+      "metadata:",
+      "  author: supabase",
+      "---",
+      "",
+      "# Body",
+    ].join("\n");
+    expect(frontmatterDescription(md)).toBe("Use when doing X. Triggers: a, b, c.");
+  });
+
+  it("reads an unquoted single-line description", () => {
+    expect(
+      frontmatterDescription("---\nname: pg\ndescription: Postgres tips.\n---\nbody"),
+    ).toBe("Postgres tips.");
+  });
+
+  it("returns empty without frontmatter or without a description", () => {
+    expect(frontmatterDescription("# Just a body")).toBe("");
+    expect(frontmatterDescription("---\nname: solo\n---\nbody")).toBe("");
+  });
+});
+
+describe("buildSkillsPrompt", () => {
+  it("is empty when no skills are installed", () => {
+    expect(buildSkillsPrompt([])).toBe("");
+  });
+
+  it("lists name+description and points at the install dir for files_read", () => {
+    const prompt = buildSkillsPrompt([
+      { name: "supabase", description: "Use for Supabase tasks.", dir: "x" },
+      { name: "pg", description: "Postgres tips.", dir: "y" },
+    ]);
+    expect(prompt).toContain(SKILLS_INSTALL_DIR);
+    expect(prompt).toContain("files_read");
+    expect(prompt).toContain("SKILL.md");
+    expect(prompt).toContain("- supabase: Use for Supabase tasks.");
+    expect(prompt).toContain("- pg: Postgres tips.");
+    // Discovery only — the full body must not be inlined here.
+    expect(prompt).not.toContain("# Body");
+  });
+});
+
+describe("SKILLS_CLI_VERSION", () => {
+  it("is a pinned semver string", () => {
+    expect(SKILLS_CLI_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });
 

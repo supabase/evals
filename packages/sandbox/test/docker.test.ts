@@ -18,6 +18,7 @@ import {
   SUPABASE_CLI_VERSION,
   teardownSupabaseProject,
 } from "../src/supabase.js";
+import { installSkills, SKILLS_INSTALL_DIR } from "../src/skills.js";
 
 const TEST_TIMEOUT_MS = 600_000;
 
@@ -29,8 +30,7 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)("local-stack sandbox (docker)",
       const image = await ensureSupabaseSandboxImage();
       const sandbox = await DockerSandbox.create({
         image,
-        capAdd: ["NET_ADMIN"],
-        sysctls: { "net.ipv4.conf.all.route_localnet": "1" },
+        network: "host",
       });
       try {
         // The default (projectRunning: true) must refuse an empty workspace
@@ -56,14 +56,14 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)("local-stack sandbox (docker)",
         await sandbox.writeFiles({ "nested/dir/hello.txt": "roundtrip" });
         expect(await sandbox.readFile("nested/dir/hello.txt")).toBe("roundtrip");
 
-        // copyHostDir seeds straight from disk: binary content survives intact
-        // and the ignore list (.git here) is dropped.
+        // copyToContainer seeds straight from disk: binary content survives
+        // intact and the ignore list (.git here) is dropped.
         const seed = mkdtempSync(join(tmpdir(), "copyhostdir-test-"));
         try {
           writeFileSync(join(seed, "bin.dat"), Buffer.from([0x00, 0xff, 0x00, 0xfe]));
           mkdirSync(join(seed, ".git"));
           writeFileSync(join(seed, ".git", "HEAD"), "ref");
-          await sandbox.copyHostDir(seed);
+          await sandbox.copyToContainer(seed, sandbox.workdir);
           // Dump the bytes as hex (od, from coreutils) to confirm the copy is byte-exact.
           const hex = await sandbox.runShell("od -An -v -tx1 bin.dat | tr -d ' \\n'");
           expect(hex.stdout.trim()).toBe("00ff00fe");
@@ -79,7 +79,7 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)("local-stack sandbox (docker)",
 
         await startSupabaseProject(sandbox, ["gotrue", "kong", "postgrest"]);
 
-        // Postgres reachable through the loopback DNAT, structured rows back.
+        // Postgres reachable on the sandbox's 127.0.0.1 (host networking), structured rows back.
         const ctx = buildLocalStackScoringContext(sandbox);
         const { rows } = await ctx.query("select 1 as one");
         expect(rows).toEqual([{ one: 1 }]);
@@ -98,6 +98,59 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)("local-stack sandbox (docker)",
         expect(error).not.toBeNull();
       } finally {
         await teardownSupabaseProject(sandbox);
+        await sandbox.stop();
+      }
+    },
+  );
+
+  it(
+    "installs a local skill into the workspace with the skills CLI",
+    { timeout: TEST_TIMEOUT_MS },
+    async () => {
+      const image = await ensureSupabaseSandboxImage();
+      const sandbox = await DockerSandbox.create({ image });
+      // A minimal on-disk skill fixture (name+description frontmatter plus a
+      // bundled reference file) installed from a local dir — never the network.
+      const src = mkdtempSync(join(tmpdir(), "skill-src-"));
+      try {
+        mkdirSync(join(src, "references"), { recursive: true });
+        writeFileSync(
+          join(src, "SKILL.md"),
+          [
+            "---",
+            "name: demo-skill",
+            "description: A demo skill used in tests.",
+            "---",
+            "",
+            "# Demo",
+            "See references/extra.md.",
+          ].join("\n"),
+        );
+        writeFileSync(join(src, "references", "extra.md"), "extra content");
+
+        const entries = await installSkills(sandbox, [
+          { name: "demo-skill", dir: src },
+        ]);
+
+        expect(entries).toEqual([
+          {
+            name: "demo-skill",
+            description: "A demo skill used in tests.",
+            dir: `${SKILLS_INSTALL_DIR}/demo-skill`,
+          },
+        ]);
+        // The full skill tree (including bundled references) is reachable in
+        // the workspace via the agent's file tools.
+        expect(
+          await sandbox.fileExists(`${SKILLS_INSTALL_DIR}/demo-skill/SKILL.md`),
+        ).toBe(true);
+        expect(
+          await sandbox.readFile(
+            `${SKILLS_INSTALL_DIR}/demo-skill/references/extra.md`,
+          ),
+        ).toBe("extra content");
+      } finally {
+        rmSync(src, { recursive: true, force: true });
         await sandbox.stop();
       }
     },

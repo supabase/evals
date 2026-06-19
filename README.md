@@ -142,7 +142,7 @@ The Supabase CLI is the agent's tool; the **local stack** (the Docker services `
 
 **Scoring uses host tooling against an exported workspace.** After the agent finishes, the harness copies its workspace out of the sandbox to the host (`docker cp`), so scorers can run the repo-root `vite`/`vitest` against the produced files without that toolchain having to exist in the sandbox — the same build/test scoring former "project" evals used. Scorers may also run commands and SQL **inside** the sandbox (against the live stack) via the scoring context.
 
-Local-stack evals require a running Docker daemon. Each attempt boots a fresh sandbox container that mounts the host Docker socket, so `supabase start` spawns the local stack as sibling containers; iptables DNAT rules make them reachable on the sandbox's `127.0.0.1` default ports. Supabase's default host ports (54321-54329) must be free — stop any local `supabase start` stacks before running.
+Local-stack evals require a running Docker daemon. Each attempt boots a fresh sandbox container that mounts the host Docker socket, so `supabase start` spawns the local stack as sibling containers; the sandbox runs with host networking, so their published ports land directly on the sandbox's `127.0.0.1` default ports. Supabase's default host ports (54321-54329) must be free — stop any local `supabase start` stacks before running.
 
 An eval's optional `local/` directory is copied into the sandbox workspace before the agent starts. A `services:` frontmatter list declares which local-stack services the scenario needs (e.g. `gotrue`, `kong`, `postgrest`); every other service is excluded from `supabase start` — including when the agent runs it itself — to keep stack boots fast. An empty list (`services: []`) starts only the database; omit the key entirely to start the full stack.
 
@@ -159,6 +159,11 @@ pnpm --filter @supabase-evals/sandbox test:docker
 Skills come from [`supabase/agent-skills`](https://github.com/supabase/agent-skills), pinned as a git submodule at `submodules/agent-skills`. The `skills/` directory contains symlinks into the submodule.
 
 To use a skill in an experiment, reference its directory name in the experiment's `skills` array.
+
+Both runtimes load skills lazily ([progressive disclosure](https://ai-sdk.dev/cookbook/guides/agent-skills)): only each skill's name+description is in the system prompt, and the agent pulls a skill's full instructions on demand. They differ only in how the body is fetched, because the tools-mode agent has no filesystem:
+
+- **Local-stack (sandbox) mode:** skills are installed into the workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network) under `.claude/skills/`. When a task matches, the agent reads `.claude/skills/<name>/SKILL.md` (and any files it references) with its file tools.
+- **Tools mode:** no filesystem, so a `load_skill` tool returns a skill's full instructions when the agent calls it with the skill's name.
 
 ## Framework Checks
 

@@ -14,8 +14,10 @@ import {
   setupSupabaseSandbox,
   teardownSupabaseProject,
 } from "./supabase.js";
+import { buildSkillsPrompt, installSkills, type SkillEntry } from "./skills.js";
 
-/** Local-stack Postgres as published by `supabase start` (DNAT'd in-sandbox). */
+/** Local-stack Postgres as published by `supabase start`, reachable on the
+ * sandbox's 127.0.0.1 via host networking. */
 const LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
@@ -72,18 +74,25 @@ export function localStackRuntime(
 ): LocalStackRuntime {
   return {
     id: "local-stack",
-    async startSession({ localDir, includeServices, projectRunning, hosted }) {
+    async startSession({
+      localDir,
+      includeServices,
+      projectRunning,
+      hosted,
+      skills,
+    }) {
       const image = await ensureSupabaseSandboxImage(options.cliVersion);
       const sandbox = await DockerSandbox.create({
         image,
-        // The loopback DNAT below (redirecting Supabase ports to sibling
-        // containers) needs NET_ADMIN to install the iptables rules and
-        // route_localnet so the kernel doesn't drop 127.0.0.1-destined packets
-        // rerouted out eth0. route_localnet is only writable at container
-        // creation, so it must be set here rather than during setup.
-        capAdd: ["NET_ADMIN"],
-        sysctls: { "net.ipv4.conf.all.route_localnet": "1" },
+        // Host networking so the ports `supabase start` publishes (on sibling
+        // containers, via the mounted host docker socket) are reachable from
+        // the sandbox on 127.0.0.1 — exactly where the Supabase CLI health-
+        // checks them. This is what the kernel does natively when the sandbox
+        // shares the host network namespace, so no loopback DNAT, NET_ADMIN,
+        // or route_localnet sysctl is needed.
+        network: "host",
       });
+      let skillEntries: SkillEntry[] = [];
       try {
         await setupSupabaseSandbox(sandbox, {
           includeServices,
@@ -93,6 +102,10 @@ export function localStackRuntime(
             ? { port: hosted.port, ref: hosted.ref, accessToken: hosted.accessToken }
             : undefined,
         });
+        // Install requested skills into the sandbox after the workspace is
+        // seeded, so the agent can discover them (it reads each SKILL.md on
+        // demand via its file tools).
+        skillEntries = await installSkills(sandbox, skills ?? []);
       } catch (err) {
         await sandbox.stop();
         throw err;
@@ -100,16 +113,21 @@ export function localStackRuntime(
 
       const mcpServers = await resolveMcpServers(options, hosted);
 
+      const baseAddendum =
+        "The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. " +
+        "Use the bash tool to run commands (the working directory is always the workspace root) " +
+        "and the files tools to inspect and modify files. " +
+        "Services started with `supabase start` are reachable on their default 127.0.0.1 ports.";
+
       return {
         tools: buildLocalStackTools(sandbox),
         mcpServers,
-        promptAddendum:
-          "The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. " +
-          "Use the bash tool to run commands (the working directory is always the workspace root) " +
-          "and the files tools to inspect and modify files. " +
-          "Services started with `supabase start` are reachable on their default 127.0.0.1 ports.",
+        promptAddendum: [baseAddendum, buildSkillsPrompt(skillEntries)]
+          .filter(Boolean)
+          .join("\n\n"),
         scoringContext: buildLocalStackScoringContext(sandbox, hosted),
-        exportWorkspace: (hostDir: string) => sandbox.copyToHost(hostDir),
+        exportWorkspace: (hostDir: string) =>
+          sandbox.copyToHost(sandbox.workdir, hostDir),
         close: async () => {
           await teardownSupabaseProject(sandbox);
           await sandbox.stop();
