@@ -216,10 +216,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "::group::downloaded artifacts"
-          find downloaded-results -maxdepth 3 2>/dev/null || echo "(no downloaded-results)"
-          echo "::endgroup::"
-
           mkdir -p results
           export_args=()
           while IFS= read -r experiment; do
@@ -229,10 +225,6 @@ jobs:
             done
             export_args+=("--experiment" "$experiment")
           done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiments }}')
-
-          echo "::group::reconstructed results/"
-          find results -maxdepth 2 -name '*.json' 2>/dev/null || echo "(no result JSONs)"
-          echo "::endgroup::"
 
           while IFS= read -r suite; do
             export_args+=("--suite" "$suite")
