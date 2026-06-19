@@ -579,6 +579,7 @@ export type EvalSessionArgs = {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
+  pgvector?: boolean;
 };
 
 export type EvalSession = {
@@ -923,6 +924,7 @@ export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
+  pgvector?: boolean;
   /** Management API access token; defaults to the in-process eval token. */
   accessToken?: string;
   /** Fixed project ref; defaults to a generated one. */
@@ -948,7 +950,7 @@ export async function bootPlatformBackend(opts: {
   const accessToken = opts.accessToken ?? ACCESS_TOKEN;
   const platform = await createPlatform({
     accessToken,
-    projects: [{ ref: opts.ref, sql, logs, functions }],
+    projects: [{ ref: opts.ref, sql, logs, functions, pgvector: opts.pgvector }],
   });
 
   let server: ServerHandle | undefined;

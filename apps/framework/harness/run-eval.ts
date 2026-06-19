@@ -58,7 +58,7 @@ const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 4);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
-const CONCURRENCY = Number(readFlag("concurrency") ?? 10);
+const CONCURRENCY = Number(readFlag("concurrency") ?? 4);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
 const DEBUG = args.has("--debug");
 
@@ -284,6 +284,7 @@ function readSessionSeedArgs(ev: EvalManifest) {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
     logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
     functionsSeedDir: existsSync(functionsSeedDir) ? functionsSeedDir : undefined,
+    pgvector: ev.metadata.product.includes("vectors"),
   };
 }
 

@@ -107,6 +107,29 @@ describe('database', () => {
     expect(list[0].name).toBe('create_items')
   })
 
+  it('supports pgvector: extension, vector column, HNSW index, similarity query', async () => {
+    const app = await createTestApp([{ ref: 'vector-proj', pgvector: true }])
+
+    const setup = await request(app, 'POST', '/v1/projects/vector-proj/database/query', {
+      query: `
+        CREATE EXTENSION vector WITH SCHEMA extensions;
+        CREATE TABLE items (id serial PRIMARY KEY, embedding extensions.vector(3));
+        CREATE INDEX ON items USING hnsw (embedding extensions.vector_cosine_ops);
+        INSERT INTO items (embedding) VALUES ('[1,0,0]'), ('[0,1,0]'), ('[0.9,0.1,0]');
+      `,
+    })
+    expect(setup.status).toBe(200)
+
+    const { status, data } = await request<Array<{ id: number }>>(
+      app,
+      'POST',
+      '/v1/projects/vector-proj/database/query',
+      { query: `SELECT id FROM items ORDER BY embedding OPERATOR(extensions.<=>) '[1,0,0]' LIMIT 2;` }
+    )
+    expect(status).toBe(200)
+    expect(data.map((row) => row.id)).toEqual([1, 3])
+  })
+
   it('routes supabase-js rpc calls to PostgREST', async () => {
     const ref = 'rpc-proj'
     const platform = await createPlatform({

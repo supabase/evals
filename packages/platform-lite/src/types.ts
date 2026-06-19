@@ -20,6 +20,7 @@ export type ProjectSeed = {
   sql?: string
   logs?: LogRow[]
   functions?: EdgeFunctionSeed[]
+  pgvector?: boolean
 }
 
 export type AppOptions = {
