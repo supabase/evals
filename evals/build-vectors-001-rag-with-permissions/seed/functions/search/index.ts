@@ -13,10 +13,10 @@ Deno.serve(async (req) => {
 
   const embedding = await model.run(query, { mean_pool: true, normalize: true });
 
-  const { data: sections, error } = await supabase.rpc("match_document_sections", {
-    query_embedding: JSON.stringify(embedding),
-    match_count: limit,
-  });
+  const { data: sections, error } = await supabase.rpc<{ id: number; content: string }[]>(
+    "match_document_sections",
+    { query_embedding: JSON.stringify(embedding), match_count: limit },
+  );
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,

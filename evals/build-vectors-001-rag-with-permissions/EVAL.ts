@@ -32,7 +32,10 @@ const SECTION_EMBEDDINGS: Array<[number, string]> = [
   [3, embedding([[0, 1]])],
   [4, embedding([[0, 0.6], [2, 0.8]])],
 ];
-const LEAK_CANARY_SECTION = 3;
+// third row in seed/project.sql's document_sections insert. its embedding matches
+// QUERY_EMBEDDING exactly, making it the global nearest neighbor. if it appears in
+// user A's search results, RLS leaked
+const USER_B_TOP_MATCH_SECTION_ID = 3;
 
 // pgvector pairs each distance operator with an index operator class; an
 // index built with a different opclass is silently ignored by the planner.
@@ -205,12 +208,10 @@ async function checkSearchIsolation(
     return { name, passed: false, notes: error.message };
   }
 
-  // The seeded search function passes results straight back to the app, so
-  // any row shape works as long as it identifies the section.
-  const rows = (data ?? []) as Array<Record<string, unknown>>;
-  const ids = rows.map((row) => Number(row.id ?? row.section_id));
+  const rows = (data ?? []) as Array<{ id: number }>;
+  const ids = rows.map((row) => row.id);
   const leaked =
-    ids.includes(LEAK_CANARY_SECTION) && !expectedSectionIds.includes(LEAK_CANARY_SECTION);
+    ids.includes(USER_B_TOP_MATCH_SECTION_ID) && !expectedSectionIds.includes(USER_B_TOP_MATCH_SECTION_ID);
 
   return {
     name,
