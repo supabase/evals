@@ -1,4 +1,5 @@
 import vm from "node:vm";
+import { createRequire } from "node:module";
 import { createHash, createHmac } from "node:crypto";
 import { execFile } from "node:child_process";
 import { createServer } from "node:net";
@@ -46,6 +47,11 @@ function getExecutorBin(): string {
   return executorBinPath;
 }
 const execFileAsync = promisify(execFile);
+
+// Resolves node-like edge-function imports (npm:/jsr:/node:/esm.sh) against the
+// eval runtime's installed modules — mirroring what the real Deno edge runtime
+// accepts. See requireFromSandbox in compileEdgeFunction.
+const nodeRequire = createRequire(import.meta.url);
 
 export type { SupabaseClient };
 export type { ManagementApiClient };
@@ -1284,11 +1290,10 @@ function compileEdgeFunction(
     if (specifier === "jsr:@supabase/functions-js/edge-runtime.d.ts") {
       return {};
     }
-    if (
-      specifier === "@supabase/supabase-js" ||
-      specifier.startsWith("jsr:@supabase/supabase-js@") ||
-      specifier.startsWith("npm:@supabase/supabase-js@")
-    ) {
+    const id = toNodeRequireId(specifier);
+    // supabase-js is special-cased so its client uses the in-process runtime
+    // fetch (so the function's calls hit this project, not the network).
+    if (id === "@supabase/supabase-js" || id?.startsWith("@supabase/supabase-js/")) {
       return {
         createClient: (
           u: string,
@@ -1300,6 +1305,21 @@ function compileEdgeFunction(
             global: { ...opts?.global, fetch: runtimeFetch },
           }),
       };
+    }
+    // The real Deno edge runtime accepts npm:/jsr:/node:/esm.sh imports; resolve
+    // them from the eval runtime's modules (Node can't fetch on demand like Deno,
+    // so a package the eval needs must be installed — error clearly if it isn't).
+    if (id) {
+      try {
+        return nodeRequire(id);
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException)?.code;
+        throw new Error(
+          `edge function dependency "${specifier}" is not available in the eval runtime` +
+            ` (${code ?? (err instanceof Error ? err.message : String(err))}). ` +
+            "Add it to the runtime's dependencies if an eval needs it.",
+        );
+      }
     }
     throw new Error(`edge function import not supported: ${specifier}`);
   };
@@ -1341,7 +1361,9 @@ function compileEdgeFunction(
     require: requireFromSandbox,
   };
 
-  vm.runInNewContext(js, sandbox, { timeout: 100, displayErrors: true });
+  // Slightly higher than a pure-eval bound: top-level `require()`s now resolve
+  // real packages, which can take longer than evaluating inline code.
+  vm.runInNewContext(js, sandbox, { timeout: 1000, displayErrors: true });
 
   const handler =
     denoServeHandler ??
@@ -1360,6 +1382,44 @@ function compileEdgeFunction(
 function functionToEdgeHandler(value: unknown): EdgeHandler | undefined {
   if (typeof value !== "function") return undefined;
   return (req) => value(req);
+}
+
+/**
+ * Map a Deno-style edge-function import specifier to a Node `require` id, or
+ * `undefined` if it isn't a node-resolvable module (e.g. a non-CDN URL). Handles
+ * `node:` builtins, `npm:`/`jsr:` prefixes, `esm.sh`/CDN URLs, and bare
+ * specifiers, stripping any version (`pkg@1.2.3/sub` → `pkg/sub`).
+ */
+function toNodeRequireId(specifier: string): string | undefined {
+  if (specifier.startsWith("node:")) return specifier;
+  if (specifier.startsWith("npm:")) return stripModuleVersion(specifier.slice(4));
+  if (specifier.startsWith("jsr:")) return stripModuleVersion(specifier.slice(4));
+  const cdn = specifier.match(
+    /^https?:\/\/(?:esm\.sh|esm\.run|cdn\.skypack\.dev|cdn\.jsdelivr\.net\/npm)\/(?:v\d+\/)?(.+)$/,
+  );
+  if (cdn) return stripModuleVersion(cdn[1]);
+  if (/^https?:\/\//.test(specifier)) return undefined;
+  // Bare specifier (no scheme), e.g. "zod" or "@scope/pkg/sub".
+  if (!specifier.includes(":")) return specifier;
+  return undefined;
+}
+
+/** Strip an npm version range: `@scope/name@1.2.3/sub` → `@scope/name/sub`. */
+function stripModuleVersion(spec: string): string {
+  let scope = "";
+  let rest = spec;
+  if (spec.startsWith("@")) {
+    const slash = spec.indexOf("/");
+    if (slash === -1) return spec;
+    scope = spec.slice(0, slash + 1);
+    rest = spec.slice(slash + 1);
+  }
+  const at = rest.indexOf("@");
+  if (at === -1) return scope + rest;
+  const slashAfter = rest.indexOf("/", at);
+  const name = rest.slice(0, at);
+  const sub = slashAfter === -1 ? "" : rest.slice(slashAfter);
+  return scope + name + sub;
 }
 
 type QueryResultWithFields = {
