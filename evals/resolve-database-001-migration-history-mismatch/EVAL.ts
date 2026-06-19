@@ -12,6 +12,22 @@ const PENDING_VERSION = "20240220000000";
 const SEEDED_PROFILE_COUNT = 25;
 
 /**
+ * The exact local migration sequence a correct reconciliation must produce, in
+ * order: the original `create_profiles`, the recovered orphan `add_profile_bio`
+ * in its original slot, then the pending `add_avatar_url`. We pin the precise
+ * set and order — not merely that timestamps ascend — because the orphan must be
+ * recovered into its correct position (20240115, between create and avatar) so
+ * local history fully describes the remote schema with no drift; discarding it
+ * (repair --status reverted) or pulling it in under a fresh timestamp does not
+ * qualify.
+ */
+const EXPECTED_MIGRATIONS = [
+  { version: "20240101000000", name: "create_profiles" },
+  { version: ORPHAN_VERSION, name: "add_profile_bio" },
+  { version: PENDING_VERSION, name: "add_avatar_url" },
+] as const;
+
+/**
  * Verifies recovery from a remote migration-history mismatch (AI-823): the
  * agent reconciles the hosted history so `supabase db push` can apply a pending
  * migration, without resetting production data.
@@ -19,9 +35,9 @@ const SEEDED_PROFILE_COUNT = 25;
  * Ground truth is read from the hosted project's database directly via
  * `ctx.hostedQuery` (in-process against the same PGlite, never the CLI under
  * test) plus the local migration files in the agent's workspace. We assert the
- * END STATE rather than which commands were used: both valid recovery paths
- * (`db pull` the orphan down, or `migration repair --status reverted` it) land
- * the same reconciled history.
+ * END STATE rather than the exact commands used, but the end state is pinned:
+ * the local history must be exactly `EXPECTED_MIGRATIONS` (the orphan recovered
+ * into its slot), and every one of those versions applied on the remote.
  */
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -43,7 +59,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkAvatarApplied(ctx),
       await checkPendingMigrationRecorded(ctx),
       await checkHistoryReconciled(ctx),
-      await checkMigrationsAscending(ctx),
+      await checkMigrationOrder(ctx),
       await checkProductionDataIntact(ctx),
     ];
 
@@ -119,47 +135,56 @@ async function checkHistoryReconciled(
   };
 }
 
-// The reconciled history must form a strictly ascending timeline. Supabase
-// applies and records migrations in version order, so a local migration whose
-// version predates the latest version already applied on the remote can never
-// be pushed (the CLI rejects it: "found local migration files to be inserted
-// before the last migration on remote database"), and duplicate version
-// timestamps are ambiguous — either leaves the project in an invalid,
-// un-appliable state even if every other check happens to pass.
-async function checkMigrationsAscending(
-  ctx: LocalStackEvalContext,
-): Promise<CheckResult> {
-  const name = "migrations form a strictly ascending timeline";
-  const localAll = await localMigrationVersionsRaw(ctx);
+// The local migrations must be exactly the expected sequence, in order — not
+// merely a chronologically-ascending set. We know the canonical result: the
+// orphan recovered into its slot, giving create_profiles -> add_profile_bio ->
+// add_avatar_url. This catches the orphan being discarded, pulled in under a
+// fresh timestamp, reordered, renamed, duplicated, or left un-applied — states
+// that may pass the looser checks but are wrong or un-pushable.
+async function checkMigrationOrder(ctx: LocalStackEvalContext): Promise<CheckResult> {
+  const name = "local migrations are the expected files in the expected order";
+  const files = await localMigrationFiles(ctx);
+  const actual = files.map((f) => f.version);
+  const expected = EXPECTED_MIGRATIONS.map((m) => m.version);
 
-  // No duplicate version timestamps among local files.
-  const counts = new Map<string, number>();
-  for (const v of localAll) counts.set(v, (counts.get(v) ?? 0) + 1);
-  const duplicates = [...counts.entries()].filter(([, n]) => n > 1).map(([v]) => v);
-  if (duplicates.length > 0) {
-    return {
-      name,
-      passed: false,
-      notes: `duplicate local migration version(s): ${JSON.stringify(duplicates)}`,
-    };
-  }
-
-  // No pending (not-yet-applied) local migration may sort before the latest
-  // version already applied on the remote — `db push` would refuse it. Versions
-  // are zero-padded 14-digit timestamps, so lexical `<` is chronological.
-  const remoteApplied = await remoteHistoryVersions(ctx); // ascending
-  const latestApplied = remoteApplied[remoteApplied.length - 1];
-  const appliedSet = new Set(remoteApplied);
-  const outOfOrder = latestApplied
-    ? localAll.filter((v) => !appliedSet.has(v) && v < latestApplied)
-    : [];
-  if (outOfOrder.length > 0) {
+  // Exact version sequence, in order (length + position). This alone enforces
+  // presence of all three, the orphan in its 20240115 slot, no extras, no
+  // duplicates, and correct ordering.
+  if (actual.length !== expected.length || expected.some((v, i) => v !== actual[i])) {
     return {
       name,
       passed: false,
       notes:
-        `local migration(s) ordered before the latest applied remote version ` +
-        `${latestApplied}: ${JSON.stringify(outOfOrder)} — db push cannot apply these`,
+        `expected [${EXPECTED_MIGRATIONS.map((m) => `${m.version}_${m.name}`).join(", ")}], ` +
+        `got [${files.map((f) => f.file).join(", ") || "(none)"}]`,
+    };
+  }
+
+  // The two seeded files must not be renamed/replaced; the recovered orphan may
+  // carry any descriptive name (its slot is already enforced by the version
+  // match above).
+  const renamed = EXPECTED_MIGRATIONS.filter(
+    (m) =>
+      m.version !== ORPHAN_VERSION &&
+      !files.some((f) => f.version === m.version && f.name === m.name),
+  );
+  if (renamed.length > 0) {
+    return {
+      name,
+      passed: false,
+      notes: `seeded migration(s) renamed: expected ${renamed.map((m) => `${m.version}_${m.name}`).join(", ")}`,
+    };
+  }
+
+  // Each expected migration must be recorded as applied on the remote, so the
+  // recovered orphan isn't just a local file sitting un-pushed.
+  const applied = new Set(await remoteHistoryVersions(ctx));
+  const notApplied = expected.filter((v) => !applied.has(v));
+  if (notApplied.length > 0) {
+    return {
+      name,
+      passed: false,
+      notes: `expected migration(s) not applied on the remote: ${JSON.stringify(notApplied)}`,
     };
   }
 
@@ -215,11 +240,20 @@ async function localMigrationVersions(ctx: LocalStackEvalContext): Promise<strin
   return result.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
 }
 
-// Same, but keeps duplicates (sorted, not unique) so the ascending-timeline
-// check can detect two files sharing a version timestamp.
-async function localMigrationVersionsRaw(ctx: LocalStackEvalContext): Promise<string[]> {
-  const result = await ctx.exec(
-    `ls supabase/migrations 2>/dev/null | sed -n 's/^\\([0-9]\\{14\\}\\).*/\\1/p' | sort`,
-  );
-  return result.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+// Local migration files parsed into { version, name }, in filename order
+// (lexical sort on the 14-digit prefix == chronological). Keeps duplicates and
+// preserves order so `checkMigrationOrder` can assert the exact sequence.
+async function localMigrationFiles(
+  ctx: LocalStackEvalContext,
+): Promise<Array<{ version: string; name: string; file: string }>> {
+  const result = await ctx.exec(`ls supabase/migrations 2>/dev/null | sort`);
+  return result.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((file) => {
+      const m = file.match(/^(\d{14})_(.+)\.sql$/);
+      return m ? { version: m[1], name: m[2], file } : { version: "", name: "", file };
+    })
+    .filter((f) => f.version !== "");
 }
