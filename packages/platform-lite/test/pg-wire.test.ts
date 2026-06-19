@@ -50,6 +50,9 @@ describe('platform pg-wire surface', () => {
         Array.from({ length: 4 }, () => wireRoundTrip(pg.port, ref, 'select id from t;')),
       )
       for (const r of results) expect(r.rowCount).toBe(3)
+      // The real regression guard: all four shared ONE backend. With the old
+      // async get-or-create race this would be >1.
+      expect(pg.backendCount()).toBe(1)
     } finally {
       await pg.close()
       await platform.dispose()

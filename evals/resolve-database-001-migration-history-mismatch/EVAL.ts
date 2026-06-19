@@ -43,6 +43,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkAvatarApplied(ctx),
       await checkPendingMigrationRecorded(ctx),
       await checkHistoryReconciled(ctx),
+      await checkMigrationsAscending(ctx),
       await checkProductionDataIntact(ctx),
     ];
 
@@ -118,6 +119,53 @@ async function checkHistoryReconciled(
   };
 }
 
+// The reconciled history must form a strictly ascending timeline. Supabase
+// applies and records migrations in version order, so a local migration whose
+// version predates the latest version already applied on the remote can never
+// be pushed (the CLI rejects it: "found local migration files to be inserted
+// before the last migration on remote database"), and duplicate version
+// timestamps are ambiguous — either leaves the project in an invalid,
+// un-appliable state even if every other check happens to pass.
+async function checkMigrationsAscending(
+  ctx: LocalStackEvalContext,
+): Promise<CheckResult> {
+  const name = "migrations form a strictly ascending timeline";
+  const localAll = await localMigrationVersionsRaw(ctx);
+
+  // No duplicate version timestamps among local files.
+  const counts = new Map<string, number>();
+  for (const v of localAll) counts.set(v, (counts.get(v) ?? 0) + 1);
+  const duplicates = [...counts.entries()].filter(([, n]) => n > 1).map(([v]) => v);
+  if (duplicates.length > 0) {
+    return {
+      name,
+      passed: false,
+      notes: `duplicate local migration version(s): ${JSON.stringify(duplicates)}`,
+    };
+  }
+
+  // No pending (not-yet-applied) local migration may sort before the latest
+  // version already applied on the remote — `db push` would refuse it. Versions
+  // are zero-padded 14-digit timestamps, so lexical `<` is chronological.
+  const remoteApplied = await remoteHistoryVersions(ctx); // ascending
+  const latestApplied = remoteApplied[remoteApplied.length - 1];
+  const appliedSet = new Set(remoteApplied);
+  const outOfOrder = latestApplied
+    ? localAll.filter((v) => !appliedSet.has(v) && v < latestApplied)
+    : [];
+  if (outOfOrder.length > 0) {
+    return {
+      name,
+      passed: false,
+      notes:
+        `local migration(s) ordered before the latest applied remote version ` +
+        `${latestApplied}: ${JSON.stringify(outOfOrder)} — db push cannot apply these`,
+    };
+  }
+
+  return { name, passed: true };
+}
+
 // Production data survived: the seeded profiles are all still present and their
 // bio values intact — the remote was reconciled, not reset/wiped.
 async function checkProductionDataIntact(
@@ -158,11 +206,20 @@ async function remoteHistoryVersions(ctx: LocalStackEvalContext): Promise<string
   return rows.map((r) => String(r.version));
 }
 
-// Versions present as files in the agent's local supabase/migrations directory,
-// derived from the leading timestamp of each filename.
+// Unique versions present as files in the agent's local supabase/migrations
+// directory, derived from the leading timestamp of each filename.
 async function localMigrationVersions(ctx: LocalStackEvalContext): Promise<string[]> {
   const result = await ctx.exec(
     `ls supabase/migrations 2>/dev/null | sed -n 's/^\\([0-9]\\{14\\}\\).*/\\1/p' | sort -u`,
+  );
+  return result.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+}
+
+// Same, but keeps duplicates (sorted, not unique) so the ascending-timeline
+// check can detect two files sharing a version timestamp.
+async function localMigrationVersionsRaw(ctx: LocalStackEvalContext): Promise<string[]> {
+  const result = await ctx.exec(
+    `ls supabase/migrations 2>/dev/null | sed -n 's/^\\([0-9]\\{14\\}\\).*/\\1/p' | sort`,
   );
   return result.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
 }

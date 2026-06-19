@@ -33,6 +33,10 @@ export type PgServerHandle = {
   port: number
   /** Pooler-style connection string for a project, e.g. for seeding `.temp/pooler-url`. */
   connectionString: (ref: string, opts?: { password?: string; host?: string }) => string
+  /** Number of backends started so far — one per distinct project routed to.
+   * Concurrent connections to the same project must share a single backend, so
+   * this counts projects, not connections. Introspection for tests/stats. */
+  backendCount: () => number
   close: () => Promise<void>
 }
 
@@ -101,6 +105,7 @@ export async function startPgWireServer(
     port,
     connectionString: (ref, o = {}) =>
       `postgresql://postgres.${ref}:${o.password ?? 'postgres'}@${o.host ?? host}:${port}/postgres`,
+    backendCount: () => backends.size,
     close: async () => {
       await new Promise<void>((resolve) => proxy.close(() => resolve()))
       await Promise.all(
