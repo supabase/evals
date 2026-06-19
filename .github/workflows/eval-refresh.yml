@@ -176,7 +176,7 @@ jobs:
       - name: Upload raw results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: raw-results-${{ matrix.experiment }}-${{ matrix.eval_id }}
+          name: raw-results-${{ matrix.experiment }}__${{ matrix.eval_id }}
           path: results/${{ matrix.experiment }}/
           retention-days: 3
 
@@ -216,7 +216,7 @@ jobs:
           export_args=()
           while IFS= read -r experiment; do
             mkdir -p "results/$experiment"
-            for artifact_dir in "downloaded-results/raw-results-${experiment}-"*/; do
+            for artifact_dir in "downloaded-results/raw-results-${experiment}__"*/; do
               [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
             done
             export_args+=("--experiment" "$experiment")
