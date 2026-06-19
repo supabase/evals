@@ -110,8 +110,8 @@ jobs:
             id=$(basename "$dir")
             prompt="$dir/PROMPT.md"
             [ -f "$prompt" ] || continue
-            suite_val=$(grep -m1 '^suite:' "$prompt" | sed 's/^suite:[[:space:]]*//')
-            [ -n "$suite_val" ] || continue
+            suite_val=$(sed -n 's/^suite:[[:space:]]*//p' "$prompt" | head -n 1)
+            suite_val="${suite_val:-regression}"
             if jq -e --arg s "$suite_val" 'index($s) != null' <<< "$suite_json" > /dev/null 2>&1; then
               matching+=("$id")
             fi
