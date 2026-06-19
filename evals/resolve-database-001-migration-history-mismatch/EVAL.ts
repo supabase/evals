@@ -11,21 +11,10 @@ const ORPHAN_VERSION = "20240115000000";
 const PENDING_VERSION = "20240220000000";
 const SEEDED_PROFILE_COUNT = 25;
 
-/**
- * The exact local migration sequence a correct reconciliation must produce, in
- * order: the original `create_profiles`, the recovered orphan `add_profile_bio`
- * in its original slot, then the pending `add_avatar_url`. We pin the precise
- * set and order — not merely that timestamps ascend — because the orphan must be
- * recovered into its correct position (20240115, between create and avatar) so
- * local history fully describes the remote schema with no drift; discarding it
- * (repair --status reverted) or pulling it in under a fresh timestamp does not
- * qualify.
- */
-const EXPECTED_MIGRATIONS = [
-  { version: "20240101000000", name: "create_profiles" },
-  { version: ORPHAN_VERSION, name: "add_profile_bio" },
-  { version: PENDING_VERSION, name: "add_avatar_url" },
-] as const;
+// The two seeded migrations that bookend a correct reconciliation. The agent
+// must keep them, unrenamed, as the first and last migration.
+const FIRST_MIGRATION = { version: "20240101000000", name: "create_profiles" } as const;
+const LAST_MIGRATION = { version: PENDING_VERSION, name: "add_avatar_url" } as const;
 
 /**
  * Verifies recovery from a remote migration-history mismatch (AI-823): the
@@ -35,9 +24,14 @@ const EXPECTED_MIGRATIONS = [
  * Ground truth is read from the hosted project's database directly via
  * `ctx.hostedQuery` (in-process against the same PGlite, never the CLI under
  * test) plus the local migration files in the agent's workspace. We assert the
- * END STATE rather than the exact commands used, but the end state is pinned:
- * the local history must be exactly `EXPECTED_MIGRATIONS` (the orphan recovered
- * into its slot), and every one of those versions applied on the remote.
+ * END STATE rather than the exact commands used. Two recovered shapes are valid
+ * — both keep all three migrations, ordered create_profiles → bio reconciliation
+ * → add_avatar_url, with strictly ascending timestamps:
+ *   A. orphan recovered into its slot: bio at 20240115.
+ *   B. `db pull` style: bio captured under any timestamp, as long as it lands
+ *      before the avatar.
+ * `checkMigrationOrder` accepts either: create_profiles first, add_avatar_url
+ * last, exactly one migration strictly between, all applied on the remote.
  */
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -135,56 +129,48 @@ async function checkHistoryReconciled(
   };
 }
 
-// The local migrations must be exactly the expected sequence, in order — not
-// merely a chronologically-ascending set. We know the canonical result: the
-// orphan recovered into its slot, giving create_profiles -> add_profile_bio ->
-// add_avatar_url. This catches the orphan being discarded, pulled in under a
-// fresh timestamp, reordered, renamed, duplicated, or left un-applied — states
-// that may pass the looser checks but are wrong or un-pushable.
+// The local migrations must be a valid reconciled sequence — the right files in
+// the right order with sequential timestamps — not merely a chronologically
+// ascending set. Both accepted solutions share one shape: exactly three files,
+// the two seeded bookends unchanged, and a single bio reconciliation strictly
+// between them (the orphan recovered in its 20240115 slot, or a db-pull capture
+// at any earlier-than-avatar timestamp). Requiring add_avatar_url to be last is
+// what enforces "bio before avatar". This rejects discarding the orphan
+// (2 files), a bio pulled in after the avatar, reordering, renaming a seeded
+// file, duplicate timestamps, or a reconciliation left un-applied — states that
+// can slip past the looser checks but are wrong or un-pushable.
 async function checkMigrationOrder(ctx: LocalStackEvalContext): Promise<CheckResult> {
-  const name = "local migrations are the expected files in the expected order";
-  const files = await localMigrationFiles(ctx);
-  const actual = files.map((f) => f.version);
-  const expected = EXPECTED_MIGRATIONS.map((m) => m.version);
+  const name = "local migrations are a valid reconciled sequence";
+  const files = await localMigrationFiles(ctx); // ascending by filename (version)
+  const versions = files.map((f) => f.version);
+  const shown = files.map((f) => f.file).join(", ") || "(none)";
+  const expectedShape =
+    `${FIRST_MIGRATION.version}_${FIRST_MIGRATION.name} → <bio reconciliation> → ` +
+    `${LAST_MIGRATION.version}_${LAST_MIGRATION.name}, strictly ascending`;
 
-  // Exact version sequence, in order (length + position). This alone enforces
-  // presence of all three, the orphan in its 20240115 slot, no extras, no
-  // duplicates, and correct ordering.
-  if (actual.length !== expected.length || expected.some((v, i) => v !== actual[i])) {
-    return {
-      name,
-      passed: false,
-      notes:
-        `expected [${EXPECTED_MIGRATIONS.map((m) => `${m.version}_${m.name}`).join(", ")}], ` +
-        `got [${files.map((f) => f.file).join(", ") || "(none)"}]`,
-    };
+  const first = files[0];
+  const last = files[files.length - 1];
+  const strictlyAscending = versions.every((v, i) => i === 0 || v > versions[i - 1]);
+  const validShape =
+    files.length === 3 &&
+    strictlyAscending &&
+    first.version === FIRST_MIGRATION.version &&
+    first.name === FIRST_MIGRATION.name &&
+    last.version === LAST_MIGRATION.version &&
+    last.name === LAST_MIGRATION.name;
+  if (!validShape) {
+    return { name, passed: false, notes: `expected ${expectedShape}; got [${shown}]` };
   }
 
-  // The two seeded files must not be renamed/replaced; the recovered orphan may
-  // carry any descriptive name (its slot is already enforced by the version
-  // match above).
-  const renamed = EXPECTED_MIGRATIONS.filter(
-    (m) =>
-      m.version !== ORPHAN_VERSION &&
-      !files.some((f) => f.version === m.version && f.name === m.name),
-  );
-  if (renamed.length > 0) {
-    return {
-      name,
-      passed: false,
-      notes: `seeded migration(s) renamed: expected ${renamed.map((m) => `${m.version}_${m.name}`).join(", ")}`,
-    };
-  }
-
-  // Each expected migration must be recorded as applied on the remote, so the
-  // recovered orphan isn't just a local file sitting un-pushed.
+  // The bio reconciliation (and every migration) must actually be applied on the
+  // remote — not left as a local-only file that was never pushed.
   const applied = new Set(await remoteHistoryVersions(ctx));
-  const notApplied = expected.filter((v) => !applied.has(v));
+  const notApplied = versions.filter((v) => !applied.has(v));
   if (notApplied.length > 0) {
     return {
       name,
       passed: false,
-      notes: `expected migration(s) not applied on the remote: ${JSON.stringify(notApplied)}`,
+      notes: `migration(s) not applied on the remote: ${JSON.stringify(notApplied)}`,
     };
   }
 
