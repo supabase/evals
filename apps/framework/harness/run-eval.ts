@@ -405,6 +405,7 @@ async function runOne(
                 ref: hostedBackend.ref,
                 accessToken: hostedBackend.accessToken,
                 mgmt: hostedBackend.mgmt,
+                query: hostedBackend.query,
                 invokeFunction: hostedBackend.invokeFunction,
               }
             : undefined,

@@ -295,6 +295,14 @@ export interface LocalStackScoringContext {
    */
   hostedMgmt?: ManagementApiClient;
   /**
+   * Run SQL directly against the hosted project's database, when the eval links
+   * to platform-lite. Runs host-side in-process against the same PGlite the
+   * wire endpoint serves — the hosted counterpart to `query` (local stack), and
+   * ground truth without a Management API round-trip. Prefer this for hosted DB
+   * assertions; it is not the CLI under test.
+   */
+  hostedQuery?: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  /**
    * Invoke a function the agent deployed to the mocked hosted platform, with
    * its hosted secrets injected into the runtime env. Use to verify the
    * deployed function reads its secrets at runtime.
@@ -416,6 +424,10 @@ export type HostedLink = {
   accessToken: string;
   /** Management API client (host-side, in-process) for scorer assertions. */
   mgmt: ManagementApiClient;
+  /** Run SQL directly against the hosted project's database (host-side, in-process
+   * — same PGlite the wire endpoint serves). Ground truth for scorer assertions,
+   * without the Management API round-trip. */
+  query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
   /** Invoke a deployed function in-process, with hosted secrets injected. */
   invokeFunction: (
     input: EdgeFunctionsInvokeInput,

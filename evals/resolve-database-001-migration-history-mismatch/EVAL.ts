@@ -16,20 +16,16 @@ const SEEDED_PROFILE_COUNT = 25;
  * agent reconciles the hosted history so `supabase db push` can apply a pending
  * migration, without resetting production data.
  *
- * Ground truth is read from the hosted project directly via the management API
- * (`/database/query`) — never the CLI under test — plus the local migration
- * files in the agent's workspace. We assert the END STATE rather than which
- * commands were used: both valid recovery paths (`db pull` the orphan down, or
- * `migration repair --status reverted` it) land the same reconciled history.
- *
- * NOTE (backend): this scorer reads the remote over the management API, which
- * works regardless of how `db push` reached it. The open backend question
- * (AI-843) is only how the *agent's* CLI writes to the remote over the Postgres
- * wire — see the two alternatives in the PR description.
+ * Ground truth is read from the hosted project's database directly via
+ * `ctx.hostedQuery` (in-process against the same PGlite, never the CLI under
+ * test) plus the local migration files in the agent's workspace. We assert the
+ * END STATE rather than which commands were used: both valid recovery paths
+ * (`db pull` the orphan down, or `migration repair --status reverted` it) land
+ * the same reconciled history.
  */
 const scorer: LocalStackScorer = async (ctx) => {
   try {
-    if (!ctx.hostedMgmt || !ctx.hostedRef) {
+    if (!ctx.hostedQuery || !ctx.hostedRef) {
       return {
         passed: false,
         checks: [
@@ -150,14 +146,8 @@ async function remoteQuery(
   ctx: LocalStackEvalContext,
   query: string,
 ): Promise<Record<string, unknown>[]> {
-  const res = await ctx.hostedMgmt!.POST("/v1/projects/{ref}/database/query", {
-    params: { path: { ref: ctx.hostedRef! } },
-    body: { query },
-  });
-  if (res.error || !res.data) {
-    throw new Error(`remote query failed: ${JSON.stringify(res.error)}`);
-  }
-  return res.data as unknown as Record<string, unknown>[];
+  const { rows } = await ctx.hostedQuery!(query);
+  return rows;
 }
 
 async function remoteHistoryVersions(ctx: LocalStackEvalContext): Promise<string[]> {

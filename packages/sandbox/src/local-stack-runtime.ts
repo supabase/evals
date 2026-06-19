@@ -391,6 +391,7 @@ export function buildLocalStackScoringContext(
     },
     hostedRef: hosted?.ref,
     hostedMgmt: hosted?.mgmt,
+    hostedQuery: hosted?.query,
     invokeHostedFunction: hosted?.invokeFunction,
   };
 }
