@@ -529,7 +529,8 @@ async function runConcurrent<T>(
 ): Promise<void> {
   const queue = [...items];
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (queue.length) await fn(queue.shift()!);
+    let item: T | undefined;
+    while ((item = queue.shift()) !== undefined) await fn(item);
   });
   await Promise.all(workers);
 }

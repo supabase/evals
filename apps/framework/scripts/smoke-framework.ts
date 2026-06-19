@@ -9,10 +9,12 @@ import type { PlatformBackend } from "../harness/platform-backend.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
 
+const DEBUG = process.argv.includes("--debug");
+
 // Scorers trigger expected-fail supabase-js calls that log via console.error.
 // Silence it globally so smoke runs stay quiet on those.
 const stderr = console.error;
-console.error = () => undefined;
+if (!DEBUG) console.error = () => undefined;
 
 const CLIENT_RLS_EVAL = "evals/build-rls-002-own-todos-client";
 const FUNCTIONS_EVAL = "evals/build-functions-001-order-total";
