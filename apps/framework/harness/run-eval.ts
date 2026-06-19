@@ -487,9 +487,7 @@ async function main() {
     throw new Error(`no evals matched ${filter}`);
   }
 
-  // Scorers trigger supabase-js operations expected to fail (e.g. RLS cross-user
-  // writes) which log via console.error even when handled as values. Silence it
-  // globally so the noise doesn't bury real output. --debug keeps it visible.
+  // Suppress noisy supabase-js logs from expected failures; --debug keeps them visible.
   const stderr = console.error;
   if (!DEBUG) console.error = () => undefined;
 
@@ -530,7 +528,6 @@ async function main() {
     }
   }
 
-  // ponytail: serial local-stack — supabase start binds fixed ports; use random port allocation if concurrency needed
   let localStackTurn = Promise.resolve();
 
   const runWork = async ({ name, config, ev }: (typeof allWork)[number]) => {
