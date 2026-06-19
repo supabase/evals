@@ -1,61 +1,32 @@
 /**
- * Shared tool-name normalization for agent transcript parsers.
+ * Shared tool-name normalization algorithm.
  *
- * Each agent names its built-in tools differently; this maps those names onto
- * the canonical `ToolName` vocabulary. Adding a new agent is one new map plus
- * one entry in `AGENT_MAPS` (and `CASE_INSENSITIVE_AGENTS` if it lowercases
- * tool names). Unrecognized names fall back to `"unknown"`.
+ * The *mapping* (an agent's raw tool names → canonical `ToolName`) is an agent
+ * attribute and lives with that agent's parser; this module owns only the
+ * lookup logic and the `AgentToolMap` shape. A parser passes its own map in —
+ * shared uses it, but doesn't define it.
  */
 
 import type { ToolName } from "../../transcript/types.js";
 
-/** Claude Code tool names (case-sensitive). */
-const CLAUDE_CODE_MAP: Record<string, ToolName> = {
-  // File operations
-  Read: "file_read",
-  Write: "file_write",
-  Edit: "file_edit",
-  MultiEdit: "file_edit",
-  NotebookEdit: "file_edit",
-  // Shell
-  Bash: "shell",
-  BashOutput: "shell",
-  KillShell: "shell",
-  // Web
-  WebFetch: "web_fetch",
-  WebSearch: "web_search",
-  // Search / navigation
-  Glob: "glob",
-  Grep: "grep",
-  LS: "list_dir",
-  // Agent / subagent
-  Task: "agent_task",
-  TodoWrite: "agent_task",
-};
-
-/** Per-agent name maps, keyed by agent id. */
-const AGENT_MAPS: Record<string, Record<string, ToolName>> = {
-  "claude-code": CLAUDE_CODE_MAP,
-};
-
-/** Agents whose tool names are matched case-insensitively. */
-const CASE_INSENSITIVE_AGENTS = new Set<string>([]);
+/** An agent's tool-name mapping, owned and supplied by that agent's parser. */
+export interface AgentToolMap {
+  /** The agent's raw tool name → canonical `ToolName`. */
+  tools: Record<string, ToolName>;
+  /** Match tool names case-insensitively (the name is lowercased before lookup). */
+  caseInsensitive?: boolean;
+}
 
 /**
- * Normalize an agent-specific tool name to the canonical `ToolName`.
- *
- * MCP tools (Claude Code prefixes them `mcp__server__tool`) and any name not
- * in the agent's map fall back to `"tool_use"` for MCP-shaped names and
- * `"unknown"` otherwise — the original name is preserved separately by callers.
+ * Normalize an agent-specific tool name to the canonical `ToolName` using the
+ * agent's own map. Unmapped MCP-namespaced names (`mcp__server__tool`) fall
+ * back to `"tool_use"`; anything else to `"unknown"`. The original name is
+ * preserved separately by callers.
  */
-export function normalizeToolName(name: string, agent: string): ToolName {
-  const map = AGENT_MAPS[agent];
-  if (map) {
-    const key = CASE_INSENSITIVE_AGENTS.has(agent) ? name.toLowerCase() : name;
-    if (map[key]) return map[key];
-  }
-  // MCP tools are namespaced (e.g. `mcp__supabase__search_docs`); treat any
-  // unmapped namespaced tool as a generic tool call rather than `unknown`.
+export function normalizeToolName(name: string, map: AgentToolMap): ToolName {
+  const key = map.caseInsensitive ? name.toLowerCase() : name;
+  const mapped = map.tools[key];
+  if (mapped) return mapped;
   if (name.startsWith("mcp__")) return "tool_use";
   return "unknown";
 }

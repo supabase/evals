@@ -16,10 +16,34 @@ import type {
 } from "../transcript/types.js";
 import type { AgentTranscriptParser } from "./types.js";
 import { isRecord, parseJsonlRecords } from "../json.js";
-import { normalizeToolName } from "./shared/normalize.js";
+import { normalizeToolName, type AgentToolMap } from "./shared/normalize.js";
 import { extractCommand, extractFilePath, extractUrl } from "./shared/extract.js";
 
-const AGENT = "claude-code";
+/** Claude Code's tool names → canonical names (case-sensitive). Owned here, not in shared. */
+const CLAUDE_CODE_TOOLS: AgentToolMap = {
+  tools: {
+    // File operations
+    Read: "file_read",
+    Write: "file_write",
+    Edit: "file_edit",
+    MultiEdit: "file_edit",
+    NotebookEdit: "file_edit",
+    // Shell
+    Bash: "shell",
+    BashOutput: "shell",
+    KillShell: "shell",
+    // Web
+    WebFetch: "web_fetch",
+    WebSearch: "web_search",
+    // Search / navigation
+    Glob: "glob",
+    Grep: "grep",
+    LS: "list_dir",
+    // Agent / subagent
+    Task: "agent_task",
+    TodoWrite: "agent_task",
+  },
+};
 
 /** Content array, handling the `{ message: { content } }` nesting. */
 function getContentArray(data: Record<string, unknown>): unknown[] | undefined {
@@ -148,7 +172,7 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
           timestamp,
           type: "tool_call",
           tool: {
-            name: normalizeToolName(use.name, AGENT),
+            name: normalizeToolName(use.name, CLAUDE_CODE_TOOLS),
             originalName: use.name,
             id: use.id,
             args: use.input,

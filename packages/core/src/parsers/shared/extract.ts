@@ -35,10 +35,3 @@ export function extractUrl(args: Record<string, unknown>): string | undefined {
   const candidate = args.url ?? args.uri ?? args.href;
   return typeof candidate === "string" ? candidate : undefined;
 }
-
-/** Convert an epoch-ms number or ISO string to an ISO string. */
-export function toISO(ts: unknown): string | undefined {
-  if (typeof ts === "number") return new Date(ts).toISOString();
-  if (typeof ts === "string") return ts;
-  return undefined;
-}

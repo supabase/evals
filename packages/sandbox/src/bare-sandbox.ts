@@ -1,5 +1,5 @@
 import type { AgentSandbox } from "@supabase-evals/core";
-import { DockerSandbox } from "./docker-sandbox.js";
+import { DockerSandbox, type DockerSandboxOptions } from "./docker-sandbox.js";
 import { toAgentSandbox } from "./local-stack-runtime.js";
 
 export interface BareSandboxHandle {
@@ -9,17 +9,23 @@ export interface BareSandboxHandle {
 
 /**
  * A minimal execution substrate for CLI agents in tools mode: a bare Node
- * container (no Supabase CLI, no local stack, no NET_ADMIN), just somewhere to
- * install and run the agent binary. It reaches host-side platform-lite via
- * `host.docker.internal` (DockerSandbox adds that host mapping), so the agent's
- * in-container MCP servers can talk to the mocked platform.
+ * container (no Supabase CLI, no local stack), just somewhere to install and
+ * run the agent binary. The eval's tools come from MCP, not the Supabase CLI.
  *
- * Distinct from `localStackRuntime`, which boots the full Supabase stack as the
- * agent's *tool surface*; here the sandbox is purely the agent's runtime and the
- * eval's tools come from MCP.
+ * This is a thin composition of two primitives we already have —
+ * `DockerSandbox.create` + `toAgentSandbox` — and reuses the `AgentSandbox`
+ * adapter `localStackRuntime` also uses. The difference from `localStackRuntime`
+ * is purely that it skips the expensive Supabase provisioning (image build +
+ * `supabase start`); pass `DockerSandboxOptions` through to tune the container
+ * (image, timeout, network).
+ *
+ * The container's MCP servers reach host-side platform-lite via
+ * `host.docker.internal` (DockerSandbox always adds that host mapping).
  */
-export async function createBareSandbox(): Promise<BareSandboxHandle> {
-  const sandbox = await DockerSandbox.create();
+export async function createBareSandbox(
+  options: DockerSandboxOptions = {},
+): Promise<BareSandboxHandle> {
+  const sandbox = await DockerSandbox.create(options);
   return {
     sandbox: toAgentSandbox(sandbox),
     close: () => sandbox.stop(),
