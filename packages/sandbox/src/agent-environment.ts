@@ -54,9 +54,11 @@ export interface AgentEnvironment {
 export async function createAgentEnvironment(
   options: AgentEnvironmentOptions = {},
 ): Promise<AgentEnvironment> {
-  // Same image for both modes — it carries the agent's tooling (node, git, the
-  // Supabase CLI, the skills CLI). Only whether we start the stack varies.
-  const image = await ensureSupabaseSandboxImage(options.cliVersion);
+  // Same base image for both modes — it carries the common agent tooling (node,
+  // git, the skills CLI). The Supabase CLI is NOT in it; it's installed by
+  // setupSupabaseSandbox only in local-stack mode. That + starting the stack is
+  // the entire mode difference.
+  const image = await ensureSupabaseSandboxImage();
   const sandbox = await DockerSandbox.create({
     image,
     // The local stack needs host networking so the Supabase CLI can health-check
@@ -68,6 +70,7 @@ export async function createAgentEnvironment(
   try {
     if (options.localStack) {
       await setupSupabaseSandbox(sandbox, {
+        cliVersion: options.cliVersion,
         includeServices: options.localStack.includeServices,
         localDir: options.localDir,
         projectRunning: options.localStack.projectRunning,

@@ -6,6 +6,7 @@ export {
   buildServiceWrapperScript,
   computeExcludedServices,
   ensureSupabaseSandboxImage,
+  installSupabaseCli,
   buildSupabaseStartCommand,
   startSupabaseProject,
   setupSupabaseSandbox,
