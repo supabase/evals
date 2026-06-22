@@ -319,10 +319,13 @@ export type AgentHarness = {
   id: string;
   modelId: string;
   /**
-   * True for CLI agents that must run inside a sandbox (so they get the
-   * workspace + their tools).
+   * True when the agent itself runs *inside* the sandbox — i.e. it brings its
+   * own harness (loop + tools + MCP client) and needs a container to run in, as
+   * every CLI agent does. In-process agents (`aiSdkAgent`) leave this false: the
+   * framework drives their loop host-side, so in tools mode no sandbox is booted.
+   * (In local-stack mode a sandbox always exists regardless, for the stack.)
    */
-  requiresSandbox?: boolean;
+  runsInSandbox?: boolean;
   assertReady(): void;
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };

@@ -335,10 +335,10 @@ async function runOne(
   // file tools (both modes). An in-process (ai-sdk) agent has no sandbox, so in
   // tools mode its skills are advertised in the prompt and loaded via the
   // load_skill tool. Skill sources (name+dir) are shared by both paths.
-  const cliAgent = exp.agent.requiresSandbox ?? false;
+  const agentRunsInSandbox = exp.agent.runsInSandbox ?? false;
   const skillSources = resolveSkillSources(exp.skills);
   const toolsSkills =
-    ev.mode === "tools" && !cliAgent ? loadToolsSkills(exp.skills) : [];
+    ev.mode === "tools" && !agentRunsInSandbox ? loadToolsSkills(exp.skills) : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ToolScorer
     | LocalStackScorer;
@@ -456,12 +456,12 @@ async function runOne(
     // skills installed — and reaches the in-container MCP servers' host-side
     // platform-lite via host.docker.internal (so platform-lite binds 0.0.0.0).
     // An in-process agent runs host-side with no sandbox.
-    const cliSandbox = cliAgent
+    const cliSandbox = agentRunsInSandbox
       ? await createBareSandbox({ skills: skillSources })
       : undefined;
     const session = await exp.runtime.startSession({
       ...readSessionSeedArgs(ev),
-      hostname: cliAgent ? "0.0.0.0" : undefined,
+      hostname: agentRunsInSandbox ? "0.0.0.0" : undefined,
     });
 
     try {
@@ -469,7 +469,7 @@ async function runOne(
       // the discovery listing into its promptAddendum). In-process agents have
       // no filesystem, so their skills are advertised in the prompt and pulled
       // on demand via the load_skill tool.
-      const skillsPrompt = cliAgent
+      const skillsPrompt = agentRunsInSandbox
         ? cliSandbox!.promptAddendum
         : buildToolsSkillsPrompt(toolsSkills);
       const systemPrompt = buildSystemPrompt(
@@ -480,7 +480,7 @@ async function runOne(
       const run = await exp.agent.run({
         systemPrompt,
         userPrompt: prompt,
-        tools: cliAgent ? undefined : buildLoadSkillTool(toolsSkills),
+        tools: agentRunsInSandbox ? undefined : buildLoadSkillTool(toolsSkills),
         mcpServers: session.mcpServers,
         sandbox: cliSandbox?.sandbox,
         timeoutSec: TIMEOUT_SEC,

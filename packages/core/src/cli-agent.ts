@@ -52,7 +52,7 @@ export function createCliAgent<M extends string = string>(
   return {
     id: runner.id,
     modelId: options.model,
-    requiresSandbox: true,
+    runsInSandbox: true,
     assertReady() {
       requireApiKey(runner);
     },
