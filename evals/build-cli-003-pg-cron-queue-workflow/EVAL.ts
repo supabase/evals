@@ -1,11 +1,9 @@
 import {
-  judge,
   type CheckResult,
   type CommandResult,
   type LocalStackEvalContext,
   type LocalStackScorer,
 } from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
 
 const QUEUE = "tasks";
 const FUNCTION = "process-tasks";
@@ -102,18 +100,28 @@ async function queueDepth(ctx: LocalStackEvalContext): Promise<number | null> {
   return Number(result.rows[0]?.n ?? 0);
 }
 
-/** Enqueues a test message, invokes the function as the service role, and checks it drains the queue. */
+/** Enqueues a tracked message and checks the function actually removes it from the queue, not just reads it. */
 async function checkFunctionDrains(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = `${FUNCTION} function drains the queue`;
 
-  // Seed a message so there's something to drain regardless of cron timing.
-  const send = await execSql(ctx, `select pgmq.send('${QUEUE}', '{"job":"process"}'::jsonb)`);
-  if (!send.ok) {
+  // Seed a message and capture its id so we can confirm it actually leaves the queue.
+  let msgId: unknown;
+  try {
+    const { rows } = await ctx.query(
+      `select pgmq.send('${QUEUE}', '{"job":"process"}'::jsonb) as msg_id`,
+    );
+    msgId = rows[0]?.msg_id;
+  } catch (error) {
     return {
       name,
       passed: false,
-      notes: `couldn't enqueue a test message. Is the '${QUEUE}' queue created? ${send.stderr.trim()}`,
+      notes: `couldn't enqueue a test message. Is the '${QUEUE}' queue created? ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     };
+  }
+  if (msgId == null) {
+    return { name, passed: false, notes: "pgmq.send returned no message id" };
   }
 
   const status = await readStatus(ctx);
@@ -139,19 +147,20 @@ async function checkFunctionDrains(ctx: LocalStackEvalContext): Promise<CheckRes
     return { name, passed: false, notes: `HTTP ${res.status}: ${body.slice(0, 200)}` };
   }
 
-  const verdict = await judge({
-    input: `HTTP ${res.status} response body: ${body}`,
-    rubric: stripIndent`
-      Pass if the response body shows the function successfully drained or
-      processed at least one queued message. Valid responses include a JSON
-      array of dequeued message objects, or a status object with a count,
-      processed count, or similar field showing at least one message was
-      handled.
-      Fail if the response is empty, only says the queue was empty, reports a
-      zero count, or contains no evidence that a queued message was handled.
-    `,
-  });
-  return { name, passed: verdict.passed, judgeNotes: verdict.notes };
+  // Ground truth that the message was consumed rather than peeked: pgmq.read only
+  // hides a message for its visibility timeout and leaves the row in place, so the
+  // seeded id is gone only if the function actually popped or deleted it.
+  const { rows } = await ctx.query(
+    `select count(*)::int as n from pgmq.q_${QUEUE} where msg_id = ${Number(msgId)}`,
+  );
+  const stillQueued = Number(rows[0]?.n ?? 0) > 0;
+  return {
+    name,
+    passed: !stillQueued,
+    notes: stillQueued
+      ? `function returned ${res.status} but message ${Number(msgId)} is still queued, so it was read but never removed`
+      : `function removed the seeded message (id ${Number(msgId)}) from the queue`,
+  };
 }
 
 /** Parse `supabase status -o json` for the stack's URL and keys. */
