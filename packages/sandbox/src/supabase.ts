@@ -186,7 +186,15 @@ export async function setupSupabaseSandbox(
     }
     await startSupabaseProject(sandbox, options.includeServices);
   } else {
-    await restrictSupabaseServices(sandbox, options.includeServices);
+    // When linked to a hosted project with a wire endpoint, the wrapper routes
+    // linked DB commands at it via --db-url (the CLI otherwise hardcodes the
+    // linked port to 5432). Pass the seeded pooler-url path for the wrapper to
+    // read at runtime.
+    const poolerUrlPath =
+      options.hosted?.pgPort !== undefined
+        ? `${sandbox.workdir}/${POOLER_URL_PATH}`
+        : undefined;
+    await restrictSupabaseServices(sandbox, options.includeServices, poolerUrlPath);
   }
 }
 
@@ -258,7 +266,13 @@ async function linkSandboxToHostedPlatform(
     SUPABASE_ACCESS_TOKEN: hosted.accessToken,
     SUPABASE_PROFILE: `${sandbox.workdir}/${EVAL_PROFILE_PATH}`,
     SUPABASE_PROJECT_ID: hosted.ref,
-    ...(hosted.pgPort !== undefined ? { SUPABASE_DB_PASSWORD: "postgres" } : {}),
+    // The wire endpoint speaks plaintext (the SSL-negotiation shim answers "no
+    // TLS"), and `db push`/`migration repair` otherwise default to a TLS-required
+    // connection that hard-fails on the shim's refusal. `?sslmode=disable` in the
+    // pooler-url is not honored on its own; PGSSLMODE is, so force it here.
+    ...(hosted.pgPort !== undefined
+      ? { SUPABASE_DB_PASSWORD: "postgres", PGSSLMODE: "disable" }
+      : {}),
   };
 }
 
@@ -362,39 +376,63 @@ export function computeExcludedServices(
 }
 
 /**
- * Wrapper that replaces the CLI binary so every `supabase start` — harness-
- * or agent-initiated — gets the exclude flag appended. There is no other seam
- * to inject the flag into commands the agent types. `-x` is a slice flag, so
- * an agent-passed exclude list merges with ours.
+ * Wrapper that replaces the CLI binary to transparently adjust two classes of
+ * commands the agent types — there is no other seam:
+ *
+ *  - `supabase start` gets the service `-x` exclude flag appended (a slice flag,
+ *    so an agent-passed list merges with ours).
+ *  - Linked DB workflows (`db push`/`db pull`/`db dump`/`migration repair`/
+ *    `migration list`) get `--db-url <pooler-url>` appended, pointing at the
+ *    mocked hosted project's Postgres-wire endpoint. This is required because
+ *    the CLI hardcodes the *linked* database port to 5432 (internal/utils/
+ *    flags/db_url.go and internal/utils/connect.go), so a linked `db push` can
+ *    never reach platform-lite's ephemeral wire port — only an explicit
+ *    `--db-url` uses the connection string verbatim. The agent still types a
+ *    plain `supabase db push`; the redirect is invisible, like the API mock.
  */
 export function buildServiceWrapperScript(
   excluded: readonly SupabaseService[],
+  poolerUrlPath?: string,
 ): string {
-  return [
-    "#!/bin/bash",
-    `if [ "$1" = "start" ]; then`,
-    `  shift`,
-    `  exec /usr/local/bin/supabase-cli start "$@" -x ${excluded.join(",")}`,
-    `fi`,
-    `exec /usr/local/bin/supabase-cli "$@"`,
-  ].join("\n");
+  const lines = ["#!/bin/bash", "REAL=/usr/local/bin/supabase-cli"];
+  if (excluded.length > 0) {
+    lines.push(
+      `if [ "$1" = "start" ]; then shift; exec "$REAL" start "$@" -x ${excluded.join(",")}; fi`,
+    );
+  }
+  if (poolerUrlPath) {
+    lines.push(
+      `POOLER_URL_FILE=${JSON.stringify(poolerUrlPath)}`,
+      `case "$1 $2" in`,
+      `  "db push"|"db pull"|"db dump"|"migration repair"|"migration list")`,
+      `    if [ -f "$POOLER_URL_FILE" ] && [[ " $* " != *" --db-url "* ]] && [[ " $* " != *" --local "* ]]; then`,
+      `      exec "$REAL" "$@" --db-url "$(cat "$POOLER_URL_FILE")"`,
+      `    fi ;;`,
+      `esac`,
+    );
+  }
+  lines.push(`exec "$REAL" "$@"`);
+  return lines.join("\n");
 }
 
 async function restrictSupabaseServices(
   sandbox: DockerSandbox,
   includeServices: readonly string[] | undefined,
+  poolerUrlPath?: string,
 ): Promise<void> {
   const excluded = computeExcludedServices(includeServices);
-  if (excluded.length === 0) return;
+  // Install the wrapper if it has anything to do: restrict services and/or
+  // route linked DB commands at the hosted wire endpoint.
+  if (excluded.length === 0 && !poolerUrlPath) return;
 
   await runOrThrow(
     sandbox,
     // Idempotent: only move the real binary aside once; rewriting the wrapper
     // is safe.
     `[ -e /usr/local/bin/supabase-cli ] || mv "$(command -v supabase)" /usr/local/bin/supabase-cli\n` +
-      `cat > /usr/local/bin/supabase <<'WRAPPER'\n${buildServiceWrapperScript(excluded)}\nWRAPPER\n` +
+      `cat > /usr/local/bin/supabase <<'WRAPPER'\n${buildServiceWrapperScript(excluded, poolerUrlPath)}\nWRAPPER\n` +
       `chmod +x /usr/local/bin/supabase`,
-    "restrict supabase services",
+    "install supabase CLI wrapper",
     { asRoot: true },
   );
 }

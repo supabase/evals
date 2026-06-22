@@ -105,7 +105,19 @@ describe("buildServiceWrapperScript", () => {
     const script = buildServiceWrapperScript(["studio", "realtime"]);
     expect(script).toContain('if [ "$1" = "start" ]; then');
     expect(script).toContain('start "$@" -x studio,realtime');
-    expect(script).toContain('exec /usr/local/bin/supabase-cli "$@"');
+    expect(script).toContain("REAL=/usr/local/bin/supabase-cli");
+    expect(script).toContain('exec "$REAL" "$@"');
+    expect(script).not.toContain("--db-url");
+  });
+
+  it("injects --db-url for linked DB commands when a pooler-url path is given", () => {
+    const script = buildServiceWrapperScript([], "/work/supabase/.temp/pooler-url");
+    expect(script).toContain('POOLER_URL_FILE="/work/supabase/.temp/pooler-url"');
+    expect(script).toContain(
+      '"db push"|"db pull"|"db dump"|"migration repair"|"migration list")',
+    );
+    expect(script).toContain('--db-url "$(cat "$POOLER_URL_FILE")"');
+    expect(script).not.toContain("-x ");
   });
 });
 

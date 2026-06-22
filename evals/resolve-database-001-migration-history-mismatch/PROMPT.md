@@ -16,4 +16,4 @@ I added a migration that gives profiles an avatar and I'm trying to ship it to o
 
 A teammate applied a `bio` column straight on the hosted database a while back and never committed the migration, so the remote knows about a version we don't have locally. I need that avatar column live on the hosted project.
 
-The hosted database's connection string is in `supabase/.temp/pooler-url`; pass it to the db/migration commands with `--db-url`. Reconcile the migration history and get the avatar migration applied — without resetting or wiping the hosted database, it holds real user profiles.
+Reconcile the migration history and get the avatar migration applied — without resetting or wiping the hosted database, it holds real user profiles.
