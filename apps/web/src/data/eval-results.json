@@ -73,8 +73,7 @@
       },
       {
         "name": "schema file updated to include description column",
-        "passed": false,
-        "notes": "description not found in any schema file"
+        "passed": true
       },
       {
         "name": "a new migration was generated for the change",
@@ -116,12 +115,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 4) from the queue"
+        "notes": "function removed the seeded message (id 3) from the queue"
       }
     ],
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function so an internal worker can drain the queue.",
@@ -144,7 +143,7 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -160,11 +159,11 @@
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": false
+        "passed": true
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": false
+        "passed": true
       }
     ],
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
@@ -202,7 +201,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019ef10d-54cd-708d-8171-ff62c5bec53f/receipt-alpha.pdf, 019ef10d-54cd-708d-8171-ff62c5bec53f/receipt-beta.pdf"
+        "notes": "saw: 019ef13f-f387-74c1-b180-60db371867a5/receipt-alpha.pdf, 019ef13f-f387-74c1-b180-60db371867a5/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -223,7 +222,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "The answer creates a private user-files bucket, keeps RLS enabled, adds authenticated owner-scoped SELECT and INSERT policies on storage.objects using the first path segment as auth.uid(), and provides supabase-js createSignedUrl code with an expiry for temporary sharing."
+        "judgeNotes": "Configured a private user-files bucket, kept RLS enabled on storage.objects, added authenticated owner-scoped SELECT and INSERT policies using the user ID path prefix, and provided supabase-js createSignedUrl code with an expiry for temporary sharing."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -244,27 +243,27 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "1 file(s): supabase/tests/tenant_isolation.sql"
+        "notes": "1 file(s): supabase/tests/tenant_isolation.test.sql"
       },
       {
         "name": "positive isolation tests pass (notes table)",
         "passed": true,
-        "notes": "4 passed, 2 failed"
+        "notes": "4 passed, 0 failed"
       },
       {
         "name": "negative isolation tests catch the bug in posts table",
-        "passed": true,
-        "notes": "4 passed, 2 failed"
+        "passed": false,
+        "notes": "all tests passed — negative case not covered or policy was not tested"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identified `posts` as having a tenant isolation flaw, specifically cross-org read leakage shown by the pgTAP negative test failure, and did not blame `notes`."
+        "judgeNotes": "The agent correctly identified `posts` as the table with the broken tenant isolation policy, explained that the policy ignored `org_id` and leaked cross-tenant rows, added pgTAP tests for notes/posts happy and negative cases, and treated the test results as authoritative."
       }
     ],
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
@@ -318,12 +317,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails because the Supabase scrape uses basic_auth.password with an environment variable instead of basic_auth.password_file, and docker-compose.yml does not mount that password file via a volume or Compose secret. It also wires the secret API key through environment/template rendering rather than the required password_file mechanism."
+        "judgeNotes": "Fails because prometheus.yml uses basic_auth.password from an environment variable instead of basic_auth.password_file, and docker-compose.yml does not mount the password_file via a volume or Compose secret."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README does not explain creating a Supabase Secret API key, does not clearly place a matching secret file for Compose, and lacks concrete verification steps such as checking Prometheus targets or running PromQL/Grafana queries."
+        "judgeNotes": "README explains creating a Supabase Secret API key and verifying the Prometheus target is UP, but it does not instruct placing the matching secret file, and the Compose setup uses environment variables rather than a secret file. It also says restart Prometheus rather than restart/reload the Compose stack."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -357,7 +356,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment via Deno.env.get('WEATHER_API_KEY')."
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -432,7 +431,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": false,
-        "judgeNotes": "The assistant did not specifically diagnose that `orders` was missing from the existing `supabase_realtime` publication or add exactly the `orders` table. Instead it attempted to create/configure the publication for the whole public schema, which the rubric explicitly disallows as not preserving the exact publication setup."
+        "judgeNotes": "The assistant did not identify or fix the specific issue that the orders table was missing from the existing supabase_realtime publication. Instead it claimed there was no orders table and no publication, then only created an empty publication, which would not enable INSERT events for orders and risks disrupting the existing courier_locations feed."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -456,17 +455,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Assistant identified image-transform as affected and described intermittent/recurring 503 gateway failures during the reported morning, with appropriate next steps. It did not confuse the issue with old billing-webhook errors."
+        "judgeNotes": "The assistant named image-transform as affected and described intermittent 503 gateway errors throughout the morning with successful 200s between. It also mentioned avatar-upload, but did not displace image-transform as the main issue. Although it did not explicitly count all 8 failures or state the 07:00Z-12:00Z span, it recognized the recurring morning pattern sufficiently."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant attributes the 503s to transient function/runtime instability and recommends checking/redeploying the functions, rather than identifying the gateway/platform layer in front of the function. It does mention gateway 503, but does not ground the conclusion in observations such as absence of invocation/runtime rows or unchanged deployment, and treats the issue as likely function/runtime related."
+        "judgeNotes": "The assistant notes gateway 503s and unchanged versions, but ultimately attributes the issue to transient upstream/runtime issues, dependency/runtime instability inside the function, cold-start/execution issues, or downstream calls, and recommends inspecting/redeploying the functions. It does not clearly attribute the recurring image-transform 503s to the gateway/platform layer in front of the function."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including checking Edge Function implementation/dependencies, redeploying functions after a bad rollout, adding retry/backoff, improving timeout/error handling, and monitoring function logs during the failure window."
+        "judgeNotes": "The assistant recommended specific actionable next steps, including inspecting Edge Function source/internal logs, checking external dependencies/storage paths, adding retry/backoff, and redeploying or rolling back affected functions if ongoing."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -517,7 +516,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant diagnosed/fixed the issue as RLS-related, kept RLS enabled, granted authenticated access, and created owner-scoped SELECT and INSERT policies using auth.uid() with USING and WITH CHECK. It did not disable RLS or create permissive/anon policies."
+        "judgeNotes": "Diagnosed deny-all RLS with no policies, added authenticated SELECT and INSERT owner-scoped policies using auth.uid() = user_id / WITH CHECK, and kept RLS enabled."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -537,7 +536,7 @@
       "sql"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
@@ -545,7 +544,7 @@
       },
       {
         "name": "ran EXPLAIN on the expensive query",
-        "passed": true
+        "passed": false
       },
       {
         "name": "created index covering user_id and created_at",
@@ -650,7 +649,7 @@
       {
         "name": "todos table exists with at least 2 seeded rows",
         "passed": true,
-        "notes": "found 2 rows"
+        "notes": "found 3 rows"
       },
       {
         "name": "row level security is enabled on todos",
@@ -668,7 +667,7 @@
       {
         "name": "REST API returns the todos to authenticated requests",
         "passed": true,
-        "notes": "2 rows"
+        "notes": "3 rows"
       }
     ],
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
@@ -697,7 +696,8 @@
       },
       {
         "name": "schema file updated to include description column",
-        "passed": true
+        "passed": false,
+        "notes": "description not found in any schema file"
       },
       {
         "name": "a new migration was generated for the change",
@@ -712,45 +712,6 @@
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/build-cli-002-declarative-schema.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-nano",
-    "eval": "build-cli-003-pg-cron-queue-workflow",
-    "stage": "build",
-    "product": [
-      "database",
-      "edge-functions",
-      "cron",
-      "queues"
-    ],
-    "topic": [
-      "sql",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": false,
-    "checks": [
-      {
-        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": true,
-        "notes": "schedule='* * * * *', active=true"
-      },
-      {
-        "name": "cron command enqueues to the 'tasks' queue",
-        "passed": true,
-        "notes": "queue depth 11 -> 12"
-      },
-      {
-        "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 500: {\"error\":\"[object Object]\"}"
-      }
-    ],
-    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function so an internal worker can drain the queue.",
-    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/build-cli-003-pg-cron-queue-workflow.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -825,7 +786,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019ef10d-3762-72fb-99df-5c6397c0a2d9/receipt-alpha.pdf, 019ef10d-3762-72fb-99df-5c6397c0a2d9/receipt-beta.pdf"
+        "notes": "saw: 019ef13f-f2ef-74fa-915c-ac463b5e994d/receipt-alpha.pdf, 019ef13f-f2ef-74fa-915c-ac463b5e994d/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -846,7 +807,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Creates a private user-files bucket, adds authenticated SELECT and INSERT policies scoped to the bucket and auth.uid() path prefix with WITH CHECK for uploads, does not disable RLS, and provides supabase-js createSignedUrl code with an expiry for temporary sharing."
+        "judgeNotes": "Creates a private user-files bucket, adds authenticated owner-scoped SELECT and INSERT policies on storage.objects with WITH CHECK for uploads, does not disable RLS or make public access, and provides supabase-js createSignedUrl code with an expiry for temporary sharing links."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -887,7 +848,7 @@
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identified that the posts table has broken tenant isolation for reads: authenticated users who are members of any org can read posts from other orgs because the posts SELECT policy lacks an org_id check. It attributed the failing posts tenant isolation test to that policy flaw, while noting notes read isolation passed."
+        "judgeNotes": "The agent correctly identified `posts` as the table with broken tenant isolation for SELECT, explained that authenticated members of any org can read posts from other orgs due to missing `m.org_id = posts.org_id`, and attributed the test failure to that policy flaw. It did not blame `notes` or dismiss the test results."
       }
     ],
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
@@ -911,9 +872,9 @@
     "passed": false,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
+        "name": "created auth sessions",
         "passed": false,
-        "notes": "relation \"documents\" does not exist"
+        "notes": "Internal server error"
       }
     ],
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
@@ -941,12 +902,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape uses basic_auth password env expansion instead of required password_file, and docker-compose.yml does not mount/wire that password_file via a volume or Compose secret. Existing app scrape is preserved and endpoint/path/scheme are otherwise correct."
+        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an environment variable instead of password_file, and docker-compose.yml does not mount the password file via a volume or Compose secret. App scrape is preserved and endpoint/path/scheme/target are otherwise acceptable."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README.md does not include the required steps to create a Supabase Secret API key, place the matching secret/env file, restart or reload the Compose stack, or concretely verify the integration via Prometheus targets/PromQL/Grafana. It only references another file vaguely."
+        "judgeNotes": "README.md does not explain how to make the Supabase metrics integration live: it lacks steps to create a Secret API key, place/use the matching secret file or secret setup, restart/reload the Compose stack, and verify via Prometheus targets/PromQL/Grafana. It only documents starting the stack and the app target."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -980,7 +941,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get('WEATHER_API_KEY')."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -1033,7 +994,7 @@
     "checks": [
       {
         "name": "orders table added to supabase_realtime publication",
-        "passed": false
+        "passed": true
       },
       {
         "name": "courier_locations still in supabase_realtime publication",
@@ -1041,7 +1002,7 @@
       },
       {
         "name": "publication still publishes INSERT events",
-        "passed": false
+        "passed": true
       },
       {
         "name": "RLS still enabled on orders",
@@ -1050,12 +1011,12 @@
       {
         "name": "staff can still read orders through RLS",
         "passed": false,
-        "notes": "relation \"orders\" does not exist"
+        "notes": ""
       },
       {
         "name": "diagnosed missing publication membership",
         "passed": false,
-        "judgeNotes": "The answer did not identify the orders table missing from the supabase_realtime publication or fix it with ALTER PUBLICATION. It instead blamed/ suggested RLS, table/view mismatch, replica identity, and client code checks, and made no publication change."
+        "judgeNotes": "The answer did not fix exactly the missing orders table in the existing supabase_realtime publication. It created/modified the orders table and replica identity, then created a new supabase_realtime publication for only public.orders, which risks breaking the existing courier_locations feed and does not preserve the existing publication contents."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -1079,17 +1040,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the affected function and described a recurring pattern of HTTP 503s across the morning of 2026-04-28, covering the gateway failures in the relevant 07:00Z-12:00Z window."
+        "judgeNotes": "Identified image-transform as the affected function and described intermittent/recurring 503s on 2026-04-28, with enough detail to match the morning failure pattern. Did not explicitly mention all 8 gateway failures or the 07:00Z-12:00Z range, but covered the core required finding."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant does attribute the 503s to gateway-level behavior and grounds it in API/gateway 503s with no matching Edge Function 5xx logs. However, it recommends redeploying `image-transform` as the first next step, implying remediation of function/runtime/deployment state, which the rubric explicitly marks as a fail."
+        "judgeNotes": "The assistant blames the image-transform function layer / @acme/image-transform dependency as the likely source of the 503s and recommends instrumentation/retry/fixing function behavior. It does not attribute the recurring 503s to the gateway/Edge Functions platform layer or ground that attribution in missing invocation/runtime logs, unchanged deployment_id, or distinction from function-level errors."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps including redeploying the Edge Function, adding explicit error logging, implementing retry/backoff for 503s, and checking external dependencies if the issue recurs."
+        "judgeNotes": "The assistant recommended concrete next steps: inspect/reproduce the Edge Function dependency behavior during the failing window, add instrumentation/correlation IDs, implement retry/backoff, and verify external endpoint health/quotas/config changes."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -1140,7 +1101,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing Data API empty results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts. Extra update/delete owner-scoped policies are acceptable."
+        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all Data API behavior, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using user_id = auth.uid() with WITH CHECK for inserts. Extra update/delete owner policies are acceptable."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -1177,7 +1138,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
