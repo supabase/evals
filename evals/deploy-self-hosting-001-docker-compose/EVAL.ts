@@ -18,30 +18,22 @@ const PLACEHOLDER_SECRETS: Record<string, string> = {
   PG_META_CRYPTO_KEY: "your-encryption-key-32-chars-min",
 };
 
+// The prompt tells the agent to set the stack up here, so the scorer reads a
+// fixed path instead of hunting for it (the docs' `git clone` leaves a monorepo
+// full of stray docker-compose.yml/config.toml files that fuzzy-matching would
+// trip over).
+const PROJECT_DIR = "supabase-docker";
+
 const scorer: LocalStackScorer = async (ctx) => {
   try {
-    const projectDir = await locateProjectDir(ctx);
-    if (!projectDir) {
-      return {
-        passed: false,
-        checks: [
-          {
-            name: "self-host docker stack present",
-            passed: false,
-            notes: "no docker-compose.yml found in the workspace",
-          },
-        ],
-      };
-    }
-
-    const env = parseEnv(await readOrEmpty(ctx, `${projectDir}/.env`));
+    const env = parseEnv(await readOrEmpty(ctx, `${PROJECT_DIR}/.env`));
 
     const checks: CheckResult[] = [
-      await checkStackPresent(ctx, projectDir),
-      await checkNotCliInit(ctx, projectDir),
+      await checkStackPresent(ctx),
+      await checkNotCliInit(ctx),
       checkSecretsRotated(env),
       checkJwtKeysConsistent(env),
-      await checkNoCrlf(ctx, projectDir),
+      await checkNoCrlf(ctx),
     ];
 
     return { passed: checks.every((c) => c.passed), checks };
@@ -56,58 +48,25 @@ const scorer: LocalStackScorer = async (ctx) => {
 
 export default scorer;
 
-// The agent may drop the stack anywhere (./supabase-project, ./supabase/docker,
-// ./docker). The docs tell agents to `git clone` the whole monorepo, so the
-// workspace can hold many stray docker-compose.yml files (examples, the leftover
-// clone). Pick the real self-host stack by its signature: a volumes/db dir plus a
-// populated .env. Rank candidates so the agent's populated stack wins over the
-// leftover clone (which has volumes/db but only .env.example).
-// https://supabase.com/docs/guides/self-hosting/docker
-async function locateProjectDir(ctx: LocalStackEvalContext): Promise<string | null> {
-  const found = await ctx.exec(
-    "find . -maxdepth 4 -name docker-compose.yml -not -path '*/node_modules/*' -not -path '*/.git/*'",
-  );
-  const dirs = found.stdout
-    .split("\n")
-    .map((line) => line.trim().replace(/^\.\//, "").replace(/\/docker-compose\.yml$/, ""))
-    .filter(Boolean);
-  if (dirs.length === 0) return null;
-
-  const scored = await Promise.all(
-    dirs.map(async (dir) => {
-      const hasVolumesDb = await dirExists(ctx, `${dir}/volumes/db`);
-      const hasEnv = await ctx.fileExists(`${dir}/.env`);
-      return { dir, rank: (hasVolumesDb ? 2 : 0) + (hasEnv ? 1 : 0) };
-    }),
-  );
-  scored.sort((a, b) => b.rank - a.rank);
-  return scored[0].dir;
-}
-
 /** Checks the agent cloned the real self-host `docker/` tree, not a hand-rolled compose file. */
-async function checkStackPresent(
-  ctx: LocalStackEvalContext,
-  projectDir: string,
-): Promise<CheckResult> {
+async function checkStackPresent(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = "cloned the self-host stack (docker-compose.yml + volumes/db)";
-  const hasVolumes = await dirExists(ctx, `${projectDir}/volumes/db`);
+  const hasCompose = await ctx.fileExists(`${PROJECT_DIR}/docker-compose.yml`);
+  const hasVolumes = await dirExists(ctx, `${PROJECT_DIR}/volumes/db`);
+  const passed = hasCompose && hasVolumes;
   return {
     name,
-    passed: hasVolumes,
-    notes: hasVolumes ? undefined : `volumes/db missing under ${projectDir} — not the self-host docker/ tree`,
+    passed,
+    notes: passed
+      ? undefined
+      : `${PROJECT_DIR}/ is missing docker-compose.yml or volumes/db — not the self-host docker/ tree`,
   };
 }
 
 /** Checks the agent didn't confuse self-hosting with the CLI (`supabase init` → config.toml). */
-// Scoped to the project dir on purpose: the docs' `git clone` step leaves a full
-// monorepo (83 example config.toml files), so a workspace-wide scan would fail a
-// docs-following agent for files it didn't author.
-async function checkNotCliInit(
-  ctx: LocalStackEvalContext,
-  projectDir: string,
-): Promise<CheckResult> {
+async function checkNotCliInit(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const found = await ctx.exec(
-    `find ${projectDir} -name config.toml -path '*/supabase/*' -not -path '*/node_modules/*'`,
+    `find ${PROJECT_DIR} -name config.toml -path '*/supabase/*' -not -path '*/node_modules/*'`,
   );
   const conflated = found.stdout.trim().length > 0;
   return {
@@ -164,12 +123,9 @@ function checkJwtKeysConsistent(env: Record<string, string | undefined>): CheckR
 // Oddly specific, but a real and recurring self-host failure: a `\r` on
 // kong-entrypoint.sh's shebang makes Linux fail to find the interpreter, so Kong
 // never starts. https://github.com/supabase/supabase/issues/44052
-async function checkNoCrlf(
-  ctx: LocalStackEvalContext,
-  projectDir: string,
-): Promise<CheckResult> {
+async function checkNoCrlf(ctx: LocalStackEvalContext): Promise<CheckResult> {
   // grep -rlU finds files with literal CR; success exit means at least one matched.
-  const result = await ctx.exec(`grep -rlU $'\\r' ${projectDir} || true`);
+  const result = await ctx.exec(`grep -rlU $'\\r' ${PROJECT_DIR} || true`);
   const offenders = result.stdout.trim();
   return {
     name: "no CRLF line endings in the stack (breaks Kong entrypoint)",

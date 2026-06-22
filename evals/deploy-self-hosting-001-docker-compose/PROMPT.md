@@ -18,4 +18,5 @@ just spun up. Can you get a Docker setup ready for me to copy onto the box?
 
 I don't need it running here — I'll do the actual bring-up once I'm on the
 server. I just want everything in place and the secrets sorted out so I'm not
-shipping any of the insecure defaults. Drop it in a folder I can scp over.
+shipping any of the insecure defaults. Put it in a `supabase-docker/` folder at
+the repo root so I can scp the whole thing across in one go.
