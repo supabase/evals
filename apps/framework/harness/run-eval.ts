@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { jsonSchema, tool, type ToolSet } from "ai";
 import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
 import {
+  createBareSandbox,
   frontmatterDescription,
   stripFrontmatter,
 } from "@supabase-evals/sandbox";
@@ -23,8 +24,6 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from "../lib/cli-args.js";
-import { createBareSandbox } from "@supabase-evals/sandbox";
-import { runScorer } from "../lib/scorer.js";
 import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import type {
