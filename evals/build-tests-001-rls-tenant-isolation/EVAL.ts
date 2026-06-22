@@ -39,8 +39,8 @@ async function checkAgentDiagnosis(ctx: LocalStackEvalContext): Promise<CheckRes
     rubric: stripIndent`
       Pass if the agent correctly identifies that the \`posts\` table has a broken
       tenant isolation policy — specifically that authenticated members can read
-      posts belonging to organizations they are not a member of — and attributes
-      this to the test failures. The agent does not need to supply the exact SQL
+      posts belonging to organizations they are not a member of — and grounds
+      this in the test results. The agent does not need to supply the exact SQL
       fix, but must identify \`posts\` (not \`notes\`) as the table with the policy
       flaw, and treat the pgTAP results as the authoritative signal rather than
       dismissing them or trusting the migration comments.
@@ -76,21 +76,17 @@ async function checkTestResults(
     ? `${passedTests} passed, ${failedTests} failed`
     : `no test summary found; exit ${result.exitCode}; output: ${output.slice(0, 500)}`;
 
+  // Assert the agent wrote and ran a real pgTAP suite with passing tests. We
+  // deliberately do NOT gate on the failed-count: whether the negative case
+  // surfaces as a *failing* test (assert correct isolation → fails on the buggy
+  // posts policy) or a *passing* characterization test (assert the current leak)
+  // is a valid style choice. The diagnosis judge below is the authoritative
+  // signal that the agent caught the posts bug from the results.
   return [
     {
-      name: "positive isolation tests pass (notes table)",
+      name: "pgTAP isolation tests ran and pass",
       passed: ranTests && passedTests > 0,
       notes: summary,
-    },
-    {
-      name: "negative isolation tests catch the bug in posts table",
-      // A non-zero exit with at least one failure means the agent wrote
-      // negative-case tests that caught the intentional policy flaw.
-      passed: ranTests && failedTests > 0,
-      notes:
-        ranTests && failedTests === 0
-          ? "all tests passed — negative case not covered or policy was not tested"
-          : summary,
     },
   ];
 }

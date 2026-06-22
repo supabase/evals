@@ -24,6 +24,10 @@ const DEFAULT_BASH_TIMEOUT_SEC = 240;
 const MAX_BASH_TIMEOUT_SEC = 600;
 const MAX_TOOL_OUTPUT_CHARS = 16_000;
 
+/** Retry budget for reading the stack's API keys from `supabase status` (gotrue readiness lag). */
+const STACK_CONFIG_RETRIES = 5;
+const STACK_CONFIG_RETRY_MS = 2_000;
+
 /**
  * The Supabase local-stack environment: a sandboxed developer machine where
  * the agent's tool — the real Supabase CLI — can run the local Docker stack.
@@ -298,23 +302,34 @@ export function buildLocalStackScoringContext(
 
   const discoverStackConfig = async () => {
     if (stackConfig) return stackConfig;
-    const status = await sandbox.runShell("supabase status -o json");
-    const config = extractJson(status.stdout);
-    const apiUrl =
-      typeof config?.API_URL === "string" ? config.API_URL : undefined;
-    const publishableKey =
-      typeof config?.PUBLISHABLE_KEY === "string"
-        ? config.PUBLISHABLE_KEY
-        : undefined;
-    if (!status.ok || !apiUrl || !publishableKey) {
-      throw new Error(
-        "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` — " +
-          "the local stack must be running and include the auth service " +
-          "(status only reports API keys while gotrue is up; add `gotrue` to the eval's services)",
-      );
+    // `supabase status` only reports the API keys once gotrue is fully up, which
+    // can lag a moment after `supabase start` returns. Retry briefly so a scorer
+    // that calls getClient() right away doesn't false-fail on a transient miss.
+    let lastStatus = "";
+    for (let attempt = 0; attempt < STACK_CONFIG_RETRIES; attempt += 1) {
+      const status = await sandbox.runShell("supabase status -o json");
+      const config = extractJson(status.stdout);
+      const apiUrl =
+        typeof config?.API_URL === "string" ? config.API_URL : undefined;
+      const publishableKey =
+        typeof config?.PUBLISHABLE_KEY === "string"
+          ? config.PUBLISHABLE_KEY
+          : undefined;
+      if (status.ok && apiUrl && publishableKey) {
+        stackConfig = { apiUrl, publishableKey };
+        return stackConfig;
+      }
+      lastStatus = status.stdout || status.stderr;
+      if (attempt < STACK_CONFIG_RETRIES - 1) {
+        await new Promise((resolve) => setTimeout(resolve, STACK_CONFIG_RETRY_MS));
+      }
     }
-    stackConfig = { apiUrl, publishableKey };
-    return stackConfig;
+    throw new Error(
+      "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after " +
+        `${STACK_CONFIG_RETRIES} attempts — the local stack must be running and include the auth ` +
+        "service (status only reports API keys while gotrue is up; add `gotrue` to the eval's " +
+        `services). Last status: ${lastStatus.slice(0, 300)}`,
+    );
   };
 
   return {
