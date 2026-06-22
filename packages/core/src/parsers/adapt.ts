@@ -49,7 +49,7 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         steps += 1;
       }
     } else if (event.type === "tool_call" && event.tool) {
-      const body = stripExtracted(event.tool.args ?? {});
+      const body = event.tool.args ?? {};
       const resolved = event.tool.id ? resultsById.get(event.tool.id) : undefined;
       transcript.push({
         type: "tool_call",
@@ -61,6 +61,10 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
       toolCalls.push({
         endpoint: event.tool.originalName,
         body,
+        // Normalized views the parser extracted, for agent-agnostic scorers.
+        path: event.tool.path,
+        command: event.tool.command,
+        url: event.tool.url,
         result: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
         ts: parseTs(event.timestamp),
@@ -76,15 +80,6 @@ function toResolved(result: unknown, success: boolean | undefined): ResolvedResu
     return { error: typeof result === "string" ? result : JSON.stringify(result) };
   }
   return { result };
-}
-
-/** Drop the synthetic `_extracted*` metadata keys parsers add for display. */
-function stripExtracted(args: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(args)) {
-    if (!key.startsWith("_extracted")) out[key] = value;
-  }
-  return out;
 }
 
 function parseTs(timestamp: string | undefined): number {

@@ -66,8 +66,9 @@ describe("claudeCodeParser", () => {
       "Bash",
       "mcp__supabase__search_docs",
     ]);
-    // shell calls get the command extracted for display
-    expect(toolCalls[0].tool?.args?._extractedCommand).toBe("ls -la");
+    // the parser normalizes the shell command onto the event (args left raw)
+    expect(toolCalls[0].tool?.command).toBe("ls -la");
+    expect(toolCalls[0].tool?.args).toEqual({ command: "ls -la" });
 
     const results = events.filter((e) => e.type === "tool_result");
     expect(results.map((e) => e.tool?.id)).toEqual(["toolu_1", "toolu_2"]);
@@ -99,6 +100,7 @@ describe("adaptTranscript", () => {
       {
         endpoint: "Bash",
         body: { command: "ls -la" },
+        command: "ls -la",
         result: "file1\nfile2",
         error: undefined,
         ts: Date.parse("2026-06-18T10:00:00.000Z"),
@@ -113,7 +115,7 @@ describe("adaptTranscript", () => {
     ]);
   });
 
-  it("renders a scorer-facing transcript (messages + tool calls, _extracted keys stripped)", () => {
+  it("renders a scorer-facing transcript (messages + tool calls, raw args preserved)", () => {
     expect(adapted.transcript).toEqual([
       { type: "message", role: "assistant", content: "Let me list the files." },
       {

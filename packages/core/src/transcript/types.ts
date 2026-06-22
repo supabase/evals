@@ -50,8 +50,17 @@ export interface TranscriptEvent {
      * adapter can pair them.
      */
     id?: string;
-    /** Tool arguments (for `tool_call`). */
+    /** Tool arguments (for `tool_call`), as the agent emitted them (raw keys). */
     args?: Record<string, unknown>;
+    /**
+     * Normalized, agent-agnostic views of common args, extracted by the agent's
+     * own parser from its raw arg keys (via its `ArgFieldMap`). Let scorers/UI
+     * read a tool's file path / shell command / URL without knowing which keys
+     * a given harness uses. Undefined when the tool has no such arg.
+     */
+    path?: string;
+    command?: string;
+    url?: string;
     /** Tool result payload (for `tool_result`). */
     result?: unknown;
     /** Whether the tool call succeeded (for `tool_result`). */

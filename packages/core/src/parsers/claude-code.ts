@@ -17,7 +17,7 @@ import type {
 import type { AgentTranscriptParser } from "./types.js";
 import { isRecord, parseJsonlRecords } from "../json.js";
 import { normalizeToolName, type AgentToolMap } from "./shared/normalize.js";
-import { extractCommand, extractFilePath, extractUrl } from "./shared/extract.js";
+import { extractArgs, type ArgFieldMap } from "./shared/extract.js";
 
 /** Claude Code's tool names → canonical names (case-sensitive). Owned here, not in shared. */
 const CLAUDE_CODE_TOOLS: AgentToolMap = {
@@ -43,6 +43,18 @@ const CLAUDE_CODE_TOOLS: AgentToolMap = {
     Task: "agent_task",
     TodoWrite: "agent_task",
   },
+};
+
+/**
+ * Claude Code's tool args → normalized fields. Owned here, not in shared: Read/
+ * Write/Edit carry the path in `file_path`, NotebookEdit in `notebook_path`,
+ * Bash the command in `command`, WebFetch the URL in `url`. The shared extractor
+ * just reads whichever keys this map names.
+ */
+const CLAUDE_CODE_ARG_FIELDS: ArgFieldMap = {
+  path: ["file_path", "notebook_path"],
+  command: ["command"],
+  url: ["url"],
 };
 
 /** Content array, handling the `{ message: { content } }` nesting. */
@@ -110,20 +122,17 @@ function extractToolUses(data: Record<string, unknown>): ToolUse[] {
   return uses;
 }
 
-/** Attach extracted path/command/url metadata to a tool-call event in place. */
+/**
+ * Attach normalized path/command/url views to a tool-call event, in place,
+ * using Claude Code's own arg-key map. Leaves `args` untouched (raw); the
+ * normalized values live on the event's `tool` for agent-agnostic consumers.
+ */
 function enrich(event: TranscriptEvent): TranscriptEvent {
   if (event.type !== "tool_call" || !event.tool) return event;
-  const args = event.tool.args ?? {};
-  if (["file_read", "file_write", "file_edit"].includes(event.tool.name)) {
-    const path = extractFilePath(args);
-    if (path) event.tool.args = { ...args, _extractedPath: path };
-  } else if (event.tool.name === "shell") {
-    const command = extractCommand(args);
-    if (command) event.tool.args = { ...args, _extractedCommand: command };
-  } else if (event.tool.name === "web_fetch") {
-    const url = extractUrl(args);
-    if (url) event.tool.args = { ...args, _extractedUrl: url };
-  }
+  const { path, command, url } = extractArgs(event.tool.args ?? {}, CLAUDE_CODE_ARG_FIELDS);
+  if (path) event.tool.path = path;
+  if (command) event.tool.command = command;
+  if (url) event.tool.url = url;
   return event;
 }
 

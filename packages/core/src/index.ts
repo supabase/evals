@@ -140,6 +140,14 @@ export interface JudgeResult {
 export interface ToolCallRecord {
   endpoint: string;
   body: Record<string, unknown>;
+  /**
+   * Normalized, agent-agnostic views of common args, when the agent's parser
+   * extracted them (CLI agents). Let scorers inspect a call's file path / shell
+   * command / URL without knowing the harness's raw arg keys.
+   */
+  path?: string;
+  command?: string;
+  url?: string;
   result?: unknown;
   error?: string;
   ts: number;
