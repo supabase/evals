@@ -8,6 +8,7 @@ import {
 } from "../src/local-stack-runtime.js";
 import {
   SANDBOX_DOCKERFILE_PATH,
+  SUPABASE_CLI_VERSION,
   buildServiceWrapperScript,
   buildSupabaseStartCommand,
   computeExcludedServices,
@@ -21,20 +22,28 @@ import {
 import { ALL_SUPABASE_SERVICES } from "../src/types.js";
 
 describe("sandbox Dockerfile", () => {
-  it("installs a CLI version pinned via build arg from the release .deb", () => {
+  it("is a CLI-free base image carrying the common agent tooling", () => {
     const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, "utf8");
     expect(dockerfile).toContain("FROM node:22-slim");
-    expect(dockerfile).toContain("ARG CLI_VERSION");
-    expect(dockerfile).toContain(
-      "https://github.com/supabase/cli/releases/download/v${CLI_VERSION}/supabase_${CLI_VERSION}_linux_${ARCH}.deb",
-    );
-    expect(dockerfile).toContain("dpkg -i /tmp/supabase.deb");
+    // Common tooling shared by both eval modes.
+    expect(dockerfile).toContain("postgresql-client");
+    expect(dockerfile).toContain("docker.io");
+    // The Supabase CLI is NOT baked in — it's a local-stack component installed
+    // at setup time (installSupabaseCli), so tools-mode sandboxes genuinely lack
+    // it. The base image is therefore shared across modes and CLI versions.
+    expect(dockerfile).not.toContain("ARG CLI_VERSION");
+    expect(dockerfile).not.toContain("supabase.deb");
   });
 
   it("bakes in Vercel's skills CLI pinned via build arg", () => {
     const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, "utf8");
     expect(dockerfile).toContain("ARG SKILLS_CLI_VERSION");
     expect(dockerfile).toContain('npm install -g "skills@${SKILLS_CLI_VERSION}"');
+  });
+
+  it("pins the Supabase CLI version installed at setup time", () => {
+    // The pin moved out of the Dockerfile into installSupabaseCli.
+    expect(SUPABASE_CLI_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });
 
