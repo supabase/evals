@@ -20,4 +20,4 @@ motivation: AI-812, https://supabase.com/docs/guides/queues/consuming-messages-w
 
 I want to set up a recurring background workflow on my local Supabase stack.
 
-Can you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function so an internal worker can drain the queue.
+Can you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function so an internal worker can drain the queue. It should only drain for an internal caller using the service role, not for anyone holding the public anon key.
