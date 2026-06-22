@@ -14,10 +14,6 @@ import { createAgentEnvironment } from "./agent-environment.js";
 import { teardownSupabaseProject } from "./supabase.js";
 import { buildSkillsPrompt } from "./skills.js";
 
-/** Local-stack Postgres as published by `supabase start`, reachable on the
- * sandbox's 127.0.0.1 via host networking. */
-const LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
-
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
 const MAX_BASH_TIMEOUT_SEC = 600;
 const MAX_TOOL_OUTPUT_CHARS = 16_000;
@@ -298,6 +294,36 @@ export function buildLocalStackScoringContext(
   hosted?: HostedLink,
 ): LocalStackScoringContext {
   let stackConfig: { apiUrl: string; publishableKey: string } | undefined;
+  let dbUrl: string | undefined;
+
+  // Read the DB connection string from the running stack rather than assuming
+  // the default 127.0.0.1:54322 — same derive-from-`supabase status` approach as
+  // discoverStackConfig/getClient. An agent owns supabase/config.toml and may
+  // remap ports (e.g. to dodge a conflict), so `query()` must target whatever
+  // port the stack actually bound. Unlike the API keys, `DB_URL` is reported as
+  // soon as the database is up (it does not wait on gotrue), so no DB-only eval
+  // is coupled to auth readiness.
+  const discoverDbUrl = async () => {
+    if (dbUrl) return dbUrl;
+    let lastStatus = "";
+    for (let attempt = 0; attempt < STACK_CONFIG_RETRIES; attempt += 1) {
+      const status = await sandbox.runShell("supabase status -o json");
+      const url = extractJson(status.stdout)?.DB_URL;
+      if (status.ok && typeof url === "string") {
+        dbUrl = url;
+        return dbUrl;
+      }
+      lastStatus = status.stdout || status.stderr;
+      if (attempt < STACK_CONFIG_RETRIES - 1) {
+        await new Promise((resolve) => setTimeout(resolve, STACK_CONFIG_RETRY_MS));
+      }
+    }
+    throw new Error(
+      "could not read DB_URL from `supabase status -o json` after " +
+        `${STACK_CONFIG_RETRIES} attempts — the local stack must be running. ` +
+        `Last status: ${lastStatus.slice(0, 300)}`,
+    );
+  };
 
   const discoverStackConfig = async () => {
     if (stackConfig) return stackConfig;
@@ -337,12 +363,13 @@ export function buildLocalStackScoringContext(
     readFile: (path) => sandbox.readFile(resolveSandboxPath(path)),
     fileExists: (path) => sandbox.fileExists(resolveSandboxPath(path)),
     query: async (sql) => {
+      const url = await discoverDbUrl();
       // base64 transport sidesteps shell quoting entirely.
       const encoded = Buffer.from(wrapSelectAsJson(sql), "utf-8").toString(
         "base64",
       );
       const result = await sandbox.runShell(
-        `echo ${encoded} | base64 -d | psql "${LOCAL_DB_URL}" -v ON_ERROR_STOP=1 -tA`,
+        `echo ${encoded} | base64 -d | psql "${url}" -v ON_ERROR_STOP=1 -tA`,
       );
       if (!result.ok) {
         throw new Error(`query failed: ${result.stderr || result.stdout}`);
