@@ -120,14 +120,21 @@ const PROJECT_REF_PATH = "supabase/.temp/project-ref";
 /**
  * Workspace-relative `.temp` files `supabase link` caches and the linked DB
  * commands read. `pooler-url` is the connection string `db push`/`db pull`/
- * `migration repair` dial; the version files satisfy the CLI's compat probes.
+ * `migration repair` dial; the version files record the linked project's service
+ * versions.
+ *
+ * These MUST match the service versions the bundled CLI (SUPABASE_CLI_VERSION)
+ * runs for the local stack — otherwise `supabase start`/`db push` reports a
+ * spurious "different service versions … run `supabase link`" mismatch. A real
+ * hosted project tracks the CLI's versions, so matching them is also the
+ * faithful state. Update alongside SUPABASE_CLI_VERSION.
  */
 const POOLER_URL_PATH = "supabase/.temp/pooler-url";
 const REMOTE_VERSION_FILES: Record<string, string> = {
-  "supabase/.temp/postgres-version": "15.8.1.040",
-  "supabase/.temp/gotrue-version": "v2.177.0",
-  "supabase/.temp/rest-version": "v12.2.12",
-  "supabase/.temp/storage-version": "v1.25.7",
+  "supabase/.temp/postgres-version": "17.6.1.064",
+  "supabase/.temp/gotrue-version": "v2.184.0",
+  "supabase/.temp/rest-version": "v14.1",
+  "supabase/.temp/storage-version": "v1.33.0",
 };
 
 /**
@@ -218,17 +225,30 @@ async function linkSandboxToHostedPlatform(
     [PROJECT_REF_PATH]: hosted.ref,
   };
 
-  // When platform-lite exposed a Postgres-wire port, seed the same `.temp`
-  // files a real `supabase link` would: the pooler connection string the
-  // linked DB commands dial, and the version files their compat probes read.
-  // The username carries the tenant (`postgres.<ref>`, Supavisor convention) so
-  // platform-lite's pooler routes to the right project — matching the shape
-  // PgServerHandle.connectionString() produces, not relying on its single-
-  // project fallback. The wire server ignores credentials, so any password
-  // connects; we set SUPABASE_DB_PASSWORD too so `db push` never prompts.
+  // When platform-lite exposed a Postgres-wire port, seed the `.temp` files a
+  // real `supabase link` would: the pooler connection string the linked DB
+  // commands dial, and the version files their compat probes read.
+  //
+  // Connection-string shape, the hard way learned from the CLI:
+  //  - Plain `postgres` user + explicit port — NOT the Supavisor tenant form
+  //    (`postgres.<ref>@…`), which makes the CLI rewrite the port to 5432.
+  //  - `sslmode=disable` — the wire server answers SSL negotiation with "no", so
+  //    pgx otherwise aborts with "server refused TLS connection".
+  //  - Host = the IPv4 `host.docker.internal` resolves to. The bridge gateway
+  //    does NOT reach host-bound ports, and the bare name can resolve to an
+  //    unreachable IPv6; `getent ahostsv4` pins the reachable IPv4 (the same host
+  //    the HTTP management API uses).
+  // platform-lite's wire server ignores credentials and routes a single project
+  // by fallback; SUPABASE_DB_PASSWORD is set so `db push` never prompts.
   if (hosted.pgPort !== undefined) {
+    const resolved = (
+      await sandbox.runShell(
+        "getent ahostsv4 host.docker.internal | awk 'NR==1{print $1}'",
+      )
+    ).stdout.trim();
+    const dbHost = resolved || "host.docker.internal";
     files[POOLER_URL_PATH] =
-      `postgresql://postgres.${hosted.ref}:postgres@host.docker.internal:${hosted.pgPort}/postgres`;
+      `postgresql://postgres:postgres@${dbHost}:${hosted.pgPort}/postgres?sslmode=disable`;
     Object.assign(files, REMOTE_VERSION_FILES);
   }
 

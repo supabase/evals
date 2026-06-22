@@ -4,9 +4,6 @@ import type {
   LocalStackScorer,
 } from "@supabase-evals/core";
 
-// The orphan version recorded on the remote but missing from local files —
-// the thing that makes `db push` fail until it is reconciled.
-const ORPHAN_VERSION = "20240115000000";
 // The pending local migration the agent must get applied to the hosted project.
 const PENDING_VERSION = "20240220000000";
 const SEEDED_PROFILE_COUNT = 25;
@@ -116,9 +113,7 @@ async function checkHistoryReconciled(
   const remoteVersions = await remoteHistoryVersions(ctx);
   const localVersions = await localMigrationVersions(ctx);
   const orphans = remoteVersions.filter((v) => !localVersions.includes(v));
-  const orphanResolved = !remoteVersions.includes(ORPHAN_VERSION) ||
-    localVersions.includes(ORPHAN_VERSION);
-  const passed = orphans.length === 0 && orphanResolved;
+  const passed = orphans.length === 0;
   return {
     name,
     passed,

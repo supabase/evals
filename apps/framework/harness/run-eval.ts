@@ -380,10 +380,14 @@ async function runOne(
       }
       // When the eval links to a hosted project, boot a platform-lite backend
       // (bound to 0.0.0.0 so the sandbox reaches it via host.docker.internal)
-      // and hand the CLI-valid ref/token to the session.
+      // and hand the CLI-valid ref/token to the session. Seed it from the eval's
+      // `remote/` dir (project.sql / logs.jsonl / functions) just like the tools
+      // runtime does — otherwise the hosted project boots empty and scorers that
+      // read remote state (e.g. the migration history) have nothing to assert on.
       await using hostedBackend = ev.metadata.hostedProject
         ? disposable(
             await bootPlatformBackend({
+              ...readSessionSeedArgs(ev),
               ref: HOSTED_PROJECT_REF,
               accessToken: HOSTED_ACCESS_TOKEN,
               hostname: "0.0.0.0",
