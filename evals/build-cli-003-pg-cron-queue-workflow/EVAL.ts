@@ -50,8 +50,9 @@ async function checkCronJobScheduled(ctx: LocalStackEvalContext): Promise<CheckR
   }
   const schedule = String(rows[0]?.schedule ?? "");
   const active = rows[0]?.active === true;
-  // pg_cron accepts both the 5-field crontab form and an interval string.
-  const everyMinute = /^\s*\*(\/1)?(\s+\*){4}\s*$/.test(schedule) || /minute|second/i.test(schedule);
+  const normalizedSchedule = schedule.trim().replace(/\s+/g, " ");
+  const everyMinute =
+    normalizedSchedule === "* * * * *" || normalizedSchedule === "*/1 * * * *";
   return {
     name,
     passed: active && everyMinute,
