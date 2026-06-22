@@ -7,9 +7,11 @@ import {
 import { localStackRuntime } from "@supabase-evals/sandbox";
 
 // Claude Code is a CLI agent: it runs its own harness (Read/Write/Bash/Edit +
-// MCP) inside the local-stack sandbox. It only runs against local-stack evals
-// (interface: cli or a local/ workspace); tools-mode evals are skipped. The
-// `runtime` below is required by the config shape but unused for those.
+// MCP) inside a sandbox, in BOTH eval modes. Local-stack evals (interface: cli
+// or a local/ workspace) get the full sandbox — the Supabase CLI plus a running
+// local stack. Tools-mode evals get a bare sandbox (same image, no stack) where
+// the eval's tools come from the `runtime` MCP servers (reached host-side via
+// host.docker.internal). The running stack + the CLI is the only mode difference.
 export default defineExperiment({
   agent: claudeCodeAgent({
     model: "claude-sonnet-4-6",
