@@ -1,11 +1,9 @@
--- Seeds a project with pg_cron and pgmq enabled, the way the docs show:
+-- The scenario starts from a project with pg_cron and pgmq enabled. The agent
+-- builds the cron + queue + drain workflow on top. The Edge Function consumes
+-- the queue through a direct Postgres connection (calling pgmq.* directly), so
+-- no pgmq_public Data API wrappers are seeded.
 --   https://supabase.com/docs/guides/cron/install
 --   https://supabase.com/docs/guides/queues/pgmq
---
--- That's the whole seed. The agent schedules the cron job, creates the queue,
--- and drains it from the Edge Function with a direct Postgres connection. Edge
--- Functions are server-side, so they can run raw SQL against pgmq.* directly,
--- no Data API exposure (pgmq_public) needed:
 --   https://supabase.com/docs/guides/functions/connect-to-postgres
 
 create extension if not exists pg_cron with schema pg_catalog;

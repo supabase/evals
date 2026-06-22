@@ -41,6 +41,7 @@ async function execSql(ctx: LocalStackEvalContext, sql: string): Promise<Command
   return ctx.exec(`echo ${encoded} | base64 -d | psql "${DB_URL}" -v ON_ERROR_STOP=1 -tA`);
 }
 
+/** Checks the enqueue-tasks cron job exists and is scheduled to run every minute. */
 async function checkCronJobScheduled(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = `pg_cron job '${JOB}' scheduled to run every minute`;
   const { rows } = await ctx.query(
@@ -60,6 +61,7 @@ async function checkCronJobScheduled(ctx: LocalStackEvalContext): Promise<CheckR
   };
 }
 
+/** Runs the scheduled job's command and checks it enqueues a message to the tasks queue. */
 async function checkCronCommandEnqueues(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = `cron command enqueues to the '${QUEUE}' queue`;
   const { rows } = await ctx.query(`select command from cron.job where jobname = '${JOB}'`);
@@ -68,7 +70,7 @@ async function checkCronCommandEnqueues(ctx: LocalStackEvalContext): Promise<Che
   }
   const command = String(rows[0]?.command ?? "");
 
-  // The queue may not exist yet — the agent's command might create it.
+  // The queue may not exist yet, since the agent's command may be what creates it.
   const before = (await queueDepth(ctx)) ?? 0;
   const run = await execSql(ctx, command);
   if (!run.ok) {
@@ -79,7 +81,7 @@ async function checkCronCommandEnqueues(ctx: LocalStackEvalContext): Promise<Che
     return {
       name,
       passed: false,
-      notes: `queue '${QUEUE}' does not exist after running the command — was it created?`,
+      notes: `queue '${QUEUE}' does not exist after running the command. Was it created?`,
     };
   }
   return {
@@ -100,6 +102,7 @@ async function queueDepth(ctx: LocalStackEvalContext): Promise<number | null> {
   return Number(result.rows[0]?.n ?? 0);
 }
 
+/** Enqueues a test message, invokes the function as the service role, and checks it drains the queue. */
 async function checkFunctionDrains(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = `${FUNCTION} function drains the queue`;
 
@@ -109,7 +112,7 @@ async function checkFunctionDrains(ctx: LocalStackEvalContext): Promise<CheckRes
     return {
       name,
       passed: false,
-      notes: `couldn't enqueue a test message — is the '${QUEUE}' queue created? ${send.stderr.trim()}`,
+      notes: `couldn't enqueue a test message. Is the '${QUEUE}' queue created? ${send.stderr.trim()}`,
     };
   }
 
