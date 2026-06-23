@@ -32,6 +32,7 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
 );
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
+const MERGE = rawArgs.includes("--merge");
 
 async function readPrompt(evalId: string) {
   const promptPath = resolve(EVALS_DIR, evalId, "PROMPT.md");
@@ -178,14 +179,27 @@ async function loadEvalResults(): Promise<EvalResult[]> {
 }
 
 async function main() {
-  const results = await loadEvalResults();
+  const newResults = await loadEvalResults();
   const hasFilters =
     EXPERIMENT_FILTERS.length > 0 ||
     EVAL_FILTERS.length > 0 ||
     SUITE_FILTERS.length > 0;
 
-  if (hasFilters && results.length === 0) {
+  if (hasFilters && newResults.length === 0) {
     throw new Error("no result files matched the requested export filters");
+  }
+
+  let results = newResults;
+  if (MERGE && existsSync(OUTPUT_PATH)) {
+    const existing: EvalResult[] = JSON.parse(await readFile(OUTPUT_PATH, "utf8"));
+    const replaced = new Set(newResults.map((r) => `${r.experiment}::${r.eval}`));
+    results = [
+      ...existing.filter((r) => !replaced.has(`${r.experiment}::${r.eval}`)),
+      ...newResults,
+    ].sort(
+      (a, b) =>
+        a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval),
+    );
   }
 
   await mkdir(dirname(OUTPUT_PATH), { recursive: true });
