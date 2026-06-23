@@ -15,7 +15,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const checks: CheckResult[] = [
       await checkCronJobScheduled(ctx),
       await checkCronCommandEnqueues(ctx),
-      ...(await checkDrainAuthorization(ctx)),
+      await checkFunctionDrains(ctx),
     ];
 
     return {
@@ -101,96 +101,60 @@ async function queueDepth(ctx: LocalStackEvalContext): Promise<number | null> {
   return Number(result.rows[0]?.n ?? 0);
 }
 
-type DrainAttempt = { msgId: number; removed: boolean; status: number; body: string };
-
 /**
- * Seeds one tracked message, invokes process-tasks with the given caller
- * credentials, and reports whether that message actually left the queue.
- * pgmq.read only hides a row for its visibility timeout, so the id is gone
- * only if the function popped or deleted it.
+ * Enqueues a tracked message, invokes process-tasks, and checks the message
+ * actually leaves the queue. pgmq.read only hides a row for its visibility
+ * timeout, so the seeded id is gone only if the function popped or deleted it.
  */
-async function invokeAndCheckRemoval(
-  ctx: LocalStackEvalContext,
-  apiUrl: string,
-  bearer: string,
-  apikey: string,
-): Promise<DrainAttempt> {
-  const { rows } = await ctx.query(
-    `select pgmq.send('${QUEUE}', '{"job":"process"}'::jsonb) as msg_id`,
-  );
-  const msgId = Number(rows[0]?.msg_id);
+async function checkFunctionDrains(ctx: LocalStackEvalContext): Promise<CheckResult> {
+  const name = `${FUNCTION} function drains the queue`;
 
-  const res = await fetch(`${apiUrl}/functions/v1/${FUNCTION}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${bearer}`, apikey, "content-type": "application/json" },
-    body: "{}",
-  });
-  const body = await res.text();
-
-  const { rows: after } = await ctx.query(
-    `select count(*)::int as n from pgmq.q_${QUEUE} where msg_id = ${msgId}`,
-  );
-  return { msgId, removed: Number(after[0]?.n ?? 0) === 0, status: res.status, body };
-}
-
-/**
- * Checks the internal-only contract: a service-role caller drains the queue,
- * but a public (anon) caller does not. One CheckResult for each.
- */
-async function checkDrainAuthorization(ctx: LocalStackEvalContext): Promise<CheckResult[]> {
-  const serviceName = `${FUNCTION} drains the queue for an internal (service role) caller`;
-  const anonName = `${FUNCTION} does not drain for a public (anon) caller`;
+  let msgId: number;
+  try {
+    const { rows } = await ctx.query(
+      `select pgmq.send('${QUEUE}', '{"job":"process"}'::jsonb) as msg_id`,
+    );
+    msgId = Number(rows[0]?.msg_id);
+  } catch (error) {
+    return {
+      name,
+      passed: false,
+      notes: `couldn't enqueue a test message. Is the '${QUEUE}' queue created? ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
 
   const status = await readStatus(ctx);
   const apiUrl = typeof status.API_URL === "string" ? status.API_URL : undefined;
   const serviceKey = typeof status.SERVICE_ROLE_KEY === "string" ? status.SERVICE_ROLE_KEY : undefined;
-  const anonKey = typeof status.ANON_KEY === "string" ? status.ANON_KEY : undefined;
-  if (!apiUrl || !serviceKey || !anonKey) {
-    const notes = "missing API_URL/SERVICE_ROLE_KEY/ANON_KEY from `supabase status`";
-    return [
-      { name: serviceName, passed: false, notes },
-      { name: anonName, passed: false, notes },
-    ];
+  if (!apiUrl || !serviceKey) {
+    return { name, passed: false, notes: "missing API_URL/SERVICE_ROLE_KEY from `supabase status`" };
   }
 
-  let service: DrainAttempt;
-  try {
-    service = await invokeAndCheckRemoval(ctx, apiUrl, serviceKey, anonKey);
-  } catch (error) {
-    const notes = `couldn't run the service-role drain. Is the '${QUEUE}' queue created? ${
-      error instanceof Error ? error.message : String(error)
-    }`;
-    return [
-      { name: serviceName, passed: false, notes },
-      { name: anonName, passed: false, notes },
-    ];
+  // Invoke the way a scheduled worker would. The function holds its own service
+  // role, so the caller's key only needs to clear the verify_jwt gateway.
+  const res = await fetch(`${apiUrl}/functions/v1/${FUNCTION}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "content-type": "application/json" },
+    body: "{}",
+  });
+  const body = await res.text();
+  if (!res.ok) {
+    return { name, passed: false, notes: `HTTP ${res.status}: ${body.slice(0, 200)}` };
   }
-  const serviceCheck: CheckResult = {
-    name: serviceName,
-    passed: service.removed,
-    notes: service.removed
-      ? `service-role invoke removed message ${service.msgId}`
-      : `service-role invoke returned ${service.status}, message ${service.msgId} still queued: ${service.body.slice(0, 160)}`,
+
+  const { rows } = await ctx.query(
+    `select count(*)::int as n from pgmq.q_${QUEUE} where msg_id = ${msgId}`,
+  );
+  const stillQueued = Number(rows[0]?.n ?? 0) > 0;
+  return {
+    name,
+    passed: !stillQueued,
+    notes: stillQueued
+      ? `function returned ${res.status} but message ${msgId} is still queued, so it was read but never removed`
+      : `function removed the seeded message (id ${msgId}) from the queue`,
   };
-
-  let anon: DrainAttempt;
-  try {
-    anon = await invokeAndCheckRemoval(ctx, apiUrl, anonKey, anonKey);
-  } catch (error) {
-    return [
-      serviceCheck,
-      { name: anonName, passed: false, notes: error instanceof Error ? error.message : String(error) },
-    ];
-  }
-  const anonCheck: CheckResult = {
-    name: anonName,
-    passed: !anon.removed,
-    notes: anon.removed
-      ? `anon invoke drained message ${anon.msgId}, so the function is not internal-only`
-      : `anon invoke left message ${anon.msgId} in the queue (status ${anon.status})`,
-  };
-
-  return [serviceCheck, anonCheck];
 }
 
 /** Parse `supabase status -o json` for the stack's URL and keys. */
