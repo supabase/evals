@@ -6,10 +6,11 @@ import type {
   LocalStackScorer,
 } from "@supabase-evals/core";
 
-// Secret keys the agent must rotate off their shipped placeholders, paired with
-// the `.env.example` default that proves they didn't. Mirrors the values
-// generate-keys.sh overwrites.
-// https://github.com/supabase/supabase/blob/master/docker/.env.example
+/**
+ * Secret keys the agent must rotate off their shipped placeholders, paired with the
+ * `.env.example` default that proves they didn't. Mirrors the values generate-keys.sh
+ * overwrites. https://github.com/supabase/supabase/blob/master/docker/.env.example
+ */
 const PLACEHOLDER_SECRETS: Record<string, string> = {
   POSTGRES_PASSWORD: "your-super-secret-and-long-postgres-password",
   JWT_SECRET: "your-super-secret-jwt-token-with-at-least-32-characters-long",
@@ -18,10 +19,11 @@ const PLACEHOLDER_SECRETS: Record<string, string> = {
   PG_META_CRYPTO_KEY: "your-encryption-key-32-chars-min",
 };
 
-// The prompt tells the agent to set the stack up here, so the scorer reads a
-// fixed path instead of hunting for it (the docs' `git clone` leaves a monorepo
-// full of stray docker-compose.yml/config.toml files that fuzzy-matching would
-// trip over).
+/**
+ * The prompt tells the agent to set the stack up here, so the scorer reads a fixed path
+ * instead of hunting for it (the docs' `git clone` leaves a monorepo full of stray
+ * docker-compose.yml/config.toml files that fuzzy-matching would trip over).
+ */
 const PROJECT_DIR = "supabase-docker";
 
 const scorer: LocalStackScorer = async (ctx) => {
@@ -89,9 +91,11 @@ function checkSecretsRotated(env: Record<string, string | undefined>): CheckResu
   };
 }
 
-/** Checks the API keys actually match JWT_SECRET, the classic "Invalid JWT" self-host failure. */
-// Highest-signal check, and it doubles as the anti-fake guard: junk or placeholder
-// keys won't verify against the secret.
+/**
+ * Checks the API keys actually match JWT_SECRET, the classic "Invalid JWT" self-host failure.
+ * Highest-signal check, and it doubles as the anti-fake guard: junk or placeholder keys
+ * won't verify against the secret.
+ */
 function checkJwtKeysConsistent(env: Record<string, string | undefined>): CheckResult {
   const name = "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET";
   const secret = env.JWT_SECRET ?? "";
@@ -126,10 +130,12 @@ function base64url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-// ponytail: HS256-only. Legacy symmetric keys are what .env.example ships and
-// generate-keys.sh produces. The asymmetric path (add-new-auth-keys.sh → ES256
-// JWT_KEYS/JWKS + opaque SUPABASE_PUBLISHABLE_KEY/SECRET_KEY) would fail here.
-// Rare today; add an asymmetric branch when a real run produces those.
+/**
+ * Verifies an HS256 JWT against the secret and returns its decoded payload, or null.
+ * Only handles HS256, which is what .env.example ships and generate-keys.sh produces.
+ * The asymmetric path (add-new-auth-keys.sh → ES256 JWT_KEYS/JWKS plus opaque
+ * SUPABASE_PUBLISHABLE_KEY/SECRET_KEY) isn't handled.
+ */
 function verifyHs256(token: string, secret: string): Record<string, unknown> | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
