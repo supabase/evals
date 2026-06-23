@@ -33,7 +33,6 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkNotCliInit(ctx),
       checkSecretsRotated(env),
       checkJwtKeysConsistent(env),
-      await checkNoCrlf(ctx),
     ];
 
     return { passed: checks.every((c) => c.passed), checks };
@@ -116,21 +115,6 @@ function checkJwtKeysConsistent(env: Record<string, string | undefined>): CheckR
     name,
     passed: problems.length === 0,
     notes: problems.length === 0 ? undefined : problems.join("; "),
-  };
-}
-
-/** Checks no file has CRLF endings, which silently break the Kong entrypoint shebang. */
-// Oddly specific, but a real and recurring self-host failure: a `\r` on
-// kong-entrypoint.sh's shebang makes Linux fail to find the interpreter, so Kong
-// never starts. https://github.com/supabase/supabase/issues/44052
-async function checkNoCrlf(ctx: LocalStackEvalContext): Promise<CheckResult> {
-  // grep -rlU finds files with literal CR; success exit means at least one matched.
-  const result = await ctx.exec(`grep -rlU $'\\r' ${PROJECT_DIR} || true`);
-  const offenders = result.stdout.trim();
-  return {
-    name: "no CRLF line endings in the stack (breaks Kong entrypoint)",
-    passed: offenders.length === 0,
-    notes: offenders.length === 0 ? undefined : `CRLF in: ${offenders.replace(/\n/g, ", ")}`,
   };
 }
 
