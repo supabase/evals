@@ -6,7 +6,7 @@ on:
       experiments:
         description: "Comma-separated experiment names to run"
         required: true
-        default: "openai-gpt-5.4-mini,openai-gpt-5.4-nano"
+        default: "openai-gpt-5.4-mini,openai-gpt-5.4-nano,claude-code-haiku-4.5,claude-code-sonnet-4.6"
       eval:
         description: "Optional single eval id to run"
         required: false
@@ -72,7 +72,7 @@ jobs:
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
           else
-            experiments="openai-gpt-5.4-mini,openai-gpt-5.4-nano"
+            experiments="openai-gpt-5.4-mini,openai-gpt-5.4-nano,claude-code-haiku-4.5,claude-code-sonnet-4.6"
             eval_id=""
             suite="benchmark"
             runs="1"
@@ -285,7 +285,10 @@ jobs:
           pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
 
       - name: Upload exported results
-        if: github.event_name == 'pull_request'
+        # Persist the exported JSON as an artifact for PRs and for branch
+        # dispatches (where the commit/refresh-PR steps below are intentionally
+        # gated off), so a run against a feature branch still surfaces it.
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: eval-results-json
