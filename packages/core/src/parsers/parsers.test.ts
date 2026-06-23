@@ -76,6 +76,40 @@ describe("claudeCodeParser", () => {
     expect(results[1].tool?.success).toBe(false);
   });
 
+  it("does not double-emit the final message when the result line repeats it", () => {
+    // The common real case: stream-json carries the final assistant turn AND a
+    // terminal `result` line with the same text. They must collapse to one.
+    const finalText = "All done — migrations applied.";
+    const transcript = [
+      JSON.stringify({
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "text", text: finalText }] },
+      }),
+      JSON.stringify({ type: "result", subtype: "success", result: finalText }),
+    ].join("\n");
+
+    const { events, errors } = claudeCodeParser.parseTranscript(transcript);
+    expect(errors).toEqual([]);
+    const assistantMessages = events.filter(
+      (e) => e.type === "message" && e.role === "assistant",
+    );
+    expect(assistantMessages.map((e) => e.content)).toEqual([finalText]);
+  });
+
+  it("still emits the result text when it was never streamed as a message", () => {
+    // Plain `--print` (no stream-json) yields only the terminal result line.
+    const transcript = JSON.stringify({
+      type: "result",
+      subtype: "success",
+      result: "Only the result line.",
+    });
+    const { events } = claudeCodeParser.parseTranscript(transcript);
+    const assistantMessages = events.filter(
+      (e) => e.type === "message" && e.role === "assistant",
+    );
+    expect(assistantMessages.map((e) => e.content)).toEqual(["Only the result line."]);
+  });
+
   it("skips lines with no content and never throws on malformed lines", () => {
     const { events, errors } = claudeCodeParser.parseTranscript(
       "not json\n" + JSON.stringify({ type: "system", subtype: "init" }),

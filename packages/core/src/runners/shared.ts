@@ -1,7 +1,7 @@
 /**
  * Helpers shared across CLI runners: sandbox scratch paths, file staging,
- * global npm install, newest-file lookup, loopback rewriting, and the default
- * process-exit-based stop reason.
+ * global npm install, loopback rewriting, and the default process-exit-based
+ * stop reason.
  */
 
 import type { CommandResult, McpServerConfig } from "../index.js";
@@ -52,22 +52,6 @@ export async function npmInstallGlobal(
 /** Absolute path to a CLI binary installed by `npmInstallGlobal`. */
 export function npmGlobalBin(binName: string): string {
   return `${NPM_PREFIX}/bin/${binName}`;
-}
-
-/**
- * Newest file matching a shell glob, by mtime (robust to id/timestamp naming).
- * Returns the path, or undefined if none match. For CLIs that write a session
- * file rather than streaming the transcript to stdout.
- */
-export async function findNewestFile(
-  sandbox: AgentSandbox,
-  globExpr: string,
-): Promise<string | undefined> {
-  const result = await sandbox.exec(
-    `find ${globExpr} -type f -printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-`,
-  );
-  const path = result.stdout.trim();
-  return result.ok && path ? path : undefined;
 }
 
 /**

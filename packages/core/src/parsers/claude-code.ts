@@ -1,8 +1,9 @@
 /**
  * Claude Code transcript parser.
  *
- * Parses the JSONL session transcript Claude Code writes under
- * `~/.claude/projects/<escaped-cwd>/<session>.jsonl`. Each line is one event;
+ * Parses the stream-json JSONL that `claude --print --output-format stream-json`
+ * writes to stdout (the runner reads it from there, not the on-disk session
+ * file, to avoid the session-file write race). Each line is one event;
  * assistant lines nest the payload under `message` (Anthropic Messages shape),
  * tool results arrive on `user` lines as `tool_result` content blocks, and the
  * run ends with a top-level `result` line carrying the final text.
@@ -227,9 +228,26 @@ export const claudeCodeParser: AgentTranscriptParser = {
   parseTranscript(raw: string): ParsedTranscript {
     const { records, errors } = parseJsonlRecords(raw);
     const events: TranscriptEvent[] = [];
+    let lastAssistantText: string | undefined;
     for (const record of records) {
       try {
-        events.push(...recordToEvents(record));
+        for (const event of recordToEvents(record)) {
+          const isAssistantMessage =
+            event.type === "message" && event.role === "assistant";
+          // The terminal `result` line repeats the final assistant message that
+          // the preceding `assistant` line already emitted (stream-json carries
+          // both). Drop the duplicate, but still emit it when the text was never
+          // streamed (e.g. plain `--print` with only a `result` line).
+          if (
+            isAssistantMessage &&
+            record.type === "result" &&
+            event.content === lastAssistantText
+          ) {
+            continue;
+          }
+          if (isAssistantMessage) lastAssistantText = event.content;
+          events.push(event);
+        }
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
       }
