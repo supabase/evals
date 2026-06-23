@@ -1,6 +1,5 @@
 import {
   type CheckResult,
-  type CommandResult,
   type LocalStackEvalContext,
   type LocalStackScorer,
 } from "@supabase-evals/core";
@@ -8,7 +7,6 @@ import {
 const QUEUE = "tasks";
 const FUNCTION = "process-tasks";
 const JOB = "enqueue-tasks";
-const DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -32,12 +30,6 @@ const scorer: LocalStackScorer = async (ctx) => {
 };
 
 export default scorer;
-
-/** Run arbitrary SQL against the local stack as postgres. base64 sidesteps shell quoting. */
-async function execSql(ctx: LocalStackEvalContext, sql: string): Promise<CommandResult> {
-  const encoded = Buffer.from(sql, "utf-8").toString("base64");
-  return ctx.exec(`echo ${encoded} | base64 -d | psql "${DB_URL}" -v ON_ERROR_STOP=1 -tA`);
-}
 
 /** Checks the enqueue-tasks cron job exists and is scheduled to run every minute. */
 async function checkCronJobScheduled(ctx: LocalStackEvalContext): Promise<CheckResult> {
@@ -71,9 +63,14 @@ async function checkCronCommandEnqueues(ctx: LocalStackEvalContext): Promise<Che
 
   // The queue may not exist yet, since the agent's command may be what creates it.
   const before = (await queueDepth(ctx)) ?? 0;
-  const run = await execSql(ctx, command);
-  if (!run.ok) {
-    return { name, passed: false, notes: `running the cron command failed: ${run.stderr.trim()}` };
+  try {
+    await ctx.query(command);
+  } catch (error) {
+    return {
+      name,
+      passed: false,
+      notes: `running the cron command failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
   const after = await queueDepth(ctx);
   if (after === null) {
