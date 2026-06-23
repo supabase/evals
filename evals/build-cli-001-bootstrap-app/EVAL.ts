@@ -48,7 +48,7 @@ async function checkProjectInitialised(ctx: LocalStackEvalContext): Promise<Chec
 
 async function checkMigrationCreatesTodos(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = "todos table is created by a migration file";
-  if (!(await ctx.exec("test -d supabase/migrations")).ok) {
+  if (!(await ctx.folderExists("supabase/migrations"))) {
     return {
       name,
       passed: false,

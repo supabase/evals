@@ -337,6 +337,7 @@ export function buildLocalStackScoringContext(
     exec: (command, options) => sandbox.runShell(command, options),
     readFile: (path) => sandbox.readFile(resolveSandboxPath(path)),
     fileExists: (path) => sandbox.fileExists(resolveSandboxPath(path)),
+    folderExists: (path) => sandbox.folderExists(resolveSandboxPath(path)),
     query: async (sql) => {
       // base64 transport sidesteps shell quoting entirely.
       const encoded = Buffer.from(wrapSelectAsJson(sql), "utf-8").toString(

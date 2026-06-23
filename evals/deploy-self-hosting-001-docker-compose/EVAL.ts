@@ -52,7 +52,7 @@ export default scorer;
 async function checkStackPresent(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const name = "cloned the self-host stack (docker-compose.yml + volumes/db)";
   const hasCompose = await ctx.fileExists(`${PROJECT_DIR}/docker-compose.yml`);
-  const hasVolumes = await dirExists(ctx, `${PROJECT_DIR}/volumes/db`);
+  const hasVolumes = await ctx.folderExists(`${PROJECT_DIR}/volumes/db`);
   const passed = hasCompose && hasVolumes;
   return {
     name,
@@ -136,11 +136,6 @@ async function checkNoCrlf(ctx: LocalStackEvalContext): Promise<CheckResult> {
 
 async function readOrEmpty(ctx: LocalStackEvalContext, path: string): Promise<string> {
   return (await ctx.fileExists(path)) ? ctx.readFile(path) : "";
-}
-
-// ctx.fileExists is `test -f` (files only); volumes/db is a directory.
-async function dirExists(ctx: LocalStackEvalContext, path: string): Promise<boolean> {
-  return (await ctx.exec(`test -d "${path}"`)).ok;
 }
 
 function base64url(buf: Buffer): string {

@@ -216,8 +216,10 @@ export interface LocalStackScoringContext {
   ) => Promise<CommandResult>;
   /** Read a UTF-8 file; path relative to the workspace. */
   readFile: (path: string) => Promise<string>;
-  /** Check a file exists; path relative to the workspace. */
+  /** Check a file exists (`test -f`); path relative to the workspace. */
   fileExists: (path: string) => Promise<boolean>;
+  /** Check a directory exists (`test -d`); path relative to the workspace. */
+  folderExists: (path: string) => Promise<boolean>;
   /**
    * Run a single SELECT against the local stack's Postgres as the `postgres`
    * superuser (bypasses RLS) and return its rows. For DDL or role-scoped
