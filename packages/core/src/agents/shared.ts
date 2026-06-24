@@ -1,11 +1,34 @@
 /**
- * Helpers shared across CLI runners: sandbox scratch paths, file staging,
- * global npm install, loopback rewriting, and the default process-exit-based
- * stop reason.
+ * Helpers shared across CLI runners: env-var validation, sandbox scratch paths,
+ * file staging, global npm install, loopback rewriting, and the default
+ * process-exit-based stop reason.
  */
 
 import type { CommandResult, McpServerConfig } from '../index.js';
 import type { AgentSandbox } from './types.js';
+
+/**
+ * Read a required environment variable, throwing a clear error that names the
+ * variable (and distinguishes unset from blank). Node-native — reads
+ * `process.env` directly, no dependency. Shared so every harness validates its
+ * key the same way and surfaces the same precise message.
+ */
+export function requireEnv(name: string, hint?: string): string {
+  // `in` distinguishes "never set" from "set but empty" for a clearer message.
+  const isSet = name in process.env;
+  const value = process.env[name];
+  if (!isSet || value === undefined) {
+    throw new Error(
+      `Environment variable ${name} is not set.${hint ? ` ${hint}` : ''}`
+    );
+  }
+  if (value.trim() === '') {
+    throw new Error(
+      `Environment variable ${name} is set but empty.${hint ? ` ${hint}` : ''}`
+    );
+  }
+  return value;
+}
 
 /** Scratch dir + staged files, outside the workspace so they're never scored. */
 export const SCRATCH = '"$HOME/.eval"';

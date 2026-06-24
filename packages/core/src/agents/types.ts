@@ -82,6 +82,12 @@ export interface AgentRunner<M extends string = string> {
   displayName: string;
   /** Env var holding the agent's API key (e.g. `ANTHROPIC_API_KEY`). */
   apiKeyEnvVar: string;
+  /**
+   * Optional: the model's provider, for multi-provider CLIs whose runner is
+   * built per-model (e.g. opencode's `provider/model` ids). Single-provider
+   * agents omit it — the engine derives the provider from the agent id.
+   */
+  modelProvider?: ModelProvider;
   /** npm package providing the CLI. */
   cliPackage: string;
   /** Pinned CLI version — pinned so transcript-format drift can't silently break parsing. */
