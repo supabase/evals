@@ -23,6 +23,10 @@ on:
         description: "Timeout per attempt in seconds"
         required: true
         default: "720"
+  schedule:
+    # Avoid the top of the hour when GitHub Actions scheduled runs are more likely to be delayed or dropped:
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
+    - cron: "17 6 * * *"
   pull_request:
     # Run whenever a PR carrying the run-evals label is opened, pushed to, or
     # receives the run-evals label. The job-level `if` gates on those cases.
@@ -42,6 +46,7 @@ jobs:
   prepare:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
         (contains(github.event.pull_request.labels.*.name, 'run-evals') ||
          contains(github.event.pull_request.labels.*.name, 'run-evals-changed')) &&
@@ -287,7 +292,7 @@ jobs:
         # Persist the exported JSON as an artifact for PRs and for branch
         # dispatches (where the commit/refresh-PR steps below are intentionally
         # gated off), so a run against a feature branch still surfaces it.
-        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: eval-results-json
@@ -316,7 +321,7 @@ jobs:
 
       - name: Generate GitHub App token
         id: generate-token
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.GH_APP_ID }}
@@ -335,3 +340,24 @@ jobs:
             Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
           draft: true
           delete-branch: true
+
+      - name: Commit results to main
+        if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote set-url origin https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/${{ github.repository }}
+
+          git add apps/web/src/data/eval-results.json
+
+          if git diff --cached --quiet; then
+            echo "No eval result changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore: refresh eval results"
+          git push origin HEAD:main
