@@ -47,7 +47,7 @@ const HOSTED_ACCESS_TOKEN = "sbp_" + "0".repeat(40);
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
-const FORCE = args.has("--force");
+const FORCE = !args.has("--no-force");
 const SMOKE = args.has("--smoke");
 const DRY = args.has("--dry");
 const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
@@ -56,7 +56,7 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
 const MODEL_FILTER = readFlag("model");
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
-const RUNS = Number(readFlag("runs") ?? 4);
+const RUNS = Number(readFlag("runs") ?? 1);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const CONCURRENCY = Number(readFlag("concurrency") ?? 1);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
