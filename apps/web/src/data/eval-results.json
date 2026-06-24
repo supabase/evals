@@ -13,7 +13,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "supabase project initialised (supabase/config.toml exists)",
@@ -26,7 +26,7 @@
       {
         "name": "todos table exists with at least 2 seeded rows",
         "passed": true,
-        "notes": "found 3 rows"
+        "notes": "found 5 rows"
       },
       {
         "name": "row level security is enabled on todos",
@@ -34,8 +34,7 @@
       },
       {
         "name": "a SELECT policy targets the authenticated role",
-        "passed": false,
-        "notes": "policies found: [{\"policyname\":\"Authenticated users can read todos\",\"cmd\":\"SELECT\",\"roles\":[\"public\"]}]"
+        "passed": true
       },
       {
         "name": "REST API returns no todos to anonymous requests",
@@ -45,7 +44,7 @@
       {
         "name": "REST API returns the todos to authenticated requests",
         "passed": true,
-        "notes": "3 rows"
+        "notes": "5 rows"
       }
     ],
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
@@ -93,45 +92,6 @@
   },
   {
     "experiment": "claude-code-haiku-4.5",
-    "eval": "build-cli-003-pg-cron-queue-workflow",
-    "stage": "build",
-    "product": [
-      "database",
-      "edge-functions",
-      "cron",
-      "queues"
-    ],
-    "topic": [
-      "sql",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": false,
-    "checks": [
-      {
-        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": true,
-        "notes": "schedule='* * * * *', active=true"
-      },
-      {
-        "name": "cron command enqueues to the 'tasks' queue",
-        "passed": true,
-        "notes": "queue depth 0 -> 1"
-      },
-      {
-        "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 404: Function not found"
-      }
-    ],
-    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
-    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-haiku-4.5/build-cli-003-pg-cron-queue-workflow.json"
-  },
-  {
-    "experiment": "claude-code-haiku-4.5",
     "eval": "build-functions-004-service-role-bypass",
     "stage": "build",
     "product": [
@@ -154,22 +114,22 @@
       {
         "name": "user A reads own note",
         "passed": false,
-        "notes": "edge function import not supported: https://deno.land/x/jwt@v1.0.2/mod.ts"
+        "notes": "edge function import not supported: https://deno.land/x/jwt@v0.1.1/mod.ts"
       },
       {
         "name": "reads only with the caller's JWT",
         "passed": false,
-        "notes": "edge function import not supported: https://deno.land/x/jwt@v1.0.2/mod.ts"
+        "notes": "edge function import not supported: https://deno.land/x/jwt@v0.1.1/mod.ts"
       },
       {
         "name": "user A cannot force-read user B note",
         "passed": false,
-        "notes": "edge function import not supported: https://deno.land/x/jwt@v1.0.2/mod.ts"
+        "notes": "edge function import not supported: https://deno.land/x/jwt@v0.1.1/mod.ts"
       },
       {
         "name": "user B cannot force-read user A note",
         "passed": false,
-        "notes": "edge function import not supported: https://deno.land/x/jwt@v1.0.2/mod.ts"
+        "notes": "edge function import not supported: https://deno.land/x/jwt@v0.1.1/mod.ts"
       }
     ],
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
@@ -190,45 +150,12 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "bucket user-files exists",
-        "passed": true
-      },
-      {
-        "name": "bucket user-files is private",
-        "passed": true
-      },
-      {
-        "name": "RLS still enabled on storage.objects",
-        "passed": true
-      },
-      {
-        "name": "user A lists only own files",
-        "passed": true,
-        "notes": "saw: 019ef9e2-fe79-7074-a8c8-7900ef2a4515/receipt-alpha.pdf, 019ef9e2-fe79-7074-a8c8-7900ef2a4515/receipt-beta.pdf"
-      },
-      {
-        "name": "user B cannot read user A files",
-        "passed": true
-      },
-      {
-        "name": "anon reads no files",
-        "passed": true
-      },
-      {
-        "name": "user A can upload into own folder",
-        "passed": true
-      },
-      {
-        "name": "user B cannot upload into user A folder",
-        "passed": true
-      },
-      {
-        "name": "configured private per-user storage access",
-        "passed": true,
-        "judgeNotes": "Creates a private user-files bucket, enables RLS, defines authenticated SELECT and INSERT policies scoped to the bucket and auth.uid()-based folder ownership, and uses createSignedUrl with an expiration for temporary sharing."
+        "passed": false,
+        "notes": "no row in storage.buckets with id or name 'user-files'"
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -253,18 +180,18 @@
     "checks": [
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": false,
-        "notes": "no .sql files found under supabase/tests/"
+        "passed": true,
+        "notes": "2 file(s): supabase/tests/tenant_isolation.sql, supabase/tests/tenant_isolation_with_jwt.sql"
       },
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": false,
-        "notes": "no test summary found; exit 0; output: Connecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\n06d62d0de6d7: Verifying Checksum\n06d62d0de6d7: Download complete\ndcccee43ad5d: Pull complete\n06d62d0de6d7: Pull complete\na2"
+        "notes": "no test summary found; exit 1; output: Connecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\n06d62d0de6d7: Verifying Checksum\n06d62d0de6d7: Download complete\ndcccee43ad5d: Pull comple"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as the table with the tenant isolation flaw, explains that authenticated members can read posts from organizations they are not members of, and grounds the conclusion in test results showing notes pass while posts fail. It does not blame notes or dismiss the test signal."
+        "judgeNotes": "The agent correctly identifies the `posts` table SELECT policy as broken tenant isolation, specifically that authenticated members of any organization can read posts from other organizations due to a missing `m.org_id = posts.org_id` check. It grounds this in its test results showing cross-org post reads. Although it also incorrectly claims notes failures and adds extra issues, it does not blame notes instead of posts and does draw the required conclusion about posts."
       }
     ],
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
@@ -290,7 +217,7 @@
       {
         "name": "scorer evaluated vector search",
         "passed": false,
-        "notes": "column \"owner_id\" of relation \"documents\" does not exist"
+        "notes": "operator does not exist: uuid = integer"
       }
     ],
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
@@ -318,12 +245,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an environment-substituted secret instead of basic_auth.password_file, and docker-compose.yml does not mount/provide that password_file via a volume or Compose secret."
+        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an environment variable instead of basic_auth.password_file, and docker-compose.yml does not mount/provide that password_file via a volume or Compose secret."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README includes env file setup and Prometheus target verification, but it instructs users to use the Supabase service_role key rather than creating/using a Secret API key matching SUPABASE_SECRET_API_KEY. It also only says to start the stack, not clearly restart/reload an existing Compose stack."
+        "judgeNotes": "README is too vague: it does not give concrete steps for creating the Secret API key, does not specify the exact required secret/env file contents or variable names, and only says to start the stack rather than restart/reload an existing Compose stack. Verification via Prometheus targets is present, but setup instructions are incomplete."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -357,7 +284,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -368,44 +295,6 @@
     "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-haiku-4.5/deploy-functions-001-edge-function-secrets.json"
-  },
-  {
-    "experiment": "claude-code-haiku-4.5",
-    "eval": "deploy-self-hosting-001-docker-compose",
-    "stage": "deploy",
-    "product": [
-      "database",
-      "auth",
-      "storage"
-    ],
-    "topic": [
-      "self-hosting"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": true
-      },
-      {
-        "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
-        "passed": true
-      },
-      {
-        "name": "secrets rotated off the shipped defaults",
-        "passed": true
-      },
-      {
-        "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": true
-      }
-    ],
-    "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
-    "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-haiku-4.5/deploy-self-hosting-001-docker-compose.json"
   },
   {
     "experiment": "claude-code-haiku-4.5",
@@ -431,13 +320,12 @@
       },
       {
         "name": "delete-account revokes the user's sessions",
-        "passed": false,
-        "notes": "sessions left: 1"
+        "passed": true,
+        "notes": "sessions left: 0"
       },
       {
         "name": "deleted user's refresh token is rejected",
-        "passed": false,
-        "notes": "refresh token still produces a session"
+        "passed": true
       },
       {
         "name": "deleted user cannot sign back in",
@@ -451,7 +339,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": false,
-        "judgeNotes": "The answer correctly identifies that the flow only soft-deletes the profile and explains publishable vs secret keys reasonably, including that secret keys are server-only and bypass RLS. It also explains a JWT expiry window. However, it does not actually fix the delete-account flow with real auth user/session/refresh-token revocation; it only changes RLS policies and lists revocation as a future/consideration. The rubric requires deleting the auth user or equivalently removing identity/sessions and revoking sessions/refresh tokens. It also incorrectly frames the issue partly as RLS not checking deletion rather than the required core fix, and suggests revokeOtherSessions rather than a complete account/session revocation flow."
+        "judgeNotes": "The answer identifies soft deletion and refresh/session revocation issues, and explains publishable vs secret keys correctly. However, the implemented fix does not delete the auth user or fully/equivalently remove identities and refresh tokens; it only deletes rows from auth.sessions and relies on RLS soft-delete checks. It also does not clearly recommend auth.getUser()/short JWT expiry for server-side checks vs local getClaims(), and incorrectly suggests the remaining risk is only client-side caching/backend RLS blocks rather than explaining stateless JWTs remain valid until expiry for endpoints relying on local validation."
       }
     ],
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
@@ -471,11 +359,11 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "orders table added to supabase_realtime publication",
-        "passed": true
+        "passed": false
       },
       {
         "name": "courier_locations still in supabase_realtime publication",
@@ -496,8 +384,8 @@
       },
       {
         "name": "diagnosed missing publication membership",
-        "passed": true,
-        "judgeNotes": "The assistant correctly identified that the channel could subscribe but INSERT events were absent because `orders` was missing from `supabase_realtime`, applied `ALTER PUBLICATION supabase_realtime ADD TABLE public.orders`, verified both `courier_locations` and `orders` remained published, and did not weaken RLS or policies."
+        "passed": false,
+        "judgeNotes": "The assistant incorrectly diagnosed the root cause as a missing RLS SELECT policy and proposed adding/weakening policies. It did not identify or fix the actual issue: the orders table missing from the supabase_realtime publication via ALTER PUBLICATION supabase_realtime ADD TABLE orders."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -521,17 +409,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z to 12:00Z."
+        "judgeNotes": "The assistant named image-transform as the affected function and described recurring 503 gateway errors across the morning of 2026-04-28, roughly covering the 07:00Z-12:00Z pattern. It did not incorrectly focus on billing-webhook."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "Attributes recurring image-transform 503s to the gateway/load balancer/platform layer, grounded in the observed mismatch between gateway 503 log entries and successful function/runtime logs, and distinguishes the avatar-upload 500 as separate."
+        "judgeNotes": "Attributes image-transform 503s to gateway/load balancer layer, grounded in gateway logs showing 503s while Edge Function logs show successful 200 executions with normal durations. Does not blame function application code."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant provided specific actionable next steps, including checking API gateway health/routing, reviewing deployment logs, inspecting resource metrics for the April 28 07:00-12:00 UTC window, and checking rate limiting."
+        "judgeNotes": "The assistant recommended multiple concrete next steps, including checking Edge Function concurrency limits, gateway timeout settings, PostgreSQL connection pool usage, infrastructure changes, and function metrics/logs."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -553,7 +441,7 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "RLS still enabled on bookmarks",
@@ -581,8 +469,8 @@
       },
       {
         "name": "diagnosed RLS and added owner-scoped policies",
-        "passed": false,
-        "judgeNotes": "The assistant correctly diagnosed RLS deny-all and created owner-scoped SELECT/INSERT policies, but did not scope them to the authenticated role. Omitting TO authenticated makes policies apply to PUBLIC, which the rubric disallows."
+        "passed": true,
+        "judgeNotes": "Diagnosed deny-all RLS with no policies, kept RLS enabled, and created owner-scoped SELECT and INSERT policies using auth.uid() = user_id / WITH CHECK. Extra UPDATE/DELETE owner policies do not violate the rubric."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -619,7 +507,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on idx_events_user_id_created_at_desc  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on idx_events_user_id_created_at  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -715,7 +603,7 @@
       {
         "name": "todos table exists with at least 2 seeded rows",
         "passed": true,
-        "notes": "found 2 rows"
+        "notes": "found 3 rows"
       },
       {
         "name": "row level security is enabled on todos",
@@ -728,12 +616,12 @@
       {
         "name": "REST API returns no todos to anonymous requests",
         "passed": true,
-        "notes": "0 rows"
+        "notes": "error 42501: permission denied for table todos"
       },
       {
         "name": "REST API returns the todos to authenticated requests",
         "passed": true,
-        "notes": "2 rows"
+        "notes": "3 rows"
       }
     ],
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
@@ -781,45 +669,6 @@
   },
   {
     "experiment": "claude-code-sonnet-4.6",
-    "eval": "build-cli-003-pg-cron-queue-workflow",
-    "stage": "build",
-    "product": [
-      "database",
-      "edge-functions",
-      "cron",
-      "queues"
-    ],
-    "topic": [
-      "sql",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": true,
-        "notes": "schedule='* * * * *', active=true"
-      },
-      {
-        "name": "cron command enqueues to the 'tasks' queue",
-        "passed": true,
-        "notes": "queue depth 0 -> 1"
-      },
-      {
-        "name": "process-tasks function drains the queue",
-        "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
-      }
-    ],
-    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
-    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-sonnet-4.6/build-cli-003-pg-cron-queue-workflow.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-4.6",
     "eval": "build-functions-004-service-role-bypass",
     "stage": "build",
     "product": [
@@ -833,7 +682,7 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -845,7 +694,7 @@
       },
       {
         "name": "reads only with the caller's JWT",
-        "passed": false
+        "passed": true
       },
       {
         "name": "user A cannot force-read user B note",
@@ -891,7 +740,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019ef9e3-87fb-76d6-85cb-e1a72ec67fca/receipt-alpha.pdf, 019ef9e3-87fb-76d6-85cb-e1a72ec67fca/receipt-beta.pdf"
+        "notes": "saw: 019ef70b-b907-73e9-baaf-120cbf095a41/receipt-alpha.pdf, 019ef70b-b907-73e9-baaf-120cbf095a41/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -912,7 +761,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Configured a private user-files bucket, authenticated owner-scoped SELECT and INSERT storage.objects policies using storage.foldername(name)[1] = auth.uid()::text, kept RLS intact, and provided supabase-js createSignedUrl code with an expiry for temporary sharing links."
+        "judgeNotes": "The answer creates a private user-files bucket, defines authenticated owner-scoped SELECT and INSERT policies on storage.objects using the first path segment equals auth.uid(), keeps RLS enabled implicitly without disabling it, and provides supabase-js createSignedUrl code with an expiry. It does not make the bucket public, use permissive policies, anon/public roles, getPublicUrl, or service role client-side."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -943,12 +792,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "7 passed, 6 failed"
+        "notes": "9 passed, 6 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as having the broken tenant isolation policy: authenticated users with any membership can read posts from organizations they do not belong to because the policy lacks `m.org_id = posts.org_id`. It grounds this in pgTAP failures for cross-tenant post reads and explicitly contrasts `notes` as correctly isolated. It also notes an additional `memberships` issue, but does not blame `notes` or dismiss the tests."
+        "judgeNotes": "Correctly identifies posts (not notes) as having the tenant isolation flaw: the SELECT policy lacks an org_id membership check, allowing authenticated members to read posts from other organizations. Grounds the conclusion in the pgTAP failures for posts isolation tests."
       }
     ],
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
@@ -993,7 +842,7 @@
       "observability"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "preserved existing app scrape job",
@@ -1001,13 +850,13 @@
       },
       {
         "name": "configured the Supabase Metrics API scrape correctly",
-        "passed": true,
-        "judgeNotes": "Meets requirements: preserves app job, adds HTTPS Supabase metrics scrape at /customer/v1/privileged/metrics for <project-ref>.supabase.co:443, uses basic_auth with password_file, and docker-compose mounts the password file read-only."
+        "passed": false,
+        "judgeNotes": "Fails because the Supabase scrape uses inline basic_auth.password instead of password_file, and docker-compose.yml does not mount or define the password file via a volume or Compose secret. The app scrape is preserved and endpoint/path/scheme are otherwise correct."
       },
       {
         "name": "documented live deployment and verification steps",
-        "passed": true,
-        "judgeNotes": "README includes Secret API key creation, matching secret file path, reload/start steps, and concrete verification via curl and Prometheus targets."
+        "passed": false,
+        "judgeNotes": "README includes creating a Secret API key, restarting the Compose stack, and verification via curl/Prometheus targets/Grafana. However, the required secret-file setup is only optional and not part of the live configuration; prometheus.yml uses an inline password placeholder and docker-compose.yml does not mount the secret file, so the required matching secret file placement/setup is missing/mismatched."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -1055,44 +904,6 @@
   },
   {
     "experiment": "claude-code-sonnet-4.6",
-    "eval": "deploy-self-hosting-001-docker-compose",
-    "stage": "deploy",
-    "product": [
-      "database",
-      "auth",
-      "storage"
-    ],
-    "topic": [
-      "self-hosting"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": true
-      },
-      {
-        "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
-        "passed": true
-      },
-      {
-        "name": "secrets rotated off the shipped defaults",
-        "passed": true
-      },
-      {
-        "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": true
-      }
-    ],
-    "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
-    "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-sonnet-4.6/deploy-self-hosting-001-docker-compose.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-4.6",
     "eval": "investigate-auth-001-deleted-user-access",
     "stage": "investigate",
     "product": [
@@ -1133,7 +944,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "The answer identifies the soft-delete-only root cause, implements auth user/session removal, explains refresh revocation plus remaining stateless JWT expiry window, recommends stronger server-side/session checks for zero tolerance, and correctly distinguishes frontend publishable/anon keys from server-only secret/service_role keys that bypass RLS."
+        "judgeNotes": "The answer identifies the soft-delete-only root cause, implements deletion of auth.sessions and auth.users, explains refresh/access token behavior and the JWT validity window, adds/mentions server-side session validation via auth.sessions, and correctly distinguishes publishable/frontend keys from secret/server-only keys that bypass RLS. It does overclaim that RLS session checks make the window zero for protected tables, but it still correctly notes stateless JWTs can remain valid until expiry and warns about non-RLS endpoints."
       }
     ],
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
@@ -1179,7 +990,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "Identified the missing orders table in the supabase_realtime publication as the root cause, explained SUBSCRIBED vs no INSERT events, applied ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, verified both tables remain in the publication, and did not weaken RLS/policies or disrupt courier_locations."
+        "judgeNotes": "The assistant correctly identified that the channel can be SUBSCRIBED while orders INSERT events are not delivered because public.orders was missing from the supabase_realtime publication. It fixed exactly that with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, verified the publication contents, and did not disable RLS, weaken policies, recreate the publication, or disturb courier_locations."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -1198,22 +1009,22 @@
       "observability"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified `image-transform` as the affected function and described the recurring HTTP 503 gateway failures throughout the morning of 2026-04-28, covering the pattern across 07:00Z-12:00Z. It also distinguished the older `billing-webhook` 503s as a separate incident."
+        "judgeNotes": "The assistant correctly identified image-transform as the affected function and described the recurring HTTP 503 gateway failures throughout the morning of 2026-04-28, covering all 8 failures from 07:00Z to 12:00Z. It did not misattribute the main issue to billing-webhook."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": true,
-        "judgeNotes": "The assistant attributes the recurring image-transform 503s to the gateway/platform layer, explicitly saying they only appear in API gateway logs and have no corresponding internal execution failures / the function never ran. It also distinguishes these gateway 503s from avatar-upload's function-level 500. Although it adds a specific cold-start explanation, the required layer attribution is present and grounded in valid log observations."
+        "passed": false,
+        "judgeNotes": "The assistant identifies the 503s as gateway-level but attributes them to Edge Function cold starts and recommends keeping/redeploying-style function-level mitigations. The rubric requires attribution to the gateway/platform layer in front of the function, not the function/runtime. Cold starts blame the function runtime/platform interaction rather than clearly the gateway/platform layer, so this fails."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: adding retry/keep-warm cron, reviewing function code and correlated payload details, testing billing-webhook health, checking environment variables, and reviewing deployment/config changes."
+        "judgeNotes": "The assistant recommended concrete next steps: setting up a Cron keep-warm job, adding retry logic, pulling specific avatar-upload edge function logs around a time window, and separately investigating billing-webhook 503s."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -1264,7 +1075,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS deny-all due to no policies and created authenticated SELECT and INSERT owner-scoped policies using user_id = auth.uid(), without disabling RLS."
+        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all/zero Data API rows, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with USING and WITH CHECK."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -1301,7 +1112,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on idx_events_user_id_created_at  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -1369,6 +1180,1192 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-4.6/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "build-cli-001-bootstrap-app",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "todos table is created by a migration file",
+        "passed": true
+      },
+      {
+        "name": "todos table exists with at least 2 seeded rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "row level security is enabled on todos",
+        "passed": true
+      },
+      {
+        "name": "a SELECT policy targets the authenticated role",
+        "passed": true
+      },
+      {
+        "name": "REST API returns no todos to anonymous requests",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "REST API returns the todos to authenticated requests",
+        "passed": true,
+        "notes": "2 rows"
+      }
+    ],
+    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
+    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/build-cli-001-bootstrap-app.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "build-cli-002-declarative-schema",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "declarative-schema",
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase db diff used to generate the migration",
+        "passed": false
+      },
+      {
+        "name": "schema file updated to include description column",
+        "passed": true
+      },
+      {
+        "name": "a new migration was generated for the change",
+        "passed": true
+      },
+      {
+        "name": "description column exists in the live database",
+        "passed": true
+      }
+    ],
+    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
+    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/build-cli-002-declarative-schema.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "build-functions-004-service-role-bypass",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects missing auth",
+        "passed": true
+      },
+      {
+        "name": "user A reads own note",
+        "passed": true
+      },
+      {
+        "name": "reads only with the caller's JWT",
+        "passed": true
+      },
+      {
+        "name": "user A cannot force-read user B note",
+        "passed": true
+      },
+      {
+        "name": "user B cannot force-read user A note",
+        "passed": true
+      }
+    ],
+    "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
+    "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 019ef70b-2717-7204-8571-aec531c29178/receipt-alpha.pdf, 019ef70b-2717-7204-8571-aec531c29178/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Configures a private user-files bucket, owner-scoped authenticated SELECT and INSERT policies on storage.objects with RLS left enabled, and uses createSignedUrl with an expiry for temporary sharing. No public bucket/getPublicUrl/service-role client-side issues."
+      }
+    ],
+    "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/build-storage-001-private-bucket-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "build-tests-001-rls-tenant-isolation",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": true,
+        "notes": "1 file(s): supabase/tests/tenant_isolation_rls_test.sql"
+      },
+      {
+        "name": "pgTAP isolation tests ran and pass",
+        "passed": true,
+        "notes": "7 passed, 0 failed"
+      },
+      {
+        "name": "agent correctly identifies the posts isolation bug from test results",
+        "passed": true,
+        "judgeNotes": "Correctly identifies `posts` as the tenant isolation flaw, states members of one org could read another org’s posts, distinguishes `notes` as already correct, and grounds the conclusion in reproduced/tested results."
+      }
+    ],
+    "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
+    "promptSourcePath": "evals/build-tests-001-rls-tenant-isolation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/build-tests-001-rls-tenant-isolation.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "build-vectors-001-rag-with-permissions",
+    "stage": "build",
+    "product": [
+      "database",
+      "vectors"
+    ],
+    "topic": [
+      "sql",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer evaluated vector search",
+        "passed": false,
+        "notes": "relation \"document_sections\" does not exist"
+      }
+    ],
+    "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
+    "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/build-vectors-001-rag-with-permissions.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "deploy-database-001-prometheus-metrics",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "preserved existing app scrape job",
+        "passed": true
+      },
+      {
+        "name": "configured the Supabase Metrics API scrape correctly",
+        "passed": false,
+        "judgeNotes": "prometheus.yml only preserves the app scrape and does not add a Supabase Metrics API scrape. There is no HTTPS /customer/v1/privileged/metrics target, no basic_auth password_file, and docker-compose.yml does not mount a password_file via volume or Compose secret."
+      },
+      {
+        "name": "documented live deployment and verification steps",
+        "passed": false,
+        "judgeNotes": "README includes concrete verification and restart/recreate steps, but it uses an env file for SUPABASE_SECRET_API_KEY rather than requiring/placing a matching secret file, and does not clearly explain creating the Secret API key. Fails the required secret setup."
+      }
+    ],
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/deploy-database-001-prometheus-metrics.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "deploy-functions-001-edge-function-secrets",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "WEATHER_API_KEY is set as a Function secret on the project",
+        "passed": true
+      },
+      {
+        "name": "the weather function is deployed to the project",
+        "passed": true,
+        "notes": "status ACTIVE"
+      },
+      {
+        "name": "the weather function reads WEATHER_API_KEY from the environment",
+        "passed": true,
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+      },
+      {
+        "name": "WEATHER_API_KEY value is not committed to the repo",
+        "passed": true
+      }
+    ],
+    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
+    "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/deploy-functions-001-edge-function-secrets.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "investigate-auth-001-deleted-user-access",
+    "stage": "investigate",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer evaluated deleted user access",
+        "passed": false,
+        "notes": "duplicate key value violates unique constraint \"profiles_pkey\""
+      }
+    ],
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "investigate-realtime-001-subscribed-no-events",
+    "stage": "investigate",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "orders table added to supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "courier_locations still in supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "publication still publishes INSERT events",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on orders",
+        "passed": true
+      },
+      {
+        "name": "staff can still read orders through RLS",
+        "passed": true,
+        "notes": "authenticated sees 2 of 2 orders"
+      },
+      {
+        "name": "diagnosed missing publication membership",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified the root cause as public.orders missing from the supabase_realtime publication despite SUBSCRIBED, fixed exactly that with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, preserved courier_locations in the publication, and did not weaken RLS/policies or recreate/drop the publication."
+      }
+    ],
+    "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
+    "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/investigate-realtime-001-subscribed-no-events.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "investigate-reliability-003-edge-function-5xx-correlation",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "identified image-transform and the recurring 503 pattern",
+        "passed": true,
+        "judgeNotes": "The assistant clearly identified `image-transform` as the affected function and listed the recurring HTTP 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z to 12:00Z. It did mention older billing-webhook 503s but only as supporting context, not as the main issue."
+      },
+      {
+        "name": "attributed recurring 503s to gateway/platform layer, not function code",
+        "passed": false,
+        "judgeNotes": "The answer does attribute 503s to Edge Function/gateway-side before the handler and cites valid observations (runtime logs only show successful executions; 503s before handler; distinction from avatar-upload 500). However it ultimately frames the root cause as Edge Function startup/boot/import issues and recommends inspecting boot logs, reproducing cold start, and redeploying/fixing function packaging, which blames the function/runtime layer rather than the gateway/platform layer in front of the function."
+      },
+      {
+        "name": "recommended a concrete next step",
+        "passed": true,
+        "judgeNotes": "The assistant recommended multiple concrete next steps: inspecting boot logs for specific function versions, reproducing cold starts with named packages, decoupling upload/transform, redeploying functions, and monitoring the 503 pattern."
+      }
+    ],
+    "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/investigate-reliability-003-edge-function-5xx-correlation.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Diagnosed RLS deny-all due to no policies and added authenticated owner-scoped SELECT and INSERT policies with RLS kept enabled."
+      }
+    ],
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "resolve-performance-001-slow-query-cpu-spike",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "inspected pg_stat_statements for query performance",
+        "passed": true
+      },
+      {
+        "name": "ran EXPLAIN on the expensive query",
+        "passed": true
+      },
+      {
+        "name": "created index covering user_id and created_at",
+        "passed": true
+      },
+      {
+        "name": "query plan uses an index and avoids sequential scan",
+        "passed": true,
+        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+      },
+      {
+        "name": "inserts still work",
+        "passed": true
+      }
+    ],
+    "prompt": "My database CPU keeps spiking and the app gets slow when loading recent events for a user. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
+    "promptSourcePath": "evals/resolve-performance-001-slow-query-cpu-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/resolve-performance-001-slow-query-cpu-spike.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4",
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "build-cli-001-bootstrap-app",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "todos table is created by a migration file",
+        "passed": true
+      },
+      {
+        "name": "todos table exists with at least 2 seeded rows",
+        "passed": true,
+        "notes": "found 3 rows"
+      },
+      {
+        "name": "row level security is enabled on todos",
+        "passed": true
+      },
+      {
+        "name": "a SELECT policy targets the authenticated role",
+        "passed": true
+      },
+      {
+        "name": "REST API returns no todos to anonymous requests",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "REST API returns the todos to authenticated requests",
+        "passed": true,
+        "notes": "3 rows"
+      }
+    ],
+    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
+    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/build-cli-001-bootstrap-app.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "build-cli-002-declarative-schema",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "declarative-schema",
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase db diff used to generate the migration",
+        "passed": false
+      },
+      {
+        "name": "schema file updated to include description column",
+        "passed": true
+      },
+      {
+        "name": "a new migration was generated for the change",
+        "passed": true
+      },
+      {
+        "name": "description column exists in the live database",
+        "passed": true
+      }
+    ],
+    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
+    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/build-cli-002-declarative-schema.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "build-functions-004-service-role-bypass",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects missing auth",
+        "passed": true
+      },
+      {
+        "name": "user A reads own note",
+        "passed": true
+      },
+      {
+        "name": "reads only with the caller's JWT",
+        "passed": true
+      },
+      {
+        "name": "user A cannot force-read user B note",
+        "passed": true
+      },
+      {
+        "name": "user B cannot force-read user A note",
+        "passed": true
+      }
+    ],
+    "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
+    "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 019ef70b-8014-721e-86ec-fc65ddd960e3/receipt-alpha.pdf, 019ef70b-8014-721e-86ec-fc65ddd960e3/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Meets rubric: private user-files bucket, authenticated owner-scoped SELECT and INSERT policies with RLS kept enabled, and supabase-js createSignedUrl with expiry for temporary sharing."
+      }
+    ],
+    "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/build-storage-001-private-bucket-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "build-tests-001-rls-tenant-isolation",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": true,
+        "notes": "1 file(s): supabase/tests/database/tenant_isolation.test.sql"
+      },
+      {
+        "name": "pgTAP isolation tests ran and pass",
+        "passed": true,
+        "notes": "8 passed, 0 failed"
+      },
+      {
+        "name": "agent correctly identifies the posts isolation bug from test results",
+        "passed": true,
+        "judgeNotes": "The agent correctly identifies `posts` as the table with the broken tenant isolation policy, explains that authenticated members could read posts from organizations they do not belong to because membership was not tied to `posts.org_id`, and grounds this in pgTAP results showing `posts` failed cross-tenant assertions while `notes` passed."
+      }
+    ],
+    "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
+    "promptSourcePath": "evals/build-tests-001-rls-tenant-isolation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/build-tests-001-rls-tenant-isolation.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "build-vectors-001-rag-with-permissions",
+    "stage": "build",
+    "product": [
+      "database",
+      "vectors"
+    ],
+    "topic": [
+      "sql",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer evaluated vector search",
+        "passed": false,
+        "notes": "operator does not exist: uuid = integer"
+      }
+    ],
+    "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
+    "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/build-vectors-001-rag-with-permissions.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "deploy-database-001-prometheus-metrics",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "preserved existing app scrape job",
+        "passed": true
+      },
+      {
+        "name": "configured the Supabase Metrics API scrape correctly",
+        "passed": true,
+        "judgeNotes": "Meets all rubric requirements: HTTPS Supabase Metrics API scrape, correct path, Basic Auth with password_file, project target substitution, app job preserved, and Compose secret wiring mounts the password file at /run/secrets/supabase_metrics_secret_key."
+      },
+      {
+        "name": "documented live deployment and verification steps",
+        "passed": true,
+        "judgeNotes": "README includes Secret API key creation/use, matching secret file/mount path, Compose deployment/start steps, and concrete verification via Prometheus target UP and Grafana dashboard."
+      }
+    ],
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/deploy-database-001-prometheus-metrics.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "deploy-functions-001-edge-function-secrets",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "WEATHER_API_KEY is set as a Function secret on the project",
+        "passed": true
+      },
+      {
+        "name": "the weather function is deployed to the project",
+        "passed": true,
+        "notes": "status ACTIVE"
+      },
+      {
+        "name": "the weather function reads WEATHER_API_KEY from the environment",
+        "passed": true,
+        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+      },
+      {
+        "name": "WEATHER_API_KEY value is not committed to the repo",
+        "passed": true
+      }
+    ],
+    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
+    "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/deploy-functions-001-edge-function-secrets.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "investigate-auth-001-deleted-user-access",
+    "stage": "investigate",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "victim session active before delete-account",
+        "passed": false,
+        "notes": "new row violates row-level security policy for table \"notes\""
+      },
+      {
+        "name": "delete_account flow ran for the victim",
+        "passed": true
+      },
+      {
+        "name": "delete-account revokes the user's sessions",
+        "passed": true,
+        "notes": "sessions left: 0"
+      },
+      {
+        "name": "deleted user's refresh token is rejected",
+        "passed": true
+      },
+      {
+        "name": "deleted user cannot sign back in",
+        "passed": false,
+        "notes": "deleted account can still sign in"
+      },
+      {
+        "name": "other users keep their sessions and access",
+        "passed": false,
+        "notes": "new row violates row-level security policy for table \"notes\""
+      },
+      {
+        "name": "diagnosed and explained session revocation",
+        "passed": false,
+        "judgeNotes": "Diagnosed the soft-delete/session issue and fixed revocation via sessions/refresh tokens plus banning, and clarified publishable vs secret keys. However, it did not correctly explain the remaining stateless JWT access-token window with the required guidance to use auth.getUser() or short JWT expiry rather than only local JWT validation/getClaims()."
+      }
+    ],
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "investigate-realtime-001-subscribed-no-events",
+    "stage": "investigate",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "orders table added to supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "courier_locations still in supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "publication still publishes INSERT events",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on orders",
+        "passed": true
+      },
+      {
+        "name": "staff can still read orders through RLS",
+        "passed": true,
+        "notes": "authenticated sees 2 of 2 orders"
+      },
+      {
+        "name": "diagnosed missing publication membership",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified that orders was missing from the supabase_realtime publication despite the channel subscribing, added only public.orders via ALTER PUBLICATION, verified courier_locations remained, and did not weaken RLS/policies or blame client/RLS/networking."
+      }
+    ],
+    "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
+    "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/investigate-realtime-001-subscribed-no-events.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "investigate-reliability-003-edge-function-5xx-correlation",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified image-transform and the recurring 503 pattern",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified image-transform as the affected function and described the recurring HTTP 503 pattern throughout the morning of 2026-04-28, listing all 8 gateway failures from 07:00Z to 12:00Z."
+      },
+      {
+        "name": "attributed recurring 503s to gateway/platform layer, not function code",
+        "passed": true,
+        "judgeNotes": "Attributes recurring image-transform 503s to the API/gateway/invocation layer before the function handler, not function code. Grounds this in valid observations: gateway logs show 503s while nearby Edge Function executions return 200 with normal latency and no matching runtime errors; also distinguishes these from a separate avatar-upload 500 that reached the function runtime."
+      },
+      {
+        "name": "recommended a concrete next step",
+        "passed": true,
+        "judgeNotes": "The assistant recommended concrete next steps, including opening a Supabase support ticket with project/region and timestamps, adding retries, structured request logging, and separately investigating the avatar-upload 500."
+      }
+    ],
+    "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/investigate-reliability-003-edge-function-5xx-correlation.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Diagnosed RLS enabled with no policies as the deny-all cause, kept RLS enabled, and created authenticated-only SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+      }
+    ],
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "resolve-performance-001-slow-query-cpu-spike",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "inspected pg_stat_statements for query performance",
+        "passed": true
+      },
+      {
+        "name": "ran EXPLAIN on the expensive query",
+        "passed": true
+      },
+      {
+        "name": "created index covering user_id and created_at",
+        "passed": true
+      },
+      {
+        "name": "query plan uses an index and avoids sequential scan",
+        "passed": true,
+        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+      },
+      {
+        "name": "inserts still work",
+        "passed": true
+      }
+    ],
+    "prompt": "My database CPU keeps spiking and the app gets slow when loading recent events for a user. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
+    "promptSourcePath": "evals/resolve-performance-001-slow-query-cpu-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/resolve-performance-001-slow-query-cpu-spike.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/resolve-security-002-rls-cross-tenant-leak.json"
   },
   {
     "experiment": "openai-gpt-5.4-mini",
@@ -1463,45 +2460,6 @@
   },
   {
     "experiment": "openai-gpt-5.4-mini",
-    "eval": "build-cli-003-pg-cron-queue-workflow",
-    "stage": "build",
-    "product": [
-      "database",
-      "edge-functions",
-      "cron",
-      "queues"
-    ],
-    "topic": [
-      "sql",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": true,
-        "notes": "schedule='* * * * *', active=true"
-      },
-      {
-        "name": "cron command enqueues to the 'tasks' queue",
-        "passed": true,
-        "notes": "queue depth 0 -> 1"
-      },
-      {
-        "name": "process-tasks function drains the queue",
-        "passed": true,
-        "notes": "function removed the seeded message (id 3) from the queue"
-      }
-    ],
-    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
-    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/build-cli-003-pg-cron-queue-workflow.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-mini",
     "eval": "build-functions-004-service-role-bypass",
     "stage": "build",
     "product": [
@@ -1573,7 +2531,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019ef9e1-8e38-76a9-bb5d-ebd7fd404701/receipt-alpha.pdf, 019ef9e1-8e38-76a9-bb5d-ebd7fd404701/receipt-beta.pdf"
+        "notes": "saw: 019ef70a-0b1f-7479-aafb-8b6d1ba923a3/receipt-alpha.pdf, 019ef70a-0b1f-7479-aafb-8b6d1ba923a3/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -1594,7 +2552,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Configured a private user-files bucket, owner-scoped authenticated SELECT and INSERT policies (plus update/delete) using the user ID path prefix, did not disable RLS, and provided supabase-js createSignedUrl code with an expiry."
+        "judgeNotes": "The answer creates a private user-files bucket, enables RLS on storage.objects, defines authenticated owner-scoped SELECT and INSERT policies using the first path segment equals auth.uid(), and includes supabase-js createSignedUrl with an expiry for temporary sharing. It does not make the bucket public, use permissive policies, or expose service role usage."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -1615,22 +2573,22 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "1 file(s): supabase/tests/tenant_isolation.sql"
+        "notes": "1 file(s): supabase/tests/database/tenant_isolation.test.sql"
       },
       {
         "name": "pgTAP isolation tests ran and pass",
-        "passed": false,
-        "notes": "no test summary found; exit 1; output: Connecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\n06d62d0de6d7: Verifying Checksum\n06d62d0de6d7: Download complete\ndcccee43ad5d: Pull comple"
+        "passed": true,
+        "notes": "4 passed, 0 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identified `posts` as the table with the tenant isolation flaw, explaining that its RLS checked only `user_id` membership and not matching `org_id`, allowing cross-org reads. It did not blame `notes` or dismiss the test signal."
+        "judgeNotes": "The agent correctly identified `posts` as the table with the tenant isolation flaw, specifically that its RLS policy checked only user membership and not `org_id`, allowing cross-org post reads. It wrote and ran pgTAP tests and treated the results as the signal, then fixed the posts policy."
       }
     ],
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
@@ -1684,12 +2642,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an environment-injected Secret API key instead of basic_auth.password_file, and docker-compose.yml does not mount/provide a password file via volume or Compose secret."
+        "judgeNotes": "Supabase scrape preserves the app job and uses HTTPS with the correct metrics path and project target, but it uses basic_auth.password with env substitution instead of basic_auth.password_file. docker-compose.yml also does not mount or provide a password_file via volume or Compose secret, so secret wiring is missing."
       },
       {
         "name": "documented live deployment and verification steps",
-        "passed": false,
-        "judgeNotes": "README includes Secret API key creation and Prometheus target verification, but it does not instruct placing a matching secret file and does not specifically restart/reload the Compose stack. It also uses environment variables rather than the required secret-file setup."
+        "passed": true,
+        "judgeNotes": "README includes Secret API key creation, putting it in observability/.env used by Compose, restarting/recreating Prometheus, and verifying the supabase job via Prometheus /targets."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -1737,44 +2695,6 @@
   },
   {
     "experiment": "openai-gpt-5.4-mini",
-    "eval": "deploy-self-hosting-001-docker-compose",
-    "stage": "deploy",
-    "product": [
-      "database",
-      "auth",
-      "storage"
-    ],
-    "topic": [
-      "self-hosting"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": true
-      },
-      {
-        "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
-        "passed": true
-      },
-      {
-        "name": "secrets rotated off the shipped defaults",
-        "passed": true
-      },
-      {
-        "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": true
-      }
-    ],
-    "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
-    "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/deploy-self-hosting-001-docker-compose.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-mini",
     "eval": "investigate-auth-001-deleted-user-access",
     "stage": "investigate",
     "product": [
@@ -1789,7 +2709,8 @@
     "checks": [
       {
         "name": "victim session active before delete-account",
-        "passed": true
+        "passed": false,
+        "notes": "permission denied for table users"
       },
       {
         "name": "delete_account flow ran for the victim",
@@ -1806,17 +2727,17 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": false,
-        "notes": "deleted account can still sign in"
+        "passed": true
       },
       {
         "name": "other users keep their sessions and access",
-        "passed": true
+        "passed": false,
+        "notes": "permission denied for table users"
       },
       {
         "name": "diagnosed and explained session revocation",
         "passed": false,
-        "judgeNotes": "The answer correctly identifies the original soft-delete issue and gives a mostly correct frontend/backend key rundown, but it does not actually fix the flow by deleting the auth user or removing their identity; it only marks the profile deleted and deletes sessions, leaving the user able to sign in again. It also fails to explain the stateless JWT access-token expiry window and the need for server-side auth.getUser() or short JWT expiry instead of relying only on local JWT validation/getClaims()."
+        "judgeNotes": "Fails because the answer does not correctly explain that access tokens are stateless JWTs that remain valid until expiry after session/user revocation, nor does it mention using auth.getUser() or short JWT expiry instead of local JWT validation/getClaims(). It instead says there is effectively no window for protected data. Other required parts—identifying soft delete, revoking/deleting auth records, and publishable vs secret key clarification—are mostly present."
       }
     ],
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
@@ -1862,7 +2783,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "Diagnosed missing orders table from supabase_realtime publication and fixed by adding public.orders, while preserving existing courier_locations feed and not altering RLS/policies."
+        "judgeNotes": "The assistant correctly identified the missing orders table in the supabase_realtime publication as the cause, fixed it with ALTER PUBLICATION ... ADD TABLE public.orders, and did not weaken RLS/policies or disturb courier_locations."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -1886,17 +2807,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the affected function and described recurring API gateway 503s throughout the morning at :00/:30, with subsequent 200s and no function execution logs for the 503s."
+        "judgeNotes": "The assistant identified image-transform as the affected function and listed the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z to 12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The response correctly attributes the 503s to the gateway/platform layer and grounds this in missing function execution logs plus nearby successes. However, it recommends redeploying `image-transform` as a next step, which the rubric explicitly lists as a fail condition."
+        "judgeNotes": "The assistant did not clearly attribute the recurring image-transform 503s to the gateway/Edge Functions platform layer in front of the function. It instead framed them as likely boot/startup/runtime/dependency-layer failures, suggested redeploying/fixing dependencies, and did not ground the conclusion in valid observations such as gateway-only 503s with no corresponding invocation/runtime rows, unchanged deployment_id, or distinction from function-level 500s."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: checking for a platform incident, redeploying the Edge Function, adding retry/backoff, and inspecting downstream dependencies."
+        "judgeNotes": "The assistant recommended concrete next steps: inspect specific Edge Function logs for boot errors/exceptions, redeploy affected functions, pin/fix dependency versions if import issues appear, and open a Supabase support ticket with timestamps if platform boot errors persist."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -1947,7 +2868,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated-only SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "Diagnosed RLS deny-all due to no policies and added authenticated SELECT and INSERT owner-scoped policies using auth.uid(), without disabling RLS."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -1984,7 +2905,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on idx_events_user_created_at_desc  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -2081,27 +3002,27 @@
       {
         "name": "todos table exists with at least 2 seeded rows",
         "passed": false,
-        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-98a38a0f\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-f9c97169\nTry rerunning the command with --debug to troubleshoot the error.\n"
       },
       {
         "name": "row level security is enabled on todos",
         "passed": false,
-        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-98a38a0f\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-f9c97169\nTry rerunning the command with --debug to troubleshoot the error.\n"
       },
       {
         "name": "a SELECT policy targets the authenticated role",
         "passed": false,
-        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-98a38a0f\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-f9c97169\nTry rerunning the command with --debug to troubleshoot the error.\n"
       },
       {
         "name": "REST API returns no todos to anonymous requests",
         "passed": false,
-        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-98a38a0f\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-f9c97169\nTry rerunning the command with --debug to troubleshoot the error.\n"
       },
       {
         "name": "REST API returns the todos to authenticated requests",
         "passed": false,
-        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-98a38a0f\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-f9c97169\nTry rerunning the command with --debug to troubleshoot the error.\n"
       }
     ],
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
@@ -2130,7 +3051,8 @@
       },
       {
         "name": "schema file updated to include description column",
-        "passed": true
+        "passed": false,
+        "notes": "description not found in any schema file"
       },
       {
         "name": "a new migration was generated for the change",
@@ -2145,45 +3067,6 @@
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/build-cli-002-declarative-schema.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-nano",
-    "eval": "build-cli-003-pg-cron-queue-workflow",
-    "stage": "build",
-    "product": [
-      "database",
-      "edge-functions",
-      "cron",
-      "queues"
-    ],
-    "topic": [
-      "sql",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": false,
-    "checks": [
-      {
-        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": true,
-        "notes": "schedule='* * * * *', active=true"
-      },
-      {
-        "name": "cron command enqueues to the 'tasks' queue",
-        "passed": true,
-        "notes": "queue depth 10 -> 11"
-      },
-      {
-        "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "function returned 200 but message 12 is still queued, so it was read but never removed"
-      }
-    ],
-    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
-    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/build-cli-003-pg-cron-queue-workflow.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -2258,7 +3141,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019ef9e1-a72f-70df-891d-8de1c5e9b7a3/receipt-alpha.pdf, 019ef9e1-a72f-70df-891d-8de1c5e9b7a3/receipt-beta.pdf"
+        "notes": "saw: 019ef70a-16c4-70fc-bd5e-29aa1a708d2b/receipt-alpha.pdf, 019ef70a-16c4-70fc-bd5e-29aa1a708d2b/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -2279,13 +3162,49 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Created a private user-files bucket, enabled RLS, added owner-scoped SELECT and INSERT policies using the user-id path prefix, and provided supabase-js createSignedUrl code with an expiry for temporary sharing links."
+        "judgeNotes": "Configured a private user-files bucket, kept RLS enabled, added authenticated owner-scoped SELECT and INSERT policies using the user-id path prefix, and provided supabase-js createSignedUrl code with an expiry for temporary sharing."
       }
     ],
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
     "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/build-storage-001-private-bucket-access.json"
+  },
+  {
+    "experiment": "openai-gpt-5.4-nano",
+    "eval": "build-tests-001-rls-tenant-isolation",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "pgTAP isolation tests ran and pass",
+        "passed": false,
+        "notes": "no test summary found; exit 0; output: Connecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06d62d0de6d7: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\ndcccee43ad5d: Pull comple"
+      },
+      {
+        "name": "agent correctly identifies the posts isolation bug from test results",
+        "passed": true,
+        "judgeNotes": "The agent correctly identifies posts as the table with broken tenant isolation, explains that authenticated members can read posts from organizations they are not members of, and grounds the conclusion in the test results showing notes pass while posts fail. It does not blame notes or dismiss the tests."
+      }
+    ],
+    "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
+    "promptSourcePath": "evals/build-tests-001-rls-tenant-isolation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "openai-gpt-5.4-nano/build-tests-001-rls-tenant-isolation.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -2333,12 +3252,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Supabase scrape is not deployable: it uses placeholder host/port, http scheme, /metrics path, no Basic Auth password_file, and docker-compose.yml does not mount or provide the password_file. The existing app scrape is preserved."
+        "judgeNotes": "Fails because prometheus.yml uses basic_auth.password instead of password_file, and docker-compose.yml does not mount/provide that password file via a volume or Compose secret. The app scrape is preserved and the HTTPS metrics path/target shape are present, but the required secret wiring is missing."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README.md does not explain how to make the Supabase integration live. It lacks steps to create a Secret API key, place the matching secret file, restart/reload the Compose stack, and verify via Prometheus targets/PromQL/Grafana."
+        "judgeNotes": "README includes creating a Secret API key, endpoint, restart, and a curl verification step, but it does not require placing the key in a matching secret file. Instead it instructs editing prometheus.yml with the secret inline, which fails the required secret-file setup."
       }
     ],
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
@@ -2372,7 +3291,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment via Deno.env.get('WEATHER_API_KEY')."
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -2383,46 +3302,6 @@
     "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/deploy-functions-001-edge-function-secrets.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-nano",
-    "eval": "deploy-self-hosting-001-docker-compose",
-    "stage": "deploy",
-    "product": [
-      "database",
-      "auth",
-      "storage"
-    ],
-    "topic": [
-      "self-hosting"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": false,
-    "checks": [
-      {
-        "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": true
-      },
-      {
-        "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
-        "passed": true
-      },
-      {
-        "name": "secrets rotated off the shipped defaults",
-        "passed": false,
-        "notes": "still default or empty: POSTGRES_PASSWORD, JWT_SECRET, DASHBOARD_PASSWORD, VAULT_ENC_KEY, PG_META_CRYPTO_KEY"
-      },
-      {
-        "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": false,
-        "notes": "JWT_SECRET missing"
-      }
-    ],
-    "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
-    "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/deploy-self-hosting-001-docker-compose.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -2440,7 +3319,8 @@
     "checks": [
       {
         "name": "victim session active before delete-account",
-        "passed": true
+        "passed": false,
+        "notes": "permission denied for table users"
       },
       {
         "name": "delete_account flow ran for the victim",
@@ -2463,12 +3343,13 @@
       },
       {
         "name": "other users keep their sessions and access",
-        "passed": true
+        "passed": false,
+        "notes": "permission denied for table users"
       },
       {
         "name": "diagnosed and explained session revocation",
         "passed": false,
-        "judgeNotes": "The answer correctly identifies the soft-delete/RLS issue and gives a mostly correct publishable-vs-secret key rundown, but it does not fix the delete flow by deleting/removing the Auth user or revoking sessions/refresh tokens. It instead relies on RLS changes and client sign-out. It also incorrectly says there is effectively no access window, rather than explaining that stateless JWT access tokens can remain valid until expiry and that sensitive server checks should use auth.getUser() or short JWT expiry instead of only local JWT validation."
+        "judgeNotes": "The answer correctly identifies the original soft-delete/RLS issue and correctly explains publishable vs secret keys. However, it does not implement real Auth deletion/session and refresh-token revocation; it only updates auth.users.deleted_at. It also fails to explain that stateless JWT access tokens can remain valid until expiry and that server-side checks should use auth.getUser() or short JWT expiry rather than only local JWT validation/getClaims(). It incorrectly implies the next DB request will be denied immediately as the full token-window answer."
       }
     ],
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
@@ -2509,12 +3390,12 @@
       {
         "name": "staff can still read orders through RLS",
         "passed": true,
-        "notes": "authenticated sees 3 of 3 orders"
+        "notes": "authenticated sees 2 of 2 orders"
       },
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified that orders was missing from the supabase_realtime publication despite the channel reaching SUBSCRIBED, fixed it with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, and preserved the existing courier_locations feed, policies, and RLS."
+        "judgeNotes": "The assistant correctly identified that orders was missing from the supabase_realtime publication despite the channel subscribing successfully, applied ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, and did not change RLS, policies, client code, or disrupt courier_locations."
       }
     ],
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
@@ -2538,17 +3419,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the affected function and described intermittent/recurring 503s throughout the morning of 2026-04-28 with multiple times spanning the reported window. It slightly included a ~06:30 example outside the rubric window and did not explicitly say all 8 gateway failures, but it clearly captured the required pattern."
+        "judgeNotes": "The assistant correctly identified image-transform as the affected function and described recurring/intermittent HTTP 503 gateway/API responses during the 2026-04-28 morning period, while distinguishing them from function-runtime successes and unrelated errors."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The assistant explicitly attributes the 503s to the Edge Function image-transform code/runtime path and recommends investigating/hardening the function/module. It does not attribute them to the gateway/platform layer, despite mentioning intermittent gateway-like 503s. It also treats the avatar-upload 500 as related broader pipeline evidence rather than distinguishing it from gateway 503s."
+        "judgeNotes": "The answer correctly attributes the recurring 503s to the gateway/API layer and grounds that in valid observations, especially gateway 503s with only successful image-transform function runtime logs. However, it also recommends temporarily redeploying image-transform, which the rubric explicitly lists as a fail condition when presented as remediation/next step."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps: investigate the image-transform Edge Function/module internals, add retries/backoff and detailed error logging, isolate the dependency, and verify whether 503s are still occurring."
+        "judgeNotes": "The assistant recommended concrete next steps, including checking deployment/traffic spikes, redeploying the function, collecting request IDs from failing 503 responses, and correlating them with logs."
       }
     ],
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
@@ -2599,7 +3480,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing Data API empty results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "Diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated-only SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
       }
     ],
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
@@ -2627,7 +3508,7 @@
       },
       {
         "name": "ran EXPLAIN on the expensive query",
-        "passed": true
+        "passed": false
       },
       {
         "name": "created index covering user_id and created_at",
@@ -2636,7 +3517,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
