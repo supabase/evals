@@ -28,7 +28,7 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 Run one eval:
 
 ```bash
-pnpm eval -- --eval investigate-security-001-public-table --experiment openai-gpt-5.4-mini --runs 1 --force
+pnpm eval -- --eval investigate-security-001-public-table --experiment openai-gpt-5.4-mini
 ```
 
 View results in the web app at `http://localhost:5173`:
@@ -66,7 +66,7 @@ Running evals executes experiment x eval pairs and writes local result files und
 Target a single experiment by filename stem:
 
 ```bash
-pnpm eval -- --experiment openai-gpt-5.4-mini --runs 1 --force
+pnpm eval -- --experiment openai-gpt-5.4-mini
 ```
 
 Target multiple experiments or eval scenarios by repeating flags:
@@ -77,9 +77,7 @@ pnpm eval -- \
   --experiment openai-gpt-5.4-nano \
   --suite benchmark \
   --eval investigate-security-001-public-table \
-  --eval investigate-db-001-table-row-counts \
-  --runs 1 \
-  --force
+  --eval investigate-db-001-table-row-counts
 ```
 
 Target a single model id:
@@ -87,9 +85,6 @@ Target a single model id:
 ```bash
 pnpm eval -- --model gpt-5.4-mini
 ```
-
-> [!NOTE]
-> Use `--runs 1 --force` when you want a fresh single-attempt result. Without `--force`, existing result files are skipped; without `--runs 1`, the runner defaults to up to four attempts with stop-on-pass.
 
 Or run everything:
 
