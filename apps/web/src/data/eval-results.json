@@ -1250,7 +1250,8 @@
       },
       {
         "name": "schema file updated to include description column",
-        "passed": true
+        "passed": false,
+        "notes": "description not found in any schema file"
       },
       {
         "name": "a new migration was generated for the change",
@@ -1500,44 +1501,6 @@
     "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-mini/deploy-functions-001-edge-function-secrets.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-mini",
-    "eval": "deploy-self-hosting-001-docker-compose",
-    "stage": "deploy",
-    "product": [
-      "database",
-      "auth",
-      "storage"
-    ],
-    "topic": [
-      "self-hosting"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": true
-      },
-      {
-        "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
-        "passed": true
-      },
-      {
-        "name": "secrets rotated off the shipped defaults",
-        "passed": true
-      },
-      {
-        "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": true
-      }
-    ],
-    "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
-    "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-mini/deploy-self-hosting-001-docker-compose.json"
   },
   {
     "experiment": "openai-gpt-5.4-mini",
@@ -1968,7 +1931,7 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "bucket user-files exists",
@@ -2068,7 +2031,7 @@
       {
         "name": "scorer evaluated vector search",
         "passed": false,
-        "notes": "relation \"documents\" does not exist"
+        "notes": "operator does not exist: uuid = integer"
       }
     ],
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
@@ -2146,47 +2109,6 @@
     "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
     "attempts": 1,
     "sourcePath": "openai-gpt-5.4-nano/deploy-functions-001-edge-function-secrets.json"
-  },
-  {
-    "experiment": "openai-gpt-5.4-nano",
-    "eval": "deploy-self-hosting-001-docker-compose",
-    "stage": "deploy",
-    "product": [
-      "database",
-      "auth",
-      "storage"
-    ],
-    "topic": [
-      "self-hosting"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": false,
-    "checks": [
-      {
-        "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": false,
-        "notes": "supabase-docker/ is missing docker-compose.yml or volumes/db — not the self-host docker/ tree"
-      },
-      {
-        "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
-        "passed": true
-      },
-      {
-        "name": "secrets rotated off the shipped defaults",
-        "passed": false,
-        "notes": "still default or empty: POSTGRES_PASSWORD, JWT_SECRET, DASHBOARD_PASSWORD, VAULT_ENC_KEY, PG_META_CRYPTO_KEY"
-      },
-      {
-        "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": false,
-        "notes": "JWT_SECRET missing"
-      }
-    ],
-    "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
-    "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "openai-gpt-5.4-nano/deploy-self-hosting-001-docker-compose.json"
   },
   {
     "experiment": "openai-gpt-5.4-nano",
@@ -2381,15 +2303,15 @@
       "sql"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
-        "passed": false
+        "passed": true
       },
       {
         "name": "ran EXPLAIN on the expensive query",
-        "passed": false
+        "passed": true
       },
       {
         "name": "created index covering user_id and created_at",
