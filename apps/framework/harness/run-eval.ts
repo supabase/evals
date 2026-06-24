@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { jsonSchema, tool, type ToolSet } from "ai";
 import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
 import {
+  createBareSandbox,
   frontmatterDescription,
   stripFrontmatter,
 } from "@supabase-evals/sandbox";
@@ -313,6 +314,22 @@ function buildSystemPrompt(
   return blocks.join("\n\n");
 }
 
+/**
+ * Adapt a `{ close() }` resource to `AsyncDisposable` so it can be bound with
+ * `await using` — cleanup then runs on scope exit (normal fall-through, `continue`,
+ * `return`, or a throw), including when a *later* resource created in the same
+ * scope throws before its own `try`/`finally` is reached.
+ */
+function disposable<T extends { close(): Promise<unknown> }>(
+  resource: T,
+): T & AsyncDisposable {
+  return Object.assign(resource, {
+    [Symbol.asyncDispose]: async () => {
+      await resource.close();
+    },
+  });
+}
+
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
@@ -330,9 +347,14 @@ async function runOne(
     readFileSync(ev.promptPath, "utf8"),
     ev.promptPath,
   ).body;
-  // Tools-mode skills are advertised in the prompt and loaded via the
-  // load_skill tool; local-stack installs them into the sandbox instead.
-  const toolsSkills = ev.mode === "tools" ? loadToolsSkills(exp.skills) : [];
+  // A CLI agent always runs in a sandbox and reads skills from disk with its
+  // file tools (both modes). An in-process (ai-sdk) agent has no sandbox, so in
+  // tools mode its skills are advertised in the prompt and loaded via the
+  // load_skill tool. Skill sources (name+dir) are shared by both paths.
+  const agentRunsInSandbox = exp.agent.runsInSandbox ?? false;
+  const skillSources = resolveSkillSources(exp.skills);
+  const toolsSkills =
+    ev.mode === "tools" && !agentRunsInSandbox ? loadToolsSkills(exp.skills) : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ToolScorer
     | LocalStackScorer;
@@ -358,108 +380,41 @@ async function runOne(
       // When the eval links to a hosted project, boot a platform-lite backend
       // (bound to 0.0.0.0 so the sandbox reaches it via host.docker.internal)
       // and hand the CLI-valid ref/token to the session.
-      const hostedBackend = ev.metadata.hostedProject
-        ? await bootPlatformBackend({
-            ref: HOSTED_PROJECT_REF,
-            accessToken: HOSTED_ACCESS_TOKEN,
-            hostname: "0.0.0.0",
-          })
+      await using hostedBackend = ev.metadata.hostedProject
+        ? disposable(
+            await bootPlatformBackend({
+              ref: HOSTED_PROJECT_REF,
+              accessToken: HOSTED_ACCESS_TOKEN,
+              hostname: "0.0.0.0",
+            }),
+          )
         : undefined;
-      const session = await exp.localStack.startSession({
-        localDir: ev.localDir,
-        includeServices: ev.metadata.services,
-        projectRunning: ev.metadata.projectRunning,
-        hosted: hostedBackend
-          ? {
-              port: Number(new URL(hostedBackend.url).port),
-              ref: hostedBackend.ref,
-              accessToken: hostedBackend.accessToken,
-              mgmt: hostedBackend.mgmt,
-              invokeFunction: hostedBackend.invokeFunction,
-            }
-          : undefined,
-        // Skills are installed into the sandbox and discovered by the agent
-        // (the session folds the discovery listing into its promptAddendum),
-        // so no skill text is injected into the prompt here.
-        skills: resolveSkillSources(exp.skills),
-      });
-      try {
-        const run = await exp.agent.run({
-          systemPrompt: buildSystemPrompt(
-            "local-stack",
-            session.promptAddendum,
-          ),
-          userPrompt: prompt,
-          tools: session.tools,
-          mcpServers: session.mcpServers,
-          timeoutSec: TIMEOUT_SEC,
-        });
-
-        lastToolCalls = run.toolCalls;
-        lastTranscript = run.transcript;
-        lastAgentReport = run.agentReport;
-        lastStoppedReason = run.stoppedReason;
-
-        // Export the agent's workspace to the host so scorers can run host
-        // tooling (vite/vitest from the repo root) against the produced files
-        // — the tools live on the host, not in the sandbox. Withheld tests are
-        // copied in lazily, only if the scorer asks to run Vitest.
-        const hostWorkspace = workspacePath(expName, ev.id, attempt);
-        rmSync(hostWorkspace, { recursive: true, force: true });
-        await session.exportWorkspace(hostWorkspace);
-        let copiedWithheldTests = false;
-        const ensureWithheldTests = () => {
-          if (copiedWithheldTests) return;
-          copyWithheldTests(ev, hostWorkspace);
-          copiedWithheldTests = true;
-        };
-
-        last = await (scorer as LocalStackScorer)({
-          ...session.scoringContext,
-          toolCalls: run.toolCalls,
-          transcript: run.transcript,
-          agentReport: run.agentReport,
-          hostWorkspace,
-          runViteBuild: () => viteBuild(hostWorkspace),
-          runVitest: () => {
-            ensureWithheldTests();
-            return vitestRun(hostWorkspace);
-          },
-        });
-
-        if (STOP_ON_PASS && last.passed) {
-          return {
-            ...last,
-            attempts: attempt,
-            toolCalls: run.toolCalls,
-            transcript: run.transcript,
-            agentReport: run.agentReport,
-            stoppedReason: run.stoppedReason,
-          };
-        }
-      } finally {
-        await session.close();
-        await hostedBackend?.close();
-      }
-      continue;
-    }
-
-    // Tools mode: boot runtime, expose MCP tools, run agent, score result.
-    const session = await exp.runtime.startSession(readSessionSeedArgs(ev));
-
-    try {
-      // Tools mode has no filesystem: advertise only each skill's
-      // name+description and let the agent pull a skill's full body on demand
-      // via the load_skill tool (lazy, like local-stack's files_read).
-      const systemPrompt = buildSystemPrompt(
-        "tools",
-        session.promptAddendum,
-        buildToolsSkillsPrompt(toolsSkills),
+      await using session = disposable(
+        await exp.localStack.startSession({
+          localDir: ev.localDir,
+          includeServices: ev.metadata.services,
+          projectRunning: ev.metadata.projectRunning,
+          hosted: hostedBackend
+            ? {
+                port: Number(new URL(hostedBackend.url).port),
+                ref: hostedBackend.ref,
+                accessToken: hostedBackend.accessToken,
+                mgmt: hostedBackend.mgmt,
+                invokeFunction: hostedBackend.invokeFunction,
+              }
+            : undefined,
+          // Skills are installed into the sandbox and discovered by the agent
+          // (the session folds the discovery listing into its promptAddendum),
+          // so no skill text is injected into the prompt here.
+          skills: skillSources,
+        }),
       );
+
       const run = await exp.agent.run({
-        systemPrompt,
+        systemPrompt: buildSystemPrompt("local-stack", session.promptAddendum),
         userPrompt: prompt,
-        tools: buildLoadSkillTool(toolsSkills),
+        tools: session.tools,
+        sandbox: session.sandbox,
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
@@ -468,11 +423,32 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
-      last = await (scorer as ToolScorer)({
+
+      // Export the agent's workspace to the host so scorers can run host
+      // tooling (vite/vitest from the repo root) against the produced files
+      // — the tools live on the host, not in the sandbox. Withheld tests are
+      // copied in lazily, only if the scorer asks to run Vitest.
+      const hostWorkspace = workspacePath(expName, ev.id, attempt);
+      rmSync(hostWorkspace, { recursive: true, force: true });
+      await session.exportWorkspace(hostWorkspace);
+      let copiedWithheldTests = false;
+      const ensureWithheldTests = () => {
+        if (copiedWithheldTests) return;
+        copyWithheldTests(ev, hostWorkspace);
+        copiedWithheldTests = true;
+      };
+
+      last = await (scorer as LocalStackScorer)({
         ...session.scoringContext,
         toolCalls: run.toolCalls,
         transcript: run.transcript,
         agentReport: run.agentReport,
+        hostWorkspace,
+        runViteBuild: () => viteBuild(hostWorkspace),
+        runVitest: () => {
+          ensureWithheldTests();
+          return vitestRun(hostWorkspace);
+        },
       });
 
       if (STOP_ON_PASS && last.passed) {
@@ -485,8 +461,65 @@ async function runOne(
           stoppedReason: run.stoppedReason,
         };
       }
-    } finally {
-      await session.close();
+      continue;
+    }
+
+    // Tools mode: the eval's tool surface is MCP (platform-lite). A CLI agent
+    // gets the same sandbox as local-stack minus the running stack — with its
+    // skills installed — and reaches the in-container MCP servers' host-side
+    // platform-lite via host.docker.internal (so platform-lite binds 0.0.0.0).
+    // An in-process agent runs host-side with no sandbox.
+    await using cliSandbox = agentRunsInSandbox
+      ? disposable(await createBareSandbox({ skills: skillSources }))
+      : undefined;
+    await using session = disposable(
+      await exp.runtime.startSession({
+        ...readSessionSeedArgs(ev),
+        hostname: agentRunsInSandbox ? "0.0.0.0" : undefined,
+      }),
+    );
+
+    // CLI agents read their installed skills from disk (the bare sandbox folds
+    // the discovery listing into its promptAddendum). In-process agents have
+    // no filesystem, so their skills are advertised in the prompt and pulled
+    // on demand via the load_skill tool.
+    const skillsPrompt = agentRunsInSandbox
+      ? cliSandbox!.promptAddendum
+      : buildToolsSkillsPrompt(toolsSkills);
+    const systemPrompt = buildSystemPrompt(
+      "tools",
+      session.promptAddendum,
+      skillsPrompt,
+    );
+    const run = await exp.agent.run({
+      systemPrompt,
+      userPrompt: prompt,
+      tools: agentRunsInSandbox ? undefined : buildLoadSkillTool(toolsSkills),
+      mcpServers: session.mcpServers,
+      sandbox: cliSandbox?.sandbox,
+      timeoutSec: TIMEOUT_SEC,
+    });
+
+    lastToolCalls = run.toolCalls;
+    lastTranscript = run.transcript;
+    lastAgentReport = run.agentReport;
+    lastStoppedReason = run.stoppedReason;
+    last = await (scorer as ToolScorer)({
+      ...session.scoringContext,
+      toolCalls: run.toolCalls,
+      transcript: run.transcript,
+      agentReport: run.agentReport,
+    });
+
+    if (STOP_ON_PASS && last.passed) {
+      return {
+        ...last,
+        attempts: attempt,
+        toolCalls: run.toolCalls,
+        transcript: run.transcript,
+        agentReport: run.agentReport,
+        stoppedReason: run.stoppedReason,
+      };
     }
   }
 

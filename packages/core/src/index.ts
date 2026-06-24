@@ -32,6 +32,8 @@ import {
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
 import type { CheckResult } from "./eval-metadata.js";
+import type { AgentSandbox } from "./cli-agent.js";
+import { isRecord } from "./json.js";
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -70,6 +72,24 @@ export {
   rawEvalResultSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
+// CLI agent harnesses (Claude Code, and the runner/parser framework for adding more).
+export { createCliAgent, claudeCodeAgent } from "./cli-agent.js";
+export type {
+  AgentSandbox,
+  AgentRunner,
+  RunnerExecArgs,
+  RunnerExecResult,
+} from "./cli-agent.js";
+// Generic transcript vocabulary + parser layer used by CLI agents.
+export { createParser, supportedParsers } from "./parsers/registry.js";
+export { adaptTranscript } from "./parsers/adapt.js";
+export type { AdaptedTranscript } from "./parsers/adapt.js";
+export type { AgentTranscriptParser } from "./parsers/types.js";
+export type {
+  ToolName,
+  TranscriptEvent,
+  ParsedTranscript,
+} from "./transcript/types.js";
 export type {
   CheckResult,
   EvalInterface,
@@ -120,6 +140,14 @@ export interface JudgeResult {
 export interface ToolCallRecord {
   endpoint: string;
   body: Record<string, unknown>;
+  /**
+   * Normalized, agent-agnostic views of common args, when the agent's parser
+   * extracted them (CLI agents). Let scorers inspect a call's file path / shell
+   * command / URL without knowing the harness's raw arg keys.
+   */
+  path?: string;
+  command?: string;
+  url?: string;
   result?: unknown;
   error?: string;
   ts: number;
@@ -279,6 +307,13 @@ export type AgentRunArgs = {
   userPrompt: string;
   tools?: ToolSet;
   mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * Execution environment for CLI agents (Claude Code, Codex, …). In-process
+   * agents like `aiSdkAgent` ignore it; CLI agents need it to run their binary,
+   * edit the workspace, and read back their transcript. Provided by the
+   * local-stack session, or by a bare sandbox the harness boots for tools mode.
+   */
+  sandbox?: AgentSandbox;
   timeoutSec: number;
 };
 
@@ -293,6 +328,14 @@ export type AgentRunResult = {
 export type AgentHarness = {
   id: string;
   modelId: string;
+  /**
+   * True when the agent itself runs *inside* the sandbox — i.e. it brings its
+   * own harness (loop + tools + MCP client) and needs a container to run in, as
+   * every CLI agent does. In-process agents (`aiSdkAgent`) leave this false: the
+   * framework drives their loop host-side, so in tools mode no sandbox is booted.
+   * (In local-stack mode a sandbox always exists regardless, for the stack.)
+   */
+  runsInSandbox?: boolean;
   assertReady(): void;
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };
@@ -361,6 +404,12 @@ export type HostedLink = {
  */
 export type LocalStackSession = {
   tools: ToolSet;
+  /**
+   * Direct handle to the underlying sandbox, for CLI agents that run their own
+   * binary in the workspace rather than going through the ai-sdk `tools` above.
+   * In-process agents (`aiSdkAgent`) use `tools` and ignore this.
+   */
+  sandbox: AgentSandbox;
   /**
    * MCP servers to expose to the agent alongside the sandbox tools (e.g. the
    * docs server for `search_docs`). Spawned host-side; merged with `tools` by
@@ -588,6 +637,12 @@ export type EvalSessionArgs = {
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
   pgvector?: boolean;
+  /**
+   * Host to bind the platform-lite server to. Defaults to 127.0.0.1 (host-side,
+   * for in-process agents). The harness sets 0.0.0.0 for CLI agents in tools
+   * mode so their in-container MCP servers can reach it via host.docker.internal.
+   */
+  hostname?: string;
 };
 
 export type EvalSession = {
@@ -1457,10 +1512,6 @@ function mergeToolSets(toolSets: ToolSet[]): ToolSet | undefined {
 function throwIfCloseErrors(errors: unknown[], message: string): void {
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) throw new AggregateError(errors, message);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isString(value: unknown): value is string {

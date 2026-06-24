@@ -1,9 +1,11 @@
-export interface SandboxCommandResult {
-  ok: boolean;
-  exitCode: number | null;
-  stdout: string;
-  stderr: string;
-}
+import type { CommandResult } from "@supabase-evals/core";
+
+/**
+ * Result of a sandbox command. Aliased to core's `CommandResult` (structurally
+ * identical) so the two never drift — the CLI-agent path passes sandbox results
+ * straight through as `CommandResult`.
+ */
+export type SandboxCommandResult = CommandResult;
 
 /**
  * Services the Supabase CLI can start, in the order the CLI documents them.

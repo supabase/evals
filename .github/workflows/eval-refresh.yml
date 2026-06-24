@@ -6,7 +6,7 @@ on:
       experiments:
         description: "Comma-separated experiment names to run"
         required: true
-        default: "openai-gpt-5.4-mini,openai-gpt-5.4-nano"
+        default: "openai-gpt-5.4-mini,openai-gpt-5.4-nano,claude-code-haiku-4.5,claude-code-sonnet-4.6"
       eval:
         description: "Optional single eval id to run"
         required: false
@@ -43,9 +43,12 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'run-evals') &&
+        (contains(github.event.pull_request.labels.*.name, 'run-evals') ||
+         contains(github.event.pull_request.labels.*.name, 'run-evals-changed')) &&
         github.event.pull_request.head.repo.full_name == github.repository &&
-        (github.event.action != 'labeled' || github.event.label.name == 'run-evals'))
+        (github.event.action != 'labeled' ||
+         github.event.label.name == 'run-evals' ||
+         github.event.label.name == 'run-evals-changed'))
     runs-on: ubuntu-latest
     outputs:
       experiments: ${{ steps.inputs.outputs.experiments }}
@@ -54,6 +57,7 @@ jobs:
       suite: ${{ steps.inputs.outputs.suite }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
+      filter_changed: ${{ steps.inputs.outputs.filter_changed }}
     steps:
       - name: Prepare inputs
         id: inputs
@@ -68,7 +72,7 @@ jobs:
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
           else
-            experiments="openai-gpt-5.4-mini,openai-gpt-5.4-nano"
+            experiments="openai-gpt-5.4-mini,openai-gpt-5.4-nano,claude-code-haiku-4.5,claude-code-sonnet-4.6"
             eval_id=""
             suite="benchmark"
             runs="1"
@@ -78,12 +82,21 @@ jobs:
           experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments")"
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
 
+          # run-evals takes priority; run-evals-changed only filters when run-evals is absent
+          filter_changed="false"
+          if [ "${{ github.event_name }}" = "pull_request" ] && \
+             [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-changed') }}" = "true" ] && \
+             [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals') }}" = "false" ]; then
+            filter_changed="true"
+          fi
+
           {
             echo "experiments=$experiments_json"
             echo "eval=$eval_id"
             echo "suite=$suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
+            echo "filter_changed=$filter_changed"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
@@ -93,6 +106,8 @@ jobs:
 
       - name: Discover evals
         id: discover
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -122,11 +137,39 @@ jobs:
             exit 1
           fi
 
+          # Filter to only changed eval dirs when run-evals-changed label is active
+          if [ "${{ steps.inputs.outputs.filter_changed }}" = "true" ]; then
+            changed_evals=$(gh pr diff ${{ github.event.pull_request.number }} --name-only \
+              | grep '^evals/' | cut -d/ -f2 | sort -u || true)
+
+            if [ -z "$changed_evals" ]; then
+              echo "No eval directories changed in this PR — nothing to run"
+              echo "evals=[]" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Changed eval dirs: $changed_evals"
+            filtered=()
+            for id in "${matching[@]}"; do
+              if echo "$changed_evals" | grep -qx "$id"; then
+                filtered+=("$id")
+              fi
+            done
+            matching=("${filtered[@]+"${filtered[@]}"}")
+          fi
+
+          if [ "${#matching[@]}" -eq 0 ]; then
+            echo "Changed evals don't match requested suites: $suite_json"
+            echo "evals=[]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           evals_json=$(printf '%s\n' "${matching[@]}" | jq -Rcs 'split("\n") | map(select(length > 0))')
           echo "evals=$evals_json" >> "$GITHUB_OUTPUT"
 
   run-evals:
     needs: prepare
+    if: needs.prepare.outputs.evals != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -186,6 +229,7 @@ jobs:
 
   publish-results:
     needs: [prepare, run-evals]
+    if: needs.prepare.outputs.evals != '[]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -234,10 +278,17 @@ jobs:
             export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")
           fi
 
+          if [ "${{ needs.prepare.outputs.filter_changed }}" = "true" ]; then
+            export_args+=("--merge")
+          fi
+
           pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
 
       - name: Upload exported results
-        if: github.event_name == 'pull_request'
+        # Persist the exported JSON as an artifact for PRs and for branch
+        # dispatches (where the commit/refresh-PR steps below are intentionally
+        # gated off), so a run against a feature branch still surfaces it.
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: eval-results-json
