@@ -10,7 +10,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { jsonSchema, tool, type ToolSet } from "ai";
 import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
@@ -696,7 +696,7 @@ async function main() {
         );
         const elapsed = Math.round((Date.now() - start) / 1000);
         console.log(
-          `${res.passed ? "✅ PASS" : "❌ FAIL"} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)`,
+          `${res.passed ? "✅ PASS" : "❌ FAIL"} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`,
         );
       } catch (e) {
         const elapsed = Math.round((Date.now() - start) / 1000);
