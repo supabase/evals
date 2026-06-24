@@ -34,6 +34,7 @@ import {
   SYSTEM_PROMPT_PATH,
   USER_PROMPT_PATH,
   processStopReason,
+  requireEnv,
   rewriteLoopback,
   writeSandboxFile,
 } from './shared.js';
@@ -44,6 +45,10 @@ function modelProviderForAgent(id: AgentRunner['id']): ModelProvider {
       return 'anthropic';
     case 'codex':
       return 'openai';
+    case 'opencode':
+      throw new Error(
+        'opencode is multi-provider; its runner sets `modelProvider` from the model id'
+      );
     case 'ai-sdk':
       throw new Error('ai-sdk agents are not created through createCliAgent');
   }
@@ -72,10 +77,11 @@ export function createCliAgent<M extends string = string>(
     metadata: {
       agent: runner.id,
       // Through the gateway the model may be any vendor's; derive the vendor
-      // from the model slug instead of from the agent.
+      // from the model slug instead of from the agent. On the direct path a
+      // multi-provider runner (e.g. opencode) sets its own `modelProvider`.
       modelProvider: useGateway
         ? gatewayModelProvider(options.model)
-        : modelProviderForAgent(runner.id),
+        : (runner.modelProvider ?? modelProviderForAgent(runner.id)),
       modelId: options.model,
       ...(options.reasoningEffort
         ? { reasoningEffort: options.reasoningEffort }
@@ -134,11 +140,8 @@ export function createCliAgent<M extends string = string>(
 
 function requireApiKey(runner: AgentRunner, gateway = false): string {
   if (gateway) return requireGatewayApiKey(runner.displayName);
-  const apiKey = process.env[runner.apiKeyEnvVar];
-  if (!apiKey) {
-    throw new Error(
-      `Missing ${runner.displayName} credentials. Set ${runner.apiKeyEnvVar} before running ${runner.id} evals.`
-    );
-  }
-  return apiKey;
+  return requireEnv(
+    runner.apiKeyEnvVar,
+    `Set it to run ${runner.displayName} (${runner.id}) evals.`
+  );
 }

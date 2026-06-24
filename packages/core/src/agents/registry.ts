@@ -13,8 +13,13 @@ import type { AgentHarnessId } from '../eval-metadata.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
 import { claudeCodeDefinition } from './claude-code/index.js';
 import { codexDefinition } from './codex/index.js';
+import { opencodeDefinition } from './opencode/index.js';
 
-const AGENTS: AgentDefinition[] = [claudeCodeDefinition, codexDefinition];
+const AGENTS: AgentDefinition[] = [
+  claudeCodeDefinition,
+  codexDefinition,
+  opencodeDefinition,
+];
 
 const byId = new Map(AGENTS.map((agent) => [agent.runner.id, agent]));
 

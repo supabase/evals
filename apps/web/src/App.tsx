@@ -198,6 +198,7 @@ const AGENT_LABELS = {
   "ai-sdk": "AI SDK",
   "claude-code": "Claude Code",
   codex: "Codex",
+  opencode: "OpenCode",
 } satisfies Record<ExperimentDisplay["agent"], string>
 
 const EXPERIMENT_SUITES = ["benchmark", "no-skills"] as const
@@ -313,13 +314,16 @@ function formatOpenAiModel(modelId: string) {
 }
 
 function formatModel(display: ExperimentDisplay) {
-  // AI Gateway model ids are `vendor/model` slugs; format just the model part.
+  // opencode ids are `provider/model` and AI Gateway ids are `vendor/model`
+  // slugs; either way, format just the model part.
   const modelId = display.modelId.replace(/^[a-z-]+\//, "")
   switch (display.modelProvider) {
     case "anthropic":
       return formatAnthropicModel(modelId)
     case "openai":
       return formatOpenAiModel(modelId)
+    case "google":
+      return modelId
   }
 }
 
