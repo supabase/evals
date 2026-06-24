@@ -1,4 +1,5 @@
 import vm from "node:vm";
+import { createRequire } from "node:module";
 import { createHash, createHmac } from "node:crypto";
 import { execFile } from "node:child_process";
 import { createServer } from "node:net";
@@ -31,6 +32,8 @@ import {
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
 import type { CheckResult } from "./eval-metadata.js";
+import type { AgentSandbox } from "./cli-agent.js";
+import { isRecord } from "./json.js";
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -46,6 +49,11 @@ function getExecutorBin(): string {
   return executorBinPath;
 }
 const execFileAsync = promisify(execFile);
+
+// Resolves node-like edge-function imports (npm:/jsr:/node:/esm.sh) against the
+// eval runtime's installed modules — mirroring what the real Deno edge runtime
+// accepts. See requireFromSandbox in compileEdgeFunction.
+const nodeRequire = createRequire(import.meta.url);
 
 export type { SupabaseClient };
 export type { ManagementApiClient };
@@ -64,6 +72,24 @@ export {
   rawEvalResultSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
+// CLI agent harnesses (Claude Code, and the runner/parser framework for adding more).
+export { createCliAgent, claudeCodeAgent } from "./cli-agent.js";
+export type {
+  AgentSandbox,
+  AgentRunner,
+  RunnerExecArgs,
+  RunnerExecResult,
+} from "./cli-agent.js";
+// Generic transcript vocabulary + parser layer used by CLI agents.
+export { createParser, supportedParsers } from "./parsers/registry.js";
+export { adaptTranscript } from "./parsers/adapt.js";
+export type { AdaptedTranscript } from "./parsers/adapt.js";
+export type { AgentTranscriptParser } from "./parsers/types.js";
+export type {
+  ToolName,
+  TranscriptEvent,
+  ParsedTranscript,
+} from "./transcript/types.js";
 export type {
   CheckResult,
   EvalInterface,
@@ -114,6 +140,14 @@ export interface JudgeResult {
 export interface ToolCallRecord {
   endpoint: string;
   body: Record<string, unknown>;
+  /**
+   * Normalized, agent-agnostic views of common args, when the agent's parser
+   * extracted them (CLI agents). Let scorers inspect a call's file path / shell
+   * command / URL without knowing the harness's raw arg keys.
+   */
+  path?: string;
+  command?: string;
+  url?: string;
   result?: unknown;
   error?: string;
   ts: number;
@@ -210,8 +244,10 @@ export interface LocalStackScoringContext {
   ) => Promise<CommandResult>;
   /** Read a UTF-8 file; path relative to the workspace. */
   readFile: (path: string) => Promise<string>;
-  /** Check a file exists; path relative to the workspace. */
+  /** Check a file exists (`test -f`); path relative to the workspace. */
   fileExists: (path: string) => Promise<boolean>;
+  /** Check a directory exists (`test -d`); path relative to the workspace. */
+  folderExists: (path: string) => Promise<boolean>;
   /**
    * Run a single SELECT against the local stack's Postgres as the `postgres`
    * superuser (bypasses RLS) and return its rows. For DDL or role-scoped
@@ -271,6 +307,13 @@ export type AgentRunArgs = {
   userPrompt: string;
   tools?: ToolSet;
   mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * Execution environment for CLI agents (Claude Code, Codex, …). In-process
+   * agents like `aiSdkAgent` ignore it; CLI agents need it to run their binary,
+   * edit the workspace, and read back their transcript. Provided by the
+   * local-stack session, or by a bare sandbox the harness boots for tools mode.
+   */
+  sandbox?: AgentSandbox;
   timeoutSec: number;
 };
 
@@ -285,6 +328,14 @@ export type AgentRunResult = {
 export type AgentHarness = {
   id: string;
   modelId: string;
+  /**
+   * True when the agent itself runs *inside* the sandbox — i.e. it brings its
+   * own harness (loop + tools + MCP client) and needs a container to run in, as
+   * every CLI agent does. In-process agents (`aiSdkAgent`) leave this false: the
+   * framework drives their loop host-side, so in tools mode no sandbox is booted.
+   * (In local-stack mode a sandbox always exists regardless, for the stack.)
+   */
+  runsInSandbox?: boolean;
   assertReady(): void;
   run(args: AgentRunArgs): Promise<AgentRunResult>;
 };
@@ -353,6 +404,12 @@ export type HostedLink = {
  */
 export type LocalStackSession = {
   tools: ToolSet;
+  /**
+   * Direct handle to the underlying sandbox, for CLI agents that run their own
+   * binary in the workspace rather than going through the ai-sdk `tools` above.
+   * In-process agents (`aiSdkAgent`) use `tools` and ignore this.
+   */
+  sandbox: AgentSandbox;
   /**
    * MCP servers to expose to the agent alongside the sandbox tools (e.g. the
    * docs server for `search_docs`). Spawned host-side; merged with `tools` by
@@ -580,6 +637,12 @@ export type EvalSessionArgs = {
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
   pgvector?: boolean;
+  /**
+   * Host to bind the platform-lite server to. Defaults to 127.0.0.1 (host-side,
+   * for in-process agents). The harness sets 0.0.0.0 for CLI agents in tools
+   * mode so their in-container MCP servers can reach it via host.docker.internal.
+   */
+  hostname?: string;
 };
 
 export type EvalSession = {
@@ -1286,11 +1349,10 @@ function compileEdgeFunction(
     if (specifier === "jsr:@supabase/functions-js/edge-runtime.d.ts") {
       return {};
     }
-    if (
-      specifier === "@supabase/supabase-js" ||
-      specifier.startsWith("jsr:@supabase/supabase-js@") ||
-      specifier.startsWith("npm:@supabase/supabase-js@")
-    ) {
+    const id = toNodeRequireId(specifier);
+    // supabase-js is special-cased so its client uses the in-process runtime
+    // fetch (so the function's calls hit this project, not the network).
+    if (id === "@supabase/supabase-js" || id?.startsWith("@supabase/supabase-js/")) {
       return {
         createClient: (
           u: string,
@@ -1302,6 +1364,21 @@ function compileEdgeFunction(
             global: { ...opts?.global, fetch: runtimeFetch },
           }),
       };
+    }
+    // The real Deno edge runtime accepts npm:/jsr:/node:/esm.sh imports; resolve
+    // them from the eval runtime's modules (Node can't fetch on demand like Deno,
+    // so a package the eval needs must be installed — error clearly if it isn't).
+    if (id) {
+      try {
+        return nodeRequire(id);
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException)?.code;
+        throw new Error(
+          `edge function dependency "${specifier}" is not available in the eval runtime` +
+            ` (${code ?? (err instanceof Error ? err.message : String(err))}). ` +
+            "Add it to the runtime's dependencies if an eval needs it.",
+        );
+      }
     }
     throw new Error(`edge function import not supported: ${specifier}`);
   };
@@ -1343,7 +1420,9 @@ function compileEdgeFunction(
     require: requireFromSandbox,
   };
 
-  vm.runInNewContext(js, sandbox, { timeout: 100, displayErrors: true });
+  // Slightly higher than a pure-eval bound: top-level `require()`s now resolve
+  // real packages, which can take longer than evaluating inline code.
+  vm.runInNewContext(js, sandbox, { timeout: 1000, displayErrors: true });
 
   const handler =
     denoServeHandler ??
@@ -1362,6 +1441,44 @@ function compileEdgeFunction(
 function functionToEdgeHandler(value: unknown): EdgeHandler | undefined {
   if (typeof value !== "function") return undefined;
   return (req) => value(req);
+}
+
+/**
+ * Map a Deno-style edge-function import specifier to a Node `require` id, or
+ * `undefined` if it isn't a node-resolvable module (e.g. a non-CDN URL). Handles
+ * `node:` builtins, `npm:`/`jsr:` prefixes, `esm.sh`/CDN URLs, and bare
+ * specifiers, stripping any version (`pkg@1.2.3/sub` → `pkg/sub`).
+ */
+function toNodeRequireId(specifier: string): string | undefined {
+  if (specifier.startsWith("node:")) return specifier;
+  if (specifier.startsWith("npm:")) return stripModuleVersion(specifier.slice(4));
+  if (specifier.startsWith("jsr:")) return stripModuleVersion(specifier.slice(4));
+  const cdn = specifier.match(
+    /^https?:\/\/(?:esm\.sh|esm\.run|cdn\.skypack\.dev|cdn\.jsdelivr\.net\/npm)\/(?:v\d+\/)?(.+)$/,
+  );
+  if (cdn) return stripModuleVersion(cdn[1]);
+  if (/^https?:\/\//.test(specifier)) return undefined;
+  // Bare specifier (no scheme), e.g. "zod" or "@scope/pkg/sub".
+  if (!specifier.includes(":")) return specifier;
+  return undefined;
+}
+
+/** Strip an npm version range: `@scope/name@1.2.3/sub` → `@scope/name/sub`. */
+function stripModuleVersion(spec: string): string {
+  let scope = "";
+  let rest = spec;
+  if (spec.startsWith("@")) {
+    const slash = spec.indexOf("/");
+    if (slash === -1) return spec;
+    scope = spec.slice(0, slash + 1);
+    rest = spec.slice(slash + 1);
+  }
+  const at = rest.indexOf("@");
+  if (at === -1) return scope + rest;
+  const slashAfter = rest.indexOf("/", at);
+  const name = rest.slice(0, at);
+  const sub = slashAfter === -1 ? "" : rest.slice(slashAfter);
+  return scope + name + sub;
 }
 
 type QueryResultWithFields = {
@@ -1395,10 +1512,6 @@ function mergeToolSets(toolSets: ToolSet[]): ToolSet | undefined {
 function throwIfCloseErrors(errors: unknown[], message: string): void {
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) throw new AggregateError(errors, message);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isString(value: unknown): value is string {

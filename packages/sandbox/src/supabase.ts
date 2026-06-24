@@ -38,20 +38,17 @@ export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
  * The Dockerfile is piped to `docker build -` (stdin, no build context), and
  * the layer cache makes repeat calls effectively free.
  */
-export async function ensureSupabaseSandboxImage(
-  cliVersion: string = SUPABASE_CLI_VERSION,
-): Promise<string> {
-  // The skills CLI version is part of the tag so bumping it rebuilds rather
-  // than reusing a stale cached image.
-  const tag = `${SANDBOX_IMAGE_REPOSITORY}:${cliVersion}-skills-${SKILLS_CLI_VERSION}`;
+export async function ensureSupabaseSandboxImage(): Promise<string> {
+  // The base image carries only common tooling; its sole version input is the
+  // skills CLI. The Supabase CLI is installed per local-stack session
+  // (installSupabaseCli), so the image is shared across modes and CLI versions.
+  const tag = `${SANDBOX_IMAGE_REPOSITORY}:base-skills-${SKILLS_CLI_VERSION}`;
   const existing = await dockerCli(["image", "inspect", tag]);
   if (existing.ok) return tag;
 
   const build = await dockerCli(
     [
       "build",
-      "--build-arg",
-      `CLI_VERSION=${cliVersion}`,
       "--build-arg",
       `SKILLS_CLI_VERSION=${SKILLS_CLI_VERSION}`,
       "--tag",
@@ -66,7 +63,29 @@ export async function ensureSupabaseSandboxImage(
   return tag;
 }
 
+/**
+ * Install the pinned Supabase CLI into the sandbox — a local-stack component,
+ * run at setup time so tools-mode sandboxes (which never call this) genuinely
+ * lack the CLI. Installed from the official release `.deb` (pinned for
+ * benchmark comparability; Homebrew's tap only carries the latest version).
+ */
+export async function installSupabaseCli(
+  sandbox: DockerSandbox,
+  cliVersion: string = SUPABASE_CLI_VERSION,
+): Promise<void> {
+  await runOrThrow(
+    sandbox,
+    `ARCH="$(dpkg --print-architecture)" && ` +
+      `curl -fsSL "https://github.com/supabase/cli/releases/download/v${cliVersion}/supabase_${cliVersion}_linux_$ARCH.deb" -o /tmp/supabase.deb && ` +
+      `dpkg -i /tmp/supabase.deb && rm /tmp/supabase.deb`,
+    "install the Supabase CLI",
+    { asRoot: true },
+  );
+}
+
 export interface SetupSupabaseSandboxOptions {
+  /** Supabase CLI version to install into the sandbox (pinned default). */
+  cliVersion?: string;
   /**
    * Local-stack services this session needs; every other service is excluded
    * from `supabase start` to keep boots fast. Omitted means the full stack.
@@ -107,6 +126,11 @@ export async function setupSupabaseSandbox(
   sandbox: DockerSandbox,
   options: SetupSupabaseSandboxOptions = {},
 ): Promise<void> {
+  // The Supabase CLI is a local-stack component: install it here (not in the
+  // base image) so tools-mode sandboxes don't have it. Everything below needs
+  // the CLI, so it goes first.
+  await installSupabaseCli(sandbox, options.cliVersion);
+
   // Let the non-root sandbox user talk to the mounted Docker socket by
   // joining the socket's group. chmod would also work but mutates the host
   // inode through the bind mount, leaving the host socket world-writable.

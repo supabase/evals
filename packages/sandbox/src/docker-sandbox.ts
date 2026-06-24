@@ -208,6 +208,11 @@ export class DockerSandbox {
     return result.ok;
   }
 
+  async folderExists(path: string): Promise<boolean> {
+    const result = await this.runShell(`test -d ${shellQuote(path)}`);
+    return result.ok;
+  }
+
   /**
    * Copy between the host and the container with `docker cp`. Either endpoint
    * may carry the `container:` prefix (`<id>:<path>`); direction is implied by
