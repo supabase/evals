@@ -47,7 +47,7 @@ const HOSTED_ACCESS_TOKEN = "sbp_" + "0".repeat(40);
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
-const FORCE = !args.has("--no-force");
+const FORCE = !args.has("--skip-existing");
 const SMOKE = args.has("--smoke");
 const DRY = args.has("--dry");
 const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
