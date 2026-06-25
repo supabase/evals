@@ -19,16 +19,6 @@ import type {
 } from "../eval-metadata.js";
 import type { AgentTranscriptParser } from "../parsers/types.js";
 
-/**
- * Reasoning effort for Claude Code's `--effort` flag.
- */
-export type ClaudeCodeEffort = ReasoningEffortLevel;
-
-/**
- * Reasoning effort for Codex's `model_reasoning_effort` config.
- */
-export type CodexReasoningEffort = ReasoningEffortLevel;
-
 export type AgentMetadata = {
   agent: AgentHarnessId;
   modelProvider: ModelProvider;

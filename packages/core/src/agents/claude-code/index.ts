@@ -7,8 +7,9 @@
 
 import type { Model as AnthropicModel } from "@anthropic-ai/sdk/resources/messages";
 import type { AgentHarness } from "../../index.js";
+import type { ReasoningEffortLevel } from "../../eval-metadata.js";
 import { createCliAgent } from "../engine.js";
-import type { AgentDefinition, ClaudeCodeEffort } from "../types.js";
+import type { AgentDefinition } from "../types.js";
 import { claudeCodeRunner } from "./runner.js";
 import { claudeCodeParser } from "./parser.js";
 
@@ -18,7 +19,7 @@ export function claudeCodeAgent(
     /** Anthropic model id (typed from `@anthropic-ai/sdk`). Defaults to Sonnet. */
     model?: AnthropicModel;
     /** Reasoning effort (`--effort`). Omit to use Claude Code's own default. */
-    reasoningEffort?: ClaudeCodeEffort;
+    reasoningEffort?: ReasoningEffortLevel;
     /** Override the pinned CLI version. */
     cliVersion?: string;
   } = {},

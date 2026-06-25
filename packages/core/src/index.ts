@@ -39,6 +39,7 @@ import type {
   ModelProvider,
   ReasoningEffortLevel,
 } from "./eval-metadata.js";
+import { reasoningEffortSchema } from "./eval-metadata.js";
 import type { AgentMetadata, AgentSandbox } from "./agents/types.js";
 import { isRecord } from "./json.js";
 
@@ -94,8 +95,6 @@ export type {
   RunnerExecArgs,
   RunnerExecResult,
   AgentDefinition,
-  ClaudeCodeEffort,
-  CodexReasoningEffort,
 } from "./agents/types.js";
 // Generic transcript vocabulary + parser layer used by CLI agents.
 export { createParser, supportedParsers } from "./agents/registry.js";
@@ -550,16 +549,6 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
   };
 }
 
-function isReasoningEffortLevel(value: unknown): value is ReasoningEffortLevel {
-  return (
-    value === "minimal" ||
-    value === "low" ||
-    value === "medium" ||
-    value === "high" ||
-    value === "max"
-  );
-}
-
 function getModelProvider(provider: string, modelId: string): ModelProvider {
   if (provider.startsWith("anthropic") || modelId.startsWith("claude-")) {
     return "anthropic";
@@ -578,9 +567,7 @@ export function aiSdkAgent(options: {
 }): AgentHarness {
   const po = options.providerOptions;
   const configuredEffort = po?.anthropic?.effort ?? po?.openai?.reasoningEffort;
-  const reasoningEffort = isReasoningEffortLevel(configuredEffort)
-    ? configuredEffort
-    : undefined;
+  const reasoningEffort = reasoningEffortSchema.safeParse(configuredEffort).data;
   const modelId = options.model.modelId;
   return {
     id: "ai-sdk",

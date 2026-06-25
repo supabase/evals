@@ -6,7 +6,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
@@ -32,7 +32,7 @@ const OUTPUT_PATH = join(ROOT, "apps", "web", "src", "data", "eval-results.json"
 
 async function loadExperimentDisplay(): Promise<Map<string, ExperimentDisplayMetadata>> {
   const map = new Map<string, ExperimentDisplayMetadata>();
-  for (const f of readdirSync(EXPERIMENTS_DIR).filter((f) => f.endsWith(".ts"))) {
+  for (const f of (await readdir(EXPERIMENTS_DIR)).filter((f) => f.endsWith(".ts"))) {
     const mod = await import(pathToFileURL(join(EXPERIMENTS_DIR, f)).href);
     map.set(f.replace(/\.ts$/, ""), getExperimentDisplayMetadata(mod.default as ExperimentConfig));
   }
