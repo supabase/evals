@@ -31,8 +31,15 @@ import {
   type ProjectInstance,
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
-import type { CheckResult, EvalSuite } from "./eval-metadata.js";
-import type { AgentSandbox } from "./agents/types.js";
+import type {
+  AgentHarnessId,
+  CheckResult,
+  EvalSuite,
+  ExperimentDisplayMetadata,
+  ModelProvider,
+  ReasoningEffortLevel,
+} from "./eval-metadata.js";
+import type { AgentMetadata, AgentSandbox } from "./agents/types.js";
 import { isRecord } from "./json.js";
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
@@ -62,6 +69,7 @@ export {
   EVAL_PRODUCTS,
   EVAL_SUITES,
   EVAL_STAGES,
+  agentHarnessIdSchema,
   checkResultSchema,
   evalInterfaceSchema,
   evalMetadataSchema,
@@ -69,7 +77,10 @@ export {
   evalResultSchema,
   evalStageSchema,
   evalSuiteSchema,
+  experimentDisplayMetadataSchema,
+  modelProviderSchema,
   rawEvalResultSchema,
+  reasoningEffortSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
 // CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
@@ -77,6 +88,7 @@ export { createCliAgent } from "./agents/engine.js";
 export { claudeCodeAgent } from "./agents/claude-code/index.js";
 export { codexAgent } from "./agents/codex/index.js";
 export type {
+  AgentMetadata,
   AgentSandbox,
   AgentRunner,
   RunnerExecArgs,
@@ -96,6 +108,7 @@ export type {
   ParsedTranscript,
 } from "./transcript/types.js";
 export type {
+  AgentHarnessId,
   CheckResult,
   EvalInterface,
   EvalMetadata,
@@ -103,7 +116,10 @@ export type {
   EvalResult,
   EvalSuite,
   EvalStage,
+  ExperimentDisplayMetadata,
+  ModelProvider,
   ParsedEvalMarkdown,
+  ReasoningEffortLevel,
 } from "./eval-metadata.js";
 
 export interface ScoreResult {
@@ -331,8 +347,9 @@ export type AgentRunResult = {
 };
 
 export type AgentHarness = {
-  id: string;
+  id: AgentHarnessId;
   modelId: string;
+  metadata: AgentMetadata;
   /**
    * True when the agent itself runs *inside* the sandbox — i.e. it brings its
    * own harness (loop + tools + MCP client) and needs a container to run in, as
@@ -446,6 +463,8 @@ export type LocalStackRuntime = {
 };
 
 export type ExperimentConfig = {
+  /** Optional display suffix appended to the model label (e.g. "executor"). */
+  variantLabel?: string;
   suite?: EvalSuite;
   agent: AgentHarness;
   runtime: EvalRuntime;
@@ -453,6 +472,16 @@ export type ExperimentConfig = {
   localStack?: LocalStackRuntime;
   skills: string[];
 };
+
+export function getExperimentDisplayMetadata(
+  config: ExperimentConfig,
+): ExperimentDisplayMetadata {
+  const { variantLabel } = config;
+  return {
+    ...config.agent.metadata,
+    ...(variantLabel ? { variant: variantLabel } : {}),
+  };
+}
 
 export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
   return config;
@@ -521,13 +550,47 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
   };
 }
 
+function isReasoningEffortLevel(value: unknown): value is ReasoningEffortLevel {
+  return (
+    value === "minimal" ||
+    value === "low" ||
+    value === "medium" ||
+    value === "high" ||
+    value === "max"
+  );
+}
+
+function getModelProvider(provider: string, modelId: string): ModelProvider {
+  if (provider.startsWith("anthropic") || modelId.startsWith("claude-")) {
+    return "anthropic";
+  }
+
+  if (provider.startsWith("openai") || modelId.startsWith("gpt-")) {
+    return "openai";
+  }
+
+  throw new Error(`unsupported model provider for ${modelId}: ${provider}`);
+}
+
 export function aiSdkAgent(options: {
   model: Exclude<LanguageModel, string>;
   providerOptions?: AiSdkProviderOptions;
 }): AgentHarness {
+  const po = options.providerOptions;
+  const configuredEffort = po?.anthropic?.effort ?? po?.openai?.reasoningEffort;
+  const reasoningEffort = isReasoningEffortLevel(configuredEffort)
+    ? configuredEffort
+    : undefined;
+  const modelId = options.model.modelId;
   return {
     id: "ai-sdk",
-    modelId: options.model.modelId,
+    modelId,
+    metadata: {
+      agent: "ai-sdk",
+      modelProvider: getModelProvider(options.model.provider, modelId),
+      modelId,
+      ...(reasoningEffort ? { reasoningEffort } : {}),
+    },
     assertReady() {
       assertProviderReady(options.model.provider);
     },

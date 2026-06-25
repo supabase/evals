@@ -26,6 +26,7 @@ import {
 } from "../lib/cli-args.js";
 import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
+import { getExperimentDisplayMetadata } from "@supabase-evals/core";
 import type {
   ExperimentConfig,
   EvalInterface,
@@ -688,10 +689,11 @@ async function main() {
       try {
         const res = await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
+        const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
           out,
           JSON.stringify(
-            { experiment: name, eval: ev.id, ...ev.metadata, ...res },
+            { experiment: name, experimentDisplay, eval: ev.id, ...ev.metadata, ...res },
             null,
             2,
           ),

@@ -144,6 +144,86 @@ const experiments = Array.from(
   new Set(results.map((result) => result.experiment))
 ).sort((a, b) => a.localeCompare(b))
 
+type ExperimentDisplay = NonNullable<EvalResult["experimentDisplay"]>
+
+const AGENT_LABELS = {
+  "ai-sdk": "AI SDK",
+  "claude-code": "Claude Code",
+  codex: "Codex",
+} satisfies Record<ExperimentDisplay["agent"], string>
+
+function capitalize(value: string) {
+  return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value
+}
+
+function formatAnthropicModel(modelId: string) {
+  const modelParts = modelId
+    .replace(/^claude-/, "")
+    .replace(/-\d{8}$/, "")
+    .split("-")
+  const [family = "", ...versionParts] = modelParts
+
+  if (!family || versionParts.length === 0) {
+    return modelId
+  }
+
+  return `${capitalize(family)} ${versionParts.join(".")}`
+}
+
+function formatOpenAiModel(modelId: string) {
+  if (!modelId.startsWith("gpt-")) {
+    return modelId
+  }
+
+  const suffix = modelId.slice("gpt-".length)
+  const match = /^(\d+(?:[.-]\d+)*)(?:-(.+))?$/.exec(suffix)
+  if (!match) {
+    return modelId.toUpperCase()
+  }
+
+  const [, version, variant] = match
+  return [`GPT-${version.replaceAll("-", ".")}`, variant?.replaceAll("-", " ")]
+    .filter(Boolean)
+    .join(" ")
+}
+
+function formatModel(display: ExperimentDisplay) {
+  switch (display.modelProvider) {
+    case "anthropic":
+      return formatAnthropicModel(display.modelId)
+    case "openai":
+      return formatOpenAiModel(display.modelId)
+  }
+}
+
+function formatModelWithModifiers(display: ExperimentDisplay) {
+  return [
+    formatModel(display),
+    display.reasoningEffort ? `(${display.reasoningEffort})` : "",
+    display.variant,
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
+function formatExperimentLabel(
+  display: ExperimentDisplay | undefined,
+  fallback: string
+) {
+  if (!display) {
+    return fallback
+  }
+
+  return `${AGENT_LABELS[display.agent]} / ${formatModelWithModifiers(display)}`
+}
+
+function buildExperimentLabel(exp: string): string {
+  const r = results.find((r) => r.experiment === exp)
+  return formatExperimentLabel(r?.experimentDisplay, exp)
+}
+
+const experimentLabel = new Map(experiments.map((exp) => [exp, buildExperimentLabel(exp)]))
+
 function sortResults(a: ParsedResult, b: ParsedResult) {
   const categoryDelta =
     (stageIndex.get(a.category as JourneyStage) ?? Number.MAX_SAFE_INTEGER) -
@@ -236,12 +316,6 @@ function getExperimentStageGroups(
     .sort((a, b) => a.category.localeCompare(b.category))
 }
 
-function formatExperiment(experiment: string) {
-  return experiment
-    .replace(/^openai-/, "OpenAI ")
-    .replace(/^claude-/, "Claude ")
-    .replaceAll("-", " ")
-}
 
 function formatTagLabel(value: string) {
   return value
@@ -258,22 +332,6 @@ function formatProductLabel(value: string) {
   return formatTagLabel(value)
 }
 
-function formatExperimentParts(experiment: string) {
-  const [provider = "", ...modelParts] = experiment.split("-")
-  const providerName =
-    provider === "openai"
-      ? "OpenAI"
-      : provider === "claude"
-        ? "Claude"
-        : provider.replaceAll("-", " ")
-
-  return {
-    provider: providerName,
-    model: modelParts.length
-      ? modelParts.join(" ").replaceAll("-", " ")
-      : experiment.replaceAll("-", " "),
-  }
-}
 
 function formatEvalName(evalId: string, includeSubcategory = true) {
   const [, subcategory, sequence, ...slug] = evalId.split("-")
@@ -442,7 +500,7 @@ function getTimelineGroups(
 
           return {
             id: experiment,
-            label: formatGroupLabel(formatExperiment(experiment)),
+            label: formatGroupLabel(experimentLabel.get(experiment) ?? experiment),
             meta: formatPassPercentage(passed, experimentResults.length),
             passRate: experimentResults.length
               ? Math.round((passed / experimentResults.length) * 100)
@@ -461,7 +519,7 @@ function getTimelineGroups(
       const bars = sortBarsByScore(
         experiments
           .map((experiment) => ({
-            label: formatExperiment(experiment),
+            label: experimentLabel.get(experiment) ?? experiment,
             summary: getExperimentOverallSummary(experiment, productResults),
           }))
           .filter((bar) => bar.summary.total > 0)
@@ -489,7 +547,7 @@ function getTimelineGroups(
       const bars = sortBarsByScore(
         experiments
           .map((experiment) => ({
-            label: formatExperiment(experiment),
+            label: experimentLabel.get(experiment) ?? experiment,
             summary: getExperimentOverallSummary(experiment, evalResults),
           }))
           .filter((bar) => bar.summary.total > 0)
@@ -512,7 +570,7 @@ function getTimelineGroups(
     const bars = sortBarsByScore(
       experiments
         .map((experiment) => ({
-          label: formatExperiment(experiment),
+          label: experimentLabel.get(experiment) ?? experiment,
           summary: getExperimentStageSummary(
             experiment,
             stage.id,
@@ -585,7 +643,7 @@ function SummaryBar({
         <button
           type="button"
           className="w-full text-left outline-none"
-          aria-label={`${label}: ${formatExperiment(summary.experiment)} passed ${summary.passed} of ${summary.total} evals`}
+          aria-label={`${label}: ${experimentLabel.get(summary.experiment) ?? summary.experiment} passed ${summary.passed} of ${summary.total} evals`}
         >
           {bar}
         </button>
@@ -702,7 +760,10 @@ function ExperimentSheet({
 }) {
   const experimentResults = getExperimentResults(experiment, sourceResults)
   const passed = experimentResults.filter((result) => result.passed).length
-  const experimentName = formatExperimentParts(experiment)
+  const r = results.find((result) => result.experiment === experiment)
+  const display = r?.experimentDisplay
+  const agentLabel = display ? AGENT_LABELS[display.agent] : experiment
+  const modelLabel = display ? formatModelWithModifiers(display) : ""
   const [isScrolled, setIsScrolled] = useState(false)
 
   return (
@@ -710,10 +771,10 @@ function ExperimentSheet({
       <SheetHeader className="flex-row items-end justify-between gap-6 border-b-0">
         <SheetTitle className="flex flex-col gap-1 pr-0 font-heading tracking-[-0.02em]">
           <span className="text-3xl leading-none font-light text-muted-foreground">
-            {experimentName.provider}
+            {agentLabel}
           </span>
           <span className="text-3xl leading-none font-light text-foreground">
-            {experimentName.model}
+            {modelLabel}
           </span>
         </SheetTitle>
         <SheetDescription className="shrink-0 pb-0.5 text-right">

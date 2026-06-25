@@ -44,6 +44,32 @@ export const evalSuiteSchema = z.enum(["benchmark", "regression"]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
+export const agentHarnessIdSchema = z.enum(["ai-sdk", "claude-code", "codex"]);
+export type AgentHarnessId = z.infer<typeof agentHarnessIdSchema>;
+
+export const modelProviderSchema = z.enum(["anthropic", "openai"]);
+export type ModelProvider = z.infer<typeof modelProviderSchema>;
+
+export const reasoningEffortSchema = z.enum([
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "max",
+]);
+export type ReasoningEffortLevel = z.infer<typeof reasoningEffortSchema>;
+
+export const experimentDisplayMetadataSchema = z.object({
+  agent: agentHarnessIdSchema,
+  modelProvider: modelProviderSchema,
+  modelId: z.string(),
+  reasoningEffort: reasoningEffortSchema.optional(),
+  variant: z.string().optional(),
+});
+export type ExperimentDisplayMetadata = z.infer<
+  typeof experimentDisplayMetadataSchema
+>;
+
 /**
  * Interface(s) the agent uses to act on Supabase — a benchmark dimension
  * (cross-team KPI), not the runtime switch. `mcp` = the platform-lite MCP/tool
@@ -188,6 +214,7 @@ export type CheckResult = z.infer<typeof checkResultSchema>;
 // than rendered with a stale value, and is rebuilt on the next run.
 const evalResultShape = {
   experiment: z.string(),
+  experimentDisplay: experimentDisplayMetadataSchema.optional(),
   eval: z.string(),
   stage: evalStageSchema.optional(),
   product: z.array(evalProductSchema).optional(),
