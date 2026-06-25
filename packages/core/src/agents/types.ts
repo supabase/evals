@@ -11,22 +11,20 @@
  * concern that diverges per agent lives in exactly one place.
  */
 
-import type { OutputConfig } from "@anthropic-ai/sdk/resources/messages";
-import type { ReasoningEffort } from "openai/resources/shared";
 import type { CommandResult, McpServerConfig } from "../index.js";
+import type {
+  AgentHarnessId,
+  ModelProvider,
+  ReasoningEffortLevel,
+} from "../eval-metadata.js";
 import type { AgentTranscriptParser } from "../parsers/types.js";
 
-/**
- * Reasoning effort for Claude Code's `--effort` flag. Derived from the Anthropic
- * SDK's `OutputConfig.effort` (minus null) so it tracks the provider's set.
- */
-export type ClaudeCodeEffort = NonNullable<OutputConfig["effort"]>;
-
-/**
- * Reasoning effort for Codex's `model_reasoning_effort` config. Derived from the
- * OpenAI SDK's `ReasoningEffort` (minus null) so it tracks the provider's set.
- */
-export type CodexReasoningEffort = NonNullable<ReasoningEffort>;
+export type AgentMetadata = {
+  agent: AgentHarnessId;
+  modelProvider: ModelProvider;
+  modelId: string;
+  reasoningEffort?: ReasoningEffortLevel;
+};
 
 /**
  * The slice of an execution environment a CLI agent needs: a workspace, a way
@@ -80,7 +78,7 @@ export interface RunnerExecResult {
 /** A CLI coding agent's execution strategy. `M` is its SDK model-id type. */
 export interface AgentRunner<M extends string = string> {
   /** Stable agent id; also the transcript-parser registry key. */
-  id: string;
+  id: AgentHarnessId;
   displayName: string;
   /** Env var holding the agent's API key (e.g. `ANTHROPIC_API_KEY`). */
   apiKeyEnvVar: string;

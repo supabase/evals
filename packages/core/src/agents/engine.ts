@@ -20,6 +20,7 @@
  */
 
 import type { AgentHarness, AgentRunResult } from "../index.js";
+import type { ModelProvider, ReasoningEffortLevel } from "../eval-metadata.js";
 import { adaptTranscript } from "../parsers/adapt.js";
 import type { AgentTranscriptParser } from "../parsers/types.js";
 import type { AgentRunner } from "./types.js";
@@ -32,16 +33,39 @@ import {
   writeSandboxFile,
 } from "./shared.js";
 
+function modelProviderForAgent(id: AgentRunner["id"]): ModelProvider {
+  switch (id) {
+    case "claude-code":
+      return "anthropic";
+    case "codex":
+      return "openai";
+    case "ai-sdk":
+      throw new Error("ai-sdk agents are not created through createCliAgent");
+  }
+}
+
 /** Compose a runner + parser into an `AgentHarness`. */
 export function createCliAgent<M extends string = string>(
   runner: AgentRunner<M>,
   parser: AgentTranscriptParser,
-  options: { model: M; cliVersion?: string; reasoningEffort?: string },
+  options: {
+    model: M;
+    cliVersion?: string;
+    reasoningEffort?: ReasoningEffortLevel;
+  },
 ): AgentHarness {
   const version = options.cliVersion ?? runner.defaultCliVersion;
   return {
     id: runner.id,
     modelId: options.model,
+    metadata: {
+      agent: runner.id,
+      modelProvider: modelProviderForAgent(runner.id),
+      modelId: options.model,
+      ...(options.reasoningEffort
+        ? { reasoningEffort: options.reasoningEffort }
+        : {}),
+    },
     runsInSandbox: true,
     assertReady() {
       requireApiKey(runner);

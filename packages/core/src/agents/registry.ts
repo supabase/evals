@@ -9,6 +9,7 @@
  */
 
 import type { AgentDefinition } from "./types.js";
+import type { AgentHarnessId } from "../eval-metadata.js";
 import type { AgentTranscriptParser } from "../parsers/types.js";
 import { claudeCodeDefinition } from "./claude-code/index.js";
 import { codexDefinition } from "./codex/index.js";
@@ -23,7 +24,7 @@ export function supportedParsers(): string[] {
 }
 
 /** Look up a parser by agent id, or throw with the supported list. */
-export function createParser(agent: string): AgentTranscriptParser {
+export function createParser(agent: AgentHarnessId): AgentTranscriptParser {
   const definition = byId.get(agent);
   if (!definition) {
     throw new Error(

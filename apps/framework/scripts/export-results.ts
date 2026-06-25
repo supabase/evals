@@ -8,9 +8,11 @@ import {
 } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
 import { rawEvalResultSchema } from "@supabase-evals/core/eval-metadata";
+import { getExperimentDisplayMetadata, type ExperimentConfig, type ExperimentDisplayMetadata } from "@supabase-evals/core";
 import type {
   EvalResult,
   EvalSuite,
@@ -25,7 +27,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..", "..");
 const RESULTS_DIR = join(ROOT, "results");
 const EVALS_DIR = join(ROOT, "evals");
+const EXPERIMENTS_DIR = join(ROOT, "experiments");
 const OUTPUT_PATH = join(ROOT, "apps", "web", "src", "data", "eval-results.json");
+
+async function loadExperimentDisplay(): Promise<Map<string, ExperimentDisplayMetadata>> {
+  const map = new Map<string, ExperimentDisplayMetadata>();
+  for (const f of (await readdir(EXPERIMENTS_DIR)).filter((f) => f.endsWith(".ts"))) {
+    const mod = await import(pathToFileURL(join(EXPERIMENTS_DIR, f)).href);
+    map.set(f.replace(/\.ts$/, ""), getExperimentDisplayMetadata(mod.default as ExperimentConfig));
+  }
+  return map;
+}
 const rawArgs = process.argv.slice(2);
 const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
   normalizeExperimentName,
@@ -58,6 +70,7 @@ async function readPrompt(evalId: string) {
 async function readResultFile(
   filePath: string,
   sourcePath: string,
+  experimentDisplay: Map<string, ExperimentDisplayMetadata>,
 ): Promise<EvalResult | null> {
   const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
   const result = rawEvalResultSchema.safeParse(parsed);
@@ -65,11 +78,13 @@ async function readResultFile(
     return null;
   }
   const parsedResult = result.data;
+  const display = experimentDisplay.get(parsedResult.experiment);
 
   const promptData = await readPrompt(parsedResult.eval);
 
   return {
     experiment: parsedResult.experiment,
+    experimentDisplay: parsedResult.experimentDisplay ?? display,
     eval: parsedResult.eval,
     stage: promptData?.stage ?? parsedResult.stage,
     product: promptData?.product ?? parsedResult.product,
@@ -114,6 +129,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
     return [];
   }
 
+  const experimentDisplay = await loadExperimentDisplay();
   const results: EvalResult[] = [];
   const experiments = await readdir(RESULTS_DIR);
 
@@ -142,7 +158,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
           continue;
         }
 
-        const result = await readResultFile(entryPath, relativeEntryPath);
+        const result = await readResultFile(entryPath, relativeEntryPath, experimentDisplay);
         if (result && shouldIncludeSuite(result.suite)) {
           results.push(result);
         }
@@ -165,6 +181,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
       const result = await readResultFile(
         summaryPath,
         `${relativeEntryPath}/summary.json`,
+        experimentDisplay,
       );
       if (result && shouldIncludeSuite(result.suite)) {
         results.push(result);

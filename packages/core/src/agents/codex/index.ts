@@ -6,8 +6,9 @@
  */
 
 import type { AgentHarness } from "../../index.js";
+import type { ReasoningEffortLevel } from "../../eval-metadata.js";
 import { createCliAgent } from "../engine.js";
-import type { AgentDefinition, CodexReasoningEffort } from "../types.js";
+import type { AgentDefinition } from "../types.js";
 import { codexRunner, type CodexModel } from "./runner.js";
 import { codexParser } from "./parser.js";
 
@@ -17,7 +18,7 @@ export function codexAgent(
     /** OpenAI model id (typed from `openai`; any string accepted). */
     model?: CodexModel;
     /** Reasoning effort (`model_reasoning_effort`). Omit to use Codex's default. */
-    reasoningEffort?: CodexReasoningEffort;
+    reasoningEffort?: ReasoningEffortLevel;
     /** Override the pinned CLI version. */
     cliVersion?: string;
   } = {},
