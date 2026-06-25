@@ -32,7 +32,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     await npmInstallGlobal(sandbox, `${this.cliPackage}@${version}`, this.displayName);
   },
 
-  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpServers, timeoutSec }) {
+  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpServers, reasoningEffort, timeoutSec }) {
     const claude = npmGlobalBin("claude");
     const serverNames = Object.keys(mcpServers);
 
@@ -49,6 +49,8 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       "--output-format stream-json",
       "--verbose",
       `--model ${shellQuote(model)}`,
+      // Reasoning effort for the session; omitted leaves Claude Code's default.
+      ...(reasoningEffort ? [`--effort ${shellQuote(reasoningEffort)}`] : []),
       // Append (not replace), from a file (no ARG_MAX/shell-expansion surface),
       // so Claude Code keeps its default coding-agent prompt + tool guidance.
       `--append-system-prompt-file ${systemPromptPath}`,

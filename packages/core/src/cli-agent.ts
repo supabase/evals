@@ -26,6 +26,7 @@ import { claudeCodeParser } from "./parsers/claude-code.js";
 import { codexParser } from "./parsers/codex.js";
 import { claudeCodeRunner } from "./runners/claude-code.js";
 import { codexRunner, type CodexModel } from "./runners/codex.js";
+import type { ClaudeCodeEffort, CodexReasoningEffort } from "./runners/types.js";
 import type { AgentRunner } from "./runners/types.js";
 import {
   SCRATCH,
@@ -41,13 +42,15 @@ export type {
   AgentRunner,
   RunnerExecArgs,
   RunnerExecResult,
+  ClaudeCodeEffort,
+  CodexReasoningEffort,
 } from "./runners/types.js";
 
 /** Compose a runner + parser into an `AgentHarness`. */
 export function createCliAgent<M extends string = string>(
   runner: AgentRunner<M>,
   parser: AgentTranscriptParser,
-  options: { model: M; cliVersion?: string },
+  options: { model: M; cliVersion?: string; reasoningEffort?: string },
 ): AgentHarness {
   const version = options.cliVersion ?? runner.defaultCliVersion;
   return {
@@ -82,6 +85,7 @@ export function createCliAgent<M extends string = string>(
         // Rewrite loopback hosts so in-container MCP servers can reach host-side
         // platform-lite; the runner writes them in its own config format.
         mcpServers: rewriteLoopback(args.mcpServers ?? {}),
+        reasoningEffort: options.reasoningEffort,
         timeoutSec: args.timeoutSec,
       });
 
@@ -116,12 +120,15 @@ export function claudeCodeAgent(
   options: {
     /** Anthropic model id (typed from `@anthropic-ai/sdk`). Defaults to Sonnet. */
     model?: AnthropicModel;
+    /** Reasoning effort (`--effort`). Omit to use Claude Code's own default. */
+    reasoningEffort?: ClaudeCodeEffort;
     /** Override the pinned CLI version. */
     cliVersion?: string;
   } = {},
 ): AgentHarness {
   return createCliAgent(claudeCodeRunner, claudeCodeParser, {
     model: options.model ?? claudeCodeRunner.defaultModel,
+    reasoningEffort: options.reasoningEffort,
     cliVersion: options.cliVersion,
   });
 }
@@ -131,12 +138,15 @@ export function codexAgent(
   options: {
     /** OpenAI model id (typed from `openai`; any string accepted). */
     model?: CodexModel;
+    /** Reasoning effort (`model_reasoning_effort`). Omit to use Codex's default. */
+    reasoningEffort?: CodexReasoningEffort;
     /** Override the pinned CLI version. */
     cliVersion?: string;
   } = {},
 ): AgentHarness {
   return createCliAgent(codexRunner, codexParser, {
     model: options.model ?? codexRunner.defaultModel,
+    reasoningEffort: options.reasoningEffort,
     cliVersion: options.cliVersion,
   });
 }

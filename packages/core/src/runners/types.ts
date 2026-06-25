@@ -10,7 +10,21 @@
  * concern that diverges per agent lives in exactly one place.
  */
 
+import type { OutputConfig } from "@anthropic-ai/sdk/resources/messages";
+import type { ReasoningEffort } from "openai/resources/shared";
 import type { CommandResult, McpServerConfig } from "../index.js";
+
+/**
+ * Reasoning effort for Claude Code's `--effort` flag. Derived from the Anthropic
+ * SDK's `OutputConfig.effort` (minus null) so it tracks the provider's set.
+ */
+export type ClaudeCodeEffort = NonNullable<OutputConfig["effort"]>;
+
+/**
+ * Reasoning effort for Codex's `model_reasoning_effort` config. Derived from the
+ * OpenAI SDK's `ReasoningEffort` (minus null) so it tracks the provider's set.
+ */
+export type CodexReasoningEffort = NonNullable<ReasoningEffort>;
 
 /**
  * The slice of an execution environment a CLI agent needs: a workspace, a way
@@ -46,6 +60,11 @@ export interface RunnerExecArgs<M extends string = string> {
   userPromptPath: string;
   /** MCP servers to expose, already loopback-rewritten. Empty when none. */
   mcpServers: Record<string, McpServerConfig>;
+  /**
+   * Reasoning effort the CLI should run at, if the caller pinned one.
+   * Undefined = leave the CLI's own default.
+   */
+  reasoningEffort?: string;
   timeoutSec: number;
 }
 

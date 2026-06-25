@@ -47,7 +47,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
     }
   },
 
-  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpServers, timeoutSec }) {
+  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpServers, reasoningEffort, timeoutSec }) {
     const codex = npmGlobalBin("codex");
     if (Object.keys(mcpServers).length > 0) {
       await sandbox.exec(`mkdir -p "$HOME/.codex"`);
@@ -62,6 +62,11 @@ export const codexRunner: AgentRunner<CodexModel> = {
       // The sandbox is the isolation boundary — let Codex run commands freely.
       "--dangerously-bypass-approvals-and-sandbox",
       `-m ${shellQuote(model)}`,
+      // Reasoning effort via config override; omitted leaves Codex's default.
+      // The value is parsed as TOML, so pass it as a quoted TOML string.
+      ...(reasoningEffort
+        ? [`-c ${shellQuote(`model_reasoning_effort="${reasoningEffort}"`)}`]
+        : []),
       // Read the prompt from stdin.
       "-",
     ].join(" ");

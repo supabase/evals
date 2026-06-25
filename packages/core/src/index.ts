@@ -74,7 +74,6 @@ export {
 export { parseEvalMarkdown } from "./eval-markdown.js";
 // CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
 export {
-  createCliAgent,
   claudeCodeAgent,
   codexAgent,
 } from "./cli-agent.js";
@@ -83,6 +82,8 @@ export type {
   AgentRunner,
   RunnerExecArgs,
   RunnerExecResult,
+  ClaudeCodeEffort,
+  CodexReasoningEffort,
 } from "./cli-agent.js";
 // Generic transcript vocabulary + parser layer used by CLI agents.
 export { createParser, supportedParsers } from "./parsers/registry.js";
