@@ -25,7 +25,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
   cliPackage: "@anthropic-ai/claude-code",
   // Pinned: Claude Code's transcript format evolves; bump deliberately and
   // re-check the parser. See ./parser.ts.
-  defaultCliVersion: "2.1.101",
+  defaultCliVersion: "2.1.191",
   defaultModel: "claude-sonnet-4-6",
 
   async install(sandbox, version) {
