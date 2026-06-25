@@ -31,7 +31,7 @@ import {
   type ProjectInstance,
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
-import type { CheckResult } from "./eval-metadata.js";
+import type { CheckResult, EvalSuite } from "./eval-metadata.js";
 import type { AgentSandbox } from "./agents/types.js";
 import { isRecord } from "./json.js";
 
@@ -446,6 +446,7 @@ export type LocalStackRuntime = {
 };
 
 export type ExperimentConfig = {
+  suite?: EvalSuite;
   agent: AgentHarness;
   runtime: EvalRuntime;
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
