@@ -12,4 +12,4 @@ motivation: AI-825, https://supabase.com/docs/guides/platform/migrating-to-supab
 
 I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.
 
-Can you set up a local Supabase project and restore the dump into it? Make sure sequences are synced up after the restore so future inserts won't conflict with existing IDs.
+Can you set up a local Supabase project and restore the dump into it?
