@@ -129,7 +129,7 @@ jobs:
             while IFS= read -r s; do
               suite_args+=("--suite" "$s")
             done < <(jq -r '.[]' <<< '${{ steps.inputs.outputs.suite }}')
-            experiments_json="$(pnpm eval -- list "${suite_args[@]}")"
+            experiments_json="$(pnpm --silent eval -- list "${suite_args[@]}")"
           fi
           if [ "$(echo "$experiments_json" | jq 'length')" -eq 0 ]; then
             echo "No experiments found for suites: ${{ steps.inputs.outputs.suite }}" >&2
