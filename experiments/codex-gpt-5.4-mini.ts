@@ -1,5 +1,5 @@
 import {
-  claudeCodeAgent,
+  codexAgent,
   defineExperiment,
   platformLiteRuntime,
   supabaseMcpServer,
@@ -7,9 +7,9 @@ import {
 import { localStackRuntime } from "@supabase-evals/sandbox";
 
 export default defineExperiment({
-  agent: claudeCodeAgent({
-    model: "claude-sonnet-4-6",
-    reasoningEffort: "high",
+  agent: codexAgent({
+    model: "gpt-5.4-mini",
+    reasoningEffort: "medium",
   }),
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],

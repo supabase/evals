@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { claudeCodeRunner } from "./runners/claude-code.js";
-import type { CommandResult } from "./index.js";
+import { claudeCodeRunner } from "./runner.js";
+import type { CommandResult } from "../../index.js";
 
 const ok: CommandResult = { ok: true, exitCode: 0, stdout: "", stderr: "" };
 const timedOut: CommandResult = {

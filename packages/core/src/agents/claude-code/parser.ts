@@ -14,11 +14,11 @@
 import type {
   ParsedTranscript,
   TranscriptEvent,
-} from "../transcript/types.js";
-import type { AgentTranscriptParser } from "./types.js";
-import { isRecord, parseJsonlRecords } from "../json.js";
-import { normalizeToolName, type AgentToolMap } from "./shared/normalize.js";
-import { extractArgs, type ArgFieldMap } from "./shared/extract.js";
+} from "../../transcript/types.js";
+import type { AgentTranscriptParser } from "../../parsers/types.js";
+import { isRecord, parseJsonlRecords } from "../../json.js";
+import { normalizeToolName, type AgentToolMap } from "../../parsers/shared/normalize.js";
+import { extractArgs, type ArgFieldMap } from "../../parsers/shared/extract.js";
 
 /** Claude Code's tool names → canonical names (case-sensitive). Owned here, not in shared. */
 const CLAUDE_CODE_TOOLS: AgentToolMap = {

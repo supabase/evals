@@ -32,7 +32,7 @@ import {
   type ServerHandle,
 } from "@supabase-evals/platform-lite";
 import type { CheckResult } from "./eval-metadata.js";
-import type { AgentSandbox } from "./cli-agent.js";
+import type { AgentSandbox } from "./agents/types.js";
 import { isRecord } from "./json.js";
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
@@ -72,16 +72,21 @@ export {
   rawEvalResultSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
-// CLI agent harnesses (Claude Code, and the runner/parser framework for adding more).
-export { createCliAgent, claudeCodeAgent } from "./cli-agent.js";
+// CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
+export { createCliAgent } from "./agents/engine.js";
+export { claudeCodeAgent } from "./agents/claude-code/index.js";
+export { codexAgent } from "./agents/codex/index.js";
 export type {
   AgentSandbox,
   AgentRunner,
   RunnerExecArgs,
   RunnerExecResult,
-} from "./cli-agent.js";
+  AgentDefinition,
+  ClaudeCodeEffort,
+  CodexReasoningEffort,
+} from "./agents/types.js";
 // Generic transcript vocabulary + parser layer used by CLI agents.
-export { createParser, supportedParsers } from "./parsers/registry.js";
+export { createParser, supportedParsers } from "./agents/registry.js";
 export { adaptTranscript } from "./parsers/adapt.js";
 export type { AdaptedTranscript } from "./parsers/adapt.js";
 export type { AgentTranscriptParser } from "./parsers/types.js";
