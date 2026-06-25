@@ -200,7 +200,6 @@ function formatModelWithModifiers(display: ExperimentDisplay) {
   return [
     formatModel(display),
     display.reasoningEffort ? `(${display.reasoningEffort})` : "",
-    display.variant,
   ]
     .filter(Boolean)
     .join(" ")

@@ -462,8 +462,6 @@ export type LocalStackRuntime = {
 };
 
 export type ExperimentConfig = {
-  /** Optional display suffix appended to the model label (e.g. "executor"). */
-  variantLabel?: string;
   suite?: EvalSuite;
   agent: AgentHarness;
   runtime: EvalRuntime;
@@ -475,11 +473,7 @@ export type ExperimentConfig = {
 export function getExperimentDisplayMetadata(
   config: ExperimentConfig,
 ): ExperimentDisplayMetadata {
-  const { variantLabel } = config;
-  return {
-    ...config.agent.metadata,
-    ...(variantLabel ? { variant: variantLabel } : {}),
-  };
+  return config.agent.metadata;
 }
 
 export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
