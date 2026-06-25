@@ -1,6 +1,6 @@
 /**
  * Codex runner. Headless via `codex exec --json` (newline-delimited thread/turn/
- * item events on stdout; see parsers/codex.ts). Like Claude Code, it runs in
+ * item events on stdout; see ./parser.ts). Like Claude Code, it runs in
  * both modes: the sandbox carries its shell/file tools in either case, and tools
  * mode just drops the Supabase CLI + local stack so Supabase access goes through
  * MCP (`~/.codex/config.toml`). Runs under `--dangerously-bypass-approvals-and-
@@ -8,16 +8,16 @@
  */
 
 import type { ChatModel } from "openai/resources/shared";
-import type { McpServerConfig } from "../index.js";
-import { parseJsonlRecords } from "../json.js";
-import type { AgentRunner } from "./types.js";
+import type { McpServerConfig } from "../../index.js";
+import { parseJsonlRecords } from "../../json.js";
+import type { AgentRunner } from "../types.js";
 import {
   npmGlobalBin,
   npmInstallGlobal,
   processStopReason,
   shellQuote,
   writeSandboxFile,
-} from "./shared.js";
+} from "../shared.js";
 
 // ChatModel is a closed union; widen so newer/codex-specific ids still type.
 export type CodexModel = ChatModel | (string & {});
@@ -30,7 +30,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
   apiKeyEnvVar: "OPENAI_API_KEY",
   cliPackage: "@openai/codex",
   // Pinned: Codex's --json event schema evolves; bump deliberately and re-check
-  // the parser. See packages/core/src/parsers/codex.ts.
+  // the parser. See ./parser.ts.
   defaultCliVersion: "0.138.0",
   defaultModel: "gpt-5.4",
 

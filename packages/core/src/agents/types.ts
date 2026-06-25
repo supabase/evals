@@ -1,10 +1,11 @@
 /**
- * Runner layer: how to install and drive a CLI coding agent inside a sandbox.
+ * Shared types for the agent layer.
  *
  * A runner owns only the CLI-execution strategy (install, exec, permission
  * flags, MCP-config format/placement). It does NOT parse transcripts — that's
- * the parser layer (`../parsers`). `createCliAgent` (in `../cli-agent.ts`)
- * composes a runner + a parser into an `AgentHarness`.
+ * the parser layer (`../parsers`). `createCliAgent` (in `./engine.ts`) composes
+ * a runner + a parser into an `AgentHarness`, and each agent's own module
+ * (`./<agent>/index.ts`) wires its runner + parser into a public factory.
  *
  * This mirrors `@supabase/agent-evals`'s runner/parser/agent split so each
  * concern that diverges per agent lives in exactly one place.
@@ -13,6 +14,7 @@
 import type { OutputConfig } from "@anthropic-ai/sdk/resources/messages";
 import type { ReasoningEffort } from "openai/resources/shared";
 import type { CommandResult, McpServerConfig } from "../index.js";
+import type { AgentTranscriptParser } from "../parsers/types.js";
 
 /**
  * Reasoning effort for Claude Code's `--effort` flag. Derived from the Anthropic
@@ -97,4 +99,16 @@ export interface AgentRunner<M extends string = string> {
    * result. Falls back to a process-exit-based reason when omitted.
    */
   deriveStopReason?(raw: string | undefined, command: CommandResult): string;
+}
+
+/**
+ * Everything the harness needs to know about one CLI agent, bundled so each
+ * agent's module is its single source of truth. The agent id comes from
+ * `runner.id`. `agents/registry.ts` collects these to drive transcript parsing
+ * (`createParser`) and to list supported agents; the public run-time factory is
+ * exported separately by the agent's `index.ts`.
+ */
+export interface AgentDefinition {
+  runner: AgentRunner;
+  parser: AgentTranscriptParser;
 }

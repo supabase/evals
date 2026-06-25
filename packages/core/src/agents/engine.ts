@@ -1,5 +1,5 @@
 /**
- * CLI-agent harnesses.
+ * CLI-agent engine — the generic orchestration shared by every CLI agent.
  *
  * `aiSdkAgent` drives the model loop in-process: we own the tools and record
  * the transcript as it happens. A CLI agent (Claude Code, Codex, …) is the
@@ -7,27 +7,22 @@
  * run it inside the eval sandbox and parse the transcript it produces.
  *
  * Three concerns are split so each lives in one place:
- *   - runner (`./runners/<agent>.ts`): install + exec + permission flags + MCP
+ *   - runner (`./<agent>/runner.ts`): install + exec + permission flags + MCP
  *     config format/placement — everything CLI-shaped.
- *   - parser (`./parsers/<agent>.ts`): raw transcript → canonical events.
+ *   - parser (`./<agent>/parser.ts`): raw transcript → canonical events.
  *   - composition (here): `createCliAgent(runner, parser)` does the generic
  *     orchestration (stage prompts, rewrite MCP hosts, run, parse, adapt) and
  *     produces an `AgentHarness`.
  *
- * Adding an agent = a runner + a parser + a registry entry; the orchestration
- * never changes.
+ * Each agent's `./<agent>/index.ts` wires its own runner + parser into a public
+ * factory by calling `createCliAgent`. This engine knows nothing about any
+ * specific agent, so adding one never touches this file.
  */
 
-import type { Model as AnthropicModel } from "@anthropic-ai/sdk/resources/messages";
-import type { AgentHarness, AgentRunResult } from "./index.js";
-import { adaptTranscript } from "./parsers/adapt.js";
-import type { AgentTranscriptParser } from "./parsers/types.js";
-import { claudeCodeParser } from "./parsers/claude-code.js";
-import { codexParser } from "./parsers/codex.js";
-import { claudeCodeRunner } from "./runners/claude-code.js";
-import { codexRunner, type CodexModel } from "./runners/codex.js";
-import type { ClaudeCodeEffort, CodexReasoningEffort } from "./runners/types.js";
-import type { AgentRunner } from "./runners/types.js";
+import type { AgentHarness, AgentRunResult } from "../index.js";
+import { adaptTranscript } from "../parsers/adapt.js";
+import type { AgentTranscriptParser } from "../parsers/types.js";
+import type { AgentRunner } from "./types.js";
 import {
   SCRATCH,
   SYSTEM_PROMPT_PATH,
@@ -35,16 +30,7 @@ import {
   processStopReason,
   rewriteLoopback,
   writeSandboxFile,
-} from "./runners/shared.js";
-
-export type {
-  AgentSandbox,
-  AgentRunner,
-  RunnerExecArgs,
-  RunnerExecResult,
-  ClaudeCodeEffort,
-  CodexReasoningEffort,
-} from "./runners/types.js";
+} from "./shared.js";
 
 /** Compose a runner + parser into an `AgentHarness`. */
 export function createCliAgent<M extends string = string>(
@@ -113,40 +99,4 @@ function requireApiKey(runner: AgentRunner): string {
     );
   }
   return apiKey;
-}
-
-/** Claude Code as an `AgentHarness`. */
-export function claudeCodeAgent(
-  options: {
-    /** Anthropic model id (typed from `@anthropic-ai/sdk`). Defaults to Sonnet. */
-    model?: AnthropicModel;
-    /** Reasoning effort (`--effort`). Omit to use Claude Code's own default. */
-    reasoningEffort?: ClaudeCodeEffort;
-    /** Override the pinned CLI version. */
-    cliVersion?: string;
-  } = {},
-): AgentHarness {
-  return createCliAgent(claudeCodeRunner, claudeCodeParser, {
-    model: options.model ?? claudeCodeRunner.defaultModel,
-    reasoningEffort: options.reasoningEffort,
-    cliVersion: options.cliVersion,
-  });
-}
-
-/** OpenAI Codex as an `AgentHarness`. Runs in both modes, like Claude Code. */
-export function codexAgent(
-  options: {
-    /** OpenAI model id (typed from `openai`; any string accepted). */
-    model?: CodexModel;
-    /** Reasoning effort (`model_reasoning_effort`). Omit to use Codex's default. */
-    reasoningEffort?: CodexReasoningEffort;
-    /** Override the pinned CLI version. */
-    cliVersion?: string;
-  } = {},
-): AgentHarness {
-  return createCliAgent(codexRunner, codexParser, {
-    model: options.model ?? codexRunner.defaultModel,
-    reasoningEffort: options.reasoningEffort,
-    cliVersion: options.cliVersion,
-  });
 }

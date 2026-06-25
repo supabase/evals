@@ -5,8 +5,8 @@
  * the agent CLI) into canonical `TranscriptEvent`s. It owns no I/O and no
  * agent-specific orchestration — that lives in the CLI agent harness.
  *
- * To add a new agent, implement this interface in `parsers/<agent>.ts` and
- * register it in `parsers/registry.ts`. Nothing else in the harness changes.
+ * To add a new agent, implement this interface in `agents/<agent>/parser.ts`
+ * and register its definition in `agents/registry.ts`. Nothing else changes.
  */
 
 import type { ParsedTranscript } from "../transcript/types.js";

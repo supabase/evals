@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { claudeCodeParser } from "./claude-code.js";
-import { adaptTranscript } from "./adapt.js";
+import { claudeCodeParser } from "./parser.js";
+import { adaptTranscript } from "../../parsers/adapt.js";
 
 /** A representative Claude Code `--print` JSONL session. */
 const SESSION = [

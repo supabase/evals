@@ -18,11 +18,11 @@
  * format (event_msg/response_item) that older parsers targeted.
  */
 
-import { isRecord, parseJsonlRecords } from "../json.js";
-import type { ParsedTranscript, TranscriptEvent } from "../transcript/types.js";
-import type { AgentTranscriptParser } from "./types.js";
-import { normalizeToolName, type AgentToolMap } from "./shared/normalize.js";
-import { extractArgs, type ArgFieldMap, type ExtractedArgs } from "./shared/extract.js";
+import { isRecord, parseJsonlRecords } from "../../json.js";
+import type { ParsedTranscript, TranscriptEvent } from "../../transcript/types.js";
+import type { AgentTranscriptParser } from "../../parsers/types.js";
+import { normalizeToolName, type AgentToolMap } from "../../parsers/shared/normalize.js";
+import { extractArgs, type ArgFieldMap, type ExtractedArgs } from "../../parsers/shared/extract.js";
 
 /**
  * Codex's tool names → canonical names. Codex names built-in tools by item type

@@ -1,20 +1,20 @@
 /**
  * Claude Code runner. Headless via `claude -p --output-format stream-json`
  * (Anthropic's recommended programmatic path — events stream to stdout, no
- * on-disk session-file race). See parsers/claude-code.ts for the transcript.
+ * on-disk session-file race). See ./parser.ts for the transcript.
  */
 
 import type { Model as AnthropicModel } from "@anthropic-ai/sdk/resources/messages";
-import type { McpServerConfig } from "../index.js";
-import { parseJsonlRecords } from "../json.js";
-import type { AgentRunner } from "./types.js";
+import type { McpServerConfig } from "../../index.js";
+import { parseJsonlRecords } from "../../json.js";
+import type { AgentRunner } from "../types.js";
 import {
   npmGlobalBin,
   npmInstallGlobal,
   processStopReason,
   shellQuote,
   writeSandboxFile,
-} from "./shared.js";
+} from "../shared.js";
 
 const MCP_CONFIG_PATH = '"$HOME/.eval/mcp.json"';
 
@@ -24,7 +24,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
   apiKeyEnvVar: "ANTHROPIC_API_KEY",
   cliPackage: "@anthropic-ai/claude-code",
   // Pinned: Claude Code's transcript format evolves; bump deliberately and
-  // re-check the parser. See packages/core/src/parsers/claude-code.ts.
+  // re-check the parser. See ./parser.ts.
   defaultCliVersion: "2.1.101",
   defaultModel: "claude-sonnet-4-6",
 

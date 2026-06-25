@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { codexParser } from "./codex.js";
-import { codexRunner } from "../runners/codex.js";
-import { adaptTranscript } from "./adapt.js";
+import { codexParser } from "./parser.js";
+import { codexRunner } from "./runner.js";
+import { adaptTranscript } from "../../parsers/adapt.js";
 
 /** A representative `codex exec --json` stream (shapes captured from CLI 0.138). */
 const SESSION = [
