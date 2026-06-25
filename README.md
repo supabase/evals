@@ -28,7 +28,7 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 Run one eval:
 
 ```bash
-pnpm eval -- --eval investigate-security-001-public-table --experiment openai-gpt-5.4-mini
+pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment claude-code-sonnet-4.6
 ```
 
 View results in the web app at `http://localhost:5173`:
@@ -57,33 +57,27 @@ pnpm web
 
 ### Add an experiment
 
-Add a file under `experiments/` for the agent/model/runtime setup you want to compare.
+Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: "benchmark"` to include it in benchmark runs.
 
 ### Run evals
 
 Running evals executes experiment x eval pairs and writes local result files under `results/`.
 
-Target a single experiment by filename stem:
+Run all benchmark experiments across all benchmark evals:
 
 ```bash
-pnpm eval -- --experiment openai-gpt-5.4-mini
+pnpm eval -- --suite benchmark
 ```
 
-Target multiple experiments or eval scenarios by repeating flags:
+Narrow to specific evals or experiments (flags are repeatable):
 
 ```bash
 pnpm eval -- \
-  --experiment openai-gpt-5.4-mini \
-  --experiment openai-gpt-5.4-nano \
   --suite benchmark \
-  --eval investigate-security-001-public-table \
-  --eval investigate-db-001-table-row-counts
-```
-
-Target a single model id:
-
-```bash
-pnpm eval -- --model gpt-5.4-mini
+  --experiment claude-code-sonnet-4.6 \
+  --experiment claude-code-opus-4.8 \
+  --eval resolve-dataapi-001-empty-results \
+  --eval investigate-auth-001-deleted-user-access
 ```
 
 Or run everything:

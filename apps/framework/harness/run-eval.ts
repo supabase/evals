@@ -31,6 +31,7 @@ import type {
   EvalInterface,
   EvalManifest,
   EvalMode,
+  EvalSuite,
   ToolScorer,
   LocalStackScorer,
   ScoreResult,
@@ -54,7 +55,6 @@ const DRY = args.has("--dry");
 const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
   normalizeExperimentName,
 );
-const MODEL_FILTER = readFlag("model");
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 1);
@@ -570,6 +570,16 @@ async function runConcurrent<T>(
 }
 
 async function main() {
+  if (rawArgs.filter((a) => a !== "--")[0] === "list") {
+    const experiments = await loadExperiments();
+    const filtered =
+      SUITE_FILTERS.length > 0
+        ? experiments.filter((e) => e.config.suite && SUITE_FILTERS.includes(e.config.suite as EvalSuite))
+        : experiments;
+    console.log(JSON.stringify(filtered.map((e) => e.name)));
+    return;
+  }
+
   const allExperiments = await loadExperiments();
   if (EXPERIMENT_FILTERS.length > 0) {
     const experimentNames = new Set(allExperiments.map(({ name }) => name));
@@ -585,20 +595,12 @@ async function main() {
       !EXPERIMENT_FILTERS.includes(name)
     )
       return false;
-    if (MODEL_FILTER && config.agent.modelId !== MODEL_FILTER) return false;
+    if (SUITE_FILTERS.length > 0 && !SUITE_FILTERS.includes(config.suite as EvalSuite)) return false;
     return true;
   });
-  if (EXPERIMENT_FILTERS.length > 0 || MODEL_FILTER) {
-    const filter = [
-      EXPERIMENT_FILTERS.length > 0
-        ? `experiment=${EXPERIMENT_FILTERS.join(",")}`
-        : undefined,
-      MODEL_FILTER ? `model=${MODEL_FILTER}` : undefined,
-    ]
-      .filter(Boolean)
-      .join(" ");
+  if (EXPERIMENT_FILTERS.length > 0) {
     if (experiments.length === 0) {
-      throw new Error(`no experiments matched ${filter}`);
+      throw new Error(`no experiments matched experiment=${EXPERIMENT_FILTERS.join(",")}`);
     }
   }
   const evals = discoverEvals();
