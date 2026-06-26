@@ -40,7 +40,7 @@ export const evalTopicSchema = z.enum([
 export const EVAL_TOPICS = evalTopicSchema.options;
 export type EvalTopic = z.infer<typeof evalTopicSchema>;
 
-export const evalSuiteSchema = z.enum(["benchmark", "regression"]);
+export const evalSuiteSchema = z.enum(["benchmark", "regression", "other"]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
@@ -120,7 +120,7 @@ export const evalMetadataSchema = z.object({
   stage: evalStageSchema,
   product: z.array(evalProductSchema).min(1),
   topic: z.array(evalTopicSchema).min(1),
-  suite: evalSuiteSchema.default("regression"),
+  suite: evalSuiteSchema,
   interface: evalInterfaceSchema.optional(),
   services: z.array(z.string().min(1)).optional(),
   // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);

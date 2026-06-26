@@ -575,7 +575,9 @@ async function main() {
     const experiments = await loadExperiments();
     const filtered =
       SUITE_FILTERS.length > 0
-        ? experiments.filter((e) => e.config.suite && SUITE_FILTERS.includes(e.config.suite as EvalSuite))
+        ? experiments.filter((e) =>
+            (e.config.suite ?? []).some((s) => SUITE_FILTERS.includes(s)),
+          )
         : experiments;
     console.log(JSON.stringify(filtered.map((e) => e.name)));
     return;
@@ -596,7 +598,11 @@ async function main() {
       !EXPERIMENT_FILTERS.includes(name)
     )
       return false;
-    if (SUITE_FILTERS.length > 0 && !SUITE_FILTERS.includes(config.suite as EvalSuite)) return false;
+    if (
+      SUITE_FILTERS.length > 0 &&
+      !(config.suite ?? []).some((s) => SUITE_FILTERS.includes(s))
+    )
+      return false;
     return true;
   });
   if (EXPERIMENT_FILTERS.length > 0) {
