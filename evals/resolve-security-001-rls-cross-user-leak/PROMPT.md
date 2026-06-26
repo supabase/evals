@@ -1,5 +1,6 @@
 ---
 stage: resolve
+suite: other
 product:
   - database
   - auth

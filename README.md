@@ -57,7 +57,7 @@ pnpm web
 
 ### Add an experiment
 
-Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: "benchmark"` to include it in benchmark runs.
+Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: ["benchmark"]` to include it in benchmark runs (it's a list, so one experiment can run in multiple suites, e.g. `["benchmark", "regression"]`).
 
 ### Run evals
 
@@ -114,6 +114,7 @@ motivation: AI-123
 ```
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
+`suite` is required on every eval (`benchmark`, `regression`, or `other`). Run a suite with `--suite regression` / `--suite other`, which selects experiments tagged with that suite against evals declaring it.
 Benchmark evals should include `motivation` with the issue or other reference that explains why the scenario belongs in the suite.
 
 ## Eval Modes

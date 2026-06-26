@@ -1,5 +1,6 @@
 ---
 stage: build
+suite: other
 product:
   - database
   - auth

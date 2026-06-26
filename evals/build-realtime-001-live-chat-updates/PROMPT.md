@@ -1,5 +1,6 @@
 ---
 stage: build
+suite: regression
 product:
   - realtime
   - database

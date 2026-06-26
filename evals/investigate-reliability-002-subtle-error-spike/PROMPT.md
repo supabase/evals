@@ -1,5 +1,6 @@
 ---
 stage: investigate
+suite: other
 product:
   - edge-functions
 topic:

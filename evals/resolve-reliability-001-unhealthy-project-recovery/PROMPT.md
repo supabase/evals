@@ -1,5 +1,6 @@
 ---
 stage: resolve
+suite: regression
 product:
   - database
 topic:

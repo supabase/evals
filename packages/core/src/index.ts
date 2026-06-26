@@ -462,7 +462,8 @@ export type LocalStackRuntime = {
 };
 
 export type ExperimentConfig = {
-  suite?: EvalSuite;
+  /** Suites this experiment runs in. Omitted/empty means no suite (skipped by `--suite`). */
+  suite?: EvalSuite[];
   agent: AgentHarness;
   runtime: EvalRuntime;
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
