@@ -88,6 +88,7 @@ type ExperimentStageGroup = {
 type ChartBar = {
   label: string
   summary: ExperimentStageSummary
+  comparisonSummary?: ExperimentStageSummary
 }
 
 function getBarPassRate(bar: ChartBar) {
@@ -110,6 +111,7 @@ function sortGroupsByPassRate(groups: TimelineGroup[]) {
 }
 
 type TimelineGroup = {
+  comparisonMeta?: string
   description?: string
   id: string
   label: string
@@ -216,12 +218,98 @@ function formatExperimentLabel(
   return `${AGENT_LABELS[display.agent]} / ${formatModelWithModifiers(display)}`
 }
 
-function buildExperimentLabel(exp: string): string {
+const NO_SKILLS_SUFFIX = "-no-skills"
+
+function getBaseExperiment(exp: string) {
+  return exp.endsWith(NO_SKILLS_SUFFIX)
+    ? exp.slice(0, -NO_SKILLS_SUFFIX.length)
+    : exp
+}
+
+const baseExperiments = Array.from(
+  new Set(experiments.map((experiment) => getBaseExperiment(experiment)))
+).sort((a, b) => a.localeCompare(b))
+
+function getWithSkillsExperiment(baseExperiment: string) {
+  return experiments.includes(baseExperiment) ? baseExperiment : undefined
+}
+
+function getNoSkillsExperiment(baseExperiment: string) {
+  const experiment = `${baseExperiment}${NO_SKILLS_SUFFIX}`
+  return experiments.includes(experiment) ? experiment : undefined
+}
+
+function getPrimaryExperiment(baseExperiment: string) {
+  return (
+    getWithSkillsExperiment(baseExperiment) ??
+    getNoSkillsExperiment(baseExperiment) ??
+    baseExperiment
+  )
+}
+
+function getBaseExperimentResults(
+  baseExperiment: string,
+  sourceResults = sortedResults
+) {
+  return sourceResults.filter(
+    (result) => getBaseExperiment(result.experiment) === baseExperiment
+  )
+}
+
+function getPrimaryResults(sourceResults: ParsedResult[]) {
+  return sourceResults.filter(
+    (result) =>
+      result.experiment ===
+      getPrimaryExperiment(getBaseExperiment(result.experiment))
+  )
+}
+
+function buildBaseExperimentLabel(exp: string): string {
   const r = results.find((r) => r.experiment === exp)
   return formatExperimentLabel(r?.experimentDisplay, exp)
 }
 
-const experimentLabel = new Map(experiments.map((exp) => [exp, buildExperimentLabel(exp)]))
+const baseExperimentLabel = new Map(
+  baseExperiments.map((baseExperiment) => [
+    baseExperiment,
+    buildBaseExperimentLabel(getPrimaryExperiment(baseExperiment)),
+  ])
+)
+
+const experimentLabel = new Map(
+  baseExperiments.map((baseExperiment) => [
+    baseExperiment,
+    baseExperimentLabel.get(baseExperiment) ?? baseExperiment,
+  ])
+)
+
+function getComparisonSummary(
+  baseExperiment: string,
+  category: JourneyStage | "overall",
+  sourceResults: ParsedResult[]
+) {
+  const noSkillsExperiment = getNoSkillsExperiment(baseExperiment)
+
+  if (!noSkillsExperiment) {
+    return undefined
+  }
+
+  return category === "overall"
+    ? getExperimentOverallSummary(noSkillsExperiment, sourceResults)
+    : getExperimentStageSummary(noSkillsExperiment, category, sourceResults)
+}
+
+function getPrimarySummary(
+  baseExperiment: string,
+  category: JourneyStage | "overall",
+  sourceResults: ParsedResult[]
+) {
+  const experiment = getPrimaryExperiment(baseExperiment)
+
+  return category === "overall"
+    ? getExperimentOverallSummary(experiment, sourceResults)
+    : getExperimentStageSummary(experiment, category, sourceResults)
+}
 
 function sortResults(a: ParsedResult, b: ParsedResult) {
   const categoryDelta =
@@ -479,30 +567,67 @@ function getTimelineGroups(
 ): TimelineGroup[] {
   if (groupBy === "model") {
     return sortGroupsByPassRate(
-      experiments
-        .map((experiment) => {
-          const experimentResults = getExperimentResults(
-            experiment,
+      baseExperiments
+        .map((baseExperiment) => {
+          const experimentResults = getBaseExperimentResults(
+            baseExperiment,
+            sourceResults
+          )
+          const primaryExperimentResults = getExperimentResults(
+            getPrimaryExperiment(baseExperiment),
             sourceResults
           )
           const bars = JOURNEY_STAGES.map((stage) => ({
             label: stage.label,
-            summary: getExperimentStageSummary(
-              experiment,
+            summary: getPrimarySummary(
+              baseExperiment,
               stage.id,
               experimentResults
             ),
-          })).filter((bar) => bar.summary.total > 0)
-          const passed = experimentResults.filter(
+            comparisonSummary: getComparisonSummary(
+              baseExperiment,
+              stage.id,
+              experimentResults
+            ),
+          })).filter(
+            (bar) => bar.summary.total > 0 || bar.comparisonSummary?.total
+          )
+          const primaryPassed = primaryExperimentResults.filter(
             (result) => result.passed
           ).length
+          const primarySummary = getPrimarySummary(
+            baseExperiment,
+            "overall",
+            experimentResults
+          )
+          const comparisonSummary = getComparisonSummary(
+            baseExperiment,
+            "overall",
+            experimentResults
+          )
+          const comparisonRate = comparisonSummary?.total
+            ? Math.round(
+                (comparisonSummary.passed / comparisonSummary.total) * 100
+              )
+            : undefined
 
           return {
-            id: experiment,
-            label: formatGroupLabel(experimentLabel.get(experiment) ?? experiment),
-            meta: formatPassPercentage(passed, experimentResults.length),
-            passRate: experimentResults.length
-              ? Math.round((passed / experimentResults.length) * 100)
+            comparisonMeta:
+              comparisonRate !== undefined
+                ? `${comparisonRate}% without skills`
+                : undefined,
+            id: baseExperiment,
+            label: formatGroupLabel(
+              experimentLabel.get(baseExperiment) ?? baseExperiment
+            ),
+            meta: formatPassPercentage(
+              primarySummary.passed,
+              primarySummary.total
+            ),
+            passRate: primaryExperimentResults.length
+              ? Math.round(
+                  (primaryPassed / primaryExperimentResults.length) * 100
+                )
               : 0,
             sourceResults: experimentResults,
             bars,
@@ -515,20 +640,34 @@ function getTimelineGroups(
   if (groupBy === "product") {
     return getProductKeys(sourceResults).map((product) => {
       const productResults = getProductResults(product, sourceResults)
+      const primaryProductResults = getPrimaryResults(productResults)
       const bars = sortBarsByScore(
-        experiments
-          .map((experiment) => ({
-            label: experimentLabel.get(experiment) ?? experiment,
-            summary: getExperimentOverallSummary(experiment, productResults),
+        baseExperiments
+          .map((baseExperiment) => ({
+            label: experimentLabel.get(baseExperiment) ?? baseExperiment,
+            summary: getPrimarySummary(
+              baseExperiment,
+              "overall",
+              productResults
+            ),
+            comparisonSummary: getComparisonSummary(
+              baseExperiment,
+              "overall",
+              productResults
+            ),
           }))
-          .filter((bar) => bar.summary.total > 0)
+          .filter(
+            (bar) => bar.summary.total > 0 || bar.comparisonSummary?.total
+          )
       )
-      const passed = productResults.filter((result) => result.passed).length
+      const passed = primaryProductResults.filter(
+        (result) => result.passed
+      ).length
 
       return {
         id: product,
         label: formatGroupLabel(formatProductLabel(product)),
-        meta: formatPassPercentage(passed, productResults.length),
+        meta: formatPassPercentage(passed, primaryProductResults.length),
         sourceResults: productResults,
         bars,
       }
@@ -543,20 +682,32 @@ function getTimelineGroups(
 
     return evalIds.map((evalId) => {
       const evalResults = getEvalResults(evalId, sourceResults)
+      const primaryEvalResults = getPrimaryResults(evalResults)
       const bars = sortBarsByScore(
-        experiments
-          .map((experiment) => ({
-            label: experimentLabel.get(experiment) ?? experiment,
-            summary: getExperimentOverallSummary(experiment, evalResults),
+        baseExperiments
+          .map((baseExperiment) => ({
+            label: experimentLabel.get(baseExperiment) ?? baseExperiment,
+            summary: getPrimarySummary(
+              baseExperiment,
+              "overall",
+              evalResults
+            ),
+            comparisonSummary: getComparisonSummary(
+              baseExperiment,
+              "overall",
+              evalResults
+            ),
           }))
-          .filter((bar) => bar.summary.total > 0)
+          .filter(
+            (bar) => bar.summary.total > 0 || bar.comparisonSummary?.total
+          )
       )
-      const passed = evalResults.filter((result) => result.passed).length
+      const passed = primaryEvalResults.filter((result) => result.passed).length
 
       return {
         id: evalId,
         label: formatGroupLabel(formatEvalName(evalId)),
-        meta: formatPassPercentage(passed, evalResults.length),
+        meta: formatPassPercentage(passed, primaryEvalResults.length),
         description: evalId,
         sourceResults: evalResults,
         bars,
@@ -566,25 +717,27 @@ function getTimelineGroups(
 
   return JOURNEY_STAGES.map((stage) => {
     const stageResults = getStageResults(stage.id, sourceResults)
+    const primaryStageResults = getPrimaryResults(stageResults)
     const bars = sortBarsByScore(
-      experiments
-        .map((experiment) => ({
-          label: experimentLabel.get(experiment) ?? experiment,
-          summary: getExperimentStageSummary(
-            experiment,
+      baseExperiments
+        .map((baseExperiment) => ({
+          label: experimentLabel.get(baseExperiment) ?? baseExperiment,
+          summary: getPrimarySummary(baseExperiment, stage.id, sourceResults),
+          comparisonSummary: getComparisonSummary(
+            baseExperiment,
             stage.id,
             sourceResults
           ),
         }))
-        .filter((bar) => bar.summary.total > 0)
+        .filter((bar) => bar.summary.total > 0 || bar.comparisonSummary?.total)
     )
-    const passed = stageResults.filter((result) => result.passed).length
+    const passed = primaryStageResults.filter((result) => result.passed).length
 
     return {
       description: stage.description,
       id: stage.id,
       label: formatGroupLabel(stage.label),
-      meta: formatPassPercentage(passed, stageResults.length),
+      meta: formatPassPercentage(passed, primaryStageResults.length),
       sourceResults,
       bars,
     }
@@ -592,11 +745,13 @@ function getTimelineGroups(
 }
 
 function SummaryBar({
+  comparisonSummary,
   label,
   sourceResults,
   summary,
   interactive = true,
 }: {
+  comparisonSummary?: ExperimentStageSummary
   label: string
   sourceResults: ParsedResult[]
   summary: ExperimentStageSummary
@@ -605,12 +760,14 @@ function SummaryBar({
   const passRate = summary.total
     ? Math.round((summary.passed / summary.total) * 100)
     : 0
-  const width = `${passRate}%`
+  const comparisonPassRate = comparisonSummary?.total
+    ? Math.round((comparisonSummary.passed / comparisonSummary.total) * 100)
+    : undefined
 
   const bar = (
     <div
       className={cn(
-        "group flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 text-left outline-none",
+        "flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 text-left outline-none",
         interactive &&
           "transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
       )}
@@ -619,14 +776,19 @@ function SummaryBar({
         <span className="truncate font-mono text-sm font-normal text-foreground">
           {label}
         </span>
-        <span className="shrink-0 font-mono text-sm font-normal text-muted-foreground">
-          {passRate}%
+        <span className="flex shrink-0 items-baseline gap-2 font-mono font-normal">
+          {comparisonPassRate !== undefined ? (
+            <span className="text-xs text-muted-foreground">
+              ({comparisonPassRate}% without skills)
+            </span>
+          ) : null}
+          <span className="text-sm text-foreground">{passRate}%</span>
         </span>
       </div>
       <div className="h-[3px] w-full bg-foreground/20">
         <div
           className="h-full bg-foreground transition-all group-hover:bg-foreground/90"
-          style={{ width }}
+          style={{ width: `${passRate}%` }}
         />
       </div>
     </div>
@@ -642,7 +804,11 @@ function SummaryBar({
         <button
           type="button"
           className="w-full text-left outline-none"
-          aria-label={`${label}: ${experimentLabel.get(summary.experiment) ?? summary.experiment} passed ${summary.passed} of ${summary.total} evals`}
+          aria-label={
+            comparisonSummary?.total
+              ? `${label}: with agent skills ${summary.passed} of ${summary.total} evals passed, without agent skills ${comparisonSummary.passed} of ${comparisonSummary.total} evals passed`
+              : `${label}: ${summary.passed} of ${summary.total} evals passed`
+          }
         >
           {bar}
         </button>
@@ -675,14 +841,21 @@ function TimelineGroupRow({
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className={groupHeadingClassName}>{group.label}</h2>
           {group.passRate != null ? (
-            <p
-              className={cn(
-                "text-2xl leading-none font-light tracking-[-0.02em]",
-                getPassRateClass(group.passRate)
-              )}
-            >
-              {group.meta}
-            </p>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <p
+                className={cn(
+                  "text-2xl leading-none font-light tracking-[-0.02em]",
+                  getPassRateClass(group.passRate)
+                )}
+              >
+                {group.meta}
+              </p>
+              {group.comparisonMeta ? (
+                <p className="font-mono text-xs text-muted-foreground">
+                  ({group.comparisonMeta})
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
         {group.description ? (
@@ -706,6 +879,7 @@ function TimelineGroupRow({
             group.bars.map((bar) => (
               <SummaryBar
                 key={`${group.id}-${bar.summary.experiment}-${bar.summary.category}-${bar.label}`}
+                comparisonSummary={bar.comparisonSummary}
                 label={bar.label}
                 sourceResults={group.sourceResults}
                 summary={bar.summary}
@@ -757,11 +931,24 @@ function ExperimentSheet({
   experiment: string
   sourceResults: ParsedResult[]
 }) {
-  const experimentResults = getExperimentResults(experiment, sourceResults)
+  const baseExperiment = getBaseExperiment(experiment)
+  const withSkillsExperiment = getWithSkillsExperiment(baseExperiment)
+  const noSkillsExperiment = getNoSkillsExperiment(baseExperiment)
+  const hasVariantComparison = Boolean(withSkillsExperiment && noSkillsExperiment)
+  const [selectedVariant, setSelectedVariant] = useState<"skills" | "no-skills">(
+    experiment.endsWith(NO_SKILLS_SUFFIX) || !withSkillsExperiment
+      ? "no-skills"
+      : "skills"
+  )
+  const selectedExperiment =
+    selectedVariant === "no-skills"
+      ? noSkillsExperiment ?? getPrimaryExperiment(baseExperiment)
+      : withSkillsExperiment ?? getPrimaryExperiment(baseExperiment)
+  const experimentResults = getExperimentResults(selectedExperiment, sourceResults)
   const passed = experimentResults.filter((result) => result.passed).length
-  const r = results.find((result) => result.experiment === experiment)
+  const r = results.find((result) => result.experiment === selectedExperiment)
   const display = r?.experimentDisplay
-  const agentLabel = display ? AGENT_LABELS[display.agent] : experiment
+  const agentLabel = display ? AGENT_LABELS[display.agent] : selectedExperiment
   const modelLabel = display ? formatModelWithModifiers(display) : ""
   const [isScrolled, setIsScrolled] = useState(false)
 
@@ -776,8 +963,35 @@ function ExperimentSheet({
             {modelLabel}
           </span>
         </SheetTitle>
-        <SheetDescription className="shrink-0 pb-0.5 text-right">
-          {passed} of {experimentResults.length} evals passed
+        <SheetDescription className="flex shrink-0 flex-col items-end gap-3 pb-0.5 text-right">
+          {hasVariantComparison ? (
+            <ToggleGroup
+              type="single"
+              value={selectedVariant}
+              onValueChange={(value) => {
+                if (value === "skills" || value === "no-skills") {
+                  setSelectedVariant(value)
+                }
+              }}
+              className="h-8 rounded-md border bg-muted/25 p-0.5"
+            >
+              <ToggleGroupItem
+                value="skills"
+                className="h-7 px-3 text-xs"
+              >
+                With agent skills
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="no-skills"
+                className="h-7 px-3 text-xs"
+              >
+                Without agent skills
+              </ToggleGroupItem>
+            </ToggleGroup>
+          ) : null}
+          <span>
+            {passed} of {experimentResults.length} evals passed
+          </span>
         </SheetDescription>
       </SheetHeader>
       <div
@@ -803,7 +1017,7 @@ function ExperimentSheet({
             (result) => result.category === stage.id
           )
           const stageGroups = getExperimentStageGroups(
-            experiment,
+            selectedExperiment,
             stage.id,
             sourceResults
           )
