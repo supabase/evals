@@ -29,7 +29,7 @@ on:
         required: false
         default: false
       commit_to_branch:
-        description: "Commit results straight to the dispatched branch instead of opening a PR. Note this will fail on main due to its ruleset."
+        description: "Commit exported results to the dispatched branch instead of opening a PR"
         type: boolean
         required: false
         default: false
@@ -337,8 +337,6 @@ jobs:
           pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
 
       - name: Upload exported results
-        # Persist the exported JSON as an artifact for every PR and dispatch, so
-        # the result is downloadable even alongside the direct-commit/PR steps below.
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -347,10 +345,8 @@ jobs:
           retention-days: 7
 
       - name: Commit exported results to branch
-        # PR runs commit to the PR head branch. A manual dispatch commits straight
-        # to the dispatched branch when commit_to_branch is opted in; otherwise it
-        # routes through a PR (the step below). Don't opt in on main: its ruleset
-        # rejects direct pushes, so the push would fail.
+        # PR runs commit to the PR head branch. Manual dispatch commits to the
+        # selected branch only when commit_to_branch is enabled.
         if: >-
           github.event_name == 'pull_request' ||
           (github.event_name == 'workflow_dispatch' && inputs.commit_to_branch)
@@ -372,8 +368,6 @@ jobs:
           git commit -m "chore: refresh eval results"
           git push
 
-      # Open a PR for any dispatch not committing directly (the default, and the
-      # only sane option on main given its ruleset).
       - name: Generate GitHub App token
         id: generate-token
         if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
