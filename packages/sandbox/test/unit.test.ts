@@ -165,6 +165,7 @@ describe("services frontmatter → computeExcludedServices (regression)", () => 
     [
       "---",
       "stage: build",
+      "suite: regression",
       "product: [database]",
       "topic: [migrations]",
       `services: ${services}`,
