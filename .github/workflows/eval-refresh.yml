@@ -23,6 +23,16 @@ on:
         description: "Timeout per attempt in seconds"
         required: true
         default: "720"
+      merge:
+        description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
+        type: boolean
+        required: false
+        default: false
+      commit_to_branch:
+        description: "Commit results straight to the dispatched branch instead of opening a PR (don't enable on main, its ruleset rejects direct pushes)"
+        type: boolean
+        required: false
+        default: false
   pull_request:
     # Run whenever a PR carrying the run-evals label is opened, pushed to, or
     # receives the run-evals label. The job-level `if` gates on those cases.
@@ -58,6 +68,7 @@ jobs:
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
+      do_merge: ${{ steps.inputs.outputs.do_merge }}
     steps:
       - name: Prepare inputs
         id: inputs
@@ -81,12 +92,20 @@ jobs:
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
 
-          # run-evals takes priority; run-evals-changed only filters when run-evals is absent
+          # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
+          # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
           filter_changed="false"
           if [ "${{ github.event_name }}" = "pull_request" ] && \
              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-changed') }}" = "true" ] && \
              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals') }}" = "false" ]; then
             filter_changed="true"
+          fi
+
+          # do_merge drives the export --merge (graft into existing results). It's
+          # always on for the changed path, and opt-in for manual dispatch.
+          do_merge="$filter_changed"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.merge }}" = "true" ]; then
+            do_merge="true"
           fi
 
           {
@@ -96,6 +115,7 @@ jobs:
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
             echo "filter_changed=$filter_changed"
+            echo "do_merge=$do_merge"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
@@ -310,16 +330,15 @@ jobs:
             export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")
           fi
 
-          if [ "${{ needs.prepare.outputs.filter_changed }}" = "true" ]; then
+          if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
             export_args+=("--merge")
           fi
 
           pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
 
       - name: Upload exported results
-        # Persist the exported JSON as an artifact for PRs and for branch
-        # dispatches (where the commit/refresh-PR steps below are intentionally
-        # gated off), so a run against a feature branch still surfaces it.
+        # Persist the exported JSON as an artifact for every PR and dispatch, so
+        # the result is downloadable even alongside the direct-commit/PR steps below.
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -327,8 +346,14 @@ jobs:
           path: apps/web/src/data/eval-results.json
           retention-days: 7
 
-      - name: Commit exported results to PR
-        if: github.event_name == 'pull_request'
+      - name: Commit exported results to branch
+        # PR runs commit to the PR head branch. A manual dispatch commits straight
+        # to the dispatched branch when commit_to_branch is opted in; otherwise it
+        # routes through a PR (the step below). Don't opt in on main: its ruleset
+        # rejects direct pushes, so the push would fail.
+        if: >-
+          github.event_name == 'pull_request' ||
+          (github.event_name == 'workflow_dispatch' && inputs.commit_to_branch)
         shell: bash
         run: |
           set -euo pipefail
@@ -347,21 +372,25 @@ jobs:
           git commit -m "chore: refresh eval results"
           git push
 
+      # Open a PR for any dispatch not committing directly (the default, and the
+      # only sane option on main given its ruleset).
       - name: Generate GitHub App token
         id: generate-token
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
       - name: Create results pull request
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.generate-token.outputs.token }}
           add-paths: apps/web/src/data/eval-results.json
-          branch: chore/refresh-eval-results
+          # Per-base head branch so a branch refresh PR can't collide with main's.
+          branch: chore/refresh-eval-results-${{ github.ref_name }}
+          base: ${{ github.ref_name }}
           commit-message: "chore: refresh eval results"
           title: "chore: refresh eval results"
           body: |
