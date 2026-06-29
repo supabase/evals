@@ -1,6 +1,7 @@
 import type { ToolCallRecord } from "./index.js";
 import type { SkillResult } from "./eval-metadata.js";
 
+// Skill reads can appear as bare paths or quoted shell args in tool-call logs.
 const PATH_START_BOUNDARY = String.raw`(?:^|[\s"'` + "`" + String.raw`])`;
 const PATH_END_BOUNDARY = String.raw`(?:$|[\s"'` + "`" + String.raw`])`;
 
