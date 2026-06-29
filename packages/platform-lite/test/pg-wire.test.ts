@@ -59,6 +59,36 @@ describe('platform pg-wire surface', () => {
     }
   })
 
+  it('resets prepared statements per client session so a reused name does not collide', async () => {
+    // Regression guard for the prepared-statement collision: PGlite is one shared
+    // session, and the Supabase CLI's pgx driver reuses fixed statement names
+    // (e.g. `lrupsc_1_0`, counter reset per connection). Without the per-session
+    // reset, the second connection's Parse of the same name hits the first's
+    // leftover — "prepared statement already exists" (42P05) — which broke every
+    // `db push` / `migration repair` after the first.
+    const ref = 'preparedresetxxxxxxx'
+    const platform = await createPlatform({
+      projects: [{ ref, sql: 'create table t (id int);' }],
+    })
+    const pg = await platform.listenPg({ hostname: '127.0.0.1' })
+    try {
+      const first = await parseRoundTrip(pg.port, ref, 'lrupsc_1_0', 'select 1')
+      expect(first.parseOk).toBe(true)
+      expect(first.errorSeen).toBe(false)
+
+      // Let the server observe the first connection's close (release -> 0) before
+      // reconnecting, so the new session is the 0->1 transition that resets.
+      await delay(150)
+
+      const second = await parseRoundTrip(pg.port, ref, 'lrupsc_1_0', 'select 1')
+      expect(second.errorSeen).toBe(false)
+      expect(second.parseOk).toBe(true)
+    } finally {
+      await pg.close()
+      await platform.dispose()
+    }
+  })
+
   it('dispose() closes the pg-wire listener even without an explicit handle close', async () => {
     const platform = await createPlatform({
       projects: [{ ref: 'disposeprojxxxxxxxxx', sql: 'create table t (id int);' }],
@@ -127,10 +157,89 @@ function wireRoundTrip(
   })
 }
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Like wireRoundTrip, but exercises the EXTENDED query protocol: after startup
+ * it sends a Parse (naming a prepared statement) + Sync and reports whether the
+ * server replied ParseComplete ('1') or an ErrorResponse ('E'). This is what
+ * surfaces the prepared-statement-name collision a simple Query never would.
+ */
+function parseRoundTrip(
+  port: number,
+  ref: string,
+  stmtName: string,
+  query: string,
+): Promise<{ parseOk: boolean; errorSeen: boolean }> {
+  return new Promise((resolve, reject) => {
+    const sock: Socket = connect({ host: '127.0.0.1', port })
+    let sslResponse = ''
+    let zCount = 0
+    let parseOk = false
+    let errorSeen = false
+
+    const timer = setTimeout(() => {
+      sock.destroy()
+      reject(new Error('parse round-trip timed out'))
+    }, 5000)
+
+    sock.on('connect', () => sock.write(sslRequest()))
+    sock.on('error', (err) => {
+      clearTimeout(timer)
+      sock.destroy()
+      reject(err)
+    })
+    sock.on('data', (data) => {
+      let offset = 0
+      if (!sslResponse) {
+        sslResponse = String.fromCharCode(data[0])
+        offset = 1
+        sock.write(startupMessage(`postgres.${ref}`))
+      }
+      while (offset + 5 <= data.length) {
+        const tag = String.fromCharCode(data[offset])
+        const len = data.readInt32BE(offset + 1)
+        if (tag === '1') parseOk = true
+        if (tag === 'E') errorSeen = true
+        if (tag === 'Z') {
+          zCount++
+          if (zCount === 1) {
+            // Ready after startup — send the Parse + Sync.
+            sock.write(Buffer.concat([parseMessage(stmtName, query), syncMessage()]))
+          } else {
+            clearTimeout(timer)
+            sock.destroy()
+            resolve({ parseOk, errorSeen })
+            return
+          }
+        }
+        offset += 1 + len
+      }
+    })
+  })
+}
+
 function sslRequest(): Buffer {
   const buf = Buffer.alloc(8)
   buf.writeInt32BE(8, 0)
   buf.writeInt32BE(80877103, 4)
+  return buf
+}
+
+function parseMessage(name: string, query: string): Buffer {
+  const body = Buffer.from(`${name}\0${query}\0`, 'utf8')
+  const buf = Buffer.alloc(5 + body.length + 2)
+  buf.write('P', 0, 'ascii')
+  buf.writeInt32BE(4 + body.length + 2, 1)
+  body.copy(buf, 5)
+  buf.writeInt16BE(0, 5 + body.length) // zero parameter type OIDs
+  return buf
+}
+
+function syncMessage(): Buffer {
+  const buf = Buffer.alloc(5)
+  buf.write('S', 0, 'ascii')
+  buf.writeInt32BE(4, 1)
   return buf
 }
 

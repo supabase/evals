@@ -94,8 +94,46 @@ export async function startPgWireServer(
   const backendPortFor = async (project: ProjectInstance): Promise<number> =>
     (await backendFor(project)).port
 
+  // PGlite is single-session, so prepared statements live in one namespace
+  // shared by every wire connection to a project (and never expire). The
+  // Supabase CLI's pgx driver re-uses fixed statement names (e.g. `lrupsc_1_0`),
+  // resetting its counter on each new connection — so the *second* CLI
+  // invocation's Parse collides with the first's leftover ("prepared statement
+  // already exists", SQLSTATE 42P05), breaking `db push` / `migration repair`.
+  // A real Postgres backend gives each connection its own session; we emulate
+  // that by clearing the namespace when a new client session for a project
+  // begins (no other connection live), so each invocation Parses from a clean
+  // slate. Tracked per ref; only the 0->1 transition resets, so concurrent
+  // connections within one invocation are left undisturbed.
+  //
+  // Caveat: `DEALLOCATE ALL` is global to the project's single PGlite session —
+  // the same one the HTTP gateway (PostgREST / Management API SQL) uses. It only
+  // affects named prepared statements (not unnamed/portals), and PGlite
+  // serializes execs so it can't interleave mid-statement. That's safe for the
+  // DB-only hosted evals this serves (no concurrent gateway traffic during a
+  // linked `db push`); revisit if a project ever drives wire + HTTP at once.
+  const activeByRef = new Map<string, number>()
+  const session = {
+    claim: async (project: ProjectInstance): Promise<void> => {
+      const live = activeByRef.get(project.ref) ?? 0
+      activeByRef.set(project.ref, live + 1)
+      if (live === 0) {
+        try {
+          await project.pglite.exec('DEALLOCATE ALL')
+        } catch {
+          // best effort — a fresh project has nothing to deallocate
+        }
+      }
+    },
+    release: (project: ProjectInstance): void => {
+      const live = activeByRef.get(project.ref) ?? 0
+      if (live <= 1) activeByRef.delete(project.ref)
+      else activeByRef.set(project.ref, live - 1)
+    },
+  }
+
   const proxy = createServer((client) =>
-    handleClient(client, resolve, listRefs, backendPortFor),
+    handleClient(client, resolve, listRefs, backendPortFor, session),
   )
   await listen(proxy, host, opts.port ?? 0)
   const port = (proxy.address() as AddressInfo).port
@@ -128,11 +166,17 @@ export async function startPgWireServer(
  * matching project's backend. The client is paused while the backend connects so
  * no bytes are dropped between negotiation and the pipe.
  */
+type WireSession = {
+  claim: (project: ProjectInstance) => Promise<void>
+  release: (project: ProjectInstance) => void
+}
+
 function handleClient(
   client: Socket,
   resolve: ResolveProject,
   listRefs: () => string[],
   backendPortFor: (project: ProjectInstance) => Promise<number>,
+  session: WireSession,
 ): void {
   client.setNoDelay(true)
   let buf = Buffer.alloc(0)
@@ -167,7 +211,7 @@ function handleClient(
         client.end(fatalError(`platform-lite: unknown project "${ref ?? ''}"`))
         return
       }
-      void proxyToBackend(client, project, backendPortFor, buf)
+      void proxyToBackend(client, project, backendPortFor, buf, session)
       return
     }
   }
@@ -181,12 +225,24 @@ async function proxyToBackend(
   project: ProjectInstance,
   backendPortFor: (project: ProjectInstance) => Promise<number>,
   initial: Buffer,
+  session: WireSession,
 ): Promise<void> {
   client.pause()
+  // Mark this client session live (resetting prepared statements if it's the
+  // first), and release exactly once when the connection ends — whichever of
+  // close/error fires first.
+  await session.claim(project)
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    session.release(project)
+  }
   let backendPort: number
   try {
     backendPort = await backendPortFor(project)
   } catch {
+    release()
     client.destroy()
     return
   }
@@ -197,11 +253,17 @@ async function proxyToBackend(
     client.resume()
   })
   const kill = () => {
+    release()
     client.destroy()
     backend.destroy()
   }
   backend.on('error', kill)
   client.on('error', kill)
+  // Release on either side closing — whichever fires first wins (the `released`
+  // guard makes the rest no-ops), so the ref-count can't leak if the backend
+  // drops without the client emitting close/error.
+  client.on('close', release)
+  backend.on('close', release)
 }
 
 /**
