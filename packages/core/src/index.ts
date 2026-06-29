@@ -82,8 +82,10 @@ export {
   modelProviderSchema,
   rawEvalResultSchema,
   reasoningEffortSchema,
+  skillResultSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
+export { buildSkillResult } from "./skill-results.js";
 // CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
 export { createCliAgent } from "./agents/engine.js";
 export { claudeCodeAgent } from "./agents/claude-code/index.js";
@@ -119,6 +121,7 @@ export type {
   ModelProvider,
   ParsedEvalMarkdown,
   ReasoningEffortLevel,
+  SkillResult,
 } from "./eval-metadata.js";
 
 export interface ScoreResult {

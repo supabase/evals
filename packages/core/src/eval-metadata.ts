@@ -205,6 +205,14 @@ export const checkResultSchema = z.object({
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
+export const skillResultSchema = z.object({
+  // Skills exposed to the agent for this run.
+  available: z.array(z.string()),
+  // Skills whose full instructions were actually loaded during the run.
+  loaded: z.array(z.string()),
+});
+export type SkillResult = z.infer<typeof skillResultSchema>;
+
 // Every dimension that has an authoring enum is enforced against that same
 // enum here — the enum is the single source of truth for both authoring
 // (evalMetadataSchema) and results. Result files are gitignored, regenerated
@@ -223,6 +231,7 @@ const evalResultShape = {
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
   attempts: z.number().optional(),
+  skills: skillResultSchema.optional(),
 };
 
 // Raw result files may carry extra fields we don't model; tolerate them.

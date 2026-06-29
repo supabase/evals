@@ -26,7 +26,10 @@ import {
 } from "../lib/cli-args.js";
 import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
-import { getExperimentDisplayMetadata } from "@supabase-evals/core";
+import {
+  buildSkillResult,
+  getExperimentDisplayMetadata,
+} from "@supabase-evals/core";
 import type {
   ExperimentConfig,
   EvalInterface,
@@ -36,6 +39,8 @@ import type {
   ToolScorer,
   LocalStackScorer,
   ScoreResult,
+  SkillResult,
+  ToolCallRecord,
   TranscriptPart,
 } from "./types.js";
 
@@ -338,7 +343,8 @@ async function runOne(
 ): Promise<
   ScoreResult & {
     attempts: number;
-    toolCalls: unknown[];
+    skills: SkillResult;
+    toolCalls: ToolCallRecord[];
     transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
@@ -354,6 +360,7 @@ async function runOne(
   // load_skill tool. Skill sources (name+dir) are shared by both paths.
   const agentRunsInSandbox = exp.agent.runsInSandbox ?? false;
   const skillSources = resolveSkillSources(exp.skills);
+  const availableSkills = skillSources.map((skill) => skill.name);
   const toolsSkills =
     ev.mode === "tools" && !agentRunsInSandbox ? loadToolsSkills(exp.skills) : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
@@ -363,7 +370,7 @@ async function runOne(
     passed: false,
     checks: [{ name: "ran at least one attempt", passed: false }],
   };
-  let lastToolCalls: unknown[] = [];
+  let lastToolCalls: ToolCallRecord[] = [];
   let lastTranscript: TranscriptPart[] = [];
   let lastAgentReport = "";
   let lastStoppedReason = "not_started";
@@ -456,6 +463,7 @@ async function runOne(
         return {
           ...last,
           attempts: attempt,
+          skills: buildSkillResult(availableSkills, run.toolCalls),
           toolCalls: run.toolCalls,
           transcript: run.transcript,
           agentReport: run.agentReport,
@@ -516,6 +524,7 @@ async function runOne(
       return {
         ...last,
         attempts: attempt,
+        skills: buildSkillResult(availableSkills, run.toolCalls),
         toolCalls: run.toolCalls,
         transcript: run.transcript,
         agentReport: run.agentReport,
@@ -527,6 +536,7 @@ async function runOne(
   return {
     ...last,
     attempts: RUNS,
+    skills: buildSkillResult(availableSkills, lastToolCalls),
     toolCalls: lastToolCalls,
     transcript: lastTranscript,
     agentReport: lastAgentReport,
