@@ -175,6 +175,16 @@ export async function setupSupabaseSandbox(
     await sandbox.copyToContainer(options.localDir, sandbox.workdir);
   }
 
+  // When linked to a hosted project with a wire endpoint, the CLI wrapper routes
+  // linked DB commands (`db push`/`migration repair`/…) at it via --db-url (the
+  // CLI otherwise hardcodes the linked port to 5432). This is needed whether or
+  // not the local stack is prestarted, so the path is computed up front and the
+  // wrapper is always installed below.
+  const poolerUrlPath =
+    options.hosted?.pgPort !== undefined
+      ? `${sandbox.workdir}/${POOLER_URL_PATH}`
+      : undefined;
+
   if (options.projectRunning ?? true) {
     // Fail with a clear authoring error before `supabase start` does with a
     // confusing one: a prestarted project needs a config in the workspace.
@@ -184,18 +194,17 @@ export async function setupSupabaseSandbox(
           "ship one in the eval's local/ directory or set `projectRunning: false` in the eval frontmatter",
       );
     }
+    // Start the stack with the real binary first; the wrapper (installed next)
+    // is for the agent's later commands, not this harness-side start.
     await startSupabaseProject(sandbox, options.includeServices);
-  } else {
-    // When linked to a hosted project with a wire endpoint, the wrapper routes
-    // linked DB commands at it via --db-url (the CLI otherwise hardcodes the
-    // linked port to 5432). Pass the seeded pooler-url path for the wrapper to
-    // read at runtime.
-    const poolerUrlPath =
-      options.hosted?.pgPort !== undefined
-        ? `${sandbox.workdir}/${POOLER_URL_PATH}`
-        : undefined;
-    await restrictSupabaseServices(sandbox, options.includeServices, poolerUrlPath);
   }
+
+  // Install the CLI wrapper regardless of projectRunning: it routes the agent's
+  // linked DB commands at the hosted wire endpoint, and appends `-x` to any
+  // `supabase start` the agent runs itself (so service exclusions hold even when
+  // the stack is already up and the agent restarts it). No-op when there's
+  // nothing to exclude and no hosted wire endpoint.
+  await restrictSupabaseServices(sandbox, options.includeServices, poolerUrlPath);
 }
 
 /**

@@ -3,7 +3,7 @@ stage: resolve
 suite: benchmark
 interface: cli
 hostedProject: true
-projectRunning: false
+projectRunning: true
 services: []
 product:
   - database
