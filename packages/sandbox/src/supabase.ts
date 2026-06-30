@@ -130,6 +130,10 @@ const PROJECT_REF_PATH = "supabase/.temp/project-ref";
  * faithful state. Update alongside SUPABASE_CLI_VERSION.
  */
 const POOLER_URL_PATH = "supabase/.temp/pooler-url";
+// The CLI shim lives here: /usr/local/sbin is the first entry on the sandbox
+// PATH (see SANDBOX_PATH), so it shadows the real `supabase` binary (installed
+// in /usr/bin by the .deb) without renaming it.
+const SUPABASE_SHIM_PATH = "/usr/local/sbin/supabase";
 const REMOTE_VERSION_FILES: Record<string, string> = {
   "supabase/.temp/postgres-version": "17.6.1.064",
   "supabase/.temp/gotrue-version": "v2.184.0",
@@ -199,12 +203,12 @@ export async function setupSupabaseSandbox(
     await startSupabaseProject(sandbox, options.includeServices);
   }
 
-  // Install the CLI wrapper regardless of projectRunning: it routes the agent's
+  // Install the CLI shim regardless of projectRunning: it routes the agent's
   // linked DB commands at the hosted wire endpoint, and appends `-x` to any
   // `supabase start` the agent runs itself (so service exclusions hold even when
   // the stack is already up and the agent restarts it). No-op when there's
   // nothing to exclude and no hosted wire endpoint.
-  await restrictSupabaseServices(sandbox, options.includeServices, poolerUrlPath);
+  await installSupabaseCliWrapper(sandbox, options.includeServices, poolerUrlPath);
 }
 
 /**
@@ -385,8 +389,8 @@ export function computeExcludedServices(
 }
 
 /**
- * Wrapper that replaces the CLI binary to transparently adjust two classes of
- * commands the agent types — there is no other seam:
+ * A thin shim that shadows the `supabase` binary on PATH to transparently
+ * adjust two classes of commands the agent types — there is no other seam:
  *
  *  - `supabase start` gets the service `-x` exclude flag appended (a slice flag,
  *    so an agent-passed list merges with ours).
@@ -398,12 +402,16 @@ export function computeExcludedServices(
  *    never reach platform-lite's ephemeral wire port — only an explicit
  *    `--db-url` uses the connection string verbatim. The agent still types a
  *    plain `supabase db push`; the redirect is invisible, like the API mock.
+ *
+ * It `exec`s the real binary by its absolute path (`realBin`), so it shadows by
+ * PATH precedence without renaming the real binary, and never recurses.
  */
 export function buildServiceWrapperScript(
+  realBin: string,
   excluded: readonly SupabaseService[],
   poolerUrlPath?: string,
 ): string {
-  const lines = ["#!/bin/bash", "REAL=/usr/local/bin/supabase-cli"];
+  const lines = ["#!/bin/bash", `REAL=${JSON.stringify(realBin)}`];
   if (excluded.length > 0) {
     lines.push(
       `if [ "$1" = "start" ]; then shift; exec "$REAL" start "$@" -x ${excluded.join(",")}; fi`,
@@ -424,25 +432,35 @@ export function buildServiceWrapperScript(
   return lines.join("\n");
 }
 
-async function restrictSupabaseServices(
+/**
+ * Install the CLI shim at {@link SUPABASE_SHIM_PATH} — the first entry on the
+ * sandbox PATH — so it shadows the real `supabase` binary for the agent's
+ * commands. Unlike a rename, this leaves a single real binary in place; the shim
+ * `exec`s it by absolute path. Written as file data (no heredoc) via
+ * {@link DockerSandbox.writeRootFile}. No-op when there's nothing to rewrite.
+ */
+async function installSupabaseCliWrapper(
   sandbox: DockerSandbox,
   includeServices: readonly string[] | undefined,
   poolerUrlPath?: string,
 ): Promise<void> {
   const excluded = computeExcludedServices(includeServices);
-  // Install the wrapper if it has anything to do: restrict services and/or
-  // route linked DB commands at the hosted wire endpoint.
+  // Nothing to do: no services to exclude and no hosted wire to route at.
   if (excluded.length === 0 && !poolerUrlPath) return;
 
-  await runOrThrow(
-    sandbox,
-    // Idempotent: only move the real binary aside once; rewriting the wrapper
-    // is safe.
-    `[ -e /usr/local/bin/supabase-cli ] || mv "$(command -v supabase)" /usr/local/bin/supabase-cli\n` +
-      `cat > /usr/local/bin/supabase <<'WRAPPER'\n${buildServiceWrapperScript(excluded, poolerUrlPath)}\nWRAPPER\n` +
-      `chmod +x /usr/local/bin/supabase`,
-    "install supabase CLI wrapper",
-    { asRoot: true },
+  // Resolve the real binary before the shim shadows it (so this can't resolve to
+  // the shim); the shim then execs this absolute path and never recurses.
+  const real = (await sandbox.runShellAsRoot("command -v supabase")).stdout.trim();
+  if (!real || real === SUPABASE_SHIM_PATH) {
+    throw new Error(
+      `could not resolve the real supabase binary before installing the CLI shim (got ${JSON.stringify(real)})`,
+    );
+  }
+
+  await sandbox.writeRootFile(
+    SUPABASE_SHIM_PATH,
+    buildServiceWrapperScript(real, excluded, poolerUrlPath),
+    "0755",
   );
 }
 
