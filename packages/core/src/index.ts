@@ -171,6 +171,8 @@ export interface ToolCallRecord {
   path?: string;
   command?: string;
   url?: string;
+  /** Skill name loaded by this call, when the harness can identify one. */
+  loadedSkill?: string;
   result?: unknown;
   error?: string;
   ts: number;
@@ -608,9 +610,15 @@ export function aiSdkAgent(options: {
             options.providerOptions,
           ),
           experimental_onToolCallFinish: (event) => {
+            const input = isRecord(event.toolCall.input) ? event.toolCall.input : {};
+            const loadedSkill =
+              event.toolCall.toolName === "load_skill" && typeof input.name === "string"
+                ? input.name
+                : undefined;
             toolCalls.push({
               endpoint: event.toolCall.toolName,
-              body: isRecord(event.toolCall.input) ? event.toolCall.input : {},
+              body: input,
+              loadedSkill,
               result: event.output,
               ts: Date.now(),
             });

@@ -18,7 +18,11 @@ import type {
 import type { AgentTranscriptParser } from "../../parsers/types.js";
 import { isRecord, parseJsonlRecords } from "../../json.js";
 import { normalizeToolName, type AgentToolMap } from "../../parsers/shared/normalize.js";
-import { extractArgs, type ArgFieldMap } from "../../parsers/shared/extract.js";
+import {
+  extractArgs,
+  extractLoadedSkillFromText,
+  type ArgFieldMap,
+} from "../../parsers/shared/extract.js";
 
 /** Claude Code's tool names → canonical names (case-sensitive). Owned here, not in shared. */
 const CLAUDE_CODE_TOOLS: AgentToolMap = {
@@ -134,7 +138,20 @@ function enrich(event: TranscriptEvent): TranscriptEvent {
   if (path) event.tool.path = path;
   if (command) event.tool.command = command;
   if (url) event.tool.url = url;
+  event.tool.loadedSkill = loadedSkillFromClaudeCodeCall(event.tool);
   return event;
+}
+
+/** Identifies Claude Code skill loads from tool-specific args or file reads. */
+function loadedSkillFromClaudeCodeCall(
+  tool: NonNullable<TranscriptEvent["tool"]>,
+): string | undefined {
+  if (tool.originalName === "Skill" && typeof tool.args?.skill === "string") {
+    return tool.args.skill;
+  }
+  if (tool.path) return extractLoadedSkillFromText(tool.path);
+  if (tool.command) return extractLoadedSkillFromText(tool.command);
+  return undefined;
 }
 
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {

@@ -26,6 +26,10 @@ export interface ExtractedArgs {
   url?: string;
 }
 
+// Skill reads can appear as bare paths or quoted shell args in tool-call logs.
+const SKILL_ENTRYPOINT_PATTERN =
+  /(?:^|[\s"'`])\S*skills\/([^\s"'`/]+)\/SKILL\.md(?:$|[\s"'`])/;
+
 /**
  * First arg value among `keys` that is a string — or a string[] joined with
  * spaces (an argv-style command). Undefined if none match.
@@ -56,4 +60,10 @@ export function extractArgs(
     command: firstField(args, map.command),
     url: firstField(args, map.url),
   };
+}
+
+/** Extracts the loaded skill name from a SKILL.md path mention. */
+export function extractLoadedSkillFromText(text: string): string | undefined {
+  const match = SKILL_ENTRYPOINT_PATTERN.exec(text);
+  return match?.[1];
 }

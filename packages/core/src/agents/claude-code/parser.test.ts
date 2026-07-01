@@ -96,6 +96,28 @@ describe("claudeCodeParser", () => {
     expect(assistantMessages.map((e) => e.content)).toEqual([finalText]);
   });
 
+  it("normalizes Claude Code Skill tool calls as loaded skills", () => {
+    const transcript = JSON.stringify({
+      type: "assistant",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_skill",
+            name: "Skill",
+            input: { skill: "supabase-postgres-best-practices" },
+          },
+        ],
+      },
+    });
+
+    const adapted = adaptTranscript(claudeCodeParser.parseTranscript(transcript).events);
+    expect(adapted.toolCalls[0].loadedSkill).toBe(
+      "supabase-postgres-best-practices",
+    );
+  });
+
   it("still emits the result text when it was never streamed as a message", () => {
     // Plain `--print` (no stream-json) yields only the terminal result line.
     const transcript = JSON.stringify({
