@@ -14,6 +14,7 @@ export type {
   JudgeInput,
   JudgeResult,
   CommandResult,
+  SkillResult,
   VitestResult,
   ProjectResult,
   EdgeFunctionsInvokeInput,

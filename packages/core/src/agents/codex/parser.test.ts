@@ -91,6 +91,24 @@ describe("codexParser", () => {
     expect(events).toEqual([{ type: "thinking", content: "Thinking about it." }]);
   });
 
+  it("normalizes shell reads of SKILL.md as loaded skills", () => {
+    const stream = JSON.stringify({
+      type: "item.completed",
+      item: {
+        id: "skill_1",
+        type: "command_execution",
+        command:
+          "/bin/zsh -lc \"sed -n '1,220p' .agents/skills/supabase/SKILL.md\"",
+        aggregated_output: "# Supabase",
+        exit_code: 0,
+        status: "completed",
+      },
+    });
+
+    const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
+    expect(adapted.toolCalls[0].loadedSkill).toBe("supabase");
+  });
+
   it("marks a non-zero exit code as a failed shell call (error surfaced via adapter)", () => {
     const stream = [
       JSON.stringify({

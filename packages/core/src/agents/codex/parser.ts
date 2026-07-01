@@ -22,7 +22,12 @@ import { isRecord, parseJsonlRecords } from "../../json.js";
 import type { ParsedTranscript, TranscriptEvent } from "../../transcript/types.js";
 import type { AgentTranscriptParser } from "../../parsers/types.js";
 import { normalizeToolName, type AgentToolMap } from "../../parsers/shared/normalize.js";
-import { extractArgs, type ArgFieldMap, type ExtractedArgs } from "../../parsers/shared/extract.js";
+import {
+  extractArgs,
+  extractLoadedSkillFromText,
+  type ArgFieldMap,
+  type ExtractedArgs,
+} from "../../parsers/shared/extract.js";
 
 /**
  * Codex's tool names → canonical names. Codex names built-in tools by item type
@@ -92,10 +97,20 @@ function toolCallPair(
   if (normalized.path) tool.path = normalized.path;
   if (normalized.command) tool.command = normalized.command;
   if (normalized.url) tool.url = normalized.url;
+  tool.loadedSkill = loadedSkillFromCodexCall(tool);
   return [
     { type: "tool_call", tool },
     { type: "tool_result", tool: { name, originalName, id, result, success } },
   ];
+}
+
+/** Identifies Codex skill loads from normalized file paths or shell commands. */
+function loadedSkillFromCodexCall(
+  tool: NonNullable<TranscriptEvent["tool"]>,
+): string | undefined {
+  if (tool.path) return extractLoadedSkillFromText(tool.path);
+  if (tool.command) return extractLoadedSkillFromText(tool.command);
+  return undefined;
 }
 
 function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {

@@ -82,8 +82,10 @@ export {
   modelProviderSchema,
   rawEvalResultSchema,
   reasoningEffortSchema,
+  skillResultSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
+export { buildSkillResult } from "./skill-results.js";
 // CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
 export { createCliAgent } from "./agents/engine.js";
 export { claudeCodeAgent } from "./agents/claude-code/index.js";
@@ -119,6 +121,7 @@ export type {
   ModelProvider,
   ParsedEvalMarkdown,
   ReasoningEffortLevel,
+  SkillResult,
 } from "./eval-metadata.js";
 
 export interface ScoreResult {
@@ -168,6 +171,8 @@ export interface ToolCallRecord {
   path?: string;
   command?: string;
   url?: string;
+  /** Skill name loaded by this call, when the harness can identify one. */
+  loadedSkill?: string;
   result?: unknown;
   error?: string;
   ts: number;
@@ -605,9 +610,15 @@ export function aiSdkAgent(options: {
             options.providerOptions,
           ),
           experimental_onToolCallFinish: (event) => {
+            const input = isRecord(event.toolCall.input) ? event.toolCall.input : {};
+            const loadedSkill =
+              event.toolCall.toolName === "load_skill" && typeof input.name === "string"
+                ? input.name
+                : undefined;
             toolCalls.push({
               endpoint: event.toolCall.toolName,
-              body: isRecord(event.toolCall.input) ? event.toolCall.input : {},
+              body: input,
+              loadedSkill,
               result: event.output,
               ts: Date.now(),
             });
