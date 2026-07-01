@@ -36,15 +36,15 @@ function callLoadsSkill(call: ToolCallRecord, skill: string): boolean {
 
 /** Builds the persisted skill activation summary for one eval run. */
 export function buildSkillResult(
-  available: readonly string[],
-  toolCalls: readonly ToolCallRecord[],
+  available: string[],
+  toolCalls: ToolCallRecord[],
 ): SkillResult {
   const loaded = available.filter((skill) =>
     toolCalls.some((call) => callLoadsSkill(call, skill)),
   );
 
   return {
-    available: [...available],
+    available,
     loaded,
   };
 }
