@@ -150,6 +150,7 @@ const AGENT_LABELS = {
   "ai-sdk": "AI SDK",
   "claude-code": "Claude Code",
   codex: "Codex",
+  "cursor-cli": "Cursor CLI",
 } satisfies Record<ExperimentDisplay["agent"], string>
 
 function capitalize(value: string) {
@@ -187,12 +188,21 @@ function formatOpenAiModel(modelId: string) {
     .join(" ")
 }
 
+function formatCursorModel(modelId: string) {
+  // composer-2.5 → Composer 2.5; auto → Auto. Split family from version parts.
+  const [family = "", ...rest] = modelId.split("-")
+  if (!family) return modelId
+  return [capitalize(family), rest.join(".")].filter(Boolean).join(" ")
+}
+
 function formatModel(display: ExperimentDisplay) {
   switch (display.modelProvider) {
     case "anthropic":
       return formatAnthropicModel(display.modelId)
     case "openai":
       return formatOpenAiModel(display.modelId)
+    case "cursor":
+      return formatCursorModel(display.modelId)
   }
 }
 

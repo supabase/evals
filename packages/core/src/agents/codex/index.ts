@@ -17,8 +17,11 @@ export function codexAgent(
   options: {
     /** OpenAI model id (typed from `openai`; any string accepted). */
     model?: CodexModel;
-    /** Reasoning effort (`model_reasoning_effort`). Omit to use Codex's default. */
-    reasoningEffort?: ReasoningEffortLevel;
+    /**
+     * Reasoning effort (`model_reasoning_effort`). Omit to use Codex's default.
+     * `max` is excluded — it's Cursor's Max-mode marker, not a Codex effort.
+     */
+    reasoningEffort?: Exclude<ReasoningEffortLevel, "max">;
     /** Override the pinned CLI version. */
     cliVersion?: string;
   } = {},
