@@ -40,7 +40,7 @@ export const geminiCliRunner: AgentRunner<GeminiCliModel> = {
   cliPackage: "@google/gemini-cli",
   // Pinned: gemini-cli's --output-format stream-json schema evolves; bump
   // deliberately and re-check the parser. See ./parser.ts.
-  defaultCliVersion: "0.20.2",
+  defaultCliVersion: "0.46.0",
   defaultModel: "gemini-3.1-pro-preview",
 
   async install(sandbox, version) {
