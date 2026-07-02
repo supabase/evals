@@ -9,6 +9,10 @@
  *   - Single-provider (Google); the key is read from `GEMINI_API_KEY`.
  *   - `--approval-mode yolo` auto-approves tool calls; we do NOT pass `-s`/
  *     `--sandbox` (the eval Docker sandbox is the isolation boundary).
+ *   - `GEMINI_CLI_TRUST_WORKSPACE=true`: since 0.46 gemini refuses to run
+ *     headless in an "untrusted" folder (and silently downgrades `yolo` to
+ *     prompt-for-approval), which would fail or hang every run in the sandbox.
+ *     The env var (vs `--skip-trust`) is ignored by versions that lack it.
  *   - `gemini` has no system-prompt flag, so — like Codex — the system prompt is
  *     prepended to the task and the pair is fed on stdin (gemini treats piped
  *     stdin as the one-shot prompt). Avoids the ARG_MAX / shell-expansion surface
@@ -68,7 +72,12 @@ export const geminiCliRunner: AgentRunner<GeminiCliModel> = {
     // stdin as the one-shot prompt), mirroring Codex.
     const command = await sandbox.exec(
       `{ cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath}; } | ${gemini} ${flags}`,
-      { timeoutMs: timeoutSec * 1000, env: { GEMINI_API_KEY: apiKey } },
+      {
+        timeoutMs: timeoutSec * 1000,
+        // TRUST_WORKSPACE: run headless in the sandbox without the 0.46+ trust
+        // gate blocking the run / downgrading `--approval-mode yolo`.
+        env: { GEMINI_API_KEY: apiKey, GEMINI_CLI_TRUST_WORKSPACE: "true" },
+      },
     );
     return { command, raw: command.stdout };
   },

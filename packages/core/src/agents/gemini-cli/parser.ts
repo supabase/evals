@@ -53,6 +53,8 @@ const GEMINI_CLI_TOOLS: AgentToolMap = {
     web_search: "web_search",
     web_fetch: "web_fetch",
     save_memory: "agent_task",
+    // Session-management built-ins (0.46+): no external effect, agent housekeeping.
+    update_topic: "agent_task",
   },
 };
 

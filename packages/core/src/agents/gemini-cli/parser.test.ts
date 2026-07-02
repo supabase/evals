@@ -90,6 +90,18 @@ describe("geminiCliParser", () => {
     expect(adaptTranscript([call!]).toolCalls[0].loadedSkill).toBe("supabase");
   });
 
+  it("maps the 0.46+ update_topic built-in to agent_task", () => {
+    const stream = JSON.stringify({
+      type: "tool_use",
+      tool_name: "update_topic",
+      tool_id: "u-1",
+      parameters: { topic: "Counting rows" },
+    });
+    const call = geminiCliParser.parseTranscript(stream).events.find((e) => e.type === "tool_call");
+    expect(call?.tool?.name).toBe("agent_task");
+    expect(call?.tool?.originalName).toBe("update_topic");
+  });
+
   it("keeps two non-delta assistant messages as separate turns", () => {
     const stream = [
       JSON.stringify({ type: "message", role: "assistant", content: "First." }),
