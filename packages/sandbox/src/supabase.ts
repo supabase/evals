@@ -208,7 +208,12 @@ export async function setupSupabaseSandbox(
   // `supabase start` the agent runs itself (so service exclusions hold even when
   // the stack is already up and the agent restarts it). No-op when there's
   // nothing to exclude and no hosted wire endpoint.
-  await installSupabaseCliWrapper(sandbox, options.includeServices, poolerUrlPath);
+  await installSupabaseCliWrapper(
+    sandbox,
+    options.includeServices,
+    poolerUrlPath,
+    options.hosted !== undefined,
+  );
 }
 
 /**
@@ -394,6 +399,15 @@ export function computeExcludedServices(
  *
  *  - `supabase start` gets the service `-x` exclude flag appended (a slice flag,
  *    so an agent-passed list merges with ours).
+ *  - `supabase link` gets `--dns-resolver native` appended (unless the agent
+ *    already picked a resolver). The mocked platform lives at
+ *    host.docker.internal, a Docker-injected `/etc/hosts` entry only the native
+ *    OS resolver sees; the CLI's default resolver queries public DNS, gets
+ *    NXDOMAIN, and the link fails. The harness pre-links the project, so a real
+ *    `link` is never required — but an agent that re-runs it (e.g. while
+ *    diagnosing) would otherwise dead-end on infra rather than the task. This
+ *    is the same "make the agent's own command reach platform-lite" redirect as
+ *    the `--db-url` one below.
  *  - Linked DB workflows (`db push`/`db pull`/`db dump`/`migration repair`/
  *    `migration list`) get `--db-url <pooler-url>` appended, pointing at the
  *    mocked hosted project's Postgres-wire endpoint. This is required because
@@ -410,11 +424,17 @@ export function buildServiceWrapperScript(
   realBin: string,
   excluded: readonly SupabaseService[],
   poolerUrlPath?: string,
+  hosted?: boolean,
 ): string {
   const lines = ["#!/bin/bash", `REAL=${JSON.stringify(realBin)}`];
   if (excluded.length > 0) {
     lines.push(
       `if [ "$1" = "start" ]; then shift; exec "$REAL" start "$@" -x ${excluded.join(",")}; fi`,
+    );
+  }
+  if (hosted) {
+    lines.push(
+      `if [ "$1" = "link" ] && [[ " $* " != *" --dns-resolver "* ]]; then shift; exec "$REAL" link "$@" --dns-resolver native; fi`,
     );
   }
   if (poolerUrlPath) {
@@ -443,10 +463,12 @@ async function installSupabaseCliWrapper(
   sandbox: DockerSandbox,
   includeServices: readonly string[] | undefined,
   poolerUrlPath?: string,
+  hosted?: boolean,
 ): Promise<void> {
   const excluded = computeExcludedServices(includeServices);
-  // Nothing to do: no services to exclude and no hosted wire to route at.
-  if (excluded.length === 0 && !poolerUrlPath) return;
+  // Nothing to do: no services to exclude, no hosted wire to route at, and no
+  // hosted platform to fix `link`'s DNS resolver for.
+  if (excluded.length === 0 && !poolerUrlPath && !hosted) return;
 
   // Resolve the real binary before the shim shadows it (so this can't resolve to
   // the shim); the shim then execs this absolute path and never recurses.
@@ -459,7 +481,7 @@ async function installSupabaseCliWrapper(
 
   await sandbox.writeRootFile(
     SUPABASE_SHIM_PATH,
-    buildServiceWrapperScript(real, excluded, poolerUrlPath),
+    buildServiceWrapperScript(real, excluded, poolerUrlPath, hosted),
     "0755",
   );
 }

@@ -128,6 +128,23 @@ describe("buildServiceWrapperScript", () => {
     expect(script).toContain('--db-url "$(cat "$POOLER_URL_FILE")"');
     expect(script).not.toContain("-x ");
   });
+
+  it("forces the native DNS resolver on link when a hosted platform is present", () => {
+    const script = buildServiceWrapperScript("/usr/bin/supabase", [], undefined, true);
+    expect(script).toContain('if [ "$1" = "link" ]');
+    expect(script).toContain('!= *" --dns-resolver "*');
+    expect(script).toContain('link "$@" --dns-resolver native');
+  });
+
+  it("leaves link untouched when there is no hosted platform", () => {
+    const script = buildServiceWrapperScript(
+      "/usr/bin/supabase",
+      [],
+      "/work/supabase/.temp/pooler-url",
+    );
+    expect(script).not.toContain("--dns-resolver");
+    expect(script).not.toContain('"$1" = "link"');
+  });
 });
 
 describe("buildSupabaseStartCommand", () => {
