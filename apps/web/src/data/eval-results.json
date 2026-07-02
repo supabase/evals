@@ -86,16 +86,15 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "supabase db diff used to generate the migration",
-        "passed": false
+        "passed": true
       },
       {
         "name": "schema file updated to include description column",
-        "passed": false,
-        "notes": "description not found in any schema file"
+        "passed": true
       },
       {
         "name": "a new migration was generated for the change",
@@ -152,12 +151,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
+        "notes": "function removed the seeded message (id 7) from the queue"
       }
     ],
     "skills": {
@@ -323,7 +322,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f2377-5fdf-771c-ab03-0285669b3576/receipt-alpha.pdf, 019f2377-5fdf-771c-ab03-0285669b3576/receipt-beta.pdf"
+        "notes": "saw: 019f24c5-5013-76b8-84a1-d52e398c7447/receipt-alpha.pdf, 019f24c5-5013-76b8-84a1-d52e398c7447/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -344,7 +343,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets all requirements: private bucket, authenticated owner-scoped SELECT/INSERT policies with RLS enabled, and signed URL sharing via createSignedUrl with expiry."
+        "judgeNotes": "Meets all rubric requirements: private user-files bucket, owner-scoped authenticated SELECT and INSERT RLS policies with WITH CHECK, RLS kept enabled, and supabase-js createSignedUrl with expiry for temporary sharing."
       }
     ],
     "skills": {
@@ -390,12 +389,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "5 passed, 2 failed"
+        "notes": "4 passed, 2 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "Correctly identifies `posts` as the broken tenant-isolation policy, explains that authenticated members can read posts from other orgs due to missing `m.org_id = posts.org_id`, and grounds the conclusion in the pgTAP failures for posts while noting notes passed."
+        "judgeNotes": "The agent correctly identifies `posts` as the table with the broken tenant isolation policy, explains that authenticated members can read posts from organizations they do not belong to, and grounds the conclusion in the pgTAP failures for posts while noting notes passes."
       }
     ],
     "skills": {
@@ -436,7 +435,7 @@
       {
         "name": "scorer evaluated vector search",
         "passed": false,
-        "notes": "relation \"document_sections\" does not exist"
+        "notes": "column \"owner_id\" of relation \"documents\" does not exist"
       }
     ],
     "skills": {
@@ -479,12 +478,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Meets all rubric requirements: HTTPS Supabase Metrics API scrape with correct path, basic_auth password_file, preserved app scrape, and matching Docker Compose volume mount for the password file."
+        "judgeNotes": "Supabase scrape uses HTTPS, correct metrics_path, Basic Auth with password_file, preserves app job, and docker-compose mounts the secrets directory containing the password file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, secret file placement, Compose up/reload steps, and concrete verification via curl plus Prometheus targets."
+        "judgeNotes": "README includes go-live steps: create a Supabase Secret API key, write it to the mounted secrets/supabase_metrics_key file matching password_file, restart the Compose stack, and verify via curl plus Prometheus /targets and Grafana dashboard import. Endpoint and auth setup match the provided Prometheus config; no real secret is hardcoded."
       }
     ],
     "skills": {
@@ -656,7 +655,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "Meets the rubric: diagnoses soft-delete-only flow, implements real revocation via sessions/refresh token removal and blocking re-authentication, explains JWT access-token expiry window and need for live validation/short expiry, and correctly distinguishes publishable frontend key with RLS from secret server-only key that bypasses RLS."
+        "judgeNotes": "The answer identifies the soft-delete-only root cause and lack of session revocation, implements real refresh/session revocation and RLS enforcement, explains the remaining stateless JWT access-token validity window and mitigation via shorter expiry/server-side checks, and correctly distinguishes publishable frontend keys with RLS from secret/service_role server-only keys that bypass RLS."
       }
     ],
     "skills": {
@@ -717,7 +716,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified the root cause as orders missing from the supabase_realtime publication despite the channel reaching SUBSCRIBED, verified RLS was not the issue without changing it, added only public.orders to the existing publication, preserved courier_locations, and did not weaken policies or recreate the publication."
+        "judgeNotes": "The assistant correctly identified the root cause as orders missing from the supabase_realtime publication, explained why SUBSCRIBED can occur without INSERT events, added public.orders to the existing publication, verified courier_locations remained, and did not weaken RLS/policies or blame client/networking."
       }
     ],
     "skills": {
@@ -756,17 +755,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified `image-transform` as the affected function and described the recurring HTTP 503 pattern across the morning of 2026-04-28, listing all 8 failures from 07:00Z through 12:00Z and distinguishing them from older billing-webhook noise."
+        "judgeNotes": "Assistant identified image-transform as the affected function and described the recurring gateway-level HTTP 503 pattern across the morning of 2026-04-28, covering the failures from roughly 07:00Z through 12:00Z while ruling out billing-webhook."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "Attributes recurring image-transform 503s to gateway/platform/runtime layer rather than function code, grounded in no corresponding execution records for 503s while successful calls have execution/deployment data, unchanged deployment with nearby successes, and distinction from avatar-upload's function-level 500."
+        "judgeNotes": "Attributes recurring image-transform 503s to gateway/platform-level errors, not function application code, and grounds this in valid observations: 503s appear only in gateway/API logs with no corresponding function execution logs, successful nearby invocations, unchanged deployment/version, and distinction from avatar-upload's function-level 500."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "Recommended concrete next steps including running a specific Log Explorer classification query, opening a Supabase support ticket with timestamps/log output for likely internal_failure, adding retry/backoff, checking resource limits, and investigating the separate avatar-upload 500."
+        "judgeNotes": "The assistant recommended concrete next steps: checking function resource metrics/log details for the incident window, reviewing dependency/resource usage, adding retries, considering resource/concurrency limits, and opening a Supabase support ticket with timestamps if platform-side issues persist."
       }
     ],
     "skills": {
@@ -832,7 +831,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts. It also avoided permissive/anon policies and verified behavior."
+        "judgeNotes": "Diagnosed RLS enabled with no policies as deny-all for Data API/authenticated users, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
       }
     ],
     "skills": {
@@ -892,7 +891,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "PASS: The avatar_url migration was applied through a real Supabase CLI push: `supabase db push --db-url \"$DBURL\"` showed `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the local migration file `20240115000000_add_profile_bio.sql`, after which the same CLI push proceeded successfully. Only read-only psql inspection was used; no disallowed direct SQL mutation or prepared-statement workaround was seen."
+        "judgeNotes": "Avatar migration was applied through `supabase db push` in #18, with output showing `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` History was reconciled by adding the missing local migration file `supabase/migrations/20240115000000_add_profile_bio.sql` in #16, after which `supabase db push` proceeded successfully and migration list showed all versions aligned. Only read-only psql SELECTs were used; no prohibited workaround observed."
       }
     ],
     "skills": {
@@ -1070,7 +1069,7 @@
       {
         "name": "todos table exists with at least 2 seeded rows",
         "passed": true,
-        "notes": "found 3 rows"
+        "notes": "found 2 rows"
       },
       {
         "name": "row level security is enabled on todos",
@@ -1083,12 +1082,12 @@
       {
         "name": "REST API returns no todos to anonymous requests",
         "passed": true,
-        "notes": "0 rows"
+        "notes": "error 42501: permission denied for table todos"
       },
       {
         "name": "REST API returns the todos to authenticated requests",
         "passed": true,
-        "notes": "3 rows"
+        "notes": "2 rows"
       }
     ],
     "skills": {
@@ -1194,7 +1193,7 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 36) from the queue"
+        "notes": "function removed the seeded message (id 5) from the queue"
       }
     ],
     "skills": {
@@ -1287,7 +1286,7 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -1299,7 +1298,7 @@
       },
       {
         "name": "reads only with the caller's JWT",
-        "passed": true
+        "passed": false
       },
       {
         "name": "user A cannot force-read user B note",
@@ -1360,7 +1359,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f2377-303a-73fa-8331-9ebd88e07534/receipt-alpha.pdf, 019f2377-303a-73fa-8331-9ebd88e07534/receipt-beta.pdf"
+        "notes": "saw: 019f24c5-5d3c-772f-b4f5-d9826a2be16d/receipt-alpha.pdf, 019f24c5-5d3c-772f-b4f5-d9826a2be16d/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -1381,7 +1380,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets requirements: private user-files bucket, authenticated owner-scoped SELECT and INSERT policies on storage.objects with WITH CHECK for uploads, no RLS disabling or public access, and supabase-js createSignedUrl with expiry for temporary sharing."
+        "judgeNotes": "Configured a private user-files bucket, owner-scoped SELECT and INSERT storage.objects policies for authenticated users using folder prefix auth.uid(), did not disable RLS, and provided supabase-js createSignedUrl code with an expiry for temporary sharing."
       }
     ],
     "skills": {
@@ -1390,7 +1389,8 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
@@ -1427,12 +1427,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "4 passed, 2 failed"
+        "notes": "5 passed, 3 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as the broken table, explains that authenticated members can read posts from organizations they do not belong to, and grounds the conclusion in pgTAP failures. It also correctly distinguishes `notes` as isolated."
+        "judgeNotes": "The agent correctly identifies `posts` as having a broken tenant isolation policy, specifically that an org A authenticated user can read org B posts, and grounds this in the pgTAP/manual test results. It also correctly treats `notes` as isolated rather than blaming it."
       }
     ],
     "skills": {
@@ -1473,7 +1473,7 @@
       {
         "name": "scorer evaluated vector search",
         "passed": false,
-        "notes": "relation \"documents\" does not exist"
+        "notes": "relation \"document_sections\" does not exist"
       }
     ],
     "skills": {
@@ -1516,12 +1516,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Supabase scrape uses HTTPS, correct metrics path, HTTP Basic Auth with password_file, preserves the app job, and docker-compose mounts the secrets directory containing the password_file path."
+        "judgeNotes": "Supabase scrape uses HTTPS, correct metrics path, Basic Auth with password_file, preserves the app job, and docker-compose mounts the secrets directory containing the password file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes required live setup steps: create Supabase Secret API key, place it in the matching mounted secret file, replace project ref, reload/start Compose stack, and verify via Prometheus targets plus direct curl/Grafana dashboard."
+        "judgeNotes": "README includes steps to create a Secret API key, place it in the mounted secret file, replace project ref placeholders, restart/reload the Compose stack, and verify via Prometheus targets or direct curl. No hardcoded real secret value."
       }
     ],
     "skills": {
@@ -1570,7 +1570,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -1692,8 +1692,8 @@
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "The answer correctly identifies the original soft-delete/session problem, explains JWT expiry windows, and clarifies publishable vs secret keys. However, the implemented fix only deletes auth.sessions and keeps the auth.users identity intact, so the deleted user could still sign in again and obtain new sessions. The rubric requires deleting/removing the auth user or equivalently removing identity plus sessions/refresh tokens."
+        "passed": true,
+        "judgeNotes": "The answer identifies the soft-delete-only bug and lack of auth/session revocation, implements revocation via auth.sessions deletion and banning future logins (with RLS enforcement), explains the JWT access-token expiry window and need for live checks/short expiry for sensitive paths, and correctly distinguishes publishable frontend keys from secret/server-only RLS-bypassing keys."
       }
     ],
     "skills": {
@@ -1749,12 +1749,12 @@
       {
         "name": "staff can still read orders through RLS",
         "passed": true,
-        "notes": "authenticated sees 2 of 2 orders"
+        "notes": "authenticated sees 3 of 3 orders"
       },
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "Identifies missing orders table in supabase_realtime publication as root cause, applies ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, preserves courier_locations/RLS/policies, and avoids blaming client/RLS/networking."
+        "judgeNotes": "Diagnosed missing orders table in supabase_realtime despite SUBSCRIBED, fixed by adding public.orders to the existing publication, and did not weaken RLS/policies or disrupt courier_locations."
       }
     ],
     "skills": {
@@ -1762,9 +1762,7 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": [
-        "supabase"
-      ]
+      "loaded": []
     },
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
     "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
@@ -1793,17 +1791,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described the recurring 503 pattern across the morning of 2026-04-28, including the eight gateway failures from 07:00Z through 12:00Z. Also avoided misattributing the issue to the older billing-webhook incident."
+        "judgeNotes": "The assistant explicitly identified `image-transform` as the affected function and described the recurring pattern of eight HTTP 503 gateway failures across the morning of 2026-04-28 from 07:00Z to 12:00Z. It also correctly distinguished the older `billing-webhook` 503s as unrelated."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "Attributes the recurring image-transform 503s to the gateway/platform layer before the function runtime, grounded in the absence of corresponding invocation logs and distinction from avatar-upload's function-level 500."
+        "judgeNotes": "Attributes the recurring image-transform 503s to the gateway/platform layer before the function runs, not application code, and grounds this in valid observations: 503s appear only in API gateway logs with no edge-function execution rows, nearby 200 invocations succeeded, and deployment/version stayed unchanged."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended multiple concrete next steps, including adding retry-with-backoff for 503s, refactoring image transformation to use native Storage transformations or a queue, adding try/catch logging, and setting up 5xx alerts."
+        "judgeNotes": "The assistant recommended concrete next steps: adding retry/backoff, checking Edge Function concurrency/compute limits, investigating cold-start/runtime behavior, adding 5xx alerting, and checking Supabase platform status for the specific time window."
       }
     ],
     "skills": {
@@ -1869,7 +1867,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT owner-scoped policies using auth.uid() with WITH CHECK for inserts."
       }
     ],
     "skills": {
@@ -1929,7 +1927,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "Avatar migration was applied through `supabase db push` in step #16, with output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the missing local migration file `20240115000000_add_profile_bio.sql` in step #14, after which `supabase migration list` showed local and remote aligned. Read-only `psql` inspection was used; no prohibited direct SQL mutation or prepared-statement workaround was seen."
+        "judgeNotes": "Applied the avatar_url migration with `supabase db push` (#23), which showed `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` Reconciled the orphan bio migration via Supabase CLI using `supabase migration repair --status reverted 20240115000000` (#16), then added the matching local migration file (#20) and marked it applied with `supabase migration repair --status applied 20240115000000` (#21). No disallowed direct SQL mutation or prepared-statement workaround was used; psql commands were read-only inspection."
       }
     ],
     "skills": {
@@ -1981,7 +1979,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on idx_events_user_id_created_at  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -2133,7 +2131,9 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase"
+      ]
     },
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
     "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
@@ -2214,7 +2214,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -2228,8 +2228,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": true,
-        "notes": "function removed the seeded message (id 3) from the queue"
+        "passed": false,
+        "notes": "HTTP 500: Internal Server Error"
       }
     ],
     "skills": {
@@ -2322,7 +2322,7 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -2338,11 +2338,11 @@
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": false
+        "passed": true
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": false
+        "passed": true
       }
     ],
     "skills": {
@@ -2395,7 +2395,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f2377-927d-7238-90ec-ae01a403f438/receipt-alpha.pdf, 019f2377-927d-7238-90ec-ae01a403f438/receipt-beta.pdf"
+        "notes": "saw: 019f24c5-7790-7126-a66e-15919b89d4f9/receipt-alpha.pdf, 019f24c5-7790-7126-a66e-15919b89d4f9/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -2416,7 +2416,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets rubric: private user-files bucket, RLS enabled, authenticated owner/path-scoped SELECT and INSERT policies with WITH CHECK, and createSignedUrl with short expiry."
+        "judgeNotes": "Creates private user-files bucket, keeps RLS enabled, adds authenticated owner/path-scoped SELECT and INSERT WITH CHECK policies on storage.objects, and provides supabase-js createSignedUrl with expiry. No public bucket/getPublicUrl/service-role misuse."
       }
     ],
     "skills": {
@@ -2462,12 +2462,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "6 passed, 0 failed"
+        "notes": "12 passed, 0 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "Identifies `posts` as having the tenant isolation flaw, describes the exact leak, and treats the pgTAP failure/pass cycle as the signal. Does not blame `notes`."
+        "judgeNotes": "The agent correctly identifies `posts` as the tenant-isolation flaw, explains that its policy checks only membership without tying access to the row `org_id`, and does not blame `notes` or dismiss pgTAP. It also reports pgTAP verification after applying the fix, though the grounding in failing pre-fix test output is limited."
       }
     ],
     "skills": {
@@ -2546,17 +2546,17 @@
     "checks": [
       {
         "name": "preserved existing app scrape job",
-        "passed": true
+        "passed": false
       },
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape is not added to observability/prometheus.yml, uses basic_auth password from an environment variable instead of password_file, and docker-compose.yml does not mount/wire a password_file via volume or Compose secret."
+        "judgeNotes": "observability/prometheus.yml is empty, so it does not add the required Supabase Metrics API scrape or preserve the existing app scrape. Although docker-compose.yml defines a secret, the required Prometheus config is missing."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README includes correct endpoint/auth and basic verification, but it does not instruct placing the matching secret file as required, and the deploy step is vague ('Redeploy Prometheus') rather than a concrete Compose restart/reload command."
+        "judgeNotes": "README mentions placing a Supabase Secret API key in the expected secret file and starting the Compose stack, but it does not explain how to create the Secret API key, does not clearly require restarting/reloading the full Compose stack after setup changes, and lacks concrete verification steps via Prometheus targets, PromQL, Grafana, or equivalent."
       }
     ],
     "skills": {
@@ -2701,8 +2701,7 @@
     "checks": [
       {
         "name": "victim session active before delete-account",
-        "passed": false,
-        "notes": "new row violates row-level security policy for table \"notes\""
+        "passed": true
       },
       {
         "name": "delete_account flow ran for the victim",
@@ -2723,13 +2722,12 @@
       },
       {
         "name": "other users keep their sessions and access",
-        "passed": false,
-        "notes": "new row violates row-level security policy for table \"notes\""
+        "passed": true
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": true,
-        "judgeNotes": "Meets the core rubric: diagnoses soft-delete-only flow, implements real auth user/session removal, explains JWT expiry window and need for server-side/session validation, and correctly distinguishes publishable vs secret keys and RLS bypass behavior."
+        "passed": false,
+        "judgeNotes": "Fails: although it identifies the soft-delete bug and implements auth user deletion/RLS hardening, it does not explain the required getUser() vs getClaims()/local JWT validation issue, and it incorrectly says both publishable and secret keys work with RLS instead of clearly stating secret keys bypass RLS and must be server-only."
       }
     ],
     "skills": {
@@ -2790,7 +2788,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified that the channel could subscribe but INSERT events were silent because public.orders was missing from the supabase_realtime publication. It fixed exactly that with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, verified both orders and courier_locations remained in the publication, and did not alter RLS or policies."
+        "judgeNotes": "The assistant correctly identified that the channel could reach SUBSCRIBED while orders INSERT events were silent because public.orders was missing from the supabase_realtime publication. It fixed exactly that with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, verified both orders and courier_locations remained in the publication, and did not weaken RLS or policies."
       }
     ],
     "skills": {
@@ -2824,22 +2822,22 @@
       "observability"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant identified `image-transform` as the affected function and explicitly described the recurring HTTP 503 pattern across the morning of 2026-04-28, covering all 8 failures from 07:00Z through 12:00Z."
+        "judgeNotes": "The assistant identified `image-transform` as affected and described recurring 503 responses throughout the morning of 2026-04-28 at roughly half-hour intervals, with successful 200s in between. This satisfies the rubric."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": false,
-        "judgeNotes": "The response notes that 503s lack corresponding edge-function invocation logs, which is valid evidence for a gateway/platform issue, but it does not clearly attribute the recurring 503s to the gateway/platform layer. It instead names the image-processing dependency as an equally strong suspect and recommends patching the function wrappers, so it fails the rubric."
+        "passed": true,
+        "judgeNotes": "Attributes image-transform 503s away from handler code and toward gateway/runtime/outside-handler layer, grounded in successful nearby invocations on unchanged deployment/version 42 and distinguishing avatar-upload's separate 500."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including adding structured error logging, checking external dependency availability around the affected time window, implementing retries, and adding a fallback path."
+        "judgeNotes": "Recommended concrete next steps including correlating request IDs, checking upstream dependencies, adding targeted logging, and opening a Supabase support case with exact timestamps and request IDs."
       }
     ],
     "skills": {
@@ -2876,36 +2874,12 @@
       "sdk"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
-        "name": "RLS still enabled on bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A reads own bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user B cannot read user A bookmarks",
-        "passed": true
-      },
-      {
-        "name": "anon reads no bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A can save a new bookmark",
-        "passed": true
-      },
-      {
-        "name": "user B cannot insert a bookmark as user A",
-        "passed": true
-      },
-      {
-        "name": "diagnosed RLS and added owner-scoped policies",
-        "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "name": "created auth sessions",
+        "passed": false,
+        "notes": "Internal server error"
       }
     ],
     "skills": {
@@ -2940,27 +2914,23 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "the avatar_url column is applied on the hosted profiles table",
-        "passed": false,
-        "notes": "avatar_url not found on public.profiles"
+        "passed": true
       },
       {
         "name": "migration 20240220000000 is recorded in the remote history",
-        "passed": false,
-        "notes": "remote history versions: [\"20240101000000\",\"20240115000000\"]"
+        "passed": true
       },
       {
         "name": "remote migration history matches local migration files",
-        "passed": false,
-        "notes": "remote-only versions still unreconciled: [\"20240115000000\"] (remote: [\"20240101000000\",\"20240115000000\"], local: [\"20240101000000\",\"20240220000000\"])"
+        "passed": true
       },
       {
         "name": "local migrations are a valid reconciled sequence",
-        "passed": false,
-        "notes": "expected 20240101000000_create_profiles → <bio reconciliation> → 20240220000000_add_avatar_url, strictly ascending; got [20240101000000_create_profiles.sql, 20240220000000_add_avatar_url.sql]"
+        "passed": true
       },
       {
         "name": "production profile data is intact (not reset)",
@@ -2968,8 +2938,8 @@
       },
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
-        "passed": false,
-        "judgeNotes": "No successful required mutation was shown. `supabase db push --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'` ran but reported `Remote database is up to date` and did not show `Applying migration ...` or `Finished supabase db push`. No `supabase migration repair`, `supabase db pull`, or local orphan bio migration reconciliation occurred. Direct `psql` commands were read-only inspections; no prohibited mutation workaround was seen."
+        "passed": true,
+        "judgeNotes": "Avatar migration was applied through Supabase CLI with `supabase db push --db-url 'postgresql://...'` (#79), which output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the missing local migration file `20240115000000_add_profile_bio.sql` (#67) and then `supabase migration list --db-url ...` showed local/remote alignment (#69/#77), allowing the push to proceed. Read-only `psql` inspection was used; no direct SQL mutation of schema/history or prepared-statement reset workaround was seen. They did use `--db-url` to work around linked DNS issues, which is still via Supabase CLI for the required mutations."
       }
     ],
     "skills": {
@@ -3021,7 +2991,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -3174,8 +3144,7 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
@@ -3267,12 +3236,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 4) from the queue"
+        "notes": "function removed the seeded message (id 5) from the queue"
       }
     ],
     "skills": {
@@ -3394,7 +3363,8 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
@@ -3438,7 +3408,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f2378-251a-70e3-9b27-2a4719433012/receipt-alpha.pdf, 019f2378-251a-70e3-9b27-2a4719433012/receipt-beta.pdf"
+        "notes": "saw: 019f24c5-1b1d-70dd-9650-861052cfc9d9/receipt-alpha.pdf, 019f24c5-1b1d-70dd-9650-861052cfc9d9/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -3459,7 +3429,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets requirements: private user-files bucket, authenticated owner-scoped SELECT and INSERT policies on storage.objects with WITH CHECK for uploads, no public/anon permissive policies, RLS not disabled, and supabase-js uses createSignedUrl with a short expiry."
+        "judgeNotes": "Meets rubric: private user-files bucket, authenticated SELECT and INSERT policies scoped to bucket and auth.uid() path prefix with WITH CHECK for uploads, no RLS disable or public access, and supabase-js uses createSignedUrl with 15-minute expiry."
       }
     ],
     "skills": {
@@ -3505,12 +3475,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "10 passed, 0 failed"
+        "notes": "6 passed, 0 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identified `posts` as the table with broken tenant isolation, stating that its policy allowed any org member to read all posts and grounding this in the pgTAP test failure before fixing it. It did not blame `notes` and treated the test results as authoritative."
+        "judgeNotes": "The agent correctly identified `posts` as having an over-broad tenant isolation policy, explicitly noted that `notes` isolation passed, and grounded the conclusion in pgTAP results showing `posts` leaked cross-tenant rows."
       }
     ],
     "skills": {
@@ -3519,8 +3489,7 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
@@ -3587,7 +3556,7 @@
       "observability"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "preserved existing app scrape job",
@@ -3595,13 +3564,13 @@
       },
       {
         "name": "configured the Supabase Metrics API scrape correctly",
-        "passed": false,
-        "judgeNotes": "The Supabase scrape uses a placeholder target (`replace-with-project-ref.supabase.co:443`) rather than a deployable `<project-ref>.supabase.co` or `.supabase.red` project target."
+        "passed": true,
+        "judgeNotes": "Meets requirements: preserves app scrape, adds HTTPS Supabase Metrics API scrape at /customer/v1/privileged/metrics for a rendered <project-ref>.supabase.co target, uses HTTP Basic Auth with password_file, and docker-compose mounts the secret file to the matching path."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, matching Compose secret file path, Prometheus target/label replacement, Compose stack restart command, and concrete verification via Prometheus targets health."
+        "judgeNotes": "README explains creating a Supabase Secret API key, writing it to the matching mounted secret file, restarting the Compose stack, and verifying via Prometheus targets. Endpoint and auth match the config."
       }
     ],
     "skills": {
@@ -3772,8 +3741,8 @@
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "Fails the rubric because it does not correctly state that server-side validation should use auth.getUser() or short JWT expiry instead of relying only on local JWT validation/getClaims(). It also does not actually delete the auth user or remove identities, though it does revoke sessions and ban the user. Diagnosis, RLS/session-row mitigation, access-token expiry caveat, and publishable vs secret key clarification are mostly correct."
+        "passed": true,
+        "judgeNotes": "Diagnoses soft-delete-only flow, implements real session/refresh-token revocation and auth-user sign-in prevention via ban, explains JWT expiry/access-token caveat and server-side/session checks, and correctly distinguishes publishable vs secret/service_role keys with RLS behavior."
       }
     ],
     "skills": {
@@ -3834,7 +3803,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "Identified orders missing from supabase_realtime despite successful subscription, added public.orders to the existing publication without recreating it or weakening RLS/policies, and preserved courier_locations."
+        "judgeNotes": "The assistant correctly identified the root cause as public.orders missing from the supabase_realtime publication while courier_locations was present, applied exactly ALTER PUBLICATION supabase_realtime ADD TABLE public.orders via migration, verified both tables remain in the publication, and did not alter RLS, policies, grants, client code, or recreate/drop the publication."
       }
     ],
     "skills": {
@@ -3873,17 +3842,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described the recurring HTTP 503 gateway failures across the morning of 2026-04-28, listing all 8 timestamps from 07:00Z to 12:00Z."
+        "judgeNotes": "Identified image-transform as the affected function and described the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z to 12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "The assistant attributes the recurring 503s to the Edge Function gateway/platform layer before handler execution, grounded in observations that the 503s appear only in gateway logs with no corresponding execution entries while nearby invocations succeeded, and distinguishes them from avatar-upload's function-level 500."
+        "judgeNotes": "Attributes recurring image-transform 503s to the Edge Functions gateway/platform layer, grounded in gateway-only log presence with no corresponding runtime logs, nearby successful invocations, and distinction from avatar-upload function-level 500."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "Recommended concrete next steps, including opening a Supabase support ticket with exact UTC timestamps for gateway-level 503s, adding request ID logging, and reviewing dependency/cold-start behavior."
+        "judgeNotes": "The assistant recommended concrete next steps, including opening a Supabase support ticket with project/region/gateway log IDs and adding retries/alerting, and identified gateway/routing/runtime availability as the likely issue."
       }
     ],
     "skills": {
@@ -3949,7 +3918,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts. It did not disable RLS or add permissive/public policies."
+        "judgeNotes": "Diagnosed deny-all RLS due to no policies, kept RLS enabled, and created authenticated-only owner-scoped SELECT and INSERT policies using auth.uid() with WITH CHECK for inserts."
       }
     ],
     "skills": {
@@ -4009,7 +3978,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "PASS: avatar_url was applied through `supabase db push --db-url \"$db_url\" --yes` (#31), which output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the missing local migration file `supabase/migrations/20240115000000_add_profile_bio.sql` (#28), after which `supabase migration list --db-url \"$db_url\"` showed local and remote aligned (#29). No disallowed workaround or direct remote mutation was used; psql commands were read-only inspection."
+        "judgeNotes": "Avatar migration was applied through Supabase CLI with `supabase db push --db-url \"$(cat supabase/.temp/pooler-url)\"`, which output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding local migration file `supabase/migrations/20240115000000_add_profile_bio.sql`, after which `supabase migration list --db-url ...` showed local and remote aligned. Read-only `psql` inspections were used; no prohibited direct SQL mutation or prepared-statement workaround was seen."
       }
     ],
     "skills": {
@@ -4154,5 +4123,973 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-cli-001-bootstrap-app",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": false
+      },
+      {
+        "name": "todos table is created by a migration file",
+        "passed": false,
+        "notes": "supabase/migrations does not exist — was a Supabase project initialised?"
+      },
+      {
+        "name": "todos table exists with at least 2 seeded rows",
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-9920d15e\nTry rerunning the command with --debug to troubleshoot the error.\n"
+      },
+      {
+        "name": "row level security is enabled on todos",
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-9920d15e\nTry rerunning the command with --debug to troubleshoot the error.\n"
+      },
+      {
+        "name": "a SELECT policy targets the authenticated role",
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-9920d15e\nTry rerunning the command with --debug to troubleshoot the error.\n"
+      },
+      {
+        "name": "REST API returns no todos to anonymous requests",
+        "passed": false,
+        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-9920d15e\nTry rerunning the command with --debug to troubleshoot the error.\n"
+      },
+      {
+        "name": "REST API returns the todos to authenticated requests",
+        "passed": false,
+        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-9920d15e\nTry rerunning the command with --debug to troubleshoot the error.\n"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
+    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/build-cli-001-bootstrap-app.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-cli-002-declarative-schema",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "declarative-schema",
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase db diff used to generate the migration",
+        "passed": false
+      },
+      {
+        "name": "schema file updated to include description column",
+        "passed": false,
+        "notes": "description not found in any schema file"
+      },
+      {
+        "name": "a new migration was generated for the change",
+        "passed": false,
+        "notes": "found 1 migration file(s)"
+      },
+      {
+        "name": "description column exists in the live database",
+        "passed": false
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
+    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/build-cli-002-declarative-schema.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-cli-003-pg-cron-queue-workflow",
+    "stage": "build",
+    "product": [
+      "database",
+      "edge-functions",
+      "cron",
+      "queues"
+    ],
+    "topic": [
+      "sql",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
+        "passed": false,
+        "notes": "job not found in cron.job"
+      },
+      {
+        "name": "cron command enqueues to the 'tasks' queue",
+        "passed": false,
+        "notes": "job not found, so its command can't run"
+      },
+      {
+        "name": "process-tasks function drains the queue",
+        "passed": false,
+        "notes": "couldn't enqueue a test message. Is the 'tasks' queue created? query failed: ERROR:  relation \"pgmq.q_tasks\" does not exist\nLINE 2:         INSERT INTO pgmq.q_tasks (vt, message, headers)\n                            ^\nQUERY:  \n        INSERT INTO pgmq.q_tasks (vt, message, headers)\n        VALUES ($2, $1, $3)\n        RETURNING msg_id;\n        \nCONTEXT:  PL/pgSQL function pgmq.send(text,jsonb,jsonb,timestamp with time zone) line 14 at RETURN QUERY\nSQL function \"send\" statement 1\n"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
+    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/build-cli-003-pg-cron-queue-workflow.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-database-001-migrate-postgres-to-supabase",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer completed without errors",
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-c7b5ba2d\nTry rerunning the command with --debug to troubleshoot the error.\n"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
+    "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/build-database-001-migrate-postgres-to-supabase.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-004-service-role-bypass",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "rejects missing auth",
+        "passed": true
+      },
+      {
+        "name": "user A reads own note",
+        "passed": true
+      },
+      {
+        "name": "reads only with the caller's JWT",
+        "passed": false
+      },
+      {
+        "name": "user A cannot force-read user B note",
+        "passed": false
+      },
+      {
+        "name": "user B cannot force-read user A note",
+        "passed": false
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
+    "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": false,
+        "notes": "no row in storage.buckets with id or name 'user-files'"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/build-storage-001-private-bucket-access.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-tests-001-rls-tenant-isolation",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "pgTAP isolation tests ran and pass",
+        "passed": false,
+        "notes": "no test summary found; exit 0; output: Connecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06d62d0de6d7: Download complete\ndcccee43ad5d: Pull comple"
+      },
+      {
+        "name": "agent correctly identifies the posts isolation bug from test results",
+        "passed": true,
+        "judgeNotes": "The agent identifies `posts` as the table with the broken tenant isolation policy, specifically that authenticated members can read posts from organizations they are not members of, and bases this conclusion on the pgTAP test failures rather than comments or assumptions. It does not incorrectly blame `notes` or dismiss the tests."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
+    "promptSourcePath": "evals/build-tests-001-rls-tenant-isolation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/build-tests-001-rls-tenant-isolation.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-vectors-001-rag-with-permissions",
+    "stage": "build",
+    "product": [
+      "database",
+      "vectors"
+    ],
+    "topic": [
+      "sql",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "scorer evaluated vector search",
+        "passed": false,
+        "notes": "relation \"documents\" does not exist"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
+    "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/build-vectors-001-rag-with-permissions.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "deploy-database-001-prometheus-metrics",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "preserved existing app scrape job",
+        "passed": true
+      },
+      {
+        "name": "configured the Supabase Metrics API scrape correctly",
+        "passed": false,
+        "judgeNotes": "prometheus.yml does not add a Supabase Metrics API scrape target. It only preserves the existing app job, and docker-compose.yml does not mount any password_file or secret for Supabase basic auth."
+      },
+      {
+        "name": "documented live deployment and verification steps",
+        "passed": false,
+        "judgeNotes": "README lacks required steps to create a Secret API key, place the matching secret file, restart/reload the Compose stack, and verify the integration via Prometheus targets/PromQL/Grafana or equivalent."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/deploy-database-001-prometheus-metrics.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "deploy-functions-001-edge-function-secrets",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "WEATHER_API_KEY is set as a Function secret on the project",
+        "passed": false,
+        "notes": "secrets present: []"
+      },
+      {
+        "name": "the weather function is deployed to the project",
+        "passed": false,
+        "notes": "function not found on the project (status 404)"
+      },
+      {
+        "name": "the weather function reads WEATHER_API_KEY from the environment",
+        "passed": false,
+        "notes": "could not read supabase/functions/weather/*"
+      },
+      {
+        "name": "WEATHER_API_KEY value is not committed to the repo",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
+    "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/deploy-functions-001-edge-function-secrets.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "deploy-self-hosting-001-docker-compose",
+    "stage": "deploy",
+    "product": [
+      "database",
+      "auth",
+      "storage"
+    ],
+    "topic": [
+      "self-hosting"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
+        "passed": false,
+        "notes": "supabase-docker/ is missing docker-compose.yml or volumes/db — not the self-host docker/ tree"
+      },
+      {
+        "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
+        "passed": true
+      },
+      {
+        "name": "secrets rotated off the shipped defaults",
+        "passed": false,
+        "notes": "still default or empty: POSTGRES_PASSWORD, JWT_SECRET, DASHBOARD_PASSWORD, VAULT_ENC_KEY, PG_META_CRYPTO_KEY"
+      },
+      {
+        "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
+        "passed": false,
+        "notes": "JWT_SECRET missing"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
+    "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/deploy-self-hosting-001-docker-compose.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-auth-001-deleted-user-access",
+    "stage": "investigate",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "victim session active before delete-account",
+        "passed": true
+      },
+      {
+        "name": "delete_account flow ran for the victim",
+        "passed": true
+      },
+      {
+        "name": "delete-account revokes the user's sessions",
+        "passed": false,
+        "notes": "sessions left: 1"
+      },
+      {
+        "name": "deleted user's refresh token is rejected",
+        "passed": false,
+        "notes": "refresh token still produces a session"
+      },
+      {
+        "name": "deleted user cannot sign back in",
+        "passed": false,
+        "notes": "deleted account can still sign in"
+      },
+      {
+        "name": "other users keep their sessions and access",
+        "passed": true
+      },
+      {
+        "name": "diagnosed and explained session revocation",
+        "passed": true,
+        "judgeNotes": "The answer correctly identifies that deleting only the profile row is insufficient because the Supabase Auth user and sessions remain. It recommends deleting the auth user via an admin/server-side call and signing out/revoking refresh tokens/sessions, notes that existing JWT access tokens may remain valid until expiry and suggests server-side validation with auth.getUser() or short JWT lifetimes for sensitive paths. It also correctly distinguishes publishable/anon frontend keys (RLS with user JWT) from secret/service-role server-only keys that bypass RLS and must never be exposed to the client."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-realtime-001-subscribed-no-events",
+    "stage": "investigate",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "orders table added to supabase_realtime publication",
+        "passed": false
+      },
+      {
+        "name": "courier_locations still in supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "publication still publishes INSERT events",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on orders",
+        "passed": true
+      },
+      {
+        "name": "staff can still read orders through RLS",
+        "passed": true,
+        "notes": "authenticated sees 2 of 2 orders"
+      },
+      {
+        "name": "diagnosed missing publication membership",
+        "passed": true,
+        "judgeNotes": "The answer identifies the missing orders table in the supabase_realtime publication as the cause of a SUBSCRIBED-but-silent Realtime Postgres Changes feed, and fixes it by adding orders to the existing supabase_realtime publication without changing RLS, policies, courier_locations, or client code."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
+    "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/investigate-realtime-001-subscribed-no-events.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-reliability-003-edge-function-5xx-correlation",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "identified image-transform and the recurring 503 pattern",
+        "passed": true,
+        "judgeNotes": "The assistant identified image-transform as the affected function and described a recurring pattern of HTTP 503 responses across the morning of 2026-04-28, covering the gateway failures between roughly 07:00Z and 12:00Z."
+      },
+      {
+        "name": "attributed recurring 503s to gateway/platform layer, not function code",
+        "passed": false,
+        "judgeNotes": "No assistant answer was provided to evaluate against the rubric."
+      },
+      {
+        "name": "recommended a concrete next step",
+        "passed": true,
+        "judgeNotes": "The assistant gave concrete actionable next steps, including escalating/opening an incident with gateway request IDs and time window, checking Edge Function platform/runtime health, reviewing deployment/routing configuration, and investigating correlated infrastructure logs."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/investigate-reliability-003-edge-function-5xx-correlation.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": false
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": false,
+        "notes": "new row violates row-level security policy for table \"bookmarks\""
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Diagnoses deny-all RLS on bookmarks, keeps RLS enabled, and adds authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-database-001-migration-history-mismatch",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the avatar_url column is applied on the hosted profiles table",
+        "passed": false,
+        "notes": "avatar_url not found on public.profiles"
+      },
+      {
+        "name": "migration 20240220000000 is recorded in the remote history",
+        "passed": false,
+        "notes": "remote history versions: [\"20240101000000\",\"20240115000000\"]"
+      },
+      {
+        "name": "remote migration history matches local migration files",
+        "passed": false,
+        "notes": "remote-only versions still unreconciled: [\"20240115000000\"] (remote: [\"20240101000000\",\"20240115000000\"], local: [\"20240101000000\",\"20240220000000\"])"
+      },
+      {
+        "name": "local migrations are a valid reconciled sequence",
+        "passed": false,
+        "notes": "expected 20240101000000_create_profiles → <bio reconciliation> → 20240220000000_add_avatar_url, strictly ascending; got [20240101000000_create_profiles.sql, 20240220000000_add_avatar_url.sql]"
+      },
+      {
+        "name": "production profile data is intact (not reset)",
+        "passed": true
+      },
+      {
+        "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
+        "passed": false,
+        "notes": "no agent actions recorded to evaluate"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "I'm trying to ship a migration to our hosted project and it's not working. Can you figure out what's wrong and get it deployed?",
+    "promptSourcePath": "evals/resolve-database-001-migration-history-mismatch/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/resolve-database-001-migration-history-mismatch.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-performance-001-slow-query-cpu-spike",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "inspected pg_stat_statements for query performance",
+        "passed": false
+      },
+      {
+        "name": "ran EXPLAIN on the expensive query",
+        "passed": false
+      },
+      {
+        "name": "created index covering user_id and created_at",
+        "passed": false
+      },
+      {
+        "name": "query plan uses an index and avoids sequential scan",
+        "passed": false,
+        "notes": "Limit  (cost=118.52..118.57 rows=20 width=88)\n  ->  Sort  (cost=118.52..118.57 rows=20 width=88)\n        Sort Key: created_at DESC\n        ->  Seq Scan on events  (cost=0.00..118.09 rows=20 width=88)\n              Filter: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+      },
+      {
+        "name": "inserts still work",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "My database CPU keeps spiking and the app gets slow when loading recent events for a user. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
+    "promptSourcePath": "evals/resolve-performance-001-slow-query-cpu-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/resolve-performance-001-slow-query-cpu-spike.json"
+  },
+  {
+    "experiment": "gemini-cli-3.1-pro",
+    "experimentDisplay": {
+      "agent": "gemini-cli",
+      "modelProvider": "google",
+      "modelId": "gemini-3.1-pro-preview",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "passed": false,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": false
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": false
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "gemini-cli-3.1-pro/resolve-security-002-rls-cross-tenant-leak.json"
   }
 ]
