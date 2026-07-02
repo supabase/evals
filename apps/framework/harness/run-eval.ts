@@ -705,6 +705,7 @@ async function main() {
   }
 
   let localStackTurn = Promise.resolve();
+  const errored: Error[] = [];
 
   const runWork = async ({ name, config, ev }: (typeof allWork)[number]) => {
     const out = resultPath(name, ev);
@@ -728,6 +729,7 @@ async function main() {
           `${res.passed ? "✅ PASS" : "❌ FAIL"} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`,
         );
       } catch (e) {
+        errored.push(new Error(`${name} x ${ev.id}`, { cause: e }));
         const elapsed = Math.round((Date.now() - start) / 1000);
         stderr(`💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`);
       }
@@ -745,6 +747,11 @@ async function main() {
   };
 
   await runConcurrent(allWork, CONCURRENCY, runWork);
+  console.error = stderr;
+
+  if (errored.length > 0) {
+    throw new AggregateError(errored, `${errored.length} eval(s) errored`);
+  }
 }
 
 main()
