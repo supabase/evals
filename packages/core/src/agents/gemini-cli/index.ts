@@ -26,9 +26,10 @@ export function geminiCliAgent(
     /**
      * The model's reasoning effort, for display/benchmark metadata only.
      * gemini-cli has no flag to change it, so this must match the model's own
-     * default (e.g. `high` for gemini-3.1-pro-preview) — it is recorded, not applied.
+     * default (e.g. `high` for gemini-3.1-pro-preview) — it is recorded, not
+     * applied. `max` is not a Gemini effort level.
      */
-    reasoningEffort?: ReasoningEffortLevel;
+    reasoningEffort?: Exclude<ReasoningEffortLevel, "max">;
     /** Override the pinned CLI version. */
     cliVersion?: string;
   } = {},
