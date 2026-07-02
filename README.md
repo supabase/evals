@@ -28,7 +28,7 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 Run one eval:
 
 ```bash
-pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment claude-code-sonnet-4.6
+pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment claude-code-sonnet-5
 ```
 
 View results in the web app at `http://localhost:5173`:
@@ -74,7 +74,7 @@ Narrow to specific evals or experiments (flags are repeatable):
 ```bash
 pnpm eval -- \
   --suite benchmark \
-  --experiment claude-code-sonnet-4.6 \
+  --experiment claude-code-sonnet-5 \
   --experiment claude-code-opus-4.8 \
   --eval resolve-dataapi-001-empty-results \
   --eval investigate-auth-001-deleted-user-access
