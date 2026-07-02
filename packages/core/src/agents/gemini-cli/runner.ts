@@ -41,7 +41,7 @@ export const geminiCliRunner: AgentRunner<GeminiCliModel> = {
   // Pinned: gemini-cli's --output-format stream-json schema evolves; bump
   // deliberately and re-check the parser. See ./parser.ts.
   defaultCliVersion: "0.20.2",
-  defaultModel: "gemini-3.5-flash",
+  defaultModel: "gemini-3.1-pro-preview",
 
   async install(sandbox, version) {
     await npmInstallGlobal(sandbox, `${this.cliPackage}@${version}`, this.displayName);

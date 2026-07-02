@@ -3,7 +3,7 @@
  * (CLI ≥ 0.20).
  *
  * The stream is newline-delimited event records (ISO timestamps):
- *   {"type":"init","session_id":"…","model":"gemini-3.5-flash"}
+ *   {"type":"init","session_id":"…","model":"gemini-3.1-pro-preview"}
  *   {"type":"message","role":"user","content":"…"}
  *   {"type":"tool_use","tool_name":"run_shell_command","tool_id":"…",
  *      "parameters":{"command":"…"}}
