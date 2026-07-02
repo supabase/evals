@@ -108,7 +108,7 @@ export interface SetupSupabaseSandboxOptions {
    * access token, and project ref are seeded so `supabase functions deploy` /
    * `secrets set` reach platform-lite.
    */
-  hosted?: { port: number; ref: string; accessToken: string };
+  hosted?: { port: number; pgPort?: number; ref: string; accessToken: string };
 }
 
 /** Workspace-relative path of the seeded CLI profile. */
@@ -116,6 +116,30 @@ const EVAL_PROFILE_PATH = ".supabase-eval-profile.yaml";
 
 /** Workspace-relative path `supabase link` writes the project ref to. */
 const PROJECT_REF_PATH = "supabase/.temp/project-ref";
+
+/**
+ * Workspace-relative `.temp` files `supabase link` caches and the linked DB
+ * commands read. `pooler-url` is the connection string `db push`/`db pull`/
+ * `migration repair` dial; the version files record the linked project's service
+ * versions.
+ *
+ * These MUST match the service versions the bundled CLI (SUPABASE_CLI_VERSION)
+ * runs for the local stack — otherwise `supabase start`/`db push` reports a
+ * spurious "different service versions … run `supabase link`" mismatch. A real
+ * hosted project tracks the CLI's versions, so matching them is also the
+ * faithful state. Update alongside SUPABASE_CLI_VERSION.
+ */
+const POOLER_URL_PATH = "supabase/.temp/pooler-url";
+// The CLI shim lives here: /usr/local/sbin is the first entry on the sandbox
+// PATH (see SANDBOX_PATH), so it shadows the real `supabase` binary (installed
+// in /usr/bin by the .deb) without renaming it.
+const SUPABASE_SHIM_PATH = "/usr/local/sbin/supabase";
+const REMOTE_VERSION_FILES: Record<string, string> = {
+  "supabase/.temp/postgres-version": "17.6.1.064",
+  "supabase/.temp/gotrue-version": "v2.184.0",
+  "supabase/.temp/rest-version": "v14.1",
+  "supabase/.temp/storage-version": "v1.33.0",
+};
 
 /**
  * Run the per-session setup inside a sandbox created from the image:
@@ -155,6 +179,16 @@ export async function setupSupabaseSandbox(
     await sandbox.copyToContainer(options.localDir, sandbox.workdir);
   }
 
+  // When linked to a hosted project with a wire endpoint, the CLI wrapper routes
+  // linked DB commands (`db push`/`migration repair`/…) at it via --db-url (the
+  // CLI otherwise hardcodes the linked port to 5432). This is needed whether or
+  // not the local stack is prestarted, so the path is computed up front and the
+  // wrapper is always installed below.
+  const poolerUrlPath =
+    options.hosted?.pgPort !== undefined
+      ? `${sandbox.workdir}/${POOLER_URL_PATH}`
+      : undefined;
+
   if (options.projectRunning ?? true) {
     // Fail with a clear authoring error before `supabase start` does with a
     // confusing one: a prestarted project needs a config in the workspace.
@@ -164,10 +198,22 @@ export async function setupSupabaseSandbox(
           "ship one in the eval's local/ directory or set `projectRunning: false` in the eval frontmatter",
       );
     }
+    // Start the stack with the real binary first; the wrapper (installed next)
+    // is for the agent's later commands, not this harness-side start.
     await startSupabaseProject(sandbox, options.includeServices);
-  } else {
-    await restrictSupabaseServices(sandbox, options.includeServices);
   }
+
+  // Install the CLI shim regardless of projectRunning: it routes the agent's
+  // linked DB commands at the hosted wire endpoint, and appends `-x` to any
+  // `supabase start` the agent runs itself (so service exclusions hold even when
+  // the stack is already up and the agent restarts it). No-op when there's
+  // nothing to exclude and no hosted wire endpoint.
+  await installSupabaseCliWrapper(
+    sandbox,
+    options.includeServices,
+    poolerUrlPath,
+    options.hosted !== undefined,
+  );
 }
 
 /**
@@ -185,7 +231,7 @@ export async function setupSupabaseSandbox(
  */
 async function linkSandboxToHostedPlatform(
   sandbox: DockerSandbox,
-  hosted: { port: number; ref: string; accessToken: string },
+  hosted: { port: number; pgPort?: number; ref: string; accessToken: string },
 ): Promise<void> {
   const apiUrl = `http://host.docker.internal:${hosted.port}`;
   // Minimal valid profile: the CLI validates name/api_url/dashboard_url
@@ -198,17 +244,53 @@ async function linkSandboxToHostedPlatform(
     "project_host: supabase.co",
     "",
   ].join("\n");
-  await sandbox.writeFiles({
+  const files: Record<string, string> = {
     [EVAL_PROFILE_PATH]: profile,
     // Exactly what `supabase link` persists; the CLI reads (trimmed) the linked
     // ref from here when a command doesn't get an explicit --project-ref.
     [PROJECT_REF_PATH]: hosted.ref,
-  });
+  };
+
+  // When platform-lite exposed a Postgres-wire port, seed the `.temp` files a
+  // real `supabase link` would: the pooler connection string the linked DB
+  // commands dial, and the version files their compat probes read.
+  //
+  // Connection-string shape, the hard way learned from the CLI:
+  //  - Plain `postgres` user + explicit port — NOT the Supavisor tenant form
+  //    (`postgres.<ref>@…`), which makes the CLI rewrite the port to 5432.
+  //  - `sslmode=disable` — the wire server answers SSL negotiation with "no", so
+  //    pgx otherwise aborts with "server refused TLS connection".
+  //  - Host = the IPv4 `host.docker.internal` resolves to. The bridge gateway
+  //    does NOT reach host-bound ports, and the bare name can resolve to an
+  //    unreachable IPv6; `getent ahostsv4` pins the reachable IPv4 (the same host
+  //    the HTTP management API uses).
+  // platform-lite's wire server ignores credentials and routes a single project
+  // by fallback; SUPABASE_DB_PASSWORD is set so `db push` never prompts.
+  if (hosted.pgPort !== undefined) {
+    const resolved = (
+      await sandbox.runShell(
+        "getent ahostsv4 host.docker.internal | awk 'NR==1{print $1}'",
+      )
+    ).stdout.trim();
+    const dbHost = resolved || "host.docker.internal";
+    files[POOLER_URL_PATH] =
+      `postgresql://postgres:postgres@${dbHost}:${hosted.pgPort}/postgres?sslmode=disable`;
+    Object.assign(files, REMOTE_VERSION_FILES);
+  }
+
+  await sandbox.writeFiles(files);
   sandbox.extraEnv = {
     ...sandbox.extraEnv,
     SUPABASE_ACCESS_TOKEN: hosted.accessToken,
     SUPABASE_PROFILE: `${sandbox.workdir}/${EVAL_PROFILE_PATH}`,
     SUPABASE_PROJECT_ID: hosted.ref,
+    // The wire endpoint speaks plaintext (the SSL-negotiation shim answers "no
+    // TLS"), and `db push`/`migration repair` otherwise default to a TLS-required
+    // connection that hard-fails on the shim's refusal. `?sslmode=disable` in the
+    // pooler-url is not honored on its own; PGSSLMODE is, so force it here.
+    ...(hosted.pgPort !== undefined
+      ? { SUPABASE_DB_PASSWORD: "postgres", PGSSLMODE: "disable" }
+      : {}),
   };
 }
 
@@ -312,40 +394,95 @@ export function computeExcludedServices(
 }
 
 /**
- * Wrapper that replaces the CLI binary so every `supabase start` — harness-
- * or agent-initiated — gets the exclude flag appended. There is no other seam
- * to inject the flag into commands the agent types. `-x` is a slice flag, so
- * an agent-passed exclude list merges with ours.
+ * A thin shim that shadows the `supabase` binary on PATH to transparently
+ * adjust two classes of commands the agent types — there is no other seam:
+ *
+ *  - `supabase start` gets the service `-x` exclude flag appended (a slice flag,
+ *    so an agent-passed list merges with ours).
+ *  - `supabase link` gets `--dns-resolver native` appended (unless the agent
+ *    already picked a resolver). The mocked platform lives at
+ *    host.docker.internal, a Docker-injected `/etc/hosts` entry only the native
+ *    OS resolver sees; the CLI's default resolver queries public DNS, gets
+ *    NXDOMAIN, and the link fails. The harness pre-links the project, so a real
+ *    `link` is never required — but an agent that re-runs it (e.g. while
+ *    diagnosing) would otherwise dead-end on infra rather than the task. This
+ *    is the same "make the agent's own command reach platform-lite" redirect as
+ *    the `--db-url` one below.
+ *  - Linked DB workflows (`db push`/`db pull`/`db dump`/`migration repair`/
+ *    `migration list`) get `--db-url <pooler-url>` appended, pointing at the
+ *    mocked hosted project's Postgres-wire endpoint. This is required because
+ *    the CLI hardcodes the *linked* database port to 5432 (internal/utils/
+ *    flags/db_url.go and internal/utils/connect.go), so a linked `db push` can
+ *    never reach platform-lite's ephemeral wire port — only an explicit
+ *    `--db-url` uses the connection string verbatim. The agent still types a
+ *    plain `supabase db push`; the redirect is invisible, like the API mock.
+ *
+ * It `exec`s the real binary by its absolute path (`realBin`), so it shadows by
+ * PATH precedence without renaming the real binary, and never recurses.
  */
 export function buildServiceWrapperScript(
+  realBin: string,
   excluded: readonly SupabaseService[],
+  poolerUrlPath?: string,
+  hosted?: boolean,
 ): string {
-  return [
-    "#!/bin/bash",
-    `if [ "$1" = "start" ]; then`,
-    `  shift`,
-    `  exec /usr/local/bin/supabase-cli start "$@" -x ${excluded.join(",")}`,
-    `fi`,
-    `exec /usr/local/bin/supabase-cli "$@"`,
-  ].join("\n");
+  const lines = ["#!/bin/bash", `REAL=${JSON.stringify(realBin)}`];
+  if (excluded.length > 0) {
+    lines.push(
+      `if [ "$1" = "start" ]; then shift; exec "$REAL" start "$@" -x ${excluded.join(",")}; fi`,
+    );
+  }
+  if (hosted) {
+    lines.push(
+      `if [ "$1" = "link" ] && [[ " $* " != *" --dns-resolver "* ]]; then shift; exec "$REAL" link "$@" --dns-resolver native; fi`,
+    );
+  }
+  if (poolerUrlPath) {
+    lines.push(
+      `POOLER_URL_FILE=${JSON.stringify(poolerUrlPath)}`,
+      `case "$1 $2" in`,
+      `  "db push"|"db pull"|"db dump"|"migration repair"|"migration list")`,
+      `    if [ -f "$POOLER_URL_FILE" ] && [[ " $* " != *" --db-url "* ]] && [[ " $* " != *" --local "* ]]; then`,
+      `      exec "$REAL" "$@" --db-url "$(cat "$POOLER_URL_FILE")"`,
+      `    fi ;;`,
+      `esac`,
+    );
+  }
+  lines.push(`exec "$REAL" "$@"`);
+  return lines.join("\n");
 }
 
-async function restrictSupabaseServices(
+/**
+ * Install the CLI shim at {@link SUPABASE_SHIM_PATH} — the first entry on the
+ * sandbox PATH — so it shadows the real `supabase` binary for the agent's
+ * commands. Unlike a rename, this leaves a single real binary in place; the shim
+ * `exec`s it by absolute path. Written as file data (no heredoc) via
+ * {@link DockerSandbox.writeRootFile}. No-op when there's nothing to rewrite.
+ */
+async function installSupabaseCliWrapper(
   sandbox: DockerSandbox,
   includeServices: readonly string[] | undefined,
+  poolerUrlPath?: string,
+  hosted?: boolean,
 ): Promise<void> {
   const excluded = computeExcludedServices(includeServices);
-  if (excluded.length === 0) return;
+  // Nothing to do: no services to exclude, no hosted wire to route at, and no
+  // hosted platform to fix `link`'s DNS resolver for.
+  if (excluded.length === 0 && !poolerUrlPath && !hosted) return;
 
-  await runOrThrow(
-    sandbox,
-    // Idempotent: only move the real binary aside once; rewriting the wrapper
-    // is safe.
-    `[ -e /usr/local/bin/supabase-cli ] || mv "$(command -v supabase)" /usr/local/bin/supabase-cli\n` +
-      `cat > /usr/local/bin/supabase <<'WRAPPER'\n${buildServiceWrapperScript(excluded)}\nWRAPPER\n` +
-      `chmod +x /usr/local/bin/supabase`,
-    "restrict supabase services",
-    { asRoot: true },
+  // Resolve the real binary before the shim shadows it (so this can't resolve to
+  // the shim); the shim then execs this absolute path and never recurses.
+  const real = (await sandbox.runShellAsRoot("command -v supabase")).stdout.trim();
+  if (!real || real === SUPABASE_SHIM_PATH) {
+    throw new Error(
+      `could not resolve the real supabase binary before installing the CLI shim (got ${JSON.stringify(real)})`,
+    );
+  }
+
+  await sandbox.writeRootFile(
+    SUPABASE_SHIM_PATH,
+    buildServiceWrapperScript(real, excluded, poolerUrlPath, hosted),
+    "0755",
   );
 }
 

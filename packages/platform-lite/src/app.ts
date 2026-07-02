@@ -11,6 +11,7 @@ import { createDevelopmentRoutes } from './management-api/development.js'
 import { createOpenApiRoutes } from './management-api/openapi.js'
 import { listen } from './listen.js'
 import type { ListenOptions } from './listen.js'
+import { startPgWireServer, type PgServerHandle } from './project/pg-wire.js'
 import type { AppOptions } from './types.js'
 
 export interface ServerHandle extends AsyncDisposable {
@@ -19,11 +20,21 @@ export interface ServerHandle extends AsyncDisposable {
   [Symbol.asyncDispose](): Promise<void>
 }
 
+export type { PgServerHandle }
+
 export interface PlatformHandle extends AsyncDisposable {
   readonly app: Hono
   getProject(ref: string): ProjectInstance | undefined
   refs(): string[]
+  /** Start the HTTP gateway (Management API / data-API routes). */
   listen(options?: ListenOptions): Promise<ServerHandle>
+  /**
+   * Start the Postgres-wire endpoint (the "pooler") for DB CLI workflows.
+   * A single listener serves every project, routing by the connection's
+   * tenant (`user = postgres.<ref>`). Returned handle must be closed by the
+   * caller, like `listen()`.
+   */
+  listenPg(options?: ListenOptions): Promise<PgServerHandle>
   dispose(): Promise<void>
   [Symbol.asyncDispose](): Promise<void>
 }
@@ -81,7 +92,13 @@ async function build(options: AppOptions): Promise<{ app: Hono; store: ProjectSt
 export async function createPlatform(options: AppOptions = {}): Promise<PlatformHandle> {
   const { app, store } = await build(options)
 
+  // Track open pg-wire listeners so dispose() tears them down too. They must be
+  // closed before the projects, since each holds a backend bridged to a
+  // project's PGlite.
+  const pgServers = new Set<PgServerHandle>()
+
   const dispose = async () => {
+    await Promise.all([...pgServers].map((s) => s.close()))
     await Promise.all([...store.values()].map((p) => p.close()))
   }
 
@@ -98,6 +115,22 @@ export async function createPlatform(options: AppOptions = {}): Promise<Platform
         url,
         dispose: serverDispose,
         [Symbol.asyncDispose]: serverDispose,
+      }
+    },
+    listenPg: async (options) => {
+      const handle = await startPgWireServer(
+        (ref) => store.get(ref),
+        () => [...store.keys()],
+        { host: options?.hostname, port: options?.port },
+      )
+      pgServers.add(handle)
+      // De-register on explicit close so dispose() doesn't double-close it.
+      return {
+        ...handle,
+        close: async () => {
+          pgServers.delete(handle)
+          await handle.close()
+        },
       }
     },
     dispose,

@@ -32,6 +32,13 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
     }
   })
 
+  // NOTE: these endpoints track migrations in an in-memory array
+  // (`project.migrations`), which is independent of the real
+  // `supabase_migrations.schema_migrations` table. The Postgres-wire path
+  // (`db push` / `migration repair`) writes that table directly, so it does NOT
+  // show up here, and migrations recorded here do not appear in the table.
+  // Anything reconciling the two (e.g. an eval scorer) should read the table
+  // via `/database/query`, not this endpoint.
   routes.get('/v1/projects/:ref/database/migrations', (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)

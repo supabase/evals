@@ -27,6 +27,7 @@ import {
   createPlatform,
   loadFunctionSeeds,
   type ManagementApiClient,
+  type PgServerHandle,
   type PlatformHandle,
   type ProjectInstance,
   type ServerHandle,
@@ -299,6 +300,14 @@ export interface LocalStackScoringContext {
    */
   hostedMgmt?: ManagementApiClient;
   /**
+   * Run SQL directly against the hosted project's database, when the eval links
+   * to platform-lite. Runs host-side in-process against the same PGlite the
+   * wire endpoint serves — the hosted counterpart to `query` (local stack), and
+   * ground truth without a Management API round-trip. Prefer this for hosted DB
+   * assertions; it is not the CLI under test.
+   */
+  hostedQuery?: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
+  /**
    * Invoke a function the agent deployed to the mocked hosted platform, with
    * its hosted secrets injected into the runtime env. Use to verify the
    * deployed function reads its secrets at runtime.
@@ -411,12 +420,19 @@ export type LocalStackSessionArgs = {
 export type HostedLink = {
   /** Port the platform-lite server is bound to (reached via host.docker.internal). */
   port: number;
+  /** Postgres-wire port for DB CLI workflows (`db push`/`migration repair`), when
+   * the platform backend exposed one. Reached via host.docker.internal. */
+  pgPort?: number;
   /** Project ref — must satisfy the CLI's `^[a-z]{20}$` format. */
   ref: string;
   /** Access token — must satisfy the CLI's `^sbp_[a-f0-9]{40}$` format. */
   accessToken: string;
   /** Management API client (host-side, in-process) for scorer assertions. */
   mgmt: ManagementApiClient;
+  /** Run SQL directly against the hosted project's database (host-side, in-process
+   * — same PGlite the wire endpoint serves). Ground truth for scorer assertions,
+   * without the Management API round-trip. */
+  query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
   /** Invoke a deployed function in-process, with hosted secrets injected. */
   invokeFunction: (
     input: EdgeFunctionsInvokeInput,
@@ -1035,6 +1051,9 @@ export interface PlatformBackend {
   url: string;
   ref: string;
   accessToken: string;
+  /** Postgres-wire port for DB CLI workflows (`db push`/`migration repair`),
+   * when `pgWire` was requested. Reached from a sandbox via host.docker.internal. */
+  pgPort?: number;
   mgmt: ManagementApiClient;
   client: SupabaseClient;
   getClient: () => SupabaseClient;
@@ -1057,6 +1076,10 @@ export async function bootPlatformBackend(opts: {
   /** Bind host for the HTTP server; defaults to 127.0.0.1. Use 0.0.0.0 to
    * reach the server from inside a sandbox container via host.docker.internal. */
   hostname?: string;
+  /** Also expose the project's database over the Postgres wire protocol (for
+   * `db push` / `migration repair`). Bound to `hostname` so the sandbox can
+   * reach it; the chosen port is returned as `pgPort`. */
+  pgWire?: boolean;
 }): Promise<PlatformBackend> {
   const sql =
     opts.projectSeedSql && existsSync(opts.projectSeedSql)
@@ -1079,6 +1102,7 @@ export async function bootPlatformBackend(opts: {
   });
 
   let server: ServerHandle | undefined;
+  let pgServer: PgServerHandle | undefined;
 
   try {
     server = await platform.listen(
@@ -1091,12 +1115,23 @@ export async function bootPlatformBackend(opts: {
     const instance = platform.getProject(ref);
     if (!instance) throw new Error(`platform backend: project missing: ${ref}`);
 
+    // Expose the database over the Postgres wire (the "pooler") when requested,
+    // bound to the same host as the HTTP server so the sandbox reaches both the
+    // same way (host.docker.internal). Closed alongside the HTTP server.
+    pgServer = opts.pgWire
+      ? await platform.listenPg(
+          opts.hostname ? { hostname: opts.hostname } : undefined,
+        )
+      : undefined;
+    const pgPort = pgServer?.port;
+
     let closed = false;
 
     return {
       url: server.url,
       ref,
       accessToken,
+      pgPort,
       mgmt: createManagementApiClient(server.url, accessToken),
       client: instance.app.getClient(),
       getClient: () => instance.app.getClient(),
@@ -1109,11 +1144,11 @@ export async function bootPlatformBackend(opts: {
       close: async () => {
         if (closed) return;
         closed = true;
-        await closePlatformResources(platform, server);
+        await closePlatformResources(platform, server, pgServer);
       },
     };
   } catch (err) {
-    await closePlatformResources(platform, server);
+    await closePlatformResources(platform, server, pgServer);
     throw err;
   }
 }
@@ -1209,11 +1244,15 @@ function withOpenAiZdrDefaults(
 async function closePlatformResources(
   platform: PlatformHandle,
   server?: ServerHandle,
+  pgServer?: PgServerHandle,
 ): Promise<void> {
   const errors: unknown[] = [];
 
+  // Close the network listeners before disposing the projects (which closes
+  // their PGlite instances the pg-wire backends bridge to).
   for (const dispose of [
     server?.dispose.bind(server),
+    pgServer?.close.bind(pgServer),
     platform.dispose.bind(platform),
   ]) {
     if (!dispose) continue;
