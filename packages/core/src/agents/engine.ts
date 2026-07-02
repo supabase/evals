@@ -39,6 +39,8 @@ function modelProviderForAgent(id: AgentRunner["id"]): ModelProvider {
       return "anthropic";
     case "codex":
       return "openai";
+    case "cursor-cli":
+      return "cursor";
     case "ai-sdk":
       throw new Error("ai-sdk agents are not created through createCliAgent");
   }

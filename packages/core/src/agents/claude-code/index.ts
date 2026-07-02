@@ -18,8 +18,11 @@ export function claudeCodeAgent(
   options: {
     /** Anthropic model id (typed from `@anthropic-ai/sdk`). Defaults to Sonnet. */
     model?: AnthropicModel;
-    /** Reasoning effort (`--effort`). Omit to use Claude Code's own default. */
-    reasoningEffort?: ReasoningEffortLevel;
+    /**
+     * Reasoning effort (`--effort`). Omit to use Claude Code's own default.
+     * `max` is excluded — it's Cursor's Max-mode marker, not a Claude effort.
+     */
+    reasoningEffort?: Exclude<ReasoningEffortLevel, "max">;
     /** Override the pinned CLI version. */
     cliVersion?: string;
   } = {},
