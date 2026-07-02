@@ -91,6 +91,7 @@ export { buildSkillResult } from "./skill-results.js";
 export { createCliAgent } from "./agents/engine.js";
 export { claudeCodeAgent } from "./agents/claude-code/index.js";
 export { codexAgent } from "./agents/codex/index.js";
+export { geminiCliAgent } from "./agents/gemini-cli/index.js";
 export type {
   AgentMetadata,
   AgentSandbox,

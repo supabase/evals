@@ -150,6 +150,7 @@ const AGENT_LABELS = {
   "ai-sdk": "AI SDK",
   "claude-code": "Claude Code",
   codex: "Codex",
+  "gemini-cli": "Gemini CLI",
 } satisfies Record<ExperimentDisplay["agent"], string>
 
 function capitalize(value: string) {
@@ -187,12 +188,32 @@ function formatOpenAiModel(modelId: string) {
     .join(" ")
 }
 
+function formatGoogleModel(modelId: string) {
+  if (!modelId.startsWith("gemini-")) {
+    return modelId
+  }
+
+  // gemini-3.5-flash → Gemini 3.5 Flash; gemini-3.1-pro-preview → Gemini 3.1 Pro Preview.
+  const suffix = modelId.slice("gemini-".length)
+  const match = /^(\d+(?:[.-]\d+)*)(?:-(.+))?$/.exec(suffix)
+  if (!match) {
+    return capitalize(modelId)
+  }
+
+  const [, version, variant] = match
+  return [`Gemini ${version.replaceAll("-", ".")}`, variant?.split("-").map(capitalize).join(" ")]
+    .filter(Boolean)
+    .join(" ")
+}
+
 function formatModel(display: ExperimentDisplay) {
   switch (display.modelProvider) {
     case "anthropic":
       return formatAnthropicModel(display.modelId)
     case "openai":
       return formatOpenAiModel(display.modelId)
+    case "google":
+      return formatGoogleModel(display.modelId)
   }
 }
 
