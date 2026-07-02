@@ -479,6 +479,7 @@ async function runOne(
           stoppedReason: run.stoppedReason,
         };
       }
+      logRetryAttempt(expName, ev, attempt, last);
       continue;
     }
 
@@ -540,6 +541,7 @@ async function runOne(
         stoppedReason: run.stoppedReason,
       };
     }
+    logRetryAttempt(expName, ev, attempt, last);
   }
 
   return {
@@ -574,6 +576,20 @@ function formatRunSummary(res: ScoreResult & { attempts: number }): string {
   parts.push(`attempts ${res.attempts}`);
 
   return parts.join(", ");
+}
+
+/** Prints a retry line when a failed attempt will be followed by another. */
+function logRetryAttempt(
+  expName: string,
+  ev: EvalManifest,
+  attempt: number,
+  result: ScoreResult,
+) {
+  if (!STOP_ON_PASS || result.passed || attempt >= RUNS) return;
+  const summary = formatRunSummary({ ...result, attempts: attempt });
+  console.log(
+    `🔁 RETRY ${expName} x ${ev.id} (attempt ${attempt}/${RUNS} failed, ${summary})`,
+  );
 }
 
 async function runConcurrent<T>(
