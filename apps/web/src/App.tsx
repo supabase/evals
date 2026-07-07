@@ -199,6 +199,38 @@ function ExperimentSuiteControl({
   )
 }
 
+function GroupByControl({
+  value,
+  onValueChange,
+}: {
+  value: GroupBy
+  onValueChange: (value: GroupBy) => void
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      value={value}
+      onValueChange={(nextValue) => {
+        if (
+          nextValue === "stage" ||
+          nextValue === "model" ||
+          nextValue === "product" ||
+          nextValue === "eval"
+        ) {
+          onValueChange(nextValue)
+        }
+      }}
+      className="w-fit"
+    >
+      <ToggleGroupItem value="stage">Group by journey</ToggleGroupItem>
+      <ToggleGroupItem value="model">Group by model</ToggleGroupItem>
+      <ToggleGroupItem value="product">Group by product</ToggleGroupItem>
+      <ToggleGroupItem value="eval">Group by eval</ToggleGroupItem>
+    </ToggleGroup>
+  )
+}
+
 function capitalize(value: string) {
   return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value
 }
@@ -1187,37 +1219,6 @@ export function App() {
                       the Supabase journey.
                     </span>
                   </h1>
-                  <div className="flex flex-col gap-3">
-                    <ToggleGroup
-                      type="single"
-                      variant="outline"
-                      value={groupBy}
-                      onValueChange={(value) => {
-                        if (
-                          value === "stage" ||
-                          value === "model" ||
-                          value === "product" ||
-                          value === "eval"
-                        ) {
-                          setGroupBy(value)
-                        }
-                      }}
-                      className="w-fit"
-                    >
-                      <ToggleGroupItem value="stage">
-                        Group by journey
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value="model">
-                        Group by model
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value="product">
-                        Group by product
-                      </ToggleGroupItem>
-                      <ToggleGroupItem value="eval">
-                        Group by eval
-                      </ToggleGroupItem>
-                    </ToggleGroup>
-                  </div>
                 </div>
                 <p className="max-w-xl text-base leading-6 tracking-[-0.011em] text-pretty text-muted-foreground lg:max-w-2xl lg:flex-1 lg:pb-1">
                   We evaluate model experiments against each step of the
@@ -1229,7 +1230,13 @@ export function App() {
             </div>
           </header>
           <div className="sticky top-[57px] z-40 border-b border-border bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-            <div className={cn(pageContainerClassName, "flex items-center")}>
+            <div
+              className={cn(
+                pageContainerClassName,
+                "flex flex-wrap items-center gap-3 md:justify-between"
+              )}
+            >
+              <GroupByControl value={groupBy} onValueChange={setGroupBy} />
               <ExperimentSuiteControl
                 value={selectedExperimentSuite}
                 onValueChange={setSelectedExperimentSuite}
