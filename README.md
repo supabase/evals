@@ -65,7 +65,7 @@ Add a file under `experiments/` for the agent/model/runtime setup you want to co
 
 Running evals executes experiment x eval pairs and writes local result files under `results/`.
 
-Run all benchmark experiments across all benchmark evals:
+Run all benchmark and no-skills experiments across all benchmark evals:
 
 ```bash
 pnpm eval -- --suite benchmark --experiment-suite benchmark,no-skills

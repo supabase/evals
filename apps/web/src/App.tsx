@@ -712,8 +712,8 @@ function SummaryBar({
         <span className="truncate font-mono text-sm font-normal text-foreground">
           {label}
         </span>
-        <span className="flex shrink-0 items-baseline gap-2 font-mono font-normal">
-          <span className="text-sm text-foreground">{passRate}%</span>
+        <span className="shrink-0 font-mono text-sm font-normal text-foreground">
+          {passRate}%
         </span>
       </div>
       <div className="h-[3px] w-full bg-foreground/20">
