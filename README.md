@@ -41,6 +41,8 @@ pnpm web
 
 - An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
 - An **experiment** is one agent/runtime/model setup under `experiments/<name>.ts`.
+- An **eval suite** is a named set of evals to run together.
+- An **experiment suite** is a named set of experiments to compare over the same eval suite. It only controls filtering and result views. It does not change how an experiment runs.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
 - A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
 - `platform-lite` exposes a Supabase Management API-compatible HTTP surface backed by [`@supabase/lite`](https://github.com/supabase/supabase-lite), so real tools like `@supabase/mcp-server-supabase` can run against a lightweight project.
@@ -57,7 +59,7 @@ pnpm web
 
 ### Add an experiment
 
-Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: ["benchmark"]` to include it in benchmark runs (it's a list, so one experiment can run in multiple suites, e.g. `["benchmark", "regression"]`).
+Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: ["standard"]` or another experiment suite value so the runner and results UI can group comparable experiments.
 
 ### Run evals
 
@@ -66,7 +68,7 @@ Running evals executes experiment x eval pairs and writes local result files und
 Run all benchmark experiments across all benchmark evals:
 
 ```bash
-pnpm eval -- --suite benchmark
+pnpm eval -- --suite benchmark --experiment-suite standard,without-skills
 ```
 
 Narrow to specific evals or experiments (flags are repeatable):
@@ -74,6 +76,7 @@ Narrow to specific evals or experiments (flags are repeatable):
 ```bash
 pnpm eval -- \
   --suite benchmark \
+  --experiment-suite standard \
   --experiment claude-code-sonnet-5 \
   --experiment claude-code-opus-4.8 \
   --eval resolve-dataapi-001-empty-results \
@@ -114,7 +117,7 @@ motivation: AI-123
 ```
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
-`suite` is required on every eval (`benchmark`, `regression`, or `other`). Run a suite with `--suite regression` / `--suite other`, which selects experiments tagged with that suite against evals declaring it.
+`suite` is required on every eval (`benchmark`, `regression`, or `other`). Run an eval suite with `--suite regression` / `--suite other`. Select experiment suites separately with `--experiment-suite standard` or `--experiment-suite without-skills`.
 Benchmark evals should include `motivation` with the issue or other reference that explains why the scenario belongs in the suite.
 
 ## Eval Modes

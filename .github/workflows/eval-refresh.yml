@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       experiments:
-        description: "Comma-separated experiment names to run (blank to auto-discover from suite)"
+        description: "Comma-separated experiment names to run (blank to auto-discover from experiment_suite)"
         required: false
         default: ""
       eval:
@@ -15,6 +15,10 @@ on:
         description: "Comma-separated eval suites to run"
         required: true
         default: "benchmark"
+      experiment_suite:
+        description: "Comma-separated experiment suites to run"
+        required: true
+        default: "standard,without-skills"
       runs:
         description: "Attempts per experiment/eval pair"
         required: true
@@ -65,6 +69,7 @@ jobs:
       eval: ${{ steps.inputs.outputs.eval }}
       evals: ${{ steps.discover.outputs.evals }}
       suite: ${{ steps.inputs.outputs.suite }}
+      experiment_suite: ${{ steps.inputs.outputs.experiment_suite }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
@@ -80,17 +85,20 @@ jobs:
             experiments_override="${{ inputs.experiments }}"
             eval_id="${{ inputs.eval }}"
             suite="${{ inputs.suite }}"
+            experiment_suite="${{ inputs.experiment_suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
           else
             experiments_override=""
             eval_id=""
             suite="benchmark"
+            experiment_suite="standard,without-skills"
             runs="2"
             timeout_sec="720"
           fi
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
+          experiment_suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiment_suite")"
 
           # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
           # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
@@ -112,6 +120,7 @@ jobs:
             echo "experiments_override=$experiments_override"
             echo "eval=$eval_id"
             echo "suite=$suite_json"
+            echo "experiment_suite=$experiment_suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
             echo "filter_changed=$filter_changed"
@@ -145,14 +154,14 @@ jobs:
           if [ -n "$experiments_override" ]; then
             experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
           else
-            suite_args=()
+            experiment_suite_args=()
             while IFS= read -r s; do
-              suite_args+=("--suite" "$s")
-            done < <(jq -r '.[]' <<< '${{ steps.inputs.outputs.suite }}')
-            experiments_json="$(pnpm --silent eval -- list "${suite_args[@]}")"
+              experiment_suite_args+=("--experiment-suite" "$s")
+            done < <(jq -r '.[]' <<< '${{ steps.inputs.outputs.experiment_suite }}')
+            experiments_json="$(pnpm --silent eval -- list "${experiment_suite_args[@]}")"
           fi
           if [ "$(echo "$experiments_json" | jq 'length')" -eq 0 ]; then
-            echo "No experiments found for suites: ${{ steps.inputs.outputs.suite }}" >&2
+            echo "No experiments found for experiment suites: ${{ steps.inputs.outputs.experiment_suite }}" >&2
             exit 1
           fi
           echo "experiments=$experiments_json" >> "$GITHUB_OUTPUT"
@@ -325,6 +334,10 @@ jobs:
           while IFS= read -r suite; do
             export_args+=("--suite" "$suite")
           done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
+
+          while IFS= read -r experiment_suite; do
+            export_args+=("--experiment-suite" "$experiment_suite")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiment_suite }}')
 
           if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
             export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")

@@ -44,6 +44,10 @@ export const evalSuiteSchema = z.enum(["benchmark", "regression", "other"]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
+export const experimentSuiteSchema = z.enum(["standard", "without-skills"]);
+export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
+export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
+
 export const agentHarnessIdSchema = z.enum(["ai-sdk", "claude-code", "codex"]);
 export type AgentHarnessId = z.infer<typeof agentHarnessIdSchema>;
 
@@ -135,7 +139,10 @@ export const evalMetadataSchema = z.object({
 // `edge functions`, `edge_functions`, or `edge-functions` for the canonical
 // `edge-functions`. Enum fields are matched on this.
 const normalizeToken = (value: string): string =>
-  value.trim().toLowerCase().replace(/[\s_]+/g, "-");
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
 
 // YAML scalars arrive as string | number | boolean; the metadata layer treats
 // them all as tokens. Non-scalars (objects/arrays/null) pass through unchanged
@@ -221,6 +228,8 @@ export type SkillResult = z.infer<typeof skillResultSchema>;
 // than rendered with a stale value, and is rebuilt on the next run.
 const evalResultShape = {
   experiment: z.string(),
+  experimentSuite: experimentSuiteSchema.optional(),
+  profile: experimentSuiteSchema.optional(),
   experimentDisplay: experimentDisplayMetadataSchema.optional(),
   eval: z.string(),
   stage: evalStageSchema.optional(),

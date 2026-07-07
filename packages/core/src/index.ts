@@ -37,6 +37,7 @@ import type {
   CheckResult,
   EvalSuite,
   ExperimentDisplayMetadata,
+  ExperimentSuite,
   ModelProvider,
   ReasoningEffortLevel,
 } from "./eval-metadata.js";
@@ -53,7 +54,7 @@ function getExecutorBin(): string {
   executorBinPath ??= join(
     dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
     "bin",
-    "executor"
+    "executor",
   );
   return executorBinPath;
 }
@@ -71,6 +72,7 @@ export {
   EVAL_PRODUCTS,
   EVAL_SUITES,
   EVAL_STAGES,
+  EXPERIMENT_SUITES,
   agentHarnessIdSchema,
   checkResultSchema,
   evalInterfaceSchema,
@@ -79,6 +81,7 @@ export {
   evalResultSchema,
   evalStageSchema,
   evalSuiteSchema,
+  experimentSuiteSchema,
   experimentDisplayMetadataSchema,
   modelProviderSchema,
   rawEvalResultSchema,
@@ -119,6 +122,7 @@ export type {
   EvalSuite,
   EvalStage,
   ExperimentDisplayMetadata,
+  ExperimentSuite,
   ModelProvider,
   ParsedEvalMarkdown,
   ReasoningEffortLevel,
@@ -334,7 +338,9 @@ export interface LocalStackEvalContext extends LocalStackScoringContext {
 }
 
 export type ToolScorer = (ctx: ToolEvalContext) => Promise<ScoreResult>;
-export type LocalStackScorer = (ctx: LocalStackEvalContext) => Promise<ScoreResult>;
+export type LocalStackScorer = (
+  ctx: LocalStackEvalContext,
+) => Promise<ScoreResult>;
 
 export type AgentRunArgs = {
   systemPrompt: string;
@@ -483,8 +489,8 @@ export type LocalStackRuntime = {
 };
 
 export type ExperimentConfig = {
-  /** Suites this experiment runs in. Omitted/empty means no suite (skipped by `--suite`). */
-  suite?: EvalSuite[];
+  /** Named experiment suites this experiment belongs to. */
+  suite?: ExperimentSuite[];
   agent: AgentHarness;
   runtime: EvalRuntime;
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
@@ -583,7 +589,8 @@ export function aiSdkAgent(options: {
 }): AgentHarness {
   const po = options.providerOptions;
   const configuredEffort = po?.anthropic?.effort ?? po?.openai?.reasoningEffort;
-  const reasoningEffort = reasoningEffortSchema.safeParse(configuredEffort).data;
+  const reasoningEffort =
+    reasoningEffortSchema.safeParse(configuredEffort).data;
   const modelId = options.model.modelId;
   return {
     id: "ai-sdk",
@@ -626,9 +633,12 @@ export function aiSdkAgent(options: {
             options.providerOptions,
           ),
           experimental_onToolCallFinish: (event) => {
-            const input = isRecord(event.toolCall.input) ? event.toolCall.input : {};
+            const input = isRecord(event.toolCall.input)
+              ? event.toolCall.input
+              : {};
             const loadedSkill =
-              event.toolCall.toolName === "load_skill" && typeof input.name === "string"
+              event.toolCall.toolName === "load_skill" &&
+              typeof input.name === "string"
                 ? input.name
                 : undefined;
             toolCalls.push({
@@ -961,7 +971,7 @@ async function addExecutorOpenApiSource(input: {
       "--base-url",
       input.daemonUrl,
     ],
-    { env: executorEnv(input.dataDir) }
+    { env: executorEnv(input.dataDir) },
   );
 
   const executionId = extractExecutorExecutionId(stdout);
@@ -983,7 +993,7 @@ async function addExecutorOpenApiSource(input: {
       "--base-url",
       input.daemonUrl,
     ],
-    { env: executorEnv(input.dataDir) }
+    { env: executorEnv(input.dataDir) },
   );
 }
 
@@ -997,7 +1007,7 @@ async function cleanupExecutorResources(input: {
     await execFileAsync(
       process.execPath,
       [getExecutorBin(), "daemon", "stop", "--base-url", input.daemonUrl],
-      { env: executorEnv(input.dataDir) }
+      { env: executorEnv(input.dataDir) },
     );
   } catch (err) {
     errors.push(err);
@@ -1098,7 +1108,9 @@ export async function bootPlatformBackend(opts: {
   const accessToken = opts.accessToken ?? ACCESS_TOKEN;
   const platform = await createPlatform({
     accessToken,
-    projects: [{ ref: opts.ref, sql, logs, functions, pgvector: opts.pgvector }],
+    projects: [
+      { ref: opts.ref, sql, logs, functions, pgvector: opts.pgvector },
+    ],
   });
 
   let server: ServerHandle | undefined;
@@ -1453,7 +1465,10 @@ function compileEdgeFunction(
     const id = toNodeRequireId(specifier);
     // supabase-js is special-cased so its client uses the in-process runtime
     // fetch (so the function's calls hit this project, not the network).
-    if (id === "@supabase/supabase-js" || id?.startsWith("@supabase/supabase-js/")) {
+    if (
+      id === "@supabase/supabase-js" ||
+      id?.startsWith("@supabase/supabase-js/")
+    ) {
       return {
         createClient: (
           u: string,
@@ -1552,8 +1567,10 @@ function functionToEdgeHandler(value: unknown): EdgeHandler | undefined {
  */
 function toNodeRequireId(specifier: string): string | undefined {
   if (specifier.startsWith("node:")) return specifier;
-  if (specifier.startsWith("npm:")) return stripModuleVersion(specifier.slice(4));
-  if (specifier.startsWith("jsr:")) return stripModuleVersion(specifier.slice(4));
+  if (specifier.startsWith("npm:"))
+    return stripModuleVersion(specifier.slice(4));
+  if (specifier.startsWith("jsr:"))
+    return stripModuleVersion(specifier.slice(4));
   const cdn = specifier.match(
     /^https?:\/\/(?:esm\.sh|esm\.run|cdn\.skypack\.dev|cdn\.jsdelivr\.net\/npm)\/(?:v\d+\/)?(.+)$/,
   );
