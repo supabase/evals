@@ -59,7 +59,7 @@ pnpm web
 
 ### Add an experiment
 
-Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: ["standard"]` or another experiment suite value so the runner and results UI can group comparable experiments.
+Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: ["benchmark"]` or another experiment suite value so the runner and results UI can group comparable experiments.
 
 ### Run evals
 
@@ -68,7 +68,7 @@ Running evals executes experiment x eval pairs and writes local result files und
 Run all benchmark experiments across all benchmark evals:
 
 ```bash
-pnpm eval -- --suite benchmark --experiment-suite standard,without-skills
+pnpm eval -- --suite benchmark --experiment-suite benchmark,no-skills
 ```
 
 Narrow to specific evals or experiments (flags are repeatable):
@@ -76,7 +76,7 @@ Narrow to specific evals or experiments (flags are repeatable):
 ```bash
 pnpm eval -- \
   --suite benchmark \
-  --experiment-suite standard \
+  --experiment-suite benchmark \
   --experiment claude-code-sonnet-5 \
   --experiment claude-code-opus-4.8 \
   --eval resolve-dataapi-001-empty-results \
@@ -117,7 +117,7 @@ motivation: AI-123
 ```
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
-`suite` is required on every eval (`benchmark`, `regression`, or `other`). Run an eval suite with `--suite regression` / `--suite other`. Select experiment suites separately with `--experiment-suite standard` or `--experiment-suite without-skills`.
+`suite` is required on every eval (`benchmark`, `regression`, or `other`). Run an eval suite with `--suite regression` / `--suite other`. Select experiment suites separately with `--experiment-suite benchmark` or `--experiment-suite no-skills`.
 Benchmark evals should include `motivation` with the issue or other reference that explains why the scenario belongs in the suite.
 
 ## Eval Modes

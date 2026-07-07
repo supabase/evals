@@ -154,12 +154,12 @@ const AGENT_LABELS = {
   codex: "Codex",
 } satisfies Record<ExperimentDisplay["agent"], string>
 
-const EXPERIMENT_SUITES = ["standard", "without-skills"] as const
+const EXPERIMENT_SUITES = ["benchmark", "no-skills"] as const
 type SelectedExperimentSuite = (typeof EXPERIMENT_SUITES)[number]
 
 const EXPERIMENT_SUITE_LABELS = {
-  standard: "Standard",
-  "without-skills": "Without skills",
+  benchmark: "Benchmark",
+  "no-skills": "No skills",
 } satisfies Record<SelectedExperimentSuite, string>
 
 function capitalize(value: string) {
@@ -1100,7 +1100,7 @@ function FooterCta() {
 export function App() {
   const [groupBy, setGroupBy] = useState<GroupBy>("stage")
   const [selectedExperimentSuite, setSelectedExperimentSuite] =
-    useState<SelectedExperimentSuite>("standard")
+    useState<SelectedExperimentSuite>("benchmark")
   const experimentSuiteResults = sortedResults.filter(
     (result) => result.experimentSuite === selectedExperimentSuite
   )
@@ -1156,10 +1156,7 @@ export function App() {
                       variant="outline"
                       value={selectedExperimentSuite}
                       onValueChange={(value) => {
-                        if (
-                          value === "standard" ||
-                          value === "without-skills"
-                        ) {
+                        if (value === "benchmark" || value === "no-skills") {
                           setSelectedExperimentSuite(value)
                         }
                       }}

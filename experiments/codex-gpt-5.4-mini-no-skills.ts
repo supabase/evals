@@ -7,7 +7,7 @@ import {
 import { localStackRuntime } from "@supabase-evals/sandbox";
 
 export default defineExperiment({
-  suite: ["without-skills"],
+  suite: ["no-skills"],
   agent: codexAgent({
     model: "gpt-5.4-mini",
     reasoningEffort: "medium",

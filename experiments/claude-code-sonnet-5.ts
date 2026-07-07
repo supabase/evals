@@ -7,7 +7,7 @@ import {
 import { localStackRuntime } from "@supabase-evals/sandbox";
 
 export default defineExperiment({
-  suite: ["standard"],
+  suite: ["benchmark"],
   agent: claudeCodeAgent({
     model: "claude-sonnet-5",
     reasoningEffort: "high",
