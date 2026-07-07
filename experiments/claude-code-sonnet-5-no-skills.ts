@@ -6,11 +6,11 @@ import {
 } from "@supabase-evals/core";
 import { localStackRuntime } from "@supabase-evals/sandbox";
 
-// Same as claude-code-sonnet-4.6 but with no skills, to measure skills' impact.
+// Same as claude-code-sonnet-5 but with no skills, to measure skills' impact.
 export default defineExperiment({
   suite: ["no-skills"],
   agent: claudeCodeAgent({
-    model: "claude-sonnet-4-6",
+    model: "claude-sonnet-5",
     reasoningEffort: "high",
   }),
   runtime: platformLiteRuntime({
