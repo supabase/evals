@@ -1,6 +1,8 @@
 import {
   evalSuiteSchema,
+  experimentSuiteSchema,
   type EvalSuite,
+  type ExperimentSuite,
 } from "@supabase-evals/core/eval-metadata";
 
 export function splitList(value: string): string[] {
@@ -46,6 +48,20 @@ export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
     if (!parsed.success) {
       throw new Error(
         `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(", ")}`,
+      );
+    }
+    return parsed.data;
+  });
+}
+
+export function readExperimentSuiteFilters(
+  rawArgs: string[],
+): ExperimentSuite[] {
+  return readRepeatedFlag(rawArgs, "experiment-suite").map((value) => {
+    const parsed = experimentSuiteSchema.safeParse(value.trim().toLowerCase());
+    if (!parsed.success) {
+      throw new Error(
+        `invalid experiment-suite "${value}". Expected one of: ${experimentSuiteSchema.options.join(", ")}`,
       );
     }
     return parsed.data;

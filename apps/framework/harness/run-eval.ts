@@ -21,6 +21,7 @@ import {
 } from "@supabase-evals/sandbox";
 import {
   normalizeExperimentName,
+  readExperimentSuiteFilters,
   readRepeatedFlag,
   readSuiteFilters,
 } from "../lib/cli-args.js";
@@ -63,6 +64,7 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
 );
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
+const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const RUNS = Number(readFlag("runs") ?? 1);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const CONCURRENCY = Number(readFlag("concurrency") ?? 1);
@@ -290,7 +292,9 @@ function readSessionSeedArgs(ev: EvalManifest) {
   return {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
     logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
-    functionsSeedDir: existsSync(functionsSeedDir) ? functionsSeedDir : undefined,
+    functionsSeedDir: existsSync(functionsSeedDir)
+      ? functionsSeedDir
+      : undefined,
     pgvector: ev.metadata.product.includes("vectors"),
   };
 }
@@ -362,7 +366,9 @@ async function runOne(
   const skillSources = resolveSkillSources(exp.skills);
   const availableSkills = skillSources.map((skill) => skill.name);
   const toolsSkills =
-    ev.mode === "tools" && !agentRunsInSandbox ? loadToolsSkills(exp.skills) : [];
+    ev.mode === "tools" && !agentRunsInSandbox
+      ? loadToolsSkills(exp.skills)
+      : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ToolScorer
     | LocalStackScorer;
@@ -598,10 +604,13 @@ async function runConcurrent<T>(
   fn: (item: T) => Promise<void>,
 ): Promise<void> {
   const queue = [...items];
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    let item: T | undefined;
-    while ((item = queue.shift()) !== undefined) await fn(item);
-  });
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      let item: T | undefined;
+      while ((item = queue.shift()) !== undefined) await fn(item);
+    },
+  );
   await Promise.all(workers);
 }
 
@@ -609,9 +618,13 @@ async function main() {
   if (rawArgs.filter((a) => a !== "--")[0] === "list") {
     const experiments = await loadExperiments();
     const filtered =
-      SUITE_FILTERS.length > 0
-        ? experiments.filter((e) =>
-            (e.config.suite ?? []).some((s) => SUITE_FILTERS.includes(s)),
+      EXPERIMENT_SUITE_FILTERS.length > 0
+        ? experiments.filter(
+            (e) =>
+              e.config.suite !== undefined &&
+              e.config.suite.some((suite) =>
+                EXPERIMENT_SUITE_FILTERS.includes(suite),
+              ),
           )
         : experiments;
     console.log(JSON.stringify(filtered.map((e) => e.name)));
@@ -621,28 +634,30 @@ async function main() {
   const allExperiments = await loadExperiments();
   if (EXPERIMENT_FILTERS.length > 0) {
     const experimentNames = new Set(allExperiments.map(({ name }) => name));
-    const missing = EXPERIMENT_FILTERS.filter((name) => !experimentNames.has(name));
+    const missing = EXPERIMENT_FILTERS.filter(
+      (name) => !experimentNames.has(name),
+    );
     if (missing.length > 0) {
       throw new Error(`no experiment matched: ${missing.join(",")}`);
     }
   }
 
   const experiments = allExperiments.filter(({ name, config }) => {
-    if (
-      EXPERIMENT_FILTERS.length > 0 &&
-      !EXPERIMENT_FILTERS.includes(name)
-    )
+    if (EXPERIMENT_FILTERS.length > 0 && !EXPERIMENT_FILTERS.includes(name))
       return false;
     if (
-      SUITE_FILTERS.length > 0 &&
-      !(config.suite ?? []).some((s) => SUITE_FILTERS.includes(s))
+      EXPERIMENT_SUITE_FILTERS.length > 0 &&
+      (config.suite === undefined ||
+        !config.suite.some((suite) => EXPERIMENT_SUITE_FILTERS.includes(suite)))
     )
       return false;
     return true;
   });
   if (EXPERIMENT_FILTERS.length > 0) {
     if (experiments.length === 0) {
-      throw new Error(`no experiments matched experiment=${EXPERIMENT_FILTERS.join(",")}`);
+      throw new Error(
+        `no experiments matched experiment=${EXPERIMENT_FILTERS.join(",")}`,
+      );
     }
   }
   const evals = discoverEvals();
@@ -688,7 +703,11 @@ async function main() {
       `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
   );
 
-  const allWork: Array<{ name: string; config: ExperimentConfig; ev: EvalManifest }> = [];
+  const allWork: Array<{
+    name: string;
+    config: ExperimentConfig;
+    ev: EvalManifest;
+  }> = [];
 
   for (const { name, config } of experiments) {
     if (!DRY) {
@@ -735,7 +754,14 @@ async function main() {
         writeFileSync(
           out,
           JSON.stringify(
-            { experiment: name, experimentDisplay, eval: ev.id, ...ev.metadata, ...res },
+            {
+              experiment: name,
+              experimentSuite: config.suite?.[0],
+              experimentDisplay,
+              eval: ev.id,
+              ...ev.metadata,
+              ...res,
+            },
             null,
             2,
           ),
@@ -747,7 +773,9 @@ async function main() {
       } catch (e) {
         errored.push(new Error(`${name} x ${ev.id}`, { cause: e }));
         const elapsed = Math.round((Date.now() - start) / 1000);
-        stderr(`💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`);
+        stderr(
+          `💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`,
+        );
       }
     };
     if (ev.mode !== "local-stack") return run();

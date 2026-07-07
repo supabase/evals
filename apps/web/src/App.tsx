@@ -138,7 +138,9 @@ function parseResult(result: EvalResult): ParsedResult {
   }
 }
 
-const exportedResults: EvalResult[] = z.array(evalResultSchema).parse(rawResults)
+const exportedResults: EvalResult[] = z
+  .array(evalResultSchema)
+  .parse(rawResults)
 const results = exportedResults.map(parseResult)
 const experiments = Array.from(
   new Set(results.map((result) => result.experiment))
@@ -151,6 +153,83 @@ const AGENT_LABELS = {
   "claude-code": "Claude Code",
   codex: "Codex",
 } satisfies Record<ExperimentDisplay["agent"], string>
+
+const EXPERIMENT_SUITES = ["benchmark", "no-skills"] as const
+type SelectedExperimentSuite = (typeof EXPERIMENT_SUITES)[number]
+
+const EXPERIMENT_SUITE_LABELS = {
+  benchmark: "Benchmark",
+  "no-skills": "Without skills",
+} satisfies Record<SelectedExperimentSuite, string>
+
+function ExperimentSuiteControl({
+  value,
+  onValueChange,
+}: {
+  value: SelectedExperimentSuite
+  onValueChange: (value: SelectedExperimentSuite) => void
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Experiment suite"
+      className="inline-grid w-fit grid-cols-2 rounded-full border border-border bg-muted/35 p-1"
+    >
+      {EXPERIMENT_SUITES.map((suite) => {
+        const selected = suite === value
+
+        return (
+          <button
+            key={suite}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onValueChange(suite)}
+            className={cn(
+              "h-9 min-w-28 rounded-full px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              selected
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {EXPERIMENT_SUITE_LABELS[suite]}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function GroupByControl({
+  value,
+  onValueChange,
+}: {
+  value: GroupBy
+  onValueChange: (value: GroupBy) => void
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      value={value}
+      onValueChange={(nextValue) => {
+        if (
+          nextValue === "stage" ||
+          nextValue === "model" ||
+          nextValue === "product" ||
+          nextValue === "eval"
+        ) {
+          onValueChange(nextValue)
+        }
+      }}
+      className="w-fit"
+    >
+      <ToggleGroupItem value="stage">Group by journey</ToggleGroupItem>
+      <ToggleGroupItem value="model">Group by model</ToggleGroupItem>
+      <ToggleGroupItem value="product">Group by product</ToggleGroupItem>
+      <ToggleGroupItem value="eval">Group by eval</ToggleGroupItem>
+    </ToggleGroup>
+  )
+}
 
 function capitalize(value: string) {
   return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value
@@ -216,12 +295,23 @@ function formatExperimentLabel(
   return `${AGENT_LABELS[display.agent]} / ${formatModelWithModifiers(display)}`
 }
 
+function getVisibleExperiments(sourceResults: ParsedResult[]) {
+  return Array.from(
+    new Set(sourceResults.map((result) => result.experiment))
+  ).sort((a, b) => a.localeCompare(b))
+}
+
 function buildExperimentLabel(exp: string): string {
   const r = results.find((r) => r.experiment === exp)
   return formatExperimentLabel(r?.experimentDisplay, exp)
 }
 
-const experimentLabel = new Map(experiments.map((exp) => [exp, buildExperimentLabel(exp)]))
+const experimentLabel = new Map(
+  experiments.map((experiment) => [
+    experiment,
+    buildExperimentLabel(experiment),
+  ])
+)
 
 function sortResults(a: ParsedResult, b: ParsedResult) {
   const categoryDelta =
@@ -315,7 +405,6 @@ function getExperimentStageGroups(
     .sort((a, b) => a.category.localeCompare(b.category))
 }
 
-
 function formatTagLabel(value: string) {
   return value
     .split(" ")
@@ -330,7 +419,6 @@ function formatProductLabel(value: string) {
 
   return formatTagLabel(value)
 }
-
 
 function formatEvalName(evalId: string, includeSubcategory = true) {
   const [, subcategory, sequence, ...slug] = evalId.split("-")
@@ -409,13 +497,11 @@ function ResultChecks({ checks }: { checks: CheckResult[] }) {
               <span className="sr-only">
                 {check.passed ? "Pass" : "Fail"}:{" "}
               </span>
-              <span className="min-w-0 whitespace-pre-wrap">
-                {check.name}
-              </span>
+              <span className="min-w-0 whitespace-pre-wrap">{check.name}</span>
             </div>
             {notes ? (
               <details className="mt-1 ml-6 text-muted-foreground">
-                <summary className="cursor-pointer text-xs uppercase tracking-wide">
+                <summary className="cursor-pointer text-xs tracking-wide uppercase">
                   <span className="inline-flex items-center gap-1.5">
                     {hasJudgeNotes ? (
                       <BotIcon className="size-3.5 text-muted-foreground/70" />
@@ -477,9 +563,11 @@ function getTimelineGroups(
   groupBy: GroupBy,
   sourceResults: ParsedResult[]
 ): TimelineGroup[] {
+  const visibleExperiments = getVisibleExperiments(sourceResults)
+
   if (groupBy === "model") {
     return sortGroupsByPassRate(
-      experiments
+      visibleExperiments
         .map((experiment) => {
           const experimentResults = getExperimentResults(
             experiment,
@@ -496,11 +584,17 @@ function getTimelineGroups(
           const passed = experimentResults.filter(
             (result) => result.passed
           ).length
+          const summary = getExperimentOverallSummary(
+            experiment,
+            experimentResults
+          )
 
           return {
             id: experiment,
-            label: formatGroupLabel(experimentLabel.get(experiment) ?? experiment),
-            meta: formatPassPercentage(passed, experimentResults.length),
+            label: formatGroupLabel(
+              experimentLabel.get(experiment) ?? experiment
+            ),
+            meta: formatPassPercentage(summary.passed, summary.total),
             passRate: experimentResults.length
               ? Math.round((passed / experimentResults.length) * 100)
               : 0,
@@ -516,7 +610,7 @@ function getTimelineGroups(
     return getProductKeys(sourceResults).map((product) => {
       const productResults = getProductResults(product, sourceResults)
       const bars = sortBarsByScore(
-        experiments
+        visibleExperiments
           .map((experiment) => ({
             label: experimentLabel.get(experiment) ?? experiment,
             summary: getExperimentOverallSummary(experiment, productResults),
@@ -544,7 +638,7 @@ function getTimelineGroups(
     return evalIds.map((evalId) => {
       const evalResults = getEvalResults(evalId, sourceResults)
       const bars = sortBarsByScore(
-        experiments
+        visibleExperiments
           .map((experiment) => ({
             label: experimentLabel.get(experiment) ?? experiment,
             summary: getExperimentOverallSummary(experiment, evalResults),
@@ -567,7 +661,7 @@ function getTimelineGroups(
   return JOURNEY_STAGES.map((stage) => {
     const stageResults = getStageResults(stage.id, sourceResults)
     const bars = sortBarsByScore(
-      experiments
+      visibleExperiments
         .map((experiment) => ({
           label: experimentLabel.get(experiment) ?? experiment,
           summary: getExperimentStageSummary(
@@ -605,12 +699,11 @@ function SummaryBar({
   const passRate = summary.total
     ? Math.round((summary.passed / summary.total) * 100)
     : 0
-  const width = `${passRate}%`
 
   const bar = (
     <div
       className={cn(
-        "group flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 text-left outline-none",
+        "flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 text-left outline-none",
         interactive &&
           "transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
       )}
@@ -619,14 +712,14 @@ function SummaryBar({
         <span className="truncate font-mono text-sm font-normal text-foreground">
           {label}
         </span>
-        <span className="shrink-0 font-mono text-sm font-normal text-muted-foreground">
+        <span className="shrink-0 font-mono text-sm font-normal text-foreground">
           {passRate}%
         </span>
       </div>
       <div className="h-[3px] w-full bg-foreground/20">
         <div
           className="h-full bg-foreground transition-all group-hover:bg-foreground/90"
-          style={{ width }}
+          style={{ width: `${passRate}%` }}
         />
       </div>
     </div>
@@ -642,7 +735,7 @@ function SummaryBar({
         <button
           type="button"
           className="w-full text-left outline-none"
-          aria-label={`${label}: ${experimentLabel.get(summary.experiment) ?? summary.experiment} passed ${summary.passed} of ${summary.total} evals`}
+          aria-label={`${label}: ${summary.passed} of ${summary.total} evals passed`}
         >
           {bar}
         </button>
@@ -671,18 +764,20 @@ function TimelineGroupRow({
         "grid grid-cols-1 gap-4 lg:grid-cols-[26rem_minmax(0,1fr)] lg:gap-8"
       )}
     >
-      <div className="sticky top-20 z-10 flex min-w-0 flex-col gap-3 self-start pb-4">
+      <div className="sticky top-40 z-10 flex min-w-0 flex-col gap-3 self-start pb-4">
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className={groupHeadingClassName}>{group.label}</h2>
           {group.passRate != null ? (
-            <p
-              className={cn(
-                "text-2xl leading-none font-light tracking-[-0.02em]",
-                getPassRateClass(group.passRate)
-              )}
-            >
-              {group.meta}
-            </p>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <p
+                className={cn(
+                  "text-2xl leading-none font-light tracking-[-0.02em]",
+                  getPassRateClass(group.passRate)
+                )}
+              >
+                {group.meta}
+              </p>
+            </div>
           ) : null}
         </div>
         {group.description ? (
@@ -776,8 +871,10 @@ function ExperimentSheet({
             {modelLabel}
           </span>
         </SheetTitle>
-        <SheetDescription className="shrink-0 pb-0.5 text-right">
-          {passed} of {experimentResults.length} evals passed
+        <SheetDescription className="flex shrink-0 flex-col items-end gap-3 pb-0.5 text-right">
+          <span>
+            {passed} of {experimentResults.length} evals passed
+          </span>
         </SheetDescription>
       </SheetHeader>
       <div
@@ -891,9 +988,7 @@ function ExperimentSheet({
                                 <EvalMetadataRow
                                   label="Result details"
                                   value={
-                                    <ResultChecks
-                                      checks={result.checks}
-                                    />
+                                    <ResultChecks checks={result.checks} />
                                   }
                                 />
                               ) : null}
@@ -1073,7 +1168,12 @@ function FooterCta() {
 
 export function App() {
   const [groupBy, setGroupBy] = useState<GroupBy>("stage")
-  const timelineGroups = getTimelineGroups(groupBy, sortedResults)
+  const [selectedExperimentSuite, setSelectedExperimentSuite] =
+    useState<SelectedExperimentSuite>("benchmark")
+  const experimentSuiteResults = sortedResults.filter(
+    (result) => result.experimentSuite === selectedExperimentSuite
+  )
+  const timelineGroups = getTimelineGroups(groupBy, experimentSuiteResults)
 
   return (
     <main className="min-h-svh bg-background text-foreground">
@@ -1119,35 +1219,6 @@ export function App() {
                       the Supabase journey.
                     </span>
                   </h1>
-                  <ToggleGroup
-                    type="single"
-                    variant="outline"
-                    value={groupBy}
-                    onValueChange={(value) => {
-                      if (
-                        value === "stage" ||
-                        value === "model" ||
-                        value === "product" ||
-                        value === "eval"
-                      ) {
-                        setGroupBy(value)
-                      }
-                    }}
-                    className="w-fit"
-                  >
-                    <ToggleGroupItem value="stage">
-                      Group by journey
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="model">
-                      Group by model
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="product">
-                      Group by product
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="eval">
-                      Group by eval
-                    </ToggleGroupItem>
-                  </ToggleGroup>
                 </div>
                 <p className="max-w-xl text-base leading-6 tracking-[-0.011em] text-pretty text-muted-foreground lg:max-w-2xl lg:flex-1 lg:pb-1">
                   We evaluate model experiments against each step of the
@@ -1158,6 +1229,20 @@ export function App() {
               </div>
             </div>
           </header>
+          <div className="sticky top-[57px] z-40 border-b border-border bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+            <div
+              className={cn(
+                pageContainerClassName,
+                "flex flex-wrap items-center gap-3 md:justify-between"
+              )}
+            >
+              <GroupByControl value={groupBy} onValueChange={setGroupBy} />
+              <ExperimentSuiteControl
+                value={selectedExperimentSuite}
+                onValueChange={setSelectedExperimentSuite}
+              />
+            </div>
+          </div>
           <div className="flex flex-col">
             {timelineGroups.length ? (
               timelineGroups.map((group) => (
