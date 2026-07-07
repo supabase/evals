@@ -42,7 +42,7 @@ pnpm web
 - An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
 - An **experiment** is one agent/runtime/model setup under `experiments/<name>.ts`.
 - An **eval suite** is a named set of evals to run together.
-- An **experiment suite** is a named set of experiments to compare over the same eval suite. It only controls filtering and result views. It does not change how an experiment runs.
+- An **experiment suite** is a named set of experiments with related configurations, for head to head comparisons.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
 - A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
 - `platform-lite` exposes a Supabase Management API-compatible HTTP surface backed by [`@supabase/lite`](https://github.com/supabase/supabase-lite), so real tools like `@supabase/mcp-server-supabase` can run against a lightweight project.
