@@ -298,6 +298,35 @@ export class DockerSandbox {
     }
   }
 
+  /**
+   * Write a single file to an arbitrary container path (outside the workspace)
+   * with an explicit mode — e.g. installing a small CLI shim onto PATH. Content
+   * is staged on the host and `docker cp`'d in, so it arrives as data with no
+   * shell quoting, and the copy runs as the engine, so it can write system dirs
+   * regardless of the container user. The chmod then sets the mode as root.
+   */
+  async writeRootFile(
+    containerPath: string,
+    content: string,
+    mode = "0644",
+  ): Promise<void> {
+    this.assertRunning();
+    const staging = mkdtempSync(join(tmpdir(), "sandbox-rootfile-"));
+    try {
+      const tmp = join(staging, "file");
+      writeFileSync(tmp, content);
+      await this.dockerCopy(tmp, this.containerRef(containerPath));
+    } finally {
+      rmSync(staging, { recursive: true, force: true });
+    }
+    const chmod = await this.runShellAsRoot(
+      `chmod ${mode} ${shellQuote(containerPath)}`,
+    );
+    if (!chmod.ok) {
+      throw new Error(`failed to chmod ${containerPath}: ${chmod.stderr}`);
+    }
+  }
+
   private async execCommand(
     command: string,
     options: { env?: Record<string, string>; user: string; timeoutMs?: number },

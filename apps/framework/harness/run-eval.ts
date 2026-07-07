@@ -26,7 +26,10 @@ import {
 } from "../lib/cli-args.js";
 import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
-import { getExperimentDisplayMetadata } from "@supabase-evals/core";
+import {
+  buildSkillResult,
+  getExperimentDisplayMetadata,
+} from "@supabase-evals/core";
 import type {
   ExperimentConfig,
   EvalInterface,
@@ -36,6 +39,8 @@ import type {
   ToolScorer,
   LocalStackScorer,
   ScoreResult,
+  SkillResult,
+  ToolCallRecord,
   TranscriptPart,
 } from "./types.js";
 
@@ -338,7 +343,8 @@ async function runOne(
 ): Promise<
   ScoreResult & {
     attempts: number;
-    toolCalls: unknown[];
+    skills: SkillResult;
+    toolCalls: ToolCallRecord[];
     transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
@@ -354,6 +360,7 @@ async function runOne(
   // load_skill tool. Skill sources (name+dir) are shared by both paths.
   const agentRunsInSandbox = exp.agent.runsInSandbox ?? false;
   const skillSources = resolveSkillSources(exp.skills);
+  const availableSkills = skillSources.map((skill) => skill.name);
   const toolsSkills =
     ev.mode === "tools" && !agentRunsInSandbox ? loadToolsSkills(exp.skills) : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
@@ -363,7 +370,7 @@ async function runOne(
     passed: false,
     checks: [{ name: "ran at least one attempt", passed: false }],
   };
-  let lastToolCalls: unknown[] = [];
+  let lastToolCalls: ToolCallRecord[] = [];
   let lastTranscript: TranscriptPart[] = [];
   let lastAgentReport = "";
   let lastStoppedReason = "not_started";
@@ -380,13 +387,20 @@ async function runOne(
       }
       // When the eval links to a hosted project, boot a platform-lite backend
       // (bound to 0.0.0.0 so the sandbox reaches it via host.docker.internal)
-      // and hand the CLI-valid ref/token to the session.
+      // and hand the CLI-valid ref/token to the session. Seed it from the eval's
+      // `remote/` dir (project.sql / logs.jsonl / functions) just like the tools
+      // runtime does — otherwise the hosted project boots empty and scorers that
+      // read remote state (e.g. the migration history) have nothing to assert on.
       await using hostedBackend = ev.metadata.hostedProject
         ? disposable(
             await bootPlatformBackend({
+              ...readSessionSeedArgs(ev),
               ref: HOSTED_PROJECT_REF,
               accessToken: HOSTED_ACCESS_TOKEN,
               hostname: "0.0.0.0",
+              // Expose Postgres-wire too, so linked DB workflows (`db push`,
+              // `migration repair`) reach the same project over the wire.
+              pgWire: true,
             }),
           )
         : undefined;
@@ -398,9 +412,11 @@ async function runOne(
           hosted: hostedBackend
             ? {
                 port: Number(new URL(hostedBackend.url).port),
+                pgPort: hostedBackend.pgPort,
                 ref: hostedBackend.ref,
                 accessToken: hostedBackend.accessToken,
                 mgmt: hostedBackend.mgmt,
+                query: hostedBackend.query,
                 invokeFunction: hostedBackend.invokeFunction,
               }
             : undefined,
@@ -456,12 +472,14 @@ async function runOne(
         return {
           ...last,
           attempts: attempt,
+          skills: buildSkillResult(availableSkills, run.toolCalls),
           toolCalls: run.toolCalls,
           transcript: run.transcript,
           agentReport: run.agentReport,
           stoppedReason: run.stoppedReason,
         };
       }
+      logRetryAttempt(expName, ev, attempt, last);
       continue;
     }
 
@@ -516,17 +534,20 @@ async function runOne(
       return {
         ...last,
         attempts: attempt,
+        skills: buildSkillResult(availableSkills, run.toolCalls),
         toolCalls: run.toolCalls,
         transcript: run.transcript,
         agentReport: run.agentReport,
         stoppedReason: run.stoppedReason,
       };
     }
+    logRetryAttempt(expName, ev, attempt, last);
   }
 
   return {
     ...last,
     attempts: RUNS,
+    skills: buildSkillResult(availableSkills, lastToolCalls),
     toolCalls: lastToolCalls,
     transcript: lastTranscript,
     agentReport: lastAgentReport,
@@ -555,6 +576,20 @@ function formatRunSummary(res: ScoreResult & { attempts: number }): string {
   parts.push(`attempts ${res.attempts}`);
 
   return parts.join(", ");
+}
+
+/** Prints a retry line when a failed attempt will be followed by another. */
+function logRetryAttempt(
+  expName: string,
+  ev: EvalManifest,
+  attempt: number,
+  result: ScoreResult,
+) {
+  if (!STOP_ON_PASS || result.passed || attempt >= RUNS) return;
+  const summary = formatRunSummary({ ...result, attempts: attempt });
+  console.log(
+    `🔁 RETRY ${expName} x ${ev.id} (attempt ${attempt}/${RUNS} failed, ${summary})`,
+  );
 }
 
 async function runConcurrent<T>(
@@ -686,6 +721,7 @@ async function main() {
   }
 
   let localStackTurn = Promise.resolve();
+  const errored: Error[] = [];
 
   const runWork = async ({ name, config, ev }: (typeof allWork)[number]) => {
     const out = resultPath(name, ev);
@@ -709,6 +745,7 @@ async function main() {
           `${res.passed ? "✅ PASS" : "❌ FAIL"} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`,
         );
       } catch (e) {
+        errored.push(new Error(`${name} x ${ev.id}`, { cause: e }));
         const elapsed = Math.round((Date.now() - start) / 1000);
         stderr(`💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`);
       }
@@ -726,6 +763,11 @@ async function main() {
   };
 
   await runConcurrent(allWork, CONCURRENCY, runWork);
+  console.error = stderr;
+
+  if (errored.length > 0) {
+    throw new AggregateError(errored, `${errored.length} eval(s) errored`);
+  }
 }
 
 main()

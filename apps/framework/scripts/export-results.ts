@@ -93,6 +93,7 @@ async function readResultFile(
     interface: promptData?.interface ?? parsedResult.interface,
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
+    skills: parsedResult.skills,
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
     attempts: parsedResult.attempts,

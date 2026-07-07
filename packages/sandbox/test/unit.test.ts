@@ -102,10 +102,48 @@ describe("SKILLS_CLI_VERSION", () => {
 
 describe("buildServiceWrapperScript", () => {
   it("appends the exclude flag to start and passes other commands through", () => {
-    const script = buildServiceWrapperScript(["studio", "realtime"]);
+    const script = buildServiceWrapperScript("/usr/bin/supabase", ["studio", "realtime"]);
     expect(script).toContain('if [ "$1" = "start" ]; then');
     expect(script).toContain('start "$@" -x studio,realtime');
-    expect(script).toContain('exec /usr/local/bin/supabase-cli "$@"');
+    expect(script).toContain('exec "$REAL" "$@"');
+    expect(script).not.toContain("--db-url");
+  });
+
+  it("execs the real binary by its absolute path (shadows by PATH, no rename)", () => {
+    const script = buildServiceWrapperScript("/usr/bin/supabase", []);
+    expect(script).toContain('REAL="/usr/bin/supabase"');
+    expect(script).not.toContain("supabase-cli");
+  });
+
+  it("injects --db-url for linked DB commands when a pooler-url path is given", () => {
+    const script = buildServiceWrapperScript(
+      "/usr/bin/supabase",
+      [],
+      "/work/supabase/.temp/pooler-url",
+    );
+    expect(script).toContain('POOLER_URL_FILE="/work/supabase/.temp/pooler-url"');
+    expect(script).toContain(
+      '"db push"|"db pull"|"db dump"|"migration repair"|"migration list")',
+    );
+    expect(script).toContain('--db-url "$(cat "$POOLER_URL_FILE")"');
+    expect(script).not.toContain("-x ");
+  });
+
+  it("forces the native DNS resolver on link when a hosted platform is present", () => {
+    const script = buildServiceWrapperScript("/usr/bin/supabase", [], undefined, true);
+    expect(script).toContain('if [ "$1" = "link" ]');
+    expect(script).toContain('!= *" --dns-resolver "*');
+    expect(script).toContain('link "$@" --dns-resolver native');
+  });
+
+  it("leaves link untouched when there is no hosted platform", () => {
+    const script = buildServiceWrapperScript(
+      "/usr/bin/supabase",
+      [],
+      "/work/supabase/.temp/pooler-url",
+    );
+    expect(script).not.toContain("--dns-resolver");
+    expect(script).not.toContain('"$1" = "link"');
   });
 });
 
