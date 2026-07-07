@@ -159,8 +159,45 @@ type SelectedExperimentSuite = (typeof EXPERIMENT_SUITES)[number]
 
 const EXPERIMENT_SUITE_LABELS = {
   benchmark: "Benchmark",
-  "no-skills": "No skills",
+  "no-skills": "Without skills",
 } satisfies Record<SelectedExperimentSuite, string>
+
+function ExperimentSuiteControl({
+  value,
+  onValueChange,
+}: {
+  value: SelectedExperimentSuite
+  onValueChange: (value: SelectedExperimentSuite) => void
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Experiment suite"
+      className="inline-grid w-fit grid-cols-2 rounded-full border border-border bg-muted/35 p-1"
+    >
+      {EXPERIMENT_SUITES.map((suite) => {
+        const selected = suite === value
+
+        return (
+          <button
+            key={suite}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onValueChange(suite)}
+            className={cn(
+              "h-9 min-w-28 rounded-full px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              selected
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {EXPERIMENT_SUITE_LABELS[suite]}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 function capitalize(value: string) {
   return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value
@@ -1151,23 +1188,10 @@ export function App() {
                     </span>
                   </h1>
                   <div className="flex flex-col gap-3">
-                    <ToggleGroup
-                      type="single"
-                      variant="outline"
+                    <ExperimentSuiteControl
                       value={selectedExperimentSuite}
-                      onValueChange={(value) => {
-                        if (value === "benchmark" || value === "no-skills") {
-                          setSelectedExperimentSuite(value)
-                        }
-                      }}
-                      className="w-fit"
-                    >
-                      {EXPERIMENT_SUITES.map((suite) => (
-                        <ToggleGroupItem key={suite} value={suite}>
-                          {EXPERIMENT_SUITE_LABELS[suite]}
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
+                      onValueChange={setSelectedExperimentSuite}
+                    />
                     <ToggleGroup
                       type="single"
                       variant="outline"
