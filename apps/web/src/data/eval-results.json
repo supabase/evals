@@ -438,12 +438,38 @@
       "rls"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
-        "passed": false,
-        "notes": "operator does not exist: uuid = integer"
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
       }
     ],
     "skills": {
@@ -457,7 +483,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-opus-4.8/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -1458,12 +1484,38 @@
       "rls"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
-        "passed": false,
-        "notes": "relation \"document_sections\" does not exist"
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
       }
     ],
     "skills": {
@@ -1472,7 +1524,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-opus-4.8-no-skills/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -2457,12 +2509,38 @@
       "rls"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
-        "passed": false,
-        "notes": "relation \"document_sections\" does not exist"
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
       }
     ],
     "skills": {
@@ -2476,7 +2554,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -3478,12 +3556,38 @@
       "rls"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
-        "passed": false,
-        "notes": "relation \"document_sections\" does not exist"
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
       }
     ],
     "skills": {
@@ -4478,12 +4582,38 @@
       "rls"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
-        "passed": false,
-        "notes": "relation \"document_sections\" does not exist"
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
       }
     ],
     "skills": {
@@ -5498,12 +5628,38 @@
       "rls"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
-        "passed": false,
-        "notes": "relation \"document_sections\" does not exist"
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops) WHERE (embedding IS NOT NULL)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops) WHERE (embedding IS NOT NULL)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
       }
     ],
     "skills": {
@@ -6498,12 +6654,38 @@
       "rls"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
-        "passed": false,
-        "notes": "relation \"document_sections\" does not exist"
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_ip_ops) WHERE (embedding IS NOT NULL)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_ip_ops) WHERE (embedding IS NOT NULL)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
       }
     ],
     "skills": {
@@ -6518,7 +6700,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.5/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -7523,12 +7705,38 @@
       "rls"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer evaluated vector search",
-        "passed": false,
-        "notes": "relation \"document_sections\" does not exist"
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
       }
     ],
     "skills": {
@@ -7537,7 +7745,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.5-no-skills/build-vectors-001-rag-with-permissions.json"
   },
   {
