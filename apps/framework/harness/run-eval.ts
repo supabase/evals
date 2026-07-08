@@ -31,7 +31,7 @@ import {
   expandComparison,
   getExperimentDisplayMetadata,
 } from "@supabase-evals/core";
-import type { Comparison, ExpandedCell } from "@supabase-evals/core";
+import type { Comparison } from "@supabase-evals/core";
 import { experimentSuiteSchema } from "@supabase-evals/core/eval-metadata";
 import type {
   ExperimentConfig,
@@ -64,9 +64,9 @@ const DRY = args.has("--dry");
 // Which comparison to run (a `comparisons/<name>.ts` file). Defaults to the
 // benchmark leaderboard so `pnpm eval` with no args runs it.
 const COMPARISON = normalizeComparisonName(readFlag("comparison") ?? "benchmark");
-// Narrow a comparison to specific cells (agent × environment points). Repeatable;
-// used by CI to fan a comparison out into one job per cell.
-const CELL_FILTERS = readRepeatedFlag(rawArgs, "cell");
+// Narrow a comparison to specific experiments (agent × environment points).
+// Repeatable; used by CI to fan a comparison out into one job per experiment.
+const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment");
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 // `let` so a comparison's own `runs` can set it when `--runs` isn't passed.
@@ -409,7 +409,7 @@ async function runOne(
       // the sandbox session; one fresh session per attempt.
       if (!exp.localStack) {
         throw new Error(
-          `eval ${ev.id} has interface: cli but cell "${expName}" does not configure a local stack runtime. ` +
+          `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
             `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to its environment (environments/*.ts).`,
         );
       }
@@ -638,11 +638,11 @@ async function runConcurrent<T>(
 
 async function main() {
   // `list` → the available comparison names; `list --comparison <name>` → that
-  // comparison's cell names (what CI fans out over with `--cell`).
+  // comparison's experiment names (what CI fans out over with `--experiment`).
   if (rawArgs.filter((a) => a !== "--")[0] === "list") {
     if (readFlag("comparison") !== undefined) {
-      const cells = expandComparison(await loadComparison(COMPARISON));
-      console.log(JSON.stringify(cells.map((c) => c.name)));
+      const experiments = expandComparison(await loadComparison(COMPARISON));
+      console.log(JSON.stringify(experiments.map((x) => x.name)));
     } else {
       console.log(JSON.stringify(listComparisons()));
     }
@@ -650,21 +650,21 @@ async function main() {
   }
 
   const comparison = await loadComparison(COMPARISON);
-  const allCells = expandComparison(comparison);
-  if (CELL_FILTERS.length > 0) {
-    const names = new Set(allCells.map((c) => c.name));
-    const missing = CELL_FILTERS.filter((name) => !names.has(name));
+  const allExperiments = expandComparison(comparison);
+  if (EXPERIMENT_FILTERS.length > 0) {
+    const names = new Set(allExperiments.map((x) => x.name));
+    const missing = EXPERIMENT_FILTERS.filter((name) => !names.has(name));
     if (missing.length > 0) {
       throw new Error(
-        `no cell matched ${missing.join(",")} in comparison "${COMPARISON}" ` +
-          `(cells: ${[...names].join(", ")})`,
+        `no experiment matched ${missing.join(",")} in comparison "${COMPARISON}" ` +
+          `(experiments: ${[...names].join(", ")})`,
       );
     }
   }
-  const cells =
-    CELL_FILTERS.length > 0
-      ? allCells.filter((c) => CELL_FILTERS.includes(c.name))
-      : allCells;
+  const experiments =
+    EXPERIMENT_FILTERS.length > 0
+      ? allExperiments.filter((x) => EXPERIMENT_FILTERS.includes(x.name))
+      : allExperiments;
 
   // A comparison's own `runs` (pass@k) applies unless `--runs` overrode it.
   if (readFlag("runs") === undefined && comparison.runs) {
@@ -721,7 +721,7 @@ async function main() {
   if (!DEBUG) console.error = () => undefined;
 
   console.log(
-    `comparison ${COMPARISON}: ${cells.length} cell(s), ${suiteFiltered.length} eval(s), ` +
+    `comparison ${COMPARISON}: ${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
       `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
   );
 
@@ -731,7 +731,7 @@ async function main() {
     ev: EvalManifest;
   }> = [];
 
-  for (const { name, config } of cells) {
+  for (const { name, config } of experiments) {
     if (!DRY) {
       try {
         config.agent.assertReady();

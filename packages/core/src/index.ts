@@ -606,7 +606,7 @@ export type Comparison = {
   agents: AgentLevel[];
   /** Environments to run. One level = held fixed; mark one `control` to diff against. */
   environments: EnvironmentLevel[];
-  /** Repeats per cell (pass@k); the CLI `--runs` flag overrides when set. */
+  /** Repeats per experiment (pass@k); the CLI `--runs` flag overrides when set. */
   runs?: number;
 };
 
@@ -615,26 +615,30 @@ export function defineComparison(comparison: Comparison): Comparison {
   return comparison;
 }
 
-/** Which level a cell sits at on one dimension, and whether that's the control. */
-export type CellDimension = { level: string; control: boolean };
+/** Which level an experiment sits at on one axis, and whether that's the control. */
+export type AxisLevel = { level: string; control: boolean };
 
-/** One cell of a Comparison (an agent × environment point), compiled to a Run. */
-export type ExpandedCell = {
-  /** Cell name; also the runs namespace `results/<comparison>/<name>/`. */
+/**
+ * One **experiment** of a Comparison — a single Agent × Environment point, the
+ * thing that actually runs (its Configuration) and produces a Run. The
+ * Comparison is the whole; an experiment is one point inside it.
+ */
+export type ExpandedExperiment = {
+  /** Experiment name; also the runs namespace `results/<experiment>/`. */
   name: string;
   comparison: string;
-  agent: CellDimension;
-  environment: CellDimension;
+  agent: AxisLevel;
+  environment: AxisLevel;
   config: Configuration;
 };
 
 /**
- * Compile a Comparison into one Configuration per cell — the cartesian product
- * of `agents × environments`. The cell name uses only the dimensions that
- * actually vary (>1 level); each cell records its level + control state on both
- * dimensions so a comparator can diff treatments against their in-group control.
+ * Compile a Comparison into its experiments — the cartesian product of
+ * `agents × environments`, one Configuration each. The experiment name uses
+ * only the axes that actually vary (>1 level); each records its level + control
+ * state on both axes so a comparator can diff treatments against their control.
  */
-export function expandComparison(comparison: Comparison): ExpandedCell[] {
+export function expandComparison(comparison: Comparison): ExpandedExperiment[] {
   const { agents, environments } = comparison;
   if (agents.length === 0 || environments.length === 0) {
     throw new Error(
@@ -645,7 +649,7 @@ export function expandComparison(comparison: Comparison): ExpandedCell[] {
   const varyEnv = environments.length > 1;
 
   const seen = new Set<string>();
-  const cells: ExpandedCell[] = [];
+  const experiments: ExpandedExperiment[] = [];
   for (const a of agents) {
     for (const e of environments) {
       const name =
@@ -657,11 +661,11 @@ export function expandComparison(comparison: Comparison): ExpandedCell[] {
         "baseline";
       if (seen.has(name)) {
         throw new Error(
-          `comparison "${comparison.name}" has a duplicate cell name "${name}"`,
+          `comparison "${comparison.name}" has a duplicate experiment name "${name}"`,
         );
       }
       seen.add(name);
-      cells.push({
+      experiments.push({
         name,
         comparison: comparison.name,
         agent: { level: a.name, control: !!a.control },
@@ -670,7 +674,7 @@ export function expandComparison(comparison: Comparison): ExpandedCell[] {
       });
     }
   }
-  return cells;
+  return experiments;
 }
 
 export function serializeTranscript(

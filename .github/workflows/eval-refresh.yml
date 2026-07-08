@@ -7,20 +7,16 @@ on:
         description: "Comparison to run (a comparisons/<name>.ts file)"
         required: true
         default: "benchmark"
-      cells:
-        description: "Comma-separated cell names to run (blank to auto-discover every cell of the comparison)"
-        required: false
-        default: ""
-      eval:
-        description: "Optional single eval id to run"
+      scenarios:
+        description: "Comma-separated scenario ids to run (blank to run every scenario in scope)"
         required: false
         default: ""
       suite:
-        description: "Comma-separated eval suites to run"
+        description: "Comma-separated eval suites to scope scenarios to"
         required: true
         default: "benchmark"
       runs:
-        description: "Attempts per cell/eval pair"
+        description: "Attempts per experiment/scenario pair"
         required: true
         default: "2"
       timeout_sec:
@@ -28,7 +24,7 @@ on:
         required: true
         default: "720"
       merge:
-        description: "Merge into existing results instead of overwriting (graft new cell/eval pairs)"
+        description: "Merge into existing results instead of overwriting (graft new experiment/scenario pairs)"
         type: boolean
         required: false
         default: false
@@ -66,9 +62,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       comparison: ${{ steps.inputs.outputs.comparison }}
-      cells: ${{ steps.discover-cells.outputs.cells }}
-      eval: ${{ steps.inputs.outputs.eval }}
-      evals: ${{ steps.discover.outputs.evals }}
+      experiments: ${{ steps.discover-experiments.outputs.experiments }}
+      scenarios: ${{ steps.discover.outputs.scenarios }}
+      scenarios_override: ${{ steps.inputs.outputs.scenarios_override }}
       suite: ${{ steps.inputs.outputs.suite }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
@@ -83,15 +79,13 @@ jobs:
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             comparison="${{ inputs.comparison }}"
-            cells_override="${{ inputs.cells }}"
-            eval_id="${{ inputs.eval }}"
+            scenarios_override="${{ inputs.scenarios }}"
             suite="${{ inputs.suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
           else
             comparison="benchmark"
-            cells_override=""
-            eval_id=""
+            scenarios_override=""
             suite="benchmark"
             runs="2"
             timeout_sec="720"
@@ -100,7 +94,7 @@ jobs:
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
 
           # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
-          # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
+          # filter_changed drives the changed-scenario filter (PR-only, needs a PR diff).
           filter_changed="false"
           if [ "${{ github.event_name }}" = "pull_request" ] && \
              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-changed') }}" = "true" ] && \
@@ -117,8 +111,7 @@ jobs:
 
           {
             echo "comparison=$comparison"
-            echo "cells_override=$cells_override"
-            echo "eval=$eval_id"
+            echo "scenarios_override=$scenarios_override"
             echo "suite=$suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
@@ -143,25 +136,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Discover cells
-        id: discover-cells
+      - name: Discover experiments
+        id: discover-experiments
         shell: bash
         run: |
           set -euo pipefail
           touch .env
-          cells_override="${{ steps.inputs.outputs.cells_override }}"
-          if [ -n "$cells_override" ]; then
-            cells_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$cells_override")"
-          else
-            cells_json="$(pnpm --silent eval -- list --comparison "${{ steps.inputs.outputs.comparison }}")"
-          fi
-          if [ "$(echo "$cells_json" | jq 'length')" -eq 0 ]; then
-            echo "No cells found for comparison: ${{ steps.inputs.outputs.comparison }}" >&2
+          # The comparison is the whole; its experiments (Agent × Environment)
+          # are the matrix fan-out. Discover them from the comparison itself.
+          experiments_json="$(pnpm --silent eval -- list --comparison "${{ steps.inputs.outputs.comparison }}")"
+          if [ "$(echo "$experiments_json" | jq 'length')" -eq 0 ]; then
+            echo "No experiments found for comparison: ${{ steps.inputs.outputs.comparison }}" >&2
             exit 1
           fi
-          echo "cells=$cells_json" >> "$GITHUB_OUTPUT"
+          echo "experiments=$experiments_json" >> "$GITHUB_OUTPUT"
 
-      - name: Discover evals
+      - name: Discover scenarios
         id: discover
         env:
           GH_TOKEN: ${{ github.token }}
@@ -169,9 +159,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          eval_id="${{ steps.inputs.outputs.eval }}"
-          if [ -n "$eval_id" ]; then
-            echo "evals=$(jq -n --arg id "$eval_id" '[$id]')" >> "$GITHUB_OUTPUT"
+          # An explicit scenarios list runs verbatim; otherwise run every
+          # scenario in the requested suite(s).
+          scenarios_override="${{ steps.inputs.outputs.scenarios_override }}"
+          if [ -n "$scenarios_override" ]; then
+            echo "scenarios=$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$scenarios_override")" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -190,25 +182,25 @@ jobs:
           done
 
           if [ "${#matching[@]}" -eq 0 ]; then
-            echo "No evals found for suites: $suite_json" >&2
+            echo "No scenarios found for suites: $suite_json" >&2
             exit 1
           fi
 
-          # Filter to only changed eval dirs when run-evals-changed label is active
+          # Filter to only changed scenario dirs when run-evals-changed is active
           if [ "${{ steps.inputs.outputs.filter_changed }}" = "true" ]; then
-            changed_evals=$(gh pr diff ${{ github.event.pull_request.number }} --name-only \
+            changed_scenarios=$(gh pr diff ${{ github.event.pull_request.number }} --name-only \
               | grep '^evals/' | cut -d/ -f2 | sort -u || true)
 
-            if [ -z "$changed_evals" ]; then
-              echo "No eval directories changed in this PR — nothing to run"
-              echo "evals=[]" >> "$GITHUB_OUTPUT"
+            if [ -z "$changed_scenarios" ]; then
+              echo "No scenario directories changed in this PR — nothing to run"
+              echo "scenarios=[]" >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
-            echo "Changed eval dirs: $changed_evals"
+            echo "Changed scenario dirs: $changed_scenarios"
             filtered=()
             for id in "${matching[@]}"; do
-              if echo "$changed_evals" | grep -qx "$id"; then
+              if echo "$changed_scenarios" | grep -qx "$id"; then
                 filtered+=("$id")
               fi
             done
@@ -216,23 +208,23 @@ jobs:
           fi
 
           if [ "${#matching[@]}" -eq 0 ]; then
-            echo "Changed evals don't match requested suites: $suite_json"
-            echo "evals=[]" >> "$GITHUB_OUTPUT"
+            echo "Changed scenarios don't match requested suites: $suite_json"
+            echo "scenarios=[]" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          evals_json=$(printf '%s\n' "${matching[@]}" | jq -Rcs 'split("\n") | map(select(length > 0))')
-          echo "evals=$evals_json" >> "$GITHUB_OUTPUT"
+          scenarios_json=$(printf '%s\n' "${matching[@]}" | jq -Rcs 'split("\n") | map(select(length > 0))')
+          echo "scenarios=$scenarios_json" >> "$GITHUB_OUTPUT"
 
   run-evals:
     needs: prepare
-    if: needs.prepare.outputs.evals != '[]'
+    if: needs.prepare.outputs.scenarios != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        cell: ${{ fromJSON(needs.prepare.outputs.cells) }}
-        eval_id: ${{ fromJSON(needs.prepare.outputs.evals) }}
+        experiment: ${{ fromJSON(needs.prepare.outputs.experiments) }}
+        scenario: ${{ fromJSON(needs.prepare.outputs.scenarios) }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -272,21 +264,21 @@ jobs:
 
           pnpm eval -- \
             --comparison "${{ needs.prepare.outputs.comparison }}" \
-            --cell "${{ matrix.cell }}" \
-            --eval "${{ matrix.eval_id }}" \
+            --experiment "${{ matrix.experiment }}" \
+            --eval "${{ matrix.scenario }}" \
             --runs "${{ needs.prepare.outputs.runs }}" \
             --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
 
       - name: Upload raw results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: raw-results-${{ matrix.cell }}__${{ matrix.eval_id }}
-          path: results/${{ matrix.cell }}/
+          name: raw-results-${{ matrix.experiment }}__${{ matrix.scenario }}
+          path: results/${{ matrix.experiment }}/
           retention-days: 3
 
   publish-results:
     needs: [prepare, run-evals]
-    if: needs.prepare.outputs.evals != '[]'
+    if: needs.prepare.outputs.scenarios != '[]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -319,20 +311,23 @@ jobs:
 
           mkdir -p results
           export_args=()
-          while IFS= read -r cell; do
-            mkdir -p "results/$cell"
-            for artifact_dir in "downloaded-results/raw-results-${cell}__"*/; do
-              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$cell"/
+          while IFS= read -r experiment; do
+            mkdir -p "results/$experiment"
+            for artifact_dir in "downloaded-results/raw-results-${experiment}__"*/; do
+              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
             done
-            export_args+=("--experiment" "$cell")
-          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.cells }}')
+            export_args+=("--experiment" "$experiment")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiments }}')
 
           while IFS= read -r suite; do
             export_args+=("--suite" "$suite")
           done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
 
-          if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
-            export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")
+          # When an explicit scenario list was requested, scope the export to it.
+          if [ -n "${{ needs.prepare.outputs.scenarios_override }}" ]; then
+            while IFS= read -r scenario; do
+              export_args+=("--eval" "$scenario")
+            done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.scenarios }}')
           fi
 
           if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then

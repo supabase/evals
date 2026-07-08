@@ -45,7 +45,8 @@ The **agent** and the **environment** are decoupled: each is a reusable building
 - An **Agent** — the "who" — is one harness × model setup under `agents/<name>.ts`, authored with `defineAgent`. Reusable across any environment.
 - An **Environment** — the "with-what" — is one runtime × tools × skills × (optional) local stack under `environments/<name>.ts`, authored with `defineEnvironment`. Reusable across any agent.
 - A **Configuration** is an Agent × Environment — the atom the runner actually executes.
-- A **Comparison** is one file under `comparisons/<name>.ts`, authored with `defineComparison`. It names a dataset (a scenario scope) plus lists of `agents` and `environments`; the runner takes their cartesian product, one **cell** (Configuration) per pairing. Where the `control` marker sits decides the shape: agents vary with no control → a **leaderboard** (`benchmark.ts`); environments vary against a control → a **head-to-head diff** (`skills-h2h.ts`).
+- An **experiment** is a single Agent × Environment point — one Configuration, the thing that actually runs. It is *not* the whole comparison; a comparison holds many experiments.
+- A **Comparison** is the whole: one file under `comparisons/<name>.ts`, authored with `defineComparison`. It names a dataset (a scenario scope) plus lists of `agents` and `environments`; the runner takes their cartesian product, one experiment per pairing. Where the `control` marker sits decides the shape: agents vary with no control → a **leaderboard** (`benchmark.ts`); environments vary against a control → a **head-to-head diff** (`supabase-skill.ts`).
 - An **eval suite** is a named set of evals to run together (an eval's `suite` frontmatter).
 - `platform-lite` exposes a Supabase Management API-compatible HTTP surface backed by [`@supabase/lite`](https://github.com/supabase/supabase-lite), so real tools like `@supabase/mcp-server-supabase` can run against a lightweight project.
 
@@ -73,7 +74,7 @@ Add a file under `comparisons/` (authored with `defineComparison`) with a `datas
 
 ### Run a comparison
 
-A run executes a comparison's cells (Agent × Environment) over its dataset and writes result files under `results/<cell>/<eval>.json`.
+A run executes a comparison's experiments (Agent × Environment) over its dataset and writes result files under `results/<experiment>/<eval>.json`.
 
 Run the whole benchmark leaderboard:
 
@@ -81,13 +82,13 @@ Run the whole benchmark leaderboard:
 pnpm eval -- --comparison benchmark
 ```
 
-Narrow to specific cells or evals (both flags are repeatable):
+Narrow to specific experiments or evals (both flags are repeatable):
 
 ```bash
 pnpm eval -- \
   --comparison benchmark \
-  --cell claude-sonnet-5 \
-  --cell claude-code-opus-4.8 \
+  --experiment claude-sonnet-5 \
+  --experiment claude-code-opus-4.8 \
   --eval resolve-dataapi-001-empty-results \
   --eval investigate-auth-001-deleted-user-access
 ```
@@ -95,10 +96,10 @@ pnpm eval -- \
 Run the skills head-to-head:
 
 ```bash
-pnpm eval -- --comparison skills-h2h
+pnpm eval -- --comparison supabase-skill
 ```
 
-List the available comparisons, or a comparison's cells:
+List the available comparisons, or a comparison's experiments:
 
 ```bash
 pnpm eval -- list
