@@ -25,10 +25,10 @@ cp .env.example .env
 
 Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
 
-Run one eval:
+Run the benchmark against one eval:
 
 ```bash
-pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment claude-code-sonnet-5
+pnpm eval -- --comparison benchmark --eval resolve-dataapi-001-empty-results
 ```
 
 View results in the web app at `http://localhost:5173`:
@@ -39,12 +39,14 @@ pnpm web
 
 ## Concepts
 
+The **agent** and the **environment** are decoupled: each is a reusable building block, and a **Comparison** composes them on demand. This lets one environment run against any model (and vice versa) without duplicating a coupled config per pairing.
+
 - An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
-- An **experiment** is one agent/runtime/model setup under `experiments/<name>.ts`.
-- An **eval suite** is a named set of evals to run together.
-- An **experiment suite** is a named set of experiments with related configurations, for head to head comparisons.
-- An **agent** is the model driver that receives the eval prompt and calls the configured tools.
-- A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
+- An **Agent** — the "who" — is one harness × model setup under `agents/<name>.ts`, authored with `defineAgent`. Reusable across any environment.
+- An **Environment** — the "with-what" — is one runtime × tools × skills × (optional) local stack under `environments/<name>.ts`, authored with `defineEnvironment`. Reusable across any agent.
+- A **Configuration** is an Agent × Environment — the atom the runner actually executes.
+- A **Comparison** is one file under `comparisons/<name>.ts`, authored with `defineComparison`. It names a dataset (a scenario scope) plus lists of `agents` and `environments`; the runner takes their cartesian product, one **cell** (Configuration) per pairing. Where the `control` marker sits decides the shape: agents vary with no control → a **leaderboard** (`benchmark.ts`); environments vary against a control → a **head-to-head diff** (`skills-h2h.ts`).
+- An **eval suite** is a named set of evals to run together (an eval's `suite` frontmatter).
 - `platform-lite` exposes a Supabase Management API-compatible HTTP surface backed by [`@supabase/lite`](https://github.com/supabase/supabase-lite), so real tools like `@supabase/mcp-server-supabase` can run against a lightweight project.
 
 ## Common Workflows
@@ -57,37 +59,53 @@ pnpm web
 4. Add `remote/` data if the scenario needs hosted-project state (database, logs, functions).
 5. Add `local/` files if the agent starts from an existing workspace (the app or repo it edits).
 
-### Add an experiment
+### Add an agent
 
-Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: ["benchmark"]` or another experiment suite value so the runner and results UI can group comparable experiments.
+Add a file under `agents/` (authored with `defineAgent`) that binds a harness to a model — e.g. `claudeCodeAgent({ model: "claude-sonnet-5", reasoningEffort: "high" })`. It carries no runtime or skills, so it composes with any environment.
 
-### Run evals
+### Add an environment
 
-Running evals executes experiment x eval pairs and writes local result files under `results/`.
+Add a file under `environments/` (authored with `defineEnvironment`) for the runtime, tool surface, optional local stack, and skills — e.g. `{ runtime: platformLiteRuntime({ mcpServers: [supabaseMcpServer()] }), localStack: localStackRuntime(), skills: ["supabase"] }`. Build on an existing one by spreading it (see `environments/supabase-mcp-skill.ts`).
 
-Run all benchmark and no-skills experiments across all benchmark evals:
+### Add a comparison
+
+Add a file under `comparisons/` (authored with `defineComparison`) with a `dataset` scope plus `agents` and `environments` lists. Vary the `agents` for a leaderboard, or mark one `environment` as `control: true` for a head-to-head diff.
+
+### Run a comparison
+
+A run executes a comparison's cells (Agent × Environment) over its dataset and writes result files under `results/<cell>/<eval>.json`.
+
+Run the whole benchmark leaderboard:
 
 ```bash
-pnpm eval -- --suite benchmark --experiment-suite benchmark,no-skills
+pnpm eval -- --comparison benchmark
 ```
 
-Narrow to specific evals or experiments (flags are repeatable):
+Narrow to specific cells or evals (both flags are repeatable):
 
 ```bash
 pnpm eval -- \
-  --suite benchmark \
-  --experiment-suite benchmark \
-  --experiment claude-code-sonnet-5 \
-  --experiment claude-code-opus-4.8 \
+  --comparison benchmark \
+  --cell claude-sonnet-5 \
+  --cell claude-code-opus-4.8 \
   --eval resolve-dataapi-001-empty-results \
   --eval investigate-auth-001-deleted-user-access
 ```
 
-Or run everything:
+Run the skills head-to-head:
 
 ```bash
-pnpm eval
+pnpm eval -- --comparison skills-h2h
 ```
+
+List the available comparisons, or a comparison's cells:
+
+```bash
+pnpm eval -- list
+pnpm eval -- list --comparison benchmark
+```
+
+`--comparison` defaults to `benchmark`, so bare `pnpm eval` runs the leaderboard.
 
 ## Eval Shape
 
@@ -117,21 +135,21 @@ motivation: AI-123
 ```
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
-`suite` is required on every eval (`benchmark`, `regression`, or `other`). Run an eval suite with `--suite regression` / `--suite other`. Select experiment suites separately with `--experiment-suite benchmark` or `--experiment-suite no-skills`.
+`suite` is required on every eval (`benchmark`, `regression`, or `other`) and scopes which evals a comparison's `dataset` can include. Narrow a run further with `--suite regression` / `--suite other` or an explicit `--eval`.
 Benchmark evals should include `motivation` with the issue or other reference that explains why the scenario belongs in the suite.
 
 ## Eval Modes
 
 There are two runtimes, chosen automatically per eval:
 
-- **Tools evals** run the agent against the experiment's MCP/tool surface (no `local/` directory, no `interface: cli`), then score the resulting project state or report.
+- **Tools evals** run the agent against the environment's MCP/tool surface (no `local/` directory, no `interface: cli`), then score the resulting project state or report.
 - **Local-stack evals** run the agent inside a Docker sandbox — a `bash` tool plus file tools with the real Supabase CLI installed — so it can run `supabase init/start/db/test` against a real local stack. An eval uses this runtime when it ships a `local/` workspace **or** declares `interface: cli` (the latter covers bootstrap scenarios that start from an empty workspace).
 
 `interface` (`mcp` | `cli`) is otherwise a benchmark dimension (a cross-team KPI label), not the runtime switch — the `local/` directory and `interface: cli` are what decide whether a sandbox boots.
 
 ### Local-stack evals
 
-The Supabase CLI is the agent's tool; the **local stack** (the Docker services `supabase start` runs on a developer machine) is the environment it acts on — distinct from the remote/hosted platform that platform-lite mocks. Experiments declare the environment like MCP servers and skills: add `localStack: localStackRuntime()` (from [`@supabase-evals/sandbox`](packages/sandbox/src/local-stack-runtime.ts)); experiments without it skip these evals. Skills compose with the CLI tools as usual, and tool surfaces merge, so an experiment can in principle expose MCP and CLI together.
+The Supabase CLI is the agent's tool; the **local stack** (the Docker services `supabase start` runs on a developer machine) is the environment it acts on — distinct from the remote/hosted platform that platform-lite mocks. Environments declare it like MCP servers and skills: add `localStack: localStackRuntime()` (from [`@supabase-evals/sandbox`](packages/sandbox/src/local-stack-runtime.ts)); environments without it skip these evals. Skills compose with the CLI tools as usual, and tool surfaces merge, so an environment can in principle expose MCP and CLI together.
 
 **Scoring uses host tooling against an exported workspace.** After the agent finishes, the harness copies its workspace out of the sandbox to the host (`docker cp`), so scorers can run the repo-root `vite`/`vitest` against the produced files without that toolchain having to exist in the sandbox — the same build/test scoring former "project" evals used. Scorers may also run commands and SQL **inside** the sandbox (against the live stack) via the scoring context.
 
@@ -151,7 +169,7 @@ pnpm --filter @supabase-evals/sandbox test:docker
 
 Skills come from [`supabase/agent-skills`](https://github.com/supabase/agent-skills), pinned as a git submodule at `submodules/agent-skills`. The `skills/` directory contains symlinks into the submodule.
 
-To use a skill in an experiment, reference its directory name in the experiment's `skills` array.
+To use a skill in an environment, reference its directory name in the environment's `skills` array.
 
 Both runtimes load skills lazily ([progressive disclosure](https://ai-sdk.dev/cookbook/guides/agent-skills)): only each skill's name+description is in the system prompt, and the agent pulls a skill's full instructions on demand. They differ only in how the body is fetched, because the tools-mode agent has no filesystem:
 

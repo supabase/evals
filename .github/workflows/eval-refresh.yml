@@ -3,8 +3,12 @@ name: Refresh eval results
 on:
   workflow_dispatch:
     inputs:
-      experiments:
-        description: "Comma-separated experiment names to run (blank to auto-discover from experiment_suite)"
+      comparison:
+        description: "Comparison to run (a comparisons/<name>.ts file)"
+        required: true
+        default: "benchmark"
+      cells:
+        description: "Comma-separated cell names to run (blank to auto-discover every cell of the comparison)"
         required: false
         default: ""
       eval:
@@ -15,12 +19,8 @@ on:
         description: "Comma-separated eval suites to run"
         required: true
         default: "benchmark"
-      experiment_suite:
-        description: "Comma-separated experiment suites to run"
-        required: true
-        default: "benchmark,no-skills"
       runs:
-        description: "Attempts per experiment/eval pair"
+        description: "Attempts per cell/eval pair"
         required: true
         default: "2"
       timeout_sec:
@@ -28,7 +28,7 @@ on:
         required: true
         default: "720"
       merge:
-        description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
+        description: "Merge into existing results instead of overwriting (graft new cell/eval pairs)"
         type: boolean
         required: false
         default: false
@@ -65,11 +65,11 @@ jobs:
          github.event.label.name == 'run-evals-changed'))
     runs-on: ubuntu-latest
     outputs:
-      experiments: ${{ steps.discover-experiments.outputs.experiments }}
+      comparison: ${{ steps.inputs.outputs.comparison }}
+      cells: ${{ steps.discover-cells.outputs.cells }}
       eval: ${{ steps.inputs.outputs.eval }}
       evals: ${{ steps.discover.outputs.evals }}
       suite: ${{ steps.inputs.outputs.suite }}
-      experiment_suite: ${{ steps.inputs.outputs.experiment_suite }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
@@ -82,23 +82,22 @@ jobs:
           set -euo pipefail
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            experiments_override="${{ inputs.experiments }}"
+            comparison="${{ inputs.comparison }}"
+            cells_override="${{ inputs.cells }}"
             eval_id="${{ inputs.eval }}"
             suite="${{ inputs.suite }}"
-            experiment_suite="${{ inputs.experiment_suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
           else
-            experiments_override=""
+            comparison="benchmark"
+            cells_override=""
             eval_id=""
             suite="benchmark"
-            experiment_suite="benchmark,no-skills"
             runs="2"
             timeout_sec="720"
           fi
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
-          experiment_suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiment_suite")"
 
           # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
           # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
@@ -117,10 +116,10 @@ jobs:
           fi
 
           {
-            echo "experiments_override=$experiments_override"
+            echo "comparison=$comparison"
+            echo "cells_override=$cells_override"
             echo "eval=$eval_id"
             echo "suite=$suite_json"
-            echo "experiment_suite=$experiment_suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
             echo "filter_changed=$filter_changed"
@@ -144,27 +143,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Discover experiments
-        id: discover-experiments
+      - name: Discover cells
+        id: discover-cells
         shell: bash
         run: |
           set -euo pipefail
           touch .env
-          experiments_override="${{ steps.inputs.outputs.experiments_override }}"
-          if [ -n "$experiments_override" ]; then
-            experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
+          cells_override="${{ steps.inputs.outputs.cells_override }}"
+          if [ -n "$cells_override" ]; then
+            cells_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$cells_override")"
           else
-            experiment_suite_args=()
-            while IFS= read -r s; do
-              experiment_suite_args+=("--experiment-suite" "$s")
-            done < <(jq -r '.[]' <<< '${{ steps.inputs.outputs.experiment_suite }}')
-            experiments_json="$(pnpm --silent eval -- list "${experiment_suite_args[@]}")"
+            cells_json="$(pnpm --silent eval -- list --comparison "${{ steps.inputs.outputs.comparison }}")"
           fi
-          if [ "$(echo "$experiments_json" | jq 'length')" -eq 0 ]; then
-            echo "No experiments found for experiment suites: ${{ steps.inputs.outputs.experiment_suite }}" >&2
+          if [ "$(echo "$cells_json" | jq 'length')" -eq 0 ]; then
+            echo "No cells found for comparison: ${{ steps.inputs.outputs.comparison }}" >&2
             exit 1
           fi
-          echo "experiments=$experiments_json" >> "$GITHUB_OUTPUT"
+          echo "cells=$cells_json" >> "$GITHUB_OUTPUT"
 
       - name: Discover evals
         id: discover
@@ -236,7 +231,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        experiment: ${{ fromJSON(needs.prepare.outputs.experiments) }}
+        cell: ${{ fromJSON(needs.prepare.outputs.cells) }}
         eval_id: ${{ fromJSON(needs.prepare.outputs.evals) }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -276,7 +271,8 @@ jobs:
           set -euo pipefail
 
           pnpm eval -- \
-            --experiment "${{ matrix.experiment }}" \
+            --comparison "${{ needs.prepare.outputs.comparison }}" \
+            --cell "${{ matrix.cell }}" \
             --eval "${{ matrix.eval_id }}" \
             --runs "${{ needs.prepare.outputs.runs }}" \
             --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
@@ -284,8 +280,8 @@ jobs:
       - name: Upload raw results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: raw-results-${{ matrix.experiment }}__${{ matrix.eval_id }}
-          path: results/${{ matrix.experiment }}/
+          name: raw-results-${{ matrix.cell }}__${{ matrix.eval_id }}
+          path: results/${{ matrix.cell }}/
           retention-days: 3
 
   publish-results:
@@ -323,21 +319,17 @@ jobs:
 
           mkdir -p results
           export_args=()
-          while IFS= read -r experiment; do
-            mkdir -p "results/$experiment"
-            for artifact_dir in "downloaded-results/raw-results-${experiment}__"*/; do
-              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
+          while IFS= read -r cell; do
+            mkdir -p "results/$cell"
+            for artifact_dir in "downloaded-results/raw-results-${cell}__"*/; do
+              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$cell"/
             done
-            export_args+=("--experiment" "$experiment")
-          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiments }}')
+            export_args+=("--experiment" "$cell")
+          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.cells }}')
 
           while IFS= read -r suite; do
             export_args+=("--suite" "$suite")
           done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
-
-          while IFS= read -r experiment_suite; do
-            export_args+=("--experiment-suite" "$experiment_suite")
-          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiment_suite }}')
 
           if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
             export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")

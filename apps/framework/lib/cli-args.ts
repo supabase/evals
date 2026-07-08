@@ -1,8 +1,6 @@
 import {
   evalSuiteSchema,
-  experimentSuiteSchema,
   type EvalSuite,
-  type ExperimentSuite,
 } from "@supabase-evals/core/eval-metadata";
 
 export function splitList(value: string): string[] {
@@ -38,8 +36,13 @@ export function readRepeatedFlag(rawArgs: string[], name: string): string[] {
   return values;
 }
 
-export function normalizeExperimentName(value: string): string {
-  return value.replace(/^experiments\//, "").replace(/\.ts$/, "");
+/**
+ * Normalize a comparison name: strip a leading `comparisons/` directory prefix
+ * and a trailing `.ts`. Lets `--comparison` accept a bare name, a path, or a
+ * shell-completed filename interchangeably.
+ */
+export function normalizeComparisonName(value: string): string {
+  return value.replace(/^comparisons\//, "").replace(/\.ts$/, "");
 }
 
 export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
@@ -48,20 +51,6 @@ export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
     if (!parsed.success) {
       throw new Error(
         `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(", ")}`,
-      );
-    }
-    return parsed.data;
-  });
-}
-
-export function readExperimentSuiteFilters(
-  rawArgs: string[],
-): ExperimentSuite[] {
-  return readRepeatedFlag(rawArgs, "experiment-suite").map((value) => {
-    const parsed = experimentSuiteSchema.safeParse(value.trim().toLowerCase());
-    if (!parsed.success) {
-      throw new Error(
-        `invalid experiment-suite "${value}". Expected one of: ${experimentSuiteSchema.options.join(", ")}`,
       );
     }
     return parsed.data;

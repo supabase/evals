@@ -498,6 +498,13 @@ export type ExperimentConfig = {
   skills: string[];
 };
 
+/**
+ * The atom the runner executes: an agent + runtime + skills. `ExperimentConfig`
+ * is kept as the stable name for existing internal references; `Configuration`
+ * is the term used by the decoupled Agent × Environment authoring surface below.
+ */
+export type Configuration = ExperimentConfig;
+
 export function getExperimentDisplayMetadata(
   config: ExperimentConfig,
 ): ExperimentDisplayMetadata {
@@ -506,6 +513,164 @@ export function getExperimentDisplayMetadata(
 
 export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
   return config;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Decoupled authoring surface (AI-905 / AI-906). Splits the coupled
+// Configuration into two reusable building blocks so a Comparison can vary
+// exactly one of them:
+//
+//   Agent        the "who"        — harness × model                 (agents/)
+//   Environment  the "with-what"  — runtime × tools × skills × stack (environments/)
+//   Configuration = Agent × Environment   (what the runner already executes)
+//
+// A Comparison then relates many Runs over one dataset, varying the agents
+// and/or environments. Benchmark and h2h stop being separate kinds: a
+// benchmark is a Comparison whose agents vary (→ leaderboard); an h2h is one
+// whose environments vary against a control (→ diff).
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The reusable "who": an agent harness bound to a model. Alias of AgentHarness. */
+export type Agent = AgentHarness;
+
+/** Label an Agent building block (typed identity helper, for symmetry). */
+export function defineAgent(agent: Agent): Agent {
+  return agent;
+}
+
+/**
+ * The reusable "with-what": everything around the agent — the runtime (MCP/tool
+ * surface), an optional local stack, and skills. Decoupled from the model so
+ * one environment composes with any agent (and vice versa).
+ */
+export type Environment = {
+  runtime: EvalRuntime;
+  /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
+  localStack?: LocalStackRuntime;
+  skills?: string[];
+};
+
+/** Author an Environment building block. Returns it unchanged (typed helper). */
+export function defineEnvironment(environment: Environment): Environment {
+  return environment;
+}
+
+/** Compose an Agent × Environment into a Configuration the runner executes. */
+export function compose(
+  agent: Agent,
+  environment: Environment,
+): Configuration {
+  return {
+    agent,
+    runtime: environment.runtime,
+    localStack: environment.localStack,
+    skills: environment.skills ?? [],
+  };
+}
+
+/** The scenario scope a Comparison runs over (Langfuse/Braintrust "Dataset"). */
+export type ComparisonDataset = {
+  /** Only evals whose frontmatter `suite` is in this list run. */
+  suite?: EvalSuite[];
+  /** Explicit eval ids to run. Combine with the CLI `--eval` flag to narrow. */
+  scenarios?: string[];
+};
+
+/**
+ * A named level on one dimension. Mark exactly one level `control: true` to make
+ * it that dimension's baseline: a dimension with a control is a **treatment**
+ * (its other levels are diffed against the control); a dimension with none is
+ * **scope** (its levels are repeated / ranked, not diffed).
+ */
+export type AgentLevel = { name: string; agent: Agent; control?: boolean };
+export type EnvironmentLevel = {
+  name: string;
+  environment: Environment;
+  control?: boolean;
+};
+
+/**
+ * A Comparison relates many Runs over one dataset. Both dimensions are lists of
+ * levels (use a single-level list to hold a dimension fixed); the runner takes
+ * their cartesian product. What you get depends on where the `control` marker
+ * lives — this one primitive covers every shape:
+ *   - agents vary, no control     → benchmark (leaderboard over models);
+ *   - environments: [control, …]  → head-to-head (diff each vs. control);
+ *   - agents (scope) × environments [control, …] → the same diff **per model**.
+ */
+export type Comparison = {
+  /** Comparison name. Also the runs namespace and the results group key. */
+  name: string;
+  dataset: ComparisonDataset;
+  /** Models to run. One level = held fixed; mark one `control` to diff against. */
+  agents: AgentLevel[];
+  /** Environments to run. One level = held fixed; mark one `control` to diff against. */
+  environments: EnvironmentLevel[];
+  /** Repeats per cell (pass@k); the CLI `--runs` flag overrides when set. */
+  runs?: number;
+};
+
+/** Author a Comparison. Returns it unchanged (typed helper). */
+export function defineComparison(comparison: Comparison): Comparison {
+  return comparison;
+}
+
+/** Which level a cell sits at on one dimension, and whether that's the control. */
+export type CellDimension = { level: string; control: boolean };
+
+/** One cell of a Comparison (an agent × environment point), compiled to a Run. */
+export type ExpandedCell = {
+  /** Cell name; also the runs namespace `results/<comparison>/<name>/`. */
+  name: string;
+  comparison: string;
+  agent: CellDimension;
+  environment: CellDimension;
+  config: Configuration;
+};
+
+/**
+ * Compile a Comparison into one Configuration per cell — the cartesian product
+ * of `agents × environments`. The cell name uses only the dimensions that
+ * actually vary (>1 level); each cell records its level + control state on both
+ * dimensions so a comparator can diff treatments against their in-group control.
+ */
+export function expandComparison(comparison: Comparison): ExpandedCell[] {
+  const { agents, environments } = comparison;
+  if (agents.length === 0 || environments.length === 0) {
+    throw new Error(
+      `comparison "${comparison.name}" needs at least one agent and one environment level`,
+    );
+  }
+  const varyAgent = agents.length > 1;
+  const varyEnv = environments.length > 1;
+
+  const seen = new Set<string>();
+  const cells: ExpandedCell[] = [];
+  for (const a of agents) {
+    for (const e of environments) {
+      const name =
+        [varyAgent ? a.name : "", varyEnv ? e.name : ""]
+          .filter(Boolean)
+          .join("__") ||
+        a.name ||
+        e.name ||
+        "baseline";
+      if (seen.has(name)) {
+        throw new Error(
+          `comparison "${comparison.name}" has a duplicate cell name "${name}"`,
+        );
+      }
+      seen.add(name);
+      cells.push({
+        name,
+        comparison: comparison.name,
+        agent: { level: a.name, control: !!a.control },
+        environment: { level: e.name, control: !!e.control },
+        config: compose(a.agent, e.environment),
+      });
+    }
+  }
+  return cells;
 }
 
 export function serializeTranscript(

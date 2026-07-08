@@ -20,8 +20,7 @@ import {
   stripFrontmatter,
 } from "@supabase-evals/sandbox";
 import {
-  normalizeExperimentName,
-  readExperimentSuiteFilters,
+  normalizeComparisonName,
   readRepeatedFlag,
   readSuiteFilters,
 } from "../lib/cli-args.js";
@@ -29,8 +28,11 @@ import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import {
   buildSkillResult,
+  expandComparison,
   getExperimentDisplayMetadata,
 } from "@supabase-evals/core";
+import type { Comparison, ExpandedCell } from "@supabase-evals/core";
+import { experimentSuiteSchema } from "@supabase-evals/core/eval-metadata";
 import type {
   ExperimentConfig,
   EvalInterface,
@@ -59,29 +61,49 @@ const args = new Set(rawArgs);
 const FORCE = !args.has("--skip-existing");
 const SMOKE = args.has("--smoke");
 const DRY = args.has("--dry");
-const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
-  normalizeExperimentName,
-);
+// Which comparison to run (a `comparisons/<name>.ts` file). Defaults to the
+// benchmark leaderboard so `pnpm eval` with no args runs it.
+const COMPARISON = normalizeComparisonName(readFlag("comparison") ?? "benchmark");
+// Narrow a comparison to specific cells (agent × environment points). Repeatable;
+// used by CI to fan a comparison out into one job per cell.
+const CELL_FILTERS = readRepeatedFlag(rawArgs, "cell");
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
-const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
-const RUNS = Number(readFlag("runs") ?? 1);
+// `let` so a comparison's own `runs` can set it when `--runs` isn't passed.
+let RUNS = Number(readFlag("runs") ?? 1);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const CONCURRENCY = Number(readFlag("concurrency") ?? 1);
 const STOP_ON_PASS = !args.has("--run-all-attempts");
 const DEBUG = args.has("--debug");
 
-async function loadExperiments() {
-  const dir = join(ROOT, "experiments");
-  const out: Array<{ name: string; config: ExperimentConfig }> = [];
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
-    const mod = await import(pathToFileURL(join(dir, f)).href);
-    out.push({
-      name: f.replace(/\.ts$/, ""),
-      config: mod.default as ExperimentConfig,
-    });
+const COMPARISONS_DIR = join(ROOT, "comparisons");
+
+/** Load a comparison by its `comparisons/<name>.ts` filename (default export). */
+async function loadComparison(name: string): Promise<Comparison> {
+  const p = join(COMPARISONS_DIR, `${name}.ts`);
+  if (!existsSync(p)) {
+    throw new Error(`no comparison found at comparisons/${name}.ts`);
   }
-  return out;
+  const mod = await import(pathToFileURL(p).href);
+  return mod.default as Comparison;
+}
+
+/** List available comparison filenames (without the `.ts` extension). */
+function listComparisons(): string[] {
+  if (!existsSync(COMPARISONS_DIR)) return [];
+  return readdirSync(COMPARISONS_DIR)
+    .filter((f) => f.endsWith(".ts"))
+    .map((f) => f.replace(/\.ts$/, ""))
+    .sort();
+}
+
+/**
+ * A comparison whose name matches an `ExperimentSuite` (`benchmark`,
+ * `no-skills`) tags its runs with that suite so the results UI groups them;
+ * other comparisons (h2h diffs) leave it unset.
+ */
+function experimentSuiteFor(comparison: string) {
+  return experimentSuiteSchema.safeParse(comparison).data;
 }
 
 function readFlag(name: string): string | undefined {
@@ -387,8 +409,8 @@ async function runOne(
       // the sandbox session; one fresh session per attempt.
       if (!exp.localStack) {
         throw new Error(
-          `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
-            `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`,
+          `eval ${ev.id} has interface: cli but cell "${expName}" does not configure a local stack runtime. ` +
+            `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to its environment (environments/*.ts).`,
         );
       }
       // When the eval links to a hosted project, boot a platform-lite backend
@@ -615,51 +637,40 @@ async function runConcurrent<T>(
 }
 
 async function main() {
+  // `list` → the available comparison names; `list --comparison <name>` → that
+  // comparison's cell names (what CI fans out over with `--cell`).
   if (rawArgs.filter((a) => a !== "--")[0] === "list") {
-    const experiments = await loadExperiments();
-    const filtered =
-      EXPERIMENT_SUITE_FILTERS.length > 0
-        ? experiments.filter(
-            (e) =>
-              e.config.suite !== undefined &&
-              e.config.suite.some((suite) =>
-                EXPERIMENT_SUITE_FILTERS.includes(suite),
-              ),
-          )
-        : experiments;
-    console.log(JSON.stringify(filtered.map((e) => e.name)));
+    if (readFlag("comparison") !== undefined) {
+      const cells = expandComparison(await loadComparison(COMPARISON));
+      console.log(JSON.stringify(cells.map((c) => c.name)));
+    } else {
+      console.log(JSON.stringify(listComparisons()));
+    }
     return;
   }
 
-  const allExperiments = await loadExperiments();
-  if (EXPERIMENT_FILTERS.length > 0) {
-    const experimentNames = new Set(allExperiments.map(({ name }) => name));
-    const missing = EXPERIMENT_FILTERS.filter(
-      (name) => !experimentNames.has(name),
-    );
+  const comparison = await loadComparison(COMPARISON);
+  const allCells = expandComparison(comparison);
+  if (CELL_FILTERS.length > 0) {
+    const names = new Set(allCells.map((c) => c.name));
+    const missing = CELL_FILTERS.filter((name) => !names.has(name));
     if (missing.length > 0) {
-      throw new Error(`no experiment matched: ${missing.join(",")}`);
-    }
-  }
-
-  const experiments = allExperiments.filter(({ name, config }) => {
-    if (EXPERIMENT_FILTERS.length > 0 && !EXPERIMENT_FILTERS.includes(name))
-      return false;
-    if (
-      EXPERIMENT_SUITE_FILTERS.length > 0 &&
-      (config.suite === undefined ||
-        !config.suite.some((suite) => EXPERIMENT_SUITE_FILTERS.includes(suite)))
-    )
-      return false;
-    return true;
-  });
-  if (EXPERIMENT_FILTERS.length > 0) {
-    if (experiments.length === 0) {
       throw new Error(
-        `no experiments matched experiment=${EXPERIMENT_FILTERS.join(",")}`,
+        `no cell matched ${missing.join(",")} in comparison "${COMPARISON}" ` +
+          `(cells: ${[...names].join(", ")})`,
       );
     }
   }
+  const cells =
+    CELL_FILTERS.length > 0
+      ? allCells.filter((c) => CELL_FILTERS.includes(c.name))
+      : allCells;
+
+  // A comparison's own `runs` (pass@k) applies unless `--runs` overrode it.
+  if (readFlag("runs") === undefined && comparison.runs) {
+    RUNS = comparison.runs;
+  }
+
   const evals = discoverEvals();
   if (EVAL_FILTERS.length > 0) {
     const evalIds = new Set(evals.map((e) => e.id));
@@ -669,16 +680,26 @@ async function main() {
     }
   }
 
+  // The comparison's dataset scopes which evals run (by explicit id and/or by
+  // suite); the CLI `--eval` / `--suite` flags narrow that further.
+  const { suite: datasetSuites, scenarios: datasetScenarios } =
+    comparison.dataset;
+  const scoped = evals.filter((e) => {
+    if (datasetScenarios && !datasetScenarios.includes(e.id)) return false;
+    if (datasetSuites && !datasetSuites.includes(e.suite)) return false;
+    return true;
+  });
+
   const filtered = SMOKE
     ? Object.values(
-        evals.reduce<Record<string, EvalManifest>>((acc, e) => {
+        scoped.reduce<Record<string, EvalManifest>>((acc, e) => {
           acc[e.stage] ??= e;
           return acc;
         }, {}),
       )
     : EVAL_FILTERS.length > 0
-      ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
-      : evals;
+      ? scoped.filter((e) => EVAL_FILTERS.includes(e.id))
+      : scoped;
   const suiteFiltered =
     SUITE_FILTERS.length > 0
       ? filtered.filter((e) => SUITE_FILTERS.includes(e.suite))
@@ -686,6 +707,7 @@ async function main() {
 
   if (suiteFiltered.length === 0) {
     const filter = [
+      `comparison=${COMPARISON}`,
       EVAL_FILTERS.length > 0 ? `eval=${EVAL_FILTERS.join(",")}` : undefined,
       SUITE_FILTERS.length > 0 ? `suite=${SUITE_FILTERS.join(",")}` : undefined,
     ]
@@ -699,7 +721,7 @@ async function main() {
   if (!DEBUG) console.error = () => undefined;
 
   console.log(
-    `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
+    `comparison ${COMPARISON}: ${cells.length} cell(s), ${suiteFiltered.length} eval(s), ` +
       `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
   );
 
@@ -709,7 +731,7 @@ async function main() {
     ev: EvalManifest;
   }> = [];
 
-  for (const { name, config } of experiments) {
+  for (const { name, config } of cells) {
     if (!DRY) {
       try {
         config.agent.assertReady();
@@ -727,7 +749,7 @@ async function main() {
       }
       if (ev.mode === "local-stack" && !config.localStack) {
         console.log(
-          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`,
+          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to its environment)`,
         );
         continue;
       }
@@ -756,7 +778,8 @@ async function main() {
           JSON.stringify(
             {
               experiment: name,
-              experimentSuite: config.suite?.[0],
+              comparison: COMPARISON,
+              experimentSuite: experimentSuiteFor(COMPARISON),
               experimentDisplay,
               eval: ev.id,
               ...ev.metadata,

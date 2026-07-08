@@ -2,32 +2,16 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
 import { rawEvalResultSchema } from "@supabase-evals/core/eval-metadata";
-import {
-  getExperimentDisplayMetadata,
-  type ExperimentConfig,
-  type ExperimentDisplayMetadata,
-} from "@supabase-evals/core";
-import type {
-  EvalResult,
-  EvalSuite,
-  ExperimentSuite,
-} from "@supabase-evals/core/eval-metadata";
-import {
-  normalizeExperimentName,
-  readExperimentSuiteFilters,
-  readRepeatedFlag,
-  readSuiteFilters,
-} from "../lib/cli-args.js";
+import type { EvalResult, EvalSuite } from "@supabase-evals/core/eval-metadata";
+import { readRepeatedFlag, readSuiteFilters } from "../lib/cli-args.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..", "..");
 const RESULTS_DIR = join(ROOT, "results");
 const EVALS_DIR = join(ROOT, "evals");
-const EXPERIMENTS_DIR = join(ROOT, "experiments");
 const OUTPUT_PATH = join(
   ROOT,
   "apps",
@@ -37,34 +21,10 @@ const OUTPUT_PATH = join(
   "eval-results.json",
 );
 
-type ExperimentExportMetadata = {
-  display: ExperimentDisplayMetadata;
-  experimentSuite?: ExperimentSuite;
-};
-
-async function loadExperimentMetadata(): Promise<
-  Map<string, ExperimentExportMetadata>
-> {
-  const map = new Map<string, ExperimentExportMetadata>();
-  for (const f of (await readdir(EXPERIMENTS_DIR)).filter((f) =>
-    f.endsWith(".ts"),
-  )) {
-    const mod = await import(pathToFileURL(join(EXPERIMENTS_DIR, f)).href);
-    const config = mod.default as ExperimentConfig;
-    map.set(f.replace(/\.ts$/, ""), {
-      display: getExperimentDisplayMetadata(config),
-      experimentSuite: config.suite?.[0],
-    });
-  }
-  return map;
-}
 const rawArgs = process.argv.slice(2);
-const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
-  normalizeExperimentName,
-);
+const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment");
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
-const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const MERGE = rawArgs.includes("--merge");
 
 async function readPrompt(evalId: string) {
@@ -91,10 +51,12 @@ async function readPrompt(evalId: string) {
   };
 }
 
+// Each Run's JSON already carries its own `experimentDisplay` and
+// `experimentSuite` (written by run-eval), so the export is self-contained —
+// it no longer re-derives them from an `experiments/` dir.
 async function readResultFile(
   filePath: string,
   sourcePath: string,
-  experimentMetadata: Map<string, ExperimentExportMetadata>,
 ): Promise<EvalResult | null> {
   const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
   const result = rawEvalResultSchema.safeParse(parsed);
@@ -102,19 +64,14 @@ async function readResultFile(
     return null;
   }
   const parsedResult = result.data;
-  const experimentData = experimentMetadata.get(parsedResult.experiment);
 
   const promptData = await readPrompt(parsedResult.eval);
-  const experimentSuite =
-    parsedResult.experimentSuite ??
-    parsedResult.profile ??
-    experimentData?.experimentSuite;
+  const experimentSuite = parsedResult.experimentSuite ?? parsedResult.profile;
 
   return {
     experiment: parsedResult.experiment,
     experimentSuite,
-    experimentDisplay:
-      parsedResult.experimentDisplay ?? experimentData?.display,
+    experimentDisplay: parsedResult.experimentDisplay,
     eval: parsedResult.eval,
     stage: promptData?.stage ?? parsedResult.stage,
     product: promptData?.product ?? parsedResult.product,
@@ -136,7 +93,7 @@ function shouldIncludeExperiment(experiment: string): boolean {
     return true;
   }
 
-  return EXPERIMENT_FILTERS.includes(normalizeExperimentName(experiment));
+  return EXPERIMENT_FILTERS.includes(experiment);
 }
 
 function shouldIncludeEval(evalId: string): boolean {
@@ -155,25 +112,11 @@ function shouldIncludeSuite(suite: EvalSuite | undefined): boolean {
   return suite !== undefined && SUITE_FILTERS.includes(suite);
 }
 
-function shouldIncludeExperimentSuite(
-  experimentSuite: ExperimentSuite | undefined,
-): boolean {
-  if (EXPERIMENT_SUITE_FILTERS.length === 0) {
-    return true;
-  }
-
-  return (
-    experimentSuite !== undefined &&
-    EXPERIMENT_SUITE_FILTERS.includes(experimentSuite)
-  );
-}
-
 async function loadEvalResults(): Promise<EvalResult[]> {
   if (!existsSync(RESULTS_DIR)) {
     return [];
   }
 
-  const experimentMetadata = await loadExperimentMetadata();
   const results: EvalResult[] = [];
   const experiments = await readdir(RESULTS_DIR);
 
@@ -204,16 +147,8 @@ async function loadEvalResults(): Promise<EvalResult[]> {
           continue;
         }
 
-        const result = await readResultFile(
-          entryPath,
-          relativeEntryPath,
-          experimentMetadata,
-        );
-        if (
-          result &&
-          shouldIncludeSuite(result.suite) &&
-          shouldIncludeExperimentSuite(result.experimentSuite)
-        ) {
+        const result = await readResultFile(entryPath, relativeEntryPath);
+        if (result && shouldIncludeSuite(result.suite)) {
           results.push(result);
         }
         continue;
@@ -235,13 +170,8 @@ async function loadEvalResults(): Promise<EvalResult[]> {
       const result = await readResultFile(
         summaryPath,
         `${relativeEntryPath}/summary.json`,
-        experimentMetadata,
       );
-      if (
-        result &&
-        shouldIncludeSuite(result.suite) &&
-        shouldIncludeExperimentSuite(result.experimentSuite)
-      ) {
+      if (result && shouldIncludeSuite(result.suite)) {
         results.push(result);
       }
     }
@@ -258,8 +188,7 @@ async function main() {
   const hasFilters =
     EXPERIMENT_FILTERS.length > 0 ||
     EVAL_FILTERS.length > 0 ||
-    SUITE_FILTERS.length > 0 ||
-    EXPERIMENT_SUITE_FILTERS.length > 0;
+    SUITE_FILTERS.length > 0;
 
   if (hasFilters && newResults.length === 0) {
     throw new Error("no result files matched the requested export filters");
