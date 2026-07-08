@@ -23,7 +23,7 @@ function embedding(components: Array<[number, number]>): string {
 const QUERY_EMBEDDING = embedding([[0, 1]]);
 
 // Embeddings for the seeded document_sections, keyed by id (insert order in
-// seed/project.sql). Sections 1-2 belong to doc 1 (user A), 3-4 to doc 2
+// remote/project.sql). Sections 1-2 belong to doc 1 (user A), 3-4 to doc 2
 // (user B). Section 3 is the *global* nearest neighbor to the query — if
 // anything bypasses RLS it shows up as user A's top search result.
 const SECTION_EMBEDDINGS: Array<[number, string]> = [
@@ -32,7 +32,7 @@ const SECTION_EMBEDDINGS: Array<[number, string]> = [
   [3, embedding([[0, 1]])],
   [4, embedding([[0, 0.6], [2, 0.8]])],
 ];
-// third row in seed/project.sql's document_sections insert. its embedding matches
+// third row in remote/project.sql's document_sections insert. its embedding matches
 // QUERY_EMBEDDING exactly, making it the global nearest neighbor. if it appears in
 // user A's search results, RLS leaked
 const USER_B_TOP_MATCH_SECTION_ID = 3;
