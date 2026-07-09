@@ -20,12 +20,8 @@ export default scorer;
 /** Checks that the agent ran `supabase db diff` rather than hand-writing the migration. */
 function checkDbDiffUsed(ctx: LocalStackEvalContext): CheckResult {
   const name = "supabase db diff used to generate the migration";
-  const used = ctx.toolCalls.some(
-    // Case-insensitive: in-process agents emit the tool name `bash`, CLI agents
-    // (Claude Code) emit `Bash`.
-    (tc) =>
-      tc.endpoint.toLowerCase() === "bash" &&
-      /supabase\s+db\s+diff/.test(String(tc.body.command ?? "")),
+  const used = ctx.toolCalls.some((tc) =>
+    /supabase\s+db\s+diff/.test(String(tc.body.command ?? tc.command ?? "")),
   );
   return { name, passed: used };
 }
