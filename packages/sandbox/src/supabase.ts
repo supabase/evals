@@ -24,7 +24,7 @@ import {
 import { SKILLS_CLI_VERSION } from "./skills.js";
 import { ALL_SUPABASE_SERVICES, type SupabaseService } from "./types.js";
 
-export const SUPABASE_CLI_VERSION = "2.67.1";
+export const SUPABASE_CLI_VERSION = "2.109.1";
 
 const SANDBOX_IMAGE_REPOSITORY = "supabase-evals-sandbox";
 
