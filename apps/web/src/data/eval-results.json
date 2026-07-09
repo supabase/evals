@@ -843,8 +843,23 @@
       "sdk"
     ],
     "suite": "benchmark",
+    "interface": "cli",
     "passed": true,
     "checks": [
+      {
+        "name": "auto_expose_new_tables is not enabled",
+        "passed": true
+      },
+      {
+        "name": "authenticated has explicit bookmarks SELECT and INSERT grants",
+        "passed": true,
+        "notes": "can_select=true, can_insert=true"
+      },
+      {
+        "name": "anon does not have bookmarks SELECT or INSERT grants",
+        "passed": true,
+        "notes": "can_select=false, can_insert=false"
+      },
       {
         "name": "RLS still enabled on bookmarks",
         "passed": true
@@ -859,7 +874,8 @@
       },
       {
         "name": "anon reads no bookmarks",
-        "passed": true
+        "passed": true,
+        "notes": "error 42501: permission denied for table bookmarks"
       },
       {
         "name": "user A can save a new bookmark",
@@ -870,9 +886,9 @@
         "passed": true
       },
       {
-        "name": "diagnosed RLS and added owner-scoped policies",
+        "name": "diagnosed secure default grants and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing Data API empty results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid(), with INSERT enforced via WITH CHECK. It did mention the table had 0 rows in the eval environment, but did not blame that as the cause and still applied the required RLS fix."
+        "judgeNotes": "The answer correctly diagnoses missing Data API/table privileges under secure-by-default behavior, distinguishes grants from RLS, preserves existing owner-scoped RLS, grants SELECT and INSERT on public.bookmarks to authenticated only, and keeps RLS enabled. It does not grant anon/public or add permissive policies."
       }
     ],
     "skills": {
@@ -884,7 +900,7 @@
         "supabase"
       ]
     },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8/resolve-dataapi-001-empty-results.json"
@@ -1853,8 +1869,23 @@
       "sdk"
     ],
     "suite": "benchmark",
+    "interface": "cli",
     "passed": true,
     "checks": [
+      {
+        "name": "auto_expose_new_tables is not enabled",
+        "passed": true
+      },
+      {
+        "name": "authenticated has explicit bookmarks SELECT and INSERT grants",
+        "passed": true,
+        "notes": "can_select=true, can_insert=true"
+      },
+      {
+        "name": "anon does not have bookmarks SELECT or INSERT grants",
+        "passed": true,
+        "notes": "can_select=false, can_insert=false"
+      },
       {
         "name": "RLS still enabled on bookmarks",
         "passed": true
@@ -1869,7 +1900,8 @@
       },
       {
         "name": "anon reads no bookmarks",
-        "passed": true
+        "passed": true,
+        "notes": "error 42501: permission denied for table bookmarks"
       },
       {
         "name": "user A can save a new bookmark",
@@ -1880,16 +1912,16 @@
         "passed": true
       },
       {
-        "name": "diagnosed RLS and added owner-scoped policies",
+        "name": "diagnosed secure default grants and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing default-deny Data API results; kept RLS enabled; created authenticated SELECT and INSERT policies scoped to user_id = auth.uid(), with INSERT enforced via WITH CHECK."
+        "judgeNotes": "The answer correctly diagnoses missing Data API/table GRANTs under secure-by-default behavior, distinguishes GRANTs from RLS, preserves existing owner-scoped RLS, grants only SELECT and INSERT on public.bookmarks to authenticated, and keeps anon blocked/RLS intact."
       }
     ],
     "skills": {
       "available": [],
       "loaded": []
     },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8-no-skills/resolve-dataapi-001-empty-results.json"
@@ -2915,8 +2947,23 @@
       "sdk"
     ],
     "suite": "benchmark",
+    "interface": "cli",
     "passed": true,
     "checks": [
+      {
+        "name": "auto_expose_new_tables is not enabled",
+        "passed": true
+      },
+      {
+        "name": "authenticated has explicit bookmarks SELECT and INSERT grants",
+        "passed": true,
+        "notes": "can_select=true, can_insert=true"
+      },
+      {
+        "name": "anon does not have bookmarks SELECT or INSERT grants",
+        "passed": true,
+        "notes": "can_select=false, can_insert=false"
+      },
       {
         "name": "RLS still enabled on bookmarks",
         "passed": true
@@ -2931,7 +2978,8 @@
       },
       {
         "name": "anon reads no bookmarks",
-        "passed": true
+        "passed": true,
+        "notes": "error 42501: permission denied for table bookmarks"
       },
       {
         "name": "user A can save a new bookmark",
@@ -2942,9 +2990,9 @@
         "passed": true
       },
       {
-        "name": "diagnosed RLS and added owner-scoped policies",
+        "name": "diagnosed secure default grants and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS deny-all due to no policies and added authenticated SELECT/INSERT policies scoped to user_id = auth.uid(), keeping RLS enabled."
+        "judgeNotes": "Diagnoses missing Data API/table grants under secure-by-default behavior, distinguishes grants from RLS, preserves existing owner-scoped RLS, grants only SELECT/INSERT on public.bookmarks to authenticated, and keeps RLS enabled."
       }
     ],
     "skills": {
@@ -2956,7 +3004,7 @@
         "supabase"
       ]
     },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/resolve-dataapi-001-empty-results.json"
@@ -3926,8 +3974,23 @@
       "sdk"
     ],
     "suite": "benchmark",
+    "interface": "cli",
     "passed": true,
     "checks": [
+      {
+        "name": "auto_expose_new_tables is not enabled",
+        "passed": true
+      },
+      {
+        "name": "authenticated has explicit bookmarks SELECT and INSERT grants",
+        "passed": true,
+        "notes": "can_select=true, can_insert=true"
+      },
+      {
+        "name": "anon does not have bookmarks SELECT or INSERT grants",
+        "passed": true,
+        "notes": "can_select=false, can_insert=false"
+      },
       {
         "name": "RLS still enabled on bookmarks",
         "passed": true
@@ -3942,7 +4005,8 @@
       },
       {
         "name": "anon reads no bookmarks",
-        "passed": true
+        "passed": true,
+        "notes": "error 42501: permission denied for table bookmarks"
       },
       {
         "name": "user A can save a new bookmark",
@@ -3953,16 +4017,16 @@
         "passed": true
       },
       {
-        "name": "diagnosed RLS and added owner-scoped policies",
+        "name": "diagnosed secure default grants and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to auth.uid() = user_id with WITH CHECK for inserts."
+        "judgeNotes": "The answer correctly diagnoses missing table privileges for Data API/PostgREST access under secure-by-default behavior, distinguishes GRANTs from RLS, preserves existing owner-scoped RLS policies with RLS enabled, and grants only SELECT/INSERT on public.bookmarks to authenticated. It does not grant anon/public or add permissive policies."
       }
     ],
     "skills": {
       "available": [],
       "loaded": []
     },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-dataapi-001-empty-results.json"
@@ -4986,8 +5050,23 @@
       "sdk"
     ],
     "suite": "benchmark",
+    "interface": "cli",
     "passed": true,
     "checks": [
+      {
+        "name": "auto_expose_new_tables is not enabled",
+        "passed": true
+      },
+      {
+        "name": "authenticated has explicit bookmarks SELECT and INSERT grants",
+        "passed": true,
+        "notes": "can_select=true, can_insert=true"
+      },
+      {
+        "name": "anon does not have bookmarks SELECT or INSERT grants",
+        "passed": true,
+        "notes": "can_select=false, can_insert=false"
+      },
       {
         "name": "RLS still enabled on bookmarks",
         "passed": true
@@ -5002,7 +5081,8 @@
       },
       {
         "name": "anon reads no bookmarks",
-        "passed": true
+        "passed": true,
+        "notes": "error 42501: permission denied for table bookmarks"
       },
       {
         "name": "user A can save a new bookmark",
@@ -5013,9 +5093,9 @@
         "passed": true
       },
       {
-        "name": "diagnosed RLS and added owner-scoped policies",
+        "name": "diagnosed secure default grants and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all behavior for Data API, kept RLS enabled, and created authenticated-only SELECT and INSERT owner-scoped policies using auth.uid() = user_id / WITH CHECK. It also verified policies; adding an index is acceptable."
+        "judgeNotes": "The assistant correctly diagnosed missing Data API/PostgREST table grants under secure-by-default behavior, distinguished grants from existing RLS policies, preserved RLS and owner-scoped policies, and added SELECT/INSERT grants to authenticated rather than anon/public. It also kept RLS enabled. Extra service_role grants do not violate the rubric."
       }
     ],
     "skills": {
@@ -5027,9 +5107,9 @@
         "supabase"
       ]
     },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/resolve-dataapi-001-empty-results.json"
   },
   {
@@ -5997,8 +6077,23 @@
       "sdk"
     ],
     "suite": "benchmark",
+    "interface": "cli",
     "passed": true,
     "checks": [
+      {
+        "name": "auto_expose_new_tables is not enabled",
+        "passed": true
+      },
+      {
+        "name": "authenticated has explicit bookmarks SELECT and INSERT grants",
+        "passed": true,
+        "notes": "can_select=true, can_insert=true"
+      },
+      {
+        "name": "anon does not have bookmarks SELECT or INSERT grants",
+        "passed": true,
+        "notes": "can_select=false, can_insert=false"
+      },
       {
         "name": "RLS still enabled on bookmarks",
         "passed": true
@@ -6013,7 +6108,8 @@
       },
       {
         "name": "anon reads no bookmarks",
-        "passed": true
+        "passed": true,
+        "notes": "error 42501: permission denied for table bookmarks"
       },
       {
         "name": "user A can save a new bookmark",
@@ -6024,16 +6120,16 @@
         "passed": true
       },
       {
-        "name": "diagnosed RLS and added owner-scoped policies",
+        "name": "diagnosed secure default grants and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API behavior, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using auth.uid() = user_id / WITH CHECK. Extra update/delete policies are also owner-scoped and do not violate the rubric."
+        "judgeNotes": "The assistant correctly diagnosed missing table privileges for authenticated clients as distinct from RLS, preserved existing owner-scoped RLS, kept RLS enabled, and granted only SELECT/INSERT on public.bookmarks to authenticated. It did not grant anon/public or add permissive policies. It did not explicitly mention api.auto_expose_new_tables by name, but it recognized the secure-by-default Data API/table privilege issue sufficiently."
       }
     ],
     "skills": {
       "available": [],
       "loaded": []
     },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-dataapi-001-empty-results.json"
@@ -7062,8 +7158,23 @@
       "sdk"
     ],
     "suite": "benchmark",
+    "interface": "cli",
     "passed": true,
     "checks": [
+      {
+        "name": "auto_expose_new_tables is not enabled",
+        "passed": true
+      },
+      {
+        "name": "authenticated has explicit bookmarks SELECT and INSERT grants",
+        "passed": true,
+        "notes": "can_select=true, can_insert=true"
+      },
+      {
+        "name": "anon does not have bookmarks SELECT or INSERT grants",
+        "passed": true,
+        "notes": "can_select=false, can_insert=false"
+      },
       {
         "name": "RLS still enabled on bookmarks",
         "passed": true
@@ -7078,7 +7189,8 @@
       },
       {
         "name": "anon reads no bookmarks",
-        "passed": true
+        "passed": true,
+        "notes": "error 42501: permission denied for table bookmarks"
       },
       {
         "name": "user A can save a new bookmark",
@@ -7089,9 +7201,9 @@
         "passed": true
       },
       {
-        "name": "diagnosed RLS and added owner-scoped policies",
+        "name": "diagnosed secure default grants and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies, kept RLS enabled, created authenticated SELECT and INSERT owner-scoped policies using auth.uid()/user_id with WITH CHECK for insert. Did not disable RLS or add permissive/anon policies."
+        "judgeNotes": "Diagnosed secure-by-default Data API exposure/missing grants, distinguished grants from RLS, preserved owner-scoped RLS, granted SELECT/INSERT only to authenticated, kept RLS enabled, and avoided anon/public or permissive policy changes."
       }
     ],
     "skills": {
@@ -7103,7 +7215,7 @@
         "supabase"
       ]
     },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5/resolve-dataapi-001-empty-results.json"
@@ -8075,8 +8187,23 @@
       "sdk"
     ],
     "suite": "benchmark",
+    "interface": "cli",
     "passed": true,
     "checks": [
+      {
+        "name": "auto_expose_new_tables is not enabled",
+        "passed": true
+      },
+      {
+        "name": "authenticated has explicit bookmarks SELECT and INSERT grants",
+        "passed": true,
+        "notes": "can_select=true, can_insert=true"
+      },
+      {
+        "name": "anon does not have bookmarks SELECT or INSERT grants",
+        "passed": true,
+        "notes": "can_select=false, can_insert=false"
+      },
       {
         "name": "RLS still enabled on bookmarks",
         "passed": true
@@ -8091,7 +8218,8 @@
       },
       {
         "name": "anon reads no bookmarks",
-        "passed": true
+        "passed": true,
+        "notes": "error 42501: permission denied for table bookmarks"
       },
       {
         "name": "user A can save a new bookmark",
@@ -8102,16 +8230,16 @@
         "passed": true
       },
       {
-        "name": "diagnosed RLS and added owner-scoped policies",
+        "name": "diagnosed secure default grants and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all Data API behavior, kept RLS enabled, and created authenticated-only owner-scoped SELECT and INSERT policies using auth.uid() = user_id with USING and WITH CHECK."
+        "judgeNotes": "Diagnoses missing table grants as distinct from existing RLS, grants SELECT/INSERT only to authenticated, keeps owner-scoped RLS enabled, and verifies anon remains denied. It doesn't explicitly name api.auto_expose_new_tables disabled, but it clearly treats it as a Data API table privilege exposure issue."
       }
     ],
     "skills": {
       "available": [],
       "loaded": []
     },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5-no-skills/resolve-dataapi-001-empty-results.json"
