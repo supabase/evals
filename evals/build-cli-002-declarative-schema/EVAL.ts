@@ -21,7 +21,7 @@ export default scorer;
 function checkDbDiffUsed(ctx: LocalStackEvalContext): CheckResult {
   const name = "supabase db diff used to generate the migration";
   const used = ctx.toolCalls.some((tc) =>
-    /supabase\s+db\s+diff/.test(String(tc.body.command ?? tc.command ?? "")),
+    /supabase\s+db\s+diff/.test(tc.command ?? ""),
   );
   return { name, passed: used };
 }
