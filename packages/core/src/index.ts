@@ -641,9 +641,15 @@ export function aiSdkAgent(options: {
               typeof input.name === "string"
                 ? input.name
                 : undefined;
+            const command =
+              event.toolCall.toolName.toLowerCase() === "bash" &&
+              typeof input.command === "string"
+                ? input.command
+                : undefined;
             toolCalls.push({
               endpoint: event.toolCall.toolName,
               body: input,
+              command,
               loadedSkill,
               result: event.output,
               ts: Date.now(),
