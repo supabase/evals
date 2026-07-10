@@ -128,6 +128,8 @@ async function checkAutoExposeNotEnabled(
   };
 }
 
+// TODO: Replace this with a shared local-stack executeSql helper once the
+// scorer DB API is refactored away from SELECT-only ctx.query.
 /** Runs non-SELECT SQL against the local stack database. */
 async function execSql(ctx: LocalStackEvalContext, sql: string): Promise<void> {
   const encoded = Buffer.from(sql, "utf8").toString("base64");
@@ -283,7 +285,7 @@ async function checkSecureDefaultDiagnosisAndFix(
       includeToolCallInputs: true,
     }),
     rubric: stripIndent`
-      Pass if the assistant handles the empty Data API results as a secure-by-default Data API exposure issue and fixes the missing explicit grants for authenticated clients while preserving the existing owner-scoped RLS policies.
+      Pass if the assistant handles the empty Data API results as a secure-by-default Data API exposure issue and fixes the missing explicit grants for authenticated clients without weakening the existing owner-scoped RLS policies.
 
       A passing answer should:
       - Diagnose that the project has api.auto_expose_new_tables disabled or equivalent secure-by-default behavior, so SQL-created tables need explicit grants before authenticated clients can use them through the Data API.
@@ -292,12 +294,12 @@ async function checkSecureDefaultDiagnosisAndFix(
       - Grant SELECT and INSERT on public.bookmarks to authenticated, not anon or public.
       - Keep RLS enabled on the bookmarks table.
 
-      Fail if the assistant only adds or edits RLS policies without addressing missing grants, disables RLS, grants access to anon/public, creates permissive policies such as USING (true), blames the empty results only on data/query/connection problems, or never recognizes the secure-by-default Data API exposure behavior.
+      Fail if the assistant only adds or edits RLS policies without addressing missing grants, disables RLS, grants access to anon/public, creates permissive policies such as USING (true), claims the core problem is missing RLS policies, blames the empty results only on data/query/connection problems, or never recognizes the secure-by-default Data API exposure behavior.
     `,
   });
 
   return {
-    name: "diagnosed secure default grants and added owner-scoped policies",
+    name: "diagnosed secure default grants without weakening RLS",
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };
