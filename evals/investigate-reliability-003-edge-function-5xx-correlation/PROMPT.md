@@ -1,6 +1,7 @@
 ---
 stage: investigate
 suite: benchmark
+interface: mcp
 product:
   - edge-functions
 topic:

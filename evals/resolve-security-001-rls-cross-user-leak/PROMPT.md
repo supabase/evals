@@ -1,6 +1,7 @@
 ---
 stage: resolve
 suite: other
+interface: mcp
 product:
   - database
   - auth

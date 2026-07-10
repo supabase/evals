@@ -1,6 +1,7 @@
 ---
 stage: build
 suite: other
+interface: mcp
 product:
   - edge-functions
   - database

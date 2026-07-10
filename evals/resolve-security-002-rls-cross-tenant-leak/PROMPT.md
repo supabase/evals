@@ -1,6 +1,7 @@
 ---
 stage: resolve
 suite: benchmark
+interface: mcp
 product:
   - database
   - auth
