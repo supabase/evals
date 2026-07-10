@@ -306,6 +306,81 @@
       "modelId": "claude-opus-4-8",
       "reasoningEffort": "high"
     },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"missing credentials\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"7511da01-589f-4460-8abb-5aa170bc9745\",\"metric\":\"steps_a_mrfffov9\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"7511da01-589f-4460-8abb-5aa170bc9745\",\"metric\":\"steps_a_mrfffov9\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"1eef9e96-7af0-4b2f-89d0-9dee55978919\",\"metric\":\"steps_b_mrfffov9\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"invalid credentials\"}"
+      },
+      {
+        "name": "signal: implementation uses @supabase/server",
+        "passed": true,
+        "notes": "no — hand-rolled (raw supabase-js or other)"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
     "eval": "build-storage-001-private-bucket-access",
     "stage": "build",
     "product": [
@@ -1375,6 +1450,76 @@
       "modelId": "claude-opus-4-8",
       "reasoningEffort": "high"
     },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"missing credentials\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"c4649818-d013-4716-8f85-5a18a3808818\",\"metric\":\"steps_a_mrffekuu\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"c4649818-d013-4716-8f85-5a18a3808818\",\"metric\":\"steps_a_mrffekuu\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"1c98d779-1a83-4cae-b9ae-4db2d2cde4dd\",\"metric\":\"steps_b_mrffekuu\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"missing credentials\"}"
+      },
+      {
+        "name": "signal: implementation uses @supabase/server",
+        "passed": true,
+        "notes": "no — hand-rolled (raw supabase-js or other)"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8-no-skills/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
     "eval": "build-storage-001-private-bucket-access",
     "stage": "build",
     "product": [
@@ -2394,6 +2539,81 @@
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"61fbd5ff-1a2c-40b8-87b7-553810f07ee7\",\"metric\":\"steps_a_mrfff3ei\",\"value\":111}]}"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"61fbd5ff-1a2c-40b8-87b7-553810f07ee7\",\"metric\":\"steps_a_mrfff3ei\",\"value\":111}]}"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"c84696fe-7a55-47c5-b8d5-541b631226ac\",\"metric\":\"steps_b_mrfff3ei\",\"value\":222}]}"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Invalid credentials\"}"
+      },
+      {
+        "name": "signal: implementation uses @supabase/server",
+        "passed": true,
+        "notes": "no — hand-rolled (raw supabase-js or other)"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/build-functions-005-dual-auth-user-secret.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -3473,6 +3693,76 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"d0672daf-5ace-4254-94fa-dfc6d7c94f44\",\"metric\":\"steps_a_mrfffgur\",\"value\":111}]}"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"d0672daf-5ace-4254-94fa-dfc6d7c94f44\",\"metric\":\"steps_a_mrfffgur\",\"value\":111}]}"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"99d09c77-306c-4bfa-afc6-9432be89b4fa\",\"metric\":\"steps_b_mrfffgur\",\"value\":222}]}"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Missing or invalid user credentials\"}"
+      },
+      {
+        "name": "signal: implementation uses @supabase/server",
+        "passed": true,
+        "notes": "no — hand-rolled (raw supabase-js or other)"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "build-storage-001-private-bucket-access",
     "stage": "build",
     "product": [
@@ -4493,6 +4783,81 @@
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"3a0c529f-23ed-46cc-923b-dd701b3125c3\",\"metric\":\"steps_a_mrfff60f\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"3a0c529f-23ed-46cc-923b-dd701b3125c3\",\"metric\":\"steps_a_mrfff60f\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"0185ad8e-3554-47d3-9306-a7a7b43750a5\",\"metric\":\"steps_b_mrfff60f\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "signal: implementation uses @supabase/server",
+        "passed": true,
+        "notes": "no — hand-rolled (raw supabase-js or other)"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/build-functions-005-dual-auth-user-secret.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -5579,6 +5944,76 @@
       "modelId": "gpt-5.4-mini",
       "reasoningEffort": "medium"
     },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Missing credentials. Provide either a user JWT or the service-role apikey.\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"c3d76661-e3ae-453f-ba34-e044f8bfb362\",\"metric\":\"steps_a_mrffka3x\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"c3d76661-e3ae-453f-ba34-e044f8bfb362\",\"metric\":\"steps_a_mrffka3x\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"e374540e-6bac-47de-a17d-90edd58bbc6b\",\"metric\":\"steps_b_mrffka3x\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Missing credentials. Provide either a user JWT or the service-role apikey.\"}"
+      },
+      {
+        "name": "signal: implementation uses @supabase/server",
+        "passed": true,
+        "notes": "no — hand-rolled (raw supabase-js or other)"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
     "eval": "build-storage-001-private-bucket-access",
     "stage": "build",
     "product": [
@@ -6601,6 +7036,81 @@
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"7100d370-9529-46d0-bf47-1e31ff814e5a\",\"metric\":\"steps_a_mrffk32i\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"7100d370-9529-46d0-bf47-1e31ff814e5a\",\"metric\":\"steps_a_mrffk32i\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"297d08f4-45b8-40b0-a414-aba08f9b872c\",\"metric\":\"steps_b_mrffk32i\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Invalid credentials\"}"
+      },
+      {
+        "name": "signal: implementation uses @supabase/server",
+        "passed": true,
+        "notes": "no — hand-rolled (raw supabase-js or other)"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/build-functions-005-dual-auth-user-secret.json"
   },
   {
     "experiment": "codex-gpt-5.5",
@@ -7674,6 +8184,76 @@
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5-no-skills/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Missing or invalid credentials\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"5f308a31-c051-48d3-9216-d1e202b0a2ef\",\"metric\":\"steps_a_mrffiyys\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"5f308a31-c051-48d3-9216-d1e202b0a2ef\",\"metric\":\"steps_a_mrffiyys\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"2a3eec51-4527-46fe-95e0-51c67e4d6424\",\"metric\":\"steps_b_mrffiyys\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Missing or invalid credentials\"}"
+      },
+      {
+        "name": "signal: implementation uses @supabase/server",
+        "passed": true,
+        "notes": "no — hand-rolled (raw supabase-js or other)"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5-no-skills/build-functions-005-dual-auth-user-secret.json"
   },
   {
     "experiment": "codex-gpt-5.5-no-skills",
