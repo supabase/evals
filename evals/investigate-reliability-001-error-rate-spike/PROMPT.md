@@ -1,6 +1,7 @@
 ---
 stage: investigate
 suite: other
+interface: mcp
 product:
   - edge-functions
 topic:
