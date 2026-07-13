@@ -330,27 +330,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing credentials\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"2db5aa87-d429-47f1-afd0-deac2c4bcf84\",\"metric\":\"steps_a_mrj64t5u\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"36d34f52-07a0-4e7c-980c-6c72f41a4fae\",\"metric\":\"steps_a_mrj7hvbx\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"2db5aa87-d429-47f1-afd0-deac2c4bcf84\",\"metric\":\"steps_a_mrj64t5u\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"36d34f52-07a0-4e7c-980c-6c72f41a4fae\",\"metric\":\"steps_a_mrj7hvbx\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"337870a4-108f-41dd-a054-4017ee6e0f86\",\"metric\":\"steps_b_mrj64t5u\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"7f351814-7523-4940-9cb2-41c7f04dd554\",\"metric\":\"steps_b_mrj7hvbx\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing credentials\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -367,7 +367,7 @@
         "supabase"
       ]
     },
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8/build-functions-005-dual-auth-user-secret.json"
@@ -1474,27 +1474,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing or invalid credentials\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"a9187cb3-dc13-4964-b705-691ce7ade732\",\"metric\":\"steps_a_mrj650xu\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"7e71fe0f-348f-43c4-81c0-e35cfaa60300\",\"metric\":\"steps_a_mrj7fyd4\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"a9187cb3-dc13-4964-b705-691ce7ade732\",\"metric\":\"steps_a_mrj650xu\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"7e71fe0f-348f-43c4-81c0-e35cfaa60300\",\"metric\":\"steps_a_mrj7fyd4\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"f3603a07-b764-413a-a696-4d134aea63ad\",\"metric\":\"steps_b_mrj650xu\",\"value\":222}]}"
+        "notes": "status 200: [{\"user_id\":\"1439d068-5c50-4d76-9e45-2ae09959082c\",\"metric\":\"steps_b_mrj7fyd4\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing or invalid credentials\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -1506,7 +1506,7 @@
       "available": [],
       "loaded": []
     },
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8-no-skills/build-functions-005-dual-auth-user-secret.json"
@@ -2573,27 +2573,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 401: {\"error\":\"missing bearer token\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"6405560b-6095-4fec-bd72-7f2294b60009\",\"metric\":\"steps_a_mrj65kbw\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"3f710fa7-3208-4e9a-81ca-dbd7763a699f\",\"metric\":\"steps_a_mrj7hsbg\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"6405560b-6095-4fec-bd72-7f2294b60009\",\"metric\":\"steps_a_mrj65kbw\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"3f710fa7-3208-4e9a-81ca-dbd7763a699f\",\"metric\":\"steps_a_mrj7hsbg\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"c54fe989-8d7c-4a32-8cd7-0873ac74ef25\",\"metric\":\"steps_b_mrj65kbw\",\"value\":222}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"0ef8fa83-e6f5-4078-bc42-3c57241ecc88\",\"metric\":\"steps_b_mrj7hsbg\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid credentials\"}"
+        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -2610,7 +2610,7 @@
         "supabase"
       ]
     },
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-functions-005-dual-auth-user-secret.json"
@@ -3717,27 +3717,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"e122c95a-d8b7-432e-bff2-0de59079ce9b\",\"metric\":\"steps_a_mrj660n9\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"568eb50d-5088-454b-8c0a-87c15d847966\",\"metric\":\"steps_a_mrj7e8u0\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"e122c95a-d8b7-432e-bff2-0de59079ce9b\",\"metric\":\"steps_a_mrj660n9\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"568eb50d-5088-454b-8c0a-87c15d847966\",\"metric\":\"steps_a_mrj7e8u0\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"0ae6f31a-a584-44d1-ae45-96fe7c928035\",\"metric\":\"steps_b_mrj660n9\",\"value\":222}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"2da7a077-209b-4322-9f6d-8a9861440fe6\",\"metric\":\"steps_b_mrj7e8u0\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid credentials\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -3749,7 +3749,7 @@
       "available": [],
       "loaded": []
     },
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-functions-005-dual-auth-user-secret.json"
@@ -4817,27 +4817,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"error\":\"missing credentials\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"0cdb488f-d941-4782-bd6e-9985637f5e43\",\"metric\":\"steps_a_mrj66qsa\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"8d76212a-f587-4c56-9b93-d3a596783ef0\",\"metric\":\"steps_a_mrj7esj1\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"0cdb488f-d941-4782-bd6e-9985637f5e43\",\"metric\":\"steps_a_mrj66qsa\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"8d76212a-f587-4c56-9b93-d3a596783ef0\",\"metric\":\"steps_a_mrj7esj1\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"f291ccdd-0208-4521-95b8-9aacc737f109\",\"metric\":\"steps_b_mrj66qsa\",\"value\":222}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"94fb195c-5539-4f7a-94a4-4506bb52e122\",\"metric\":\"steps_b_mrj7esj1\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"error\":\"missing credentials\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -4854,7 +4854,7 @@
         "supabase"
       ]
     },
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/build-functions-005-dual-auth-user-secret.json"
@@ -5968,27 +5968,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"6a3131f4-c01d-488a-93a5-fd804ca7ba21\",\"metric\":\"steps_a_mrj67gt4\",\"value\":111}]"
+        "notes": "status 200: [{\"metric\":\"steps_a_mrj7kpoa\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"6a3131f4-c01d-488a-93a5-fd804ca7ba21\",\"metric\":\"steps_a_mrj67gt4\",\"value\":111}]"
+        "notes": "status 200: [{\"metric\":\"steps_a_mrj7kpoa\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"afc7169c-e5d7-4629-8a9d-a5b4a669d7f3\",\"metric\":\"steps_b_mrj67gt4\",\"value\":222}]"
+        "notes": "status 200: [{\"metric\":\"steps_b_mrj7kpoa\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -6000,9 +6000,9 @@
       "available": [],
       "loaded": []
     },
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/build-functions-005-dual-auth-user-secret.json"
   },
   {
@@ -7070,27 +7070,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing valid credentials\"}"
+        "notes": "status 401: {\"error\":\"Missing or invalid credentials\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"6639eb7b-7ffa-458e-bb0a-f289584e59ad\",\"metric\":\"steps_a_mrj672vf\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"9a52b2da-8afc-48ef-b147-d70757ef1a54\",\"metric\":\"steps_a_mrj7grg8\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"6639eb7b-7ffa-458e-bb0a-f289584e59ad\",\"metric\":\"steps_a_mrj672vf\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"9a52b2da-8afc-48ef-b147-d70757ef1a54\",\"metric\":\"steps_a_mrj7grg8\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"7b6a842b-a0ea-4d52-8b12-70bf531e36f9\",\"metric\":\"steps_b_mrj672vf\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"1efa9aa9-bb58-43b4-b8f2-d65ff1a79fe1\",\"metric\":\"steps_b_mrj7grg8\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing valid credentials\"}"
+        "notes": "status 401: {\"error\":\"Missing or invalid credentials\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -7107,7 +7107,7 @@
         "supabase"
       ]
     },
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5/build-functions-005-dual-auth-user-secret.json"
@@ -8218,27 +8218,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"7be16da8-b12c-4b90-b53b-65c626b534b4\",\"metric\":\"steps_a_mrj65vbg\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"5de88eb6-7ec0-4d45-a05e-b068861e810e\",\"metric\":\"steps_a_mrj7hlq0\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"7be16da8-b12c-4b90-b53b-65c626b534b4\",\"metric\":\"steps_a_mrj65vbg\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"5de88eb6-7ec0-4d45-a05e-b068861e810e\",\"metric\":\"steps_a_mrj7hlq0\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"21ccc91c-d1cc-4dff-a167-a5d6a20a2dda\",\"metric\":\"steps_b_mrj65vbg\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"3ac8e7a5-43cc-4dbb-876d-93699f4ba4f3\",\"metric\":\"steps_b_mrj7hlq0\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -8250,7 +8250,7 @@
       "available": [],
       "loaded": []
     },
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project.\n\nThe database already defines a `user_stats` table with row-level security (see\n`supabase/migrations/`):\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n-- RLS: a user may select only rows where user_id = auth.uid()\n```\n\nThe function serves two kinds of caller and must behave differently for each:\n\n1. **Authenticated end users.** The caller sends their Supabase access token\n   (JWT) in the `Authorization: Bearer <token>` header. Return only that user's\n   own rows. Row-level security must be in force on this path — if the caller\n   passes a `user_id` in the body, ignore it; they may never read another user's\n   rows.\n\n2. **Trusted backend service.** The caller authenticates with the project's\n   service-role secret key sent in the `apikey` header (no user JWT), and passes\n   a target `user_id` in the JSON body. Return that user's rows, bypassing\n   row-level security.\n\nAlso:\n\n3. Reject a request that carries no credentials.\n4. Reject a request whose `apikey` is not the service key and that carries no\n   valid user JWT — it must not be granted service (RLS-bypassing) access.\n5. Return the matched rows as JSON on success.\n\nGet the local stack running so the function is reachable over HTTP at\n`/functions/v1/user-stats`. Note that the service path arrives without a user\nJWT, so the function must accept requests that the platform would otherwise\ngate on JWT verification.",
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5-no-skills/build-functions-005-dual-auth-user-secret.json"
