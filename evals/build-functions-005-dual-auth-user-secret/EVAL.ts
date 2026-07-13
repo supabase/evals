@@ -149,6 +149,35 @@ const scorer: LocalStackScorer = async (ctx) => {
       notes: `status ${anonService.status}: ${preview(anonService.body)}`,
     });
 
+    // 6. Unverified token: a forged, unsigned (alg:none) JWT claiming to be user
+    // B must never return B's rows. Once the function turns off the platform's
+    // JWT verification (which it must, for the service path), verifying the user
+    // token becomes the function's own job — an implementation that decodes the
+    // JWT without checking its signature would trust the forged `sub`.
+    const forged = await invoke(
+      { authorization: `Bearer ${forgeUnsignedToken(bId)}`, apikey: anonKey },
+      {},
+    );
+    checks.push({
+      name: "rejects an unverified (forged) user token",
+      passed: !leaks(forged.body, aMetric, bMetric),
+      notes: `status ${forged.status}: ${preview(forged.body)}`,
+    });
+
+    // 7. Service access requires the actual service key, not merely some
+    // credential in the apikey slot: user A's own JWT placed in `apikey` (with
+    // no service key and no user JWT on the Authorization header) must not be
+    // mistaken for the service key and granted RLS-bypassing access to user B.
+    const apikeyEscalate = await invoke(
+      { apikey: aToken },
+      { user_id: bId },
+    );
+    checks.push({
+      name: "a user token in the apikey slot is not treated as the service key",
+      passed: !apikeyEscalate.body.includes(bMetric),
+      notes: `status ${apikeyEscalate.status}: ${preview(apikeyEscalate.body)}`,
+    });
+
     // Informational (non-gating): did the agent reach for @supabase/server, or
     // hand-roll with raw supabase-js? Always passes; the finding lives in notes.
     checks.push(await serverUsageSignal(ctx));
@@ -171,6 +200,26 @@ function gates(check: CheckResult): boolean {
 
 function leaks(body: string, aMetric: string, bMetric: string): boolean {
   return body.includes(aMetric) || body.includes(bMetric);
+}
+
+/**
+ * Build an unsigned (`alg: none`) JWT that claims to be the given user. Any
+ * correct verifier rejects it (no signature); a decode-only implementation
+ * would trust the `sub` claim and leak that user's rows.
+ */
+function forgeUnsignedToken(userId: string): string {
+  const enc = (o: unknown): string =>
+    Buffer.from(JSON.stringify(o)).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const header = enc({ alg: "none", typ: "JWT" });
+  const payload = enc({
+    sub: userId,
+    role: "authenticated",
+    aud: "authenticated",
+    iat: now,
+    exp: now + 3600,
+  });
+  return `${header}.${payload}.`;
 }
 
 function str(value: unknown): string | undefined {
