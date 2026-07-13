@@ -24,11 +24,19 @@ Every new scenario needs a `motivation:` defined in `PROMPT.md` frontmatter that
 
 For new **benchmark** scenarios, we need to see at least one agent, ideally more, failing the new scenario to ensure we're getting signal from results. If agents are already acing your scenario, consider hardening it with a more ambiguous or misleading prompt, unusual seed data, or subtle footgun. Run locally and review agent failures to ensure they're legitimate reasoning mistakes, not eval framework limitations. We also want to keep benchmarks representative of the user journey. Review the [Evals coverage table](https://app.hex.tech/supabase/app/Evals-033abDlwqlTbW5ktgwFffU/latest) and make sure you're not over-indexing on a niche use case.
 
-## Writing good prompts
+## Writing prompts
 
-Prompts should reflect what a real user would type into their agent. Prompts should NOT reflect deep familiarity with Supabase nor specify every detail of a request, as users should expect agents to fill in the gaps themselves.
+Prompts should reflect what a real user would send to an agent. Prompts should NOT reflect deep familiarity with Supabase nor specify every detail of a request, as users should expect agents to fill in the gaps themselves. They should be short and casual messages, not highly formatted specs.
 
 Instead of spoonfeeding agents in the prompt, move details into seed data to let agents discover context and infer user intent. For example, a seeded database table can help agents resolve the true names of columns or preferred naming conventions for a project, seeded edge functions can provide a template for desired functionality, and inline comments can help explain a project's structure beyond what the code shows.
+
+## Writing scorers
+
+Prefer determinstic checks where possible for stability and efficiency. Avoid being overly presriptive with the process an agent takes to reach a solution (unless critical to the scenario), prefer checking the end state by inspecting the project or filesystem.
+
+If determinstic checks are too inflexible or convoluted, use an LLM-as-a-judge check via `judge()` to check semantic correctness.
+
+Prefer building checks declaratively and returning the list in one place instead of accumulating checks within branching logic, so the list remains stable if one path fails.
 
 ## Adding an experiment
 
