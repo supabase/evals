@@ -25,18 +25,6 @@ cp .env.example .env
 
 Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
 
-Run one eval:
-
-```bash
-pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment claude-code-sonnet-5
-```
-
-View results in the web app at `http://localhost:5173`:
-
-```bash
-pnpm web
-```
-
 ## Concepts
 
 - An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
@@ -47,23 +35,28 @@ pnpm web
 - A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
 - `platform-lite` exposes a Supabase Management API-compatible HTTP surface backed by [`@supabase/lite`](https://github.com/supabase/supabase-lite), so real tools like `@supabase/mcp-server-supabase` can run against a lightweight project.
 
-## Common Workflows
-
-### Add an eval
-
-1. Add a folder under `evals/`.
-2. Add `PROMPT.md` with frontmatter metadata and the task the agent sees.
-3. Add `EVAL.ts` with the scorer.
-4. Add `remote/` data if the scenario needs hosted-project state (database, logs, functions).
-5. Add `local/` files if the agent starts from an existing workspace (the app or repo it edits).
-
-### Add an experiment
-
-Add a file under `experiments/` for the agent/model/runtime setup you want to compare. Set `suite: ["benchmark"]` or another experiment suite value so the runner and results UI can group comparable experiments.
-
-### Run evals
+## Running evals
 
 Running evals executes experiment x eval pairs and writes local result files under `results/`.
+
+Run a single eval with one experiment:
+
+```bash
+pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment claude-code-sonnet-5
+```
+
+
+Run selected evals across multiple experiments:
+
+```bash
+pnpm eval -- \
+  --experiment claude-code-sonnet-5 \
+  --experiment claude-code-opus-4.8 \
+  --eval resolve-dataapi-001-empty-results \
+  --eval investigate-auth-001-deleted-user-access
+```
+
+`--suite`, `--experiment-suite`, `--experiment`, and `--eval` accept multiple inputs via repeated flags as well as comma-separated values.
 
 Run all benchmark and no-skills experiments across all benchmark evals:
 
@@ -71,22 +64,18 @@ Run all benchmark and no-skills experiments across all benchmark evals:
 pnpm eval -- --suite benchmark --experiment-suite benchmark,no-skills
 ```
 
-Narrow to specific evals or experiments (flags are repeatable):
+### View results in the web app
+
+After running evals locally, export their results to `eval-results.json` for the web app:
 
 ```bash
-pnpm eval -- \
-  --suite benchmark \
-  --experiment-suite benchmark \
-  --experiment claude-code-sonnet-5 \
-  --experiment claude-code-opus-4.8 \
-  --eval resolve-dataapi-001-empty-results \
-  --eval investigate-auth-001-deleted-user-access
+pnpm export-results
 ```
 
-Or run everything:
+Start the web app development server:
 
 ```bash
-pnpm eval
+pnpm web
 ```
 
 ## Eval Shape
@@ -118,7 +107,6 @@ motivation: AI-123
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
 `suite` is required on every eval (`benchmark`, `regression`, or `other`). Run an eval suite with `--suite regression` / `--suite other`. Select experiment suites separately with `--experiment-suite benchmark` or `--experiment-suite no-skills`.
-Benchmark evals should include `motivation` with the issue or other reference that explains why the scenario belongs in the suite.
 
 ## Eval Modes
 
@@ -165,3 +153,7 @@ pnpm check
 ```
 
 Runs typechecks plus local smoke tests.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidance on adding evals and experiments, and submitting changes.
