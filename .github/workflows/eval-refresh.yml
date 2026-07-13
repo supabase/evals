@@ -339,11 +339,14 @@ jobs:
           set -euo pipefail
 
           mkdir -p results
-          for artifact_dir in downloaded-results/raw-results-*/; do
-            [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. results/
-          done
-
           pairs='${{ needs.prepare.outputs.pairs }}'
+          while IFS= read -r experiment; do
+            mkdir -p "results/$experiment"
+            for artifact_dir in "downloaded-results/raw-results-${experiment}__"*/; do
+              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
+            done
+          done < <(jq -r '.[].experiment' <<< "$pairs" | sort -u)
+
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
             export_args=(--suite benchmark --output apps/web/src/data/eval-results.json)
             if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
