@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-07-13T21:45:45Z",
-  "evaluatedSha": "f83d51d44f9f86b856fcc1925ad1ca34dd4f903b",
+  "generatedAt": "2026-07-13T23:31:12Z",
+  "evaluatedSha": "499586e64e24b771b38ffcca9af26f9d6673617e",
   "results": [
     {
       "experiment": "claude-code-sonnet-5",
@@ -31,7 +31,7 @@
         {
           "name": "did not recommend read replicas for Realtime",
           "passed": true,
-          "judgeNotes": "The answer correctly treats the request as a Supabase Realtime/Postgres Changes setup, adds the messages table to the supabase_realtime publication, provides postgres_changes client code, and does not recommend or imply read replicas are needed or useful."
+          "judgeNotes": "The answer treats the request as Supabase Realtime/Postgres Changes setup, adds public.messages to the supabase_realtime publication, provides a postgres_changes client snippet, and does not recommend read replicas or confuse them with logical replication/publications."
         }
       ],
       "skills": {
@@ -115,7 +115,7 @@
         {
           "name": "diagnosed secure default grants without weakening RLS",
           "passed": true,
-          "judgeNotes": "The answer correctly identifies secure-by-default Data API/table grant behavior as the root cause, distinguishes grants from RLS, notes existing owner-scoped RLS policies are correct, grants SELECT and INSERT only to authenticated, avoids anon/public, and keeps RLS intact."
+          "judgeNotes": "The answer correctly diagnoses missing table-level grants/Data API exposure separate from RLS, preserves existing owner-scoped RLS, grants only SELECT and INSERT on public.journal_entries to authenticated, does not grant anon/public, and keeps RLS enabled with verification."
         }
       ],
       "skills": {
@@ -155,7 +155,7 @@
         {
           "name": "answered unhealthy project recovery question safely",
           "passed": true,
-          "judgeNotes": "The answer correctly rejects pause/restore as the first recovery step, distinguishes restart from restore/pause, recommends restart as the immediate concrete step, and suggests follow-up checks like logs/advisors and scaling/performance tuning if recurring."
+          "judgeNotes": "The answer clearly says not to use pause/restore first, recommends restart as the first recovery step, distinguishes restart from pause/restore, mentions resource constraints/tuning and support, and points to Supabase troubleshooting docs. It could more explicitly define restore as backup/data recovery and include logs/waiting steps, but it provides concrete safe recovery guidance."
         }
       ],
       "skills": {
