@@ -139,6 +139,8 @@ Local-stack evals require a running Docker daemon. Each attempt boots a fresh sa
 
 An eval's optional `local/` directory is copied into the sandbox workspace before the agent starts. A `services:` frontmatter list declares which local-stack services the scenario needs (e.g. `gotrue`, `kong`, `postgrest`); every other service is excluded from `supabase start` — including when the agent runs it itself — to keep stack boots fast. An empty list (`services: []`) starts only the database; omit the key entirely to start the full stack.
 
+Set `cliVersion: 2.109.1` in an eval's frontmatter when it requires a specific Supabase CLI release. This overrides an experiment's `localStackRuntime({ cliVersion })` setting; otherwise the runtime setting or repository-wide default applies.
+
 Scorers check what the agent produced, never what the harness provisioned: with `projectRunning: true` (the default) the running stack and the seeded `local/` workspace are setup, so score only the deltas the agent made on top; with `projectRunning: false` the agent creates that state itself, so depending on it is fair game.
 
 Test the sandbox plumbing without an agent run (Docker required, not part of `pnpm check`):
