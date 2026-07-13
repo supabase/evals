@@ -47,7 +47,7 @@ export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 export const experimentSuiteSchema = z.enum([
   "benchmark",
   "no-skills",
-  "regression",
+  "regression", "server"
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
@@ -157,8 +157,8 @@ const normalizeToken = (value: string): string =>
 // so the strict schema below rejects them with a clear error.
 const toToken = (value: unknown): unknown =>
   typeof value === "string" ||
-  typeof value === "number" ||
-  typeof value === "boolean"
+    typeof value === "number" ||
+    typeof value === "boolean"
     ? normalizeToken(String(value))
     : value;
 
@@ -180,8 +180,8 @@ const toServiceList = (value: unknown): unknown =>
   (Array.isArray(value) ? value : [value])
     .map((item) =>
       typeof item === "string" ||
-      typeof item === "number" ||
-      typeof item === "boolean"
+        typeof item === "number" ||
+        typeof item === "boolean"
         ? String(item).trim().toLowerCase()
         : item,
     )

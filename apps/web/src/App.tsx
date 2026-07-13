@@ -154,12 +154,13 @@ const AGENT_LABELS = {
   codex: "Codex",
 } satisfies Record<ExperimentDisplay["agent"], string>
 
-const EXPERIMENT_SUITES = ["benchmark", "no-skills"] as const
+const EXPERIMENT_SUITES = ["benchmark", "no-skills", "server"] as const
 type SelectedExperimentSuite = (typeof EXPERIMENT_SUITES)[number]
 
 const EXPERIMENT_SUITE_LABELS = {
   benchmark: "Benchmark",
   "no-skills": "Without skills",
+  server: "@supabase/server",
 } satisfies Record<SelectedExperimentSuite, string>
 
 function ExperimentSuiteControl({
