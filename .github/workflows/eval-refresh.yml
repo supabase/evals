@@ -37,6 +37,8 @@ on:
         type: boolean
         required: false
         default: false
+  schedule:
+    - cron: '15 6 * * *'
   pull_request:
     # Run whenever a PR carrying the run-evals label is opened, pushed to, or
     # receives the run-evals label. The job-level `if` gates on those cases.
@@ -56,6 +58,7 @@ jobs:
   prepare:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
         (contains(github.event.pull_request.labels.*.name, 'run-evals') ||
          contains(github.event.pull_request.labels.*.name, 'run-evals-changed')) &&
@@ -65,14 +68,10 @@ jobs:
          github.event.label.name == 'run-evals-changed'))
     runs-on: ubuntu-latest
     outputs:
-      experiments: ${{ steps.discover-experiments.outputs.experiments }}
-      eval: ${{ steps.inputs.outputs.eval }}
-      evals: ${{ steps.discover.outputs.evals }}
-      suite: ${{ steps.inputs.outputs.suite }}
-      experiment_suite: ${{ steps.inputs.outputs.experiment_suite }}
+      pairs: ${{ steps.discover.outputs.pairs }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
-      filter_changed: ${{ steps.inputs.outputs.filter_changed }}
+      scope: ${{ steps.inputs.outputs.scope }}
       do_merge: ${{ steps.inputs.outputs.do_merge }}
     steps:
       - name: Prepare inputs
@@ -88,11 +87,18 @@ jobs:
             experiment_suite="${{ inputs.experiment_suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            experiments_override=""
+            eval_id=""
+            suite="regression"
+            experiment_suite="regression"
+            runs="2"
+            timeout_sec="720"
           else
             experiments_override=""
             eval_id=""
-            suite="benchmark"
-            experiment_suite="benchmark,no-skills"
+            suite="benchmark,regression"
+            experiment_suite="benchmark,no-skills,regression"
             runs="2"
             timeout_sec="720"
           fi
@@ -101,17 +107,16 @@ jobs:
           experiment_suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiment_suite")"
 
           # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
-          # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
-          filter_changed="false"
+          scope="all"
           if [ "${{ github.event_name }}" = "pull_request" ] && \
              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-changed') }}" = "true" ] && \
              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals') }}" = "false" ]; then
-            filter_changed="true"
+            scope="changed"
           fi
 
           # do_merge drives the export --merge (graft into existing results). It's
           # always on for the changed path, and opt-in for manual dispatch.
-          do_merge="$filter_changed"
+          do_merge="$([ "$scope" = "changed" ] && echo true || echo false)"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.merge }}" = "true" ]; then
             do_merge="true"
           fi
@@ -123,7 +128,7 @@ jobs:
             echo "experiment_suite=$experiment_suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
-            echo "filter_changed=$filter_changed"
+            echo "scope=$scope"
             echo "do_merge=$do_merge"
           } >> "$GITHUB_OUTPUT"
 
@@ -144,29 +149,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Discover experiments
-        id: discover-experiments
-        shell: bash
-        run: |
-          set -euo pipefail
-          touch .env
-          experiments_override="${{ steps.inputs.outputs.experiments_override }}"
-          if [ -n "$experiments_override" ]; then
-            experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
-          else
-            experiment_suite_args=()
-            while IFS= read -r s; do
-              experiment_suite_args+=("--experiment-suite" "$s")
-            done < <(jq -r '.[]' <<< '${{ steps.inputs.outputs.experiment_suite }}')
-            experiments_json="$(pnpm --silent eval -- list "${experiment_suite_args[@]}")"
-          fi
-          if [ "$(echo "$experiments_json" | jq 'length')" -eq 0 ]; then
-            echo "No experiments found for experiment suites: ${{ steps.inputs.outputs.experiment_suite }}" >&2
-            exit 1
-          fi
-          echo "experiments=$experiments_json" >> "$GITHUB_OUTPUT"
-
-      - name: Discover evals
+      - name: Discover eval pairs
         id: discover
         env:
           GH_TOKEN: ${{ github.token }}
@@ -174,40 +157,35 @@ jobs:
         run: |
           set -euo pipefail
 
+          touch .env
+          suite_json='${{ steps.inputs.outputs.suite }}'
           eval_ids="${{ steps.inputs.outputs.eval }}"
           if [ -n "$eval_ids" ]; then
-            evals_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$eval_ids")"
-            echo "evals=$evals_json" >> "$GITHUB_OUTPUT"
-            exit 0
+            matching=()
+            while IFS= read -r id; do
+              [ -d "evals/$id" ] && matching+=("$id")
+            done < <(jq -r 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | .[]' <<< "$eval_ids")
+          else
+            matching=()
+            for dir in evals/*/; do
+              [ -d "$dir" ] || continue
+              id=$(basename "$dir")
+              prompt="$dir/PROMPT.md"
+              [ -f "$prompt" ] || continue
+              suite_val=$(sed -n 's/^suite:[[:space:]]*//p' "$prompt" | head -n 1)
+              if jq -e --arg s "$suite_val" 'index($s) != null' <<< "$suite_json" > /dev/null 2>&1; then
+                matching+=("$id")
+              fi
+            done
           fi
 
-          suite_json='${{ steps.inputs.outputs.suite }}'
-          matching=()
-          for dir in evals/*/; do
-            [ -d "$dir" ] || continue
-            id=$(basename "$dir")
-            prompt="$dir/PROMPT.md"
-            [ -f "$prompt" ] || continue
-            suite_val=$(sed -n 's/^suite:[[:space:]]*//p' "$prompt" | head -n 1)
-            suite_val="${suite_val:-regression}"
-            if jq -e --arg s "$suite_val" 'index($s) != null' <<< "$suite_json" > /dev/null 2>&1; then
-              matching+=("$id")
-            fi
-          done
-
-          if [ "${#matching[@]}" -eq 0 ]; then
-            echo "No evals found for suites: $suite_json" >&2
-            exit 1
-          fi
-
-          # Filter to only changed eval dirs when run-evals-changed label is active
-          if [ "${{ steps.inputs.outputs.filter_changed }}" = "true" ]; then
+          if [ "${{ steps.inputs.outputs.scope }}" = "changed" ]; then
             changed_evals=$(gh pr diff ${{ github.event.pull_request.number }} --name-only \
               | grep '^evals/' | cut -d/ -f2 | sort -u || true)
 
             if [ -z "$changed_evals" ]; then
               echo "No eval directories changed in this PR — nothing to run"
-              echo "evals=[]" >> "$GITHUB_OUTPUT"
+              echo "pairs=[]" >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
@@ -223,22 +201,59 @@ jobs:
 
           if [ "${#matching[@]}" -eq 0 ]; then
             echo "Changed evals don't match requested suites: $suite_json"
-            echo "evals=[]" >> "$GITHUB_OUTPUT"
+            echo "pairs=[]" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          evals_json=$(printf '%s\n' "${matching[@]}" | jq -Rcs 'split("\n") | map(select(length > 0))')
-          echo "evals=$evals_json" >> "$GITHUB_OUTPUT"
+          pairs='[]'
+          experiments_override="${{ steps.inputs.outputs.experiments_override }}"
+          for id in "${matching[@]}"; do
+            eval_suite=$(sed -n 's/^suite:[[:space:]]*//p' "evals/$id/PROMPT.md" | head -n 1)
+            case "$eval_suite" in
+              benchmark) experiment_suites=(benchmark no-skills) ;;
+              regression) experiment_suites=(regression) ;;
+              *) continue ;;
+            esac
+
+            for experiment_suite in "${experiment_suites[@]}"; do
+              if ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
+                <<< '${{ steps.inputs.outputs.experiment_suite }}' > /dev/null; then
+                continue
+              fi
+
+              if [ -n "$experiments_override" ]; then
+                experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
+              else
+                experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite")"
+              fi
+
+              while IFS= read -r experiment; do
+                pairs="$(jq -c \
+                  --arg eval_id "$id" \
+                  --arg experiment "$experiment" \
+                  --arg experiment_suite "$experiment_suite" \
+                  --arg eval_suite "$eval_suite" \
+                  '. + [{eval_id: $eval_id, experiment: $experiment, experiment_suite: $experiment_suite, eval_suite: $eval_suite}]' \
+                  <<< "$pairs")"
+              done < <(jq -r '.[]' <<< "$experiments_json")
+            done
+          done
+
+          if [ "$(jq 'length' <<< "$pairs")" -eq 0 ]; then
+            echo "No experiment and eval pairs matched" >&2
+            exit 1
+          fi
+
+          echo "pairs=$pairs" >> "$GITHUB_OUTPUT"
 
   run-evals:
     needs: prepare
-    if: needs.prepare.outputs.evals != '[]'
+    if: needs.prepare.outputs.pairs != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        experiment: ${{ fromJSON(needs.prepare.outputs.experiments) }}
-        eval_id: ${{ fromJSON(needs.prepare.outputs.evals) }}
+        include: ${{ fromJSON(needs.prepare.outputs.pairs) }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -278,6 +293,7 @@ jobs:
 
           pnpm eval -- \
             --experiment "${{ matrix.experiment }}" \
+            --experiment-suite "${{ matrix.experiment_suite }}" \
             --eval "${{ matrix.eval_id }}" \
             --runs "${{ needs.prepare.outputs.runs }}" \
             --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
@@ -291,7 +307,7 @@ jobs:
 
   publish-results:
     needs: [prepare, run-evals]
-    if: needs.prepare.outputs.evals != '[]'
+    if: needs.prepare.outputs.pairs != '[]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -317,52 +333,66 @@ jobs:
         with:
           path: downloaded-results
 
-      - name: Export web results
+      - name: Export results
         shell: bash
         run: |
           set -euo pipefail
 
           mkdir -p results
-          export_args=()
-          while IFS= read -r experiment; do
-            mkdir -p "results/$experiment"
-            for artifact_dir in "downloaded-results/raw-results-${experiment}__"*/; do
-              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
-            done
-            export_args+=("--experiment" "$experiment")
-          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiments }}')
+          for artifact_dir in downloaded-results/raw-results-*/; do
+            [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. results/
+          done
 
-          while IFS= read -r suite; do
-            export_args+=("--suite" "$suite")
-          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.suite }}')
-
-          while IFS= read -r experiment_suite; do
-            export_args+=("--experiment-suite" "$experiment_suite")
-          done < <(jq -r '.[]' <<< '${{ needs.prepare.outputs.experiment_suite }}')
-
-          if [ -n "${{ needs.prepare.outputs.eval }}" ]; then
-            export_args+=("--eval" "${{ needs.prepare.outputs.eval }}")
+          pairs='${{ needs.prepare.outputs.pairs }}'
+          if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
+            export_args=(--suite benchmark --output apps/web/src/data/eval-results.json)
+            if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
+              export_args+=(--merge)
+            fi
+            pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
           fi
 
-          if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
-            export_args+=("--merge")
-          fi
+          if jq -e 'any(.[]; .eval_suite == "regression")' <<< "$pairs" > /dev/null; then
+            output=apps/web/src/data/regression-eval-results.json
+            pnpm --filter @supabase-evals/framework export-results -- \
+              --suite regression \
+              --output "$output"
 
-          pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
+            jq -n \
+              --arg generated_at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+              --arg evaluated_sha "$(git rev-parse HEAD)" \
+              --arg scope "${{ needs.prepare.outputs.scope }}" \
+              --slurpfile results "$output" \
+              '{generatedAt: $generated_at, evaluatedSha: $evaluated_sha, scope: $scope, results: $results[0]}' \
+              > "$output.tmp"
+            mv "$output.tmp" "$output"
+          fi
 
       - name: Upload exported results
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: eval-results-json
-          path: apps/web/src/data/eval-results.json
+          path: apps/web/src/data/*eval-results.json
+          if-no-files-found: error
           retention-days: 7
+
+      - name: Generate GitHub App token
+        id: generate-token
+        if: >-
+          github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch)
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
       - name: Commit exported results to branch
         # PR runs commit to the PR head branch. Manual dispatch commits to the
         # selected branch only when commit_to_branch is enabled.
         if: >-
           github.event_name == 'pull_request' ||
+          github.event_name == 'schedule' ||
           (github.event_name == 'workflow_dispatch' && inputs.commit_to_branch)
         shell: bash
         run: |
@@ -372,7 +402,9 @@ jobs:
           # github-actions[bot]'s noreply email uses its public user ID: https://github.com/actions/checkout#push-a-commit-using-the-built-in-token
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add apps/web/src/data/eval-results.json
+          for result_file in apps/web/src/data/*eval-results.json; do
+            [ -f "$result_file" ] && git add "$result_file"
+          done
 
           if git diff --cached --quiet; then
             echo "No eval result changes to commit"
@@ -380,22 +412,21 @@ jobs:
           fi
 
           git commit -m "chore: refresh eval results"
-          git push
-
-      - name: Generate GitHub App token
-        id: generate-token
-        if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # GITHUB_TOKEN pushes do not trigger the gh-pages push workflow:
+            # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow
+            git remote set-url origin https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/${{ github.repository }}
+            git push origin HEAD:main
+          else
+            git push
+          fi
 
       - name: Create results pull request
         if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.generate-token.outputs.token }}
-          add-paths: apps/web/src/data/eval-results.json
+          add-paths: apps/web/src/data/*eval-results.json
           # Per-base head branch so a branch refresh PR can't collide with main's.
           branch: chore/refresh-eval-results-${{ github.ref_name }}
           base: ${{ github.ref_name }}
