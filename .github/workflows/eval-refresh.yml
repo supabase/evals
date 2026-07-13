@@ -364,9 +364,8 @@ jobs:
             jq -n \
               --arg generated_at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
               --arg evaluated_sha "$(git rev-parse HEAD)" \
-              --arg scope "${{ needs.prepare.outputs.scope }}" \
               --slurpfile results "$output" \
-              '{generatedAt: $generated_at, evaluatedSha: $evaluated_sha, scope: $scope, results: $results[0]}' \
+              '{generatedAt: $generated_at, evaluatedSha: $evaluated_sha, results: $results[0]}' \
               > "$output.tmp"
             mv "$output.tmp" "$output"
           fi
