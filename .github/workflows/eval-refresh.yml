@@ -310,11 +310,25 @@ jobs:
     if: needs.prepare.outputs.pairs != '[]'
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        # A GitHub App token is needed so the push below can trigger the
+        # gh-pages workflow: GITHUB_TOKEN pushes don't trigger other workflows.
+        # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow
+        if: >-
+          github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch)
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           submodules: recursive
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -379,16 +393,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Generate GitHub App token
-        id: generate-token
-        if: >-
-          github.event_name == 'schedule' ||
-          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch)
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-
       - name: Commit exported results to branch
         # PR runs commit to the PR head branch. Manual dispatch commits to the
         # selected branch only when commit_to_branch is enabled.
@@ -414,14 +418,7 @@ jobs:
           fi
 
           git commit -m "chore: refresh eval results"
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            # GITHUB_TOKEN pushes do not trigger the gh-pages push workflow:
-            # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow
-            git remote set-url origin https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/${{ github.repository }}
-            git push origin HEAD:main
-          else
-            git push
-          fi
+          git push
 
       - name: Create results pull request
         if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch

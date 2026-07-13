@@ -67,15 +67,8 @@ const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const MERGE = rawArgs.includes("--merge");
 
-/** Reads an optional export destination relative to the repository root. */
-function readOutputPath(): string {
-  const inline = rawArgs.find((arg) => arg.startsWith("--output="));
-  const value =
-    inline?.slice("--output=".length) ?? readRepeatedFlag(rawArgs, "output")[0];
-  return value ? resolve(ROOT, value) : OUTPUT_PATH;
-}
-
-const outputPath = readOutputPath();
+const OUTPUT_FLAG = readRepeatedFlag(rawArgs, "output")[0];
+const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
 
 async function readPrompt(evalId: string) {
   const promptPath = resolve(EVALS_DIR, evalId, "PROMPT.md");
