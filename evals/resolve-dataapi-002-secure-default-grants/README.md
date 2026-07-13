@@ -3,7 +3,7 @@
 This eval intentionally omits `[api].auto_expose_new_tables` from `supabase/config.toml`.
 With the latest Supabase CLI, an unset value is the secure-by-default behavior: new entities in `public` are not exposed through Data API roles until explicit `GRANT`s are issued.
 
-The seed migration already enables RLS and creates owner-scoped SELECT/INSERT policies. The intended missing piece is the Data API table grant layer.
+The `journal_entries` seed migration already enables RLS and creates owner-scoped SELECT/INSERT policies. The intended missing piece is the Data API table grant layer.
 
 Reference:
 

@@ -9,9 +9,9 @@ import {
 import { stripIndent } from "common-tags";
 
 const PASSWORD = "secret123";
-const BOOKMARK_A1 = "a bookmark alpha";
-const BOOKMARK_A2 = "a bookmark beta";
-const BOOKMARK_B = "b bookmark gamma";
+const ENTRY_A1 = "morning reflection";
+const ENTRY_A2 = "weekend plans";
+const ENTRY_B = "project notes";
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -26,10 +26,10 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkAuthenticatedGrants(ctx),
       await checkAnonNotGranted(ctx),
       await checkRlsStillEnabled(ctx),
-      await checkUserAReadsOwnBookmarks(users),
-      await checkUserBCannotReadUserABookmarks(users),
-      await checkAnonReadsNoBookmarks(ctx),
-      await checkUserACanSaveNewBookmark(users),
+      await checkUserAReadsOwnEntries(users),
+      await checkUserBCannotReadUserAEntries(users),
+      await checkAnonReadsNoEntries(ctx),
+      await checkUserACanSaveNewEntry(users),
       await checkUserBCannotInsertAsUserA(ctx, users),
       await checkSecureDefaultDiagnosisAndFix(ctx),
     ];
@@ -62,7 +62,7 @@ type TestUsers = {
   userBId: string;
 };
 
-/** Creates two signed-in clients and seeds bookmarks for ownership checks. */
+/** Creates two signed-in clients and seeds journal entries for ownership checks. */
 async function setupTestUsers(
   ctx: LocalStackEvalContext,
 ): Promise<{ users: TestUsers } | { failure: CheckResult }> {
@@ -101,10 +101,10 @@ async function setupTestUsers(
   await execSql(
     ctx,
     stripIndent`
-      INSERT INTO bookmarks (user_id, title, url) VALUES
-        ('${userAId}', '${BOOKMARK_A1}', 'https://example.com/a1'),
-        ('${userAId}', '${BOOKMARK_A2}', 'https://example.com/a2'),
-        ('${userBId}', '${BOOKMARK_B}', 'https://example.com/b');
+      INSERT INTO journal_entries (user_id, title, body) VALUES
+        ('${userAId}', '${ENTRY_A1}', 'A quiet start to the day.'),
+        ('${userAId}', '${ENTRY_A2}', 'Ideas for Saturday and Sunday.'),
+        ('${userBId}', '${ENTRY_B}', 'Notes from the latest project review.');
     `,
   );
 
@@ -146,39 +146,39 @@ async function execSql(ctx: LocalStackEvalContext, sql: string): Promise<void> {
   }
 }
 
-/** Checks that authenticated clients can reach bookmarks through PostgREST. */
+/** Checks that authenticated clients can reach journal entries through PostgREST. */
 async function checkAuthenticatedGrants(
   ctx: LocalStackEvalContext,
 ): Promise<CheckResult> {
   const { rows } = await ctx.query(
     stripIndent`
       SELECT
-        has_table_privilege('authenticated', 'public.bookmarks', 'SELECT') AS can_select,
-        has_table_privilege('authenticated', 'public.bookmarks', 'INSERT') AS can_insert;
+        has_table_privilege('authenticated', 'public.journal_entries', 'SELECT') AS can_select,
+        has_table_privilege('authenticated', 'public.journal_entries', 'INSERT') AS can_insert;
     `,
   );
 
   return {
-    name: "authenticated has explicit bookmarks SELECT and INSERT grants",
+    name: "authenticated has explicit journal_entries SELECT and INSERT grants",
     passed: rows[0]?.can_select === true && rows[0]?.can_insert === true,
     notes: `can_select=${String(rows[0]?.can_select)}, can_insert=${String(rows[0]?.can_insert)}`,
   };
 }
 
-/** Checks that signed-out clients were not granted bookmark access. */
+/** Checks that signed-out clients were not granted journal entry access. */
 async function checkAnonNotGranted(
   ctx: LocalStackEvalContext,
 ): Promise<CheckResult> {
   const { rows } = await ctx.query(
     stripIndent`
       SELECT
-        has_table_privilege('anon', 'public.bookmarks', 'SELECT') AS can_select,
-        has_table_privilege('anon', 'public.bookmarks', 'INSERT') AS can_insert;
+        has_table_privilege('anon', 'public.journal_entries', 'SELECT') AS can_select,
+        has_table_privilege('anon', 'public.journal_entries', 'INSERT') AS can_insert;
     `,
   );
 
   return {
-    name: "anon does not have bookmarks SELECT or INSERT grants",
+    name: "anon does not have journal_entries SELECT or INSERT grants",
     passed: rows[0]?.can_select === false && rows[0]?.can_insert === false,
     notes: `can_select=${String(rows[0]?.can_select)}, can_insert=${String(rows[0]?.can_insert)}`,
   };
@@ -189,60 +189,60 @@ async function checkRlsStillEnabled(
   ctx: LocalStackEvalContext,
 ): Promise<CheckResult> {
   const { rows } = await ctx.query(
-    `SELECT relrowsecurity FROM pg_class WHERE relname = 'bookmarks';`,
+    `SELECT relrowsecurity FROM pg_class WHERE relname = 'journal_entries';`,
   );
 
   return {
-    name: "RLS still enabled on bookmarks",
+    name: "RLS still enabled on journal_entries",
     passed: rows[0]?.relrowsecurity === true,
   };
 }
 
-/** Checks that a signed-in user can read only their own bookmarks. */
-async function checkUserAReadsOwnBookmarks(
+/** Checks that a signed-in user can read only their own journal entries. */
+async function checkUserAReadsOwnEntries(
   users: TestUsers,
 ): Promise<CheckResult> {
   const { data, error } = await users.clientA
-    .from("bookmarks")
+    .from("journal_entries")
     .select("title,user_id")
     .order("title");
 
   return {
-    name: "user A reads own bookmarks",
+    name: "user A reads own journal entries",
     passed:
       !error &&
       data?.length === 2 &&
-      data[0]?.title === BOOKMARK_A1 &&
-      data[1]?.title === BOOKMARK_A2 &&
+      data[0]?.title === ENTRY_A1 &&
+      data[1]?.title === ENTRY_A2 &&
       data.every((row) => row.user_id === users.userAId),
     notes: error?.message,
   };
 }
 
-/** Checks that one signed-in user cannot read another user's bookmarks. */
-async function checkUserBCannotReadUserABookmarks(
+/** Checks that one signed-in user cannot read another user's journal entries. */
+async function checkUserBCannotReadUserAEntries(
   users: TestUsers,
 ): Promise<CheckResult> {
   const { data, error } = await users.clientB
-    .from("bookmarks")
+    .from("journal_entries")
     .select("id")
-    .eq("title", BOOKMARK_A1);
+    .eq("title", ENTRY_A1);
 
   return {
-    name: "user B cannot read user A bookmarks",
+    name: "user B cannot read user A journal entries",
     passed: !error && Array.isArray(data) && data.length === 0,
   };
 }
 
-/** Checks that signed-out clients cannot read bookmarks. */
-async function checkAnonReadsNoBookmarks(
+/** Checks that signed-out clients cannot read journal entries. */
+async function checkAnonReadsNoEntries(
   ctx: LocalStackEvalContext,
 ): Promise<CheckResult> {
   const anonClient = await ctx.getClient();
-  const { data, error } = await anonClient.from("bookmarks").select("id");
+  const { data, error } = await anonClient.from("journal_entries").select("id");
 
   return {
-    name: "anon reads no bookmarks",
+    name: "anon reads no journal entries",
     passed: error?.code === "42501" || data?.length === 0,
     notes: error
       ? `error ${error.code}: ${error.message}`
@@ -250,45 +250,45 @@ async function checkAnonReadsNoBookmarks(
   };
 }
 
-/** Checks that a signed-in user can create an owned bookmark. */
-async function checkUserACanSaveNewBookmark(
+/** Checks that a signed-in user can create an owned journal entry. */
+async function checkUserACanSaveNewEntry(
   users: TestUsers,
 ): Promise<CheckResult> {
   const { data, error } = await users.clientA
-    .from("bookmarks")
-    .insert({ title: "a bookmark delta", url: "https://example.com/a3" })
+    .from("journal_entries")
+    .insert({ title: "travel ideas", body: "Places to visit next spring." })
     .select("title,user_id");
 
   return {
-    name: "user A can save a new bookmark",
+    name: "user A can save a new journal entry",
     passed:
       !error &&
       data?.length === 1 &&
-      data[0]?.title === "a bookmark delta" &&
+      data[0]?.title === "travel ideas" &&
       data[0]?.user_id === users.userAId,
     notes: error?.message,
   };
 }
 
-/** Checks that one signed-in user cannot create a bookmark for another user. */
+/** Checks that one signed-in user cannot create a journal entry for another user. */
 async function checkUserBCannotInsertAsUserA(
   ctx: LocalStackEvalContext,
   users: TestUsers,
 ): Promise<CheckResult> {
   await users.clientB
-    .from("bookmarks")
+    .from("journal_entries")
     .insert({
       user_id: users.userAId,
       title: "planted by user B",
-      url: "https://example.com/planted",
+      body: "This should not be allowed.",
     })
     .select("id");
   const { rows } = await ctx.query(
-    `SELECT count(*)::int AS count FROM bookmarks WHERE title = 'planted by user B';`,
+    `SELECT count(*)::int AS count FROM journal_entries WHERE title = 'planted by user B';`,
   );
 
   return {
-    name: "user B cannot insert a bookmark as user A",
+    name: "user B cannot insert a journal entry as user A",
     passed: rows[0]?.count === 0,
   };
 }
@@ -307,9 +307,9 @@ async function checkSecureDefaultDiagnosisAndFix(
       A passing answer should:
       - Diagnose that the project has api.auto_expose_new_tables disabled or equivalent secure-by-default behavior, so SQL-created tables need explicit grants before authenticated clients can use them through the Data API.
       - Distinguish Data API table privileges from RLS. Grants make the table reachable; RLS policies decide which rows signed-in users can see or insert.
-      - Notice that the bookmarks table already has owner-scoped SELECT and INSERT RLS policies, or at least avoid blaming the whole issue on missing RLS policies.
-      - Grant SELECT and INSERT on public.bookmarks to authenticated, not anon or public.
-      - Keep RLS enabled on the bookmarks table.
+      - Notice that the journal_entries table already has owner-scoped SELECT and INSERT RLS policies, or at least avoid blaming the whole issue on missing RLS policies.
+      - Grant SELECT and INSERT on public.journal_entries to authenticated, not anon or public.
+      - Keep RLS enabled on the journal_entries table.
 
       Fail if the assistant only adds or edits RLS policies without addressing missing grants, disables RLS, grants access to anon/public, creates permissive policies such as USING (true), claims the core problem is missing RLS policies, blames the empty results only on data/query/connection problems, or never recognizes the secure-by-default Data API exposure behavior.
     `,

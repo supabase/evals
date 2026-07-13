@@ -16,6 +16,6 @@ services:
 motivation: AI-914, AI-667
 ---
 
-Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private. A user should only ever see their own, and they need to be able to save new bookmarks from the app.
+Our app lets signed-in users keep a private journal. Entries are stored in the `journal_entries` table. A user should only ever see their own, and they need to be able to create new entries from the app.
 
-I can see the rows when I query the table directly, but the dashboard shows an empty list for every signed-in user. New bookmarks don't show up after saving either. Please figure out why and fix it.
+I can see the rows when I query the table directly, but the journal page shows an empty list for every signed-in user. New entries don't show up after saving either. Please figure out why and fix it.
