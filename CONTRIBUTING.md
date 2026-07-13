@@ -32,9 +32,9 @@ Instead of spoonfeeding agents in the prompt, move details into seed data to let
 
 ## Writing scorers
 
-Prefer determinstic checks where possible for stability and efficiency. Avoid being overly presriptive with the process an agent takes to reach a solution (unless critical to the scenario), prefer checking the end state by inspecting the project or filesystem.
+Prefer deterministic checks where possible for stability and efficiency. Avoid being overly prescriptive with the process an agent takes to reach a solution (unless critical to the scenario), prefer checking the end state by inspecting the project or filesystem.
 
-If determinstic checks are too inflexible or convoluted, use an LLM-as-a-judge check via `judge()` to check semantic correctness.
+If deterministic checks are too inflexible or convoluted, use an LLM-as-a-judge check via `judge()` to check semantic correctness.
 
 Prefer building checks declaratively and returning the list in one place instead of accumulating checks within branching logic, so the list remains stable if one path fails.
 
@@ -42,7 +42,7 @@ Prefer building checks declaratively and returning the list in one place instead
 
 Add a file under `experiments/` for the agent, model, and runtime setup you want to compare. Here you can configure which skills and MCP servers are available.
 
-Select the experiment's `suite:` depending on your use case. If this experiment should be part of our published benchmark, assign `suite: ["benchmark"]` and add include a corresponding `*-no-skills` variant to compare results with and without skills. You can also assign custom experiment suites for grouping related experiments for other head-to-head comparisons as desired.
+Select the experiment's `suite:` depending on your use case. If this experiment should be part of our published benchmark, assign `suite: ["benchmark"]` and include a corresponding `*-no-skills` variant to compare results with and without skills. You can also assign custom experiment suites for grouping related experiments for other head-to-head comparisons as desired.
 
 ## Submitting evals for review
 
