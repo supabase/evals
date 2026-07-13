@@ -412,6 +412,7 @@ async function runOne(
         : undefined;
       await using session = disposable(
         await exp.localStack.startSession({
+          cliVersion: ev.metadata.cliVersion,
           localDir: ev.localDir,
           includeServices: ev.metadata.services,
           projectRunning: ev.metadata.projectRunning,

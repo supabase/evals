@@ -2,6 +2,7 @@
 stage: resolve
 suite: regression
 interface: cli
+cliVersion: 2.109.1
 product:
   - data-api
   - database

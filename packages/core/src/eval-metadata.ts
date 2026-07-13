@@ -86,6 +86,7 @@ export type ExperimentDisplayMetadata = z.infer<
 export const evalInterfaceSchema = z.enum(["mcp", "cli"]);
 export const EVAL_INTERFACES = evalInterfaceSchema.options;
 export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
+const cliVersionSchema = z.string().regex(/^\d+\.\d+\.\d+$/);
 
 export type EvalMetadata = {
   stage: EvalStage;
@@ -93,6 +94,8 @@ export type EvalMetadata = {
   topic: EvalTopic[];
   suite: EvalSuite;
   interface?: EvalInterface;
+  /** Supabase CLI version this scenario requires (sandbox evals only). */
+  cliVersion?: string;
   /**
    * Local-stack services this scenario needs (sandbox evals only); everything
    * else is excluded from `supabase start` to keep boots fast. An empty list
@@ -126,6 +129,7 @@ export const evalMetadataSchema = z.object({
   topic: z.array(evalTopicSchema).min(1),
   suite: evalSuiteSchema,
   interface: evalInterfaceSchema.optional(),
+  cliVersion: cliVersionSchema.optional(),
   services: z.array(z.string().min(1)).optional(),
   // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);
   // anything else is rejected. Avoids z.coerce.boolean, which treats every
@@ -194,6 +198,7 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     topic: toTokenList(data.topic ?? data.topics),
     suite: toToken(data.suite),
     interface: toToken(data.interface),
+    cliVersion: data.cliVersion,
     // `services: []` means database only; an omitted key means the full stack.
     // Only an explicit list is honored — any other value is treated as absent.
     services: Array.isArray(data.services)
@@ -237,6 +242,7 @@ const evalResultShape = {
   topic: z.array(evalTopicSchema).optional(),
   suite: evalSuiteSchema.optional(),
   interface: evalInterfaceSchema.optional(),
+  cliVersion: cliVersionSchema.optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
   attempts: z.number().optional(),

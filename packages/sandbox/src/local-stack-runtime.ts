@@ -73,6 +73,7 @@ export function localStackRuntime(
   return {
     id: "local-stack",
     async startSession({
+      cliVersion,
       localDir,
       includeServices,
       projectRunning,
@@ -83,7 +84,7 @@ export function localStackRuntime(
       // stack started. Everything else (image, tooling, skills) is identical to
       // tools mode; only the `localStack` component differs.
       const env = await createAgentEnvironment({
-        cliVersion: options.cliVersion,
+        cliVersion: cliVersion ?? options.cliVersion,
         localDir,
         skills,
         localStack: {

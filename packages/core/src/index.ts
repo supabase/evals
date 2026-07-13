@@ -388,6 +388,8 @@ export type AgentHarness = {
 export type SkillSource = { name: string; dir: string };
 
 export type LocalStackSessionArgs = {
+  /** Supabase CLI version this scenario requires, overriding the runtime default. */
+  cliVersion?: string;
   /**
    * Host directory (the eval's `local/`) whose contents seed the sandbox
    * workspace — the developer's working directory.

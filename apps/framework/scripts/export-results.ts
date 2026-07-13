@@ -121,6 +121,7 @@ async function readResultFile(
     topic: promptData?.topic ?? parsedResult.topic,
     suite: promptData?.suite ?? parsedResult.suite,
     interface: promptData?.interface ?? parsedResult.interface,
+    cliVersion: promptData?.cliVersion ?? parsedResult.cliVersion,
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
     skills: parsedResult.skills,

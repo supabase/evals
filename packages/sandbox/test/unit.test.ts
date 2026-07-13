@@ -239,6 +239,44 @@ describe("services frontmatter → computeExcludedServices (regression)", () => 
   });
 });
 
+describe("cliVersion frontmatter", () => {
+  it("accepts a pinned semantic version", () => {
+    const { metadata } = parseEvalMarkdown(
+      [
+        "---",
+        "stage: resolve",
+        "suite: regression",
+        "interface: cli",
+        "cliVersion: 2.109.1",
+        "product: database",
+        "topic: migrations",
+        "---",
+        "Fix it.",
+      ].join("\n"),
+    );
+
+    expect(metadata.cliVersion).toBe("2.109.1");
+  });
+
+  it("rejects a non-semver CLI version", () => {
+    expect(() =>
+      parseEvalMarkdown(
+        [
+          "---",
+          "stage: resolve",
+          "suite: regression",
+          "interface: cli",
+          "cliVersion: latest",
+          "product: database",
+          "topic: migrations",
+          "---",
+          "Fix it.",
+        ].join("\n"),
+      ),
+    ).toThrow();
+  });
+});
+
 describe("resolveSandboxPath", () => {
   it("accepts and normalizes relative paths", () => {
     expect(resolveSandboxPath("a/b.txt")).toBe("a/b.txt");
