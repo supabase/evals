@@ -2263,6 +2263,177 @@
     "sourcePath": "claude-code-opus-4.8-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
   },
   {
+    "experiment": "claude-code-opus-4.8-server-noskill",
+    "experimentSuite": "server",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "other",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"09b25a24-68e2-4f34-a8ca-6d7b03a556bd\",\"metric\":\"steps_a_mrjcefxb\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"09b25a24-68e2-4f34-a8ca-6d7b03a556bd\",\"metric\":\"steps_a_mrjcefxb\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"1e0cf705-40a2-4224-9024-4b6586893235\",\"metric\":\"steps_b_mrjcefxb\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8-server-noskill/build-functions-006-dual-auth-with-server.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8-server-skill",
+    "experimentSuite": "server",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "other",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"d2ec0d53-6dd5-4531-893e-6c8def875a3f\",\"metric\":\"steps_a_mrjc5uji\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"d2ec0d53-6dd5-4531-893e-6c8def875a3f\",\"metric\":\"steps_a_mrjc5uji\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"6d8aee1c-4ca8-4c31-b74b-ea21519a27f6\",\"metric\":\"steps_b_mrjc5uji\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices",
+        "supabase-server"
+      ],
+      "loaded": [
+        "supabase-server"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8-server-skill/build-functions-006-dual-auth-with-server.json"
+  },
+  {
     "experiment": "claude-code-sonnet-5",
     "experimentSuite": "benchmark",
     "experimentDisplay": {
@@ -4525,6 +4696,177 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-server-noskill",
+    "experimentSuite": "server",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "other",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"72be3657-b8e8-4c12-b6c5-d3c4041cda4f\",\"metric\":\"steps_a_mrjc6t1t\",\"value\":111}]}"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"72be3657-b8e8-4c12-b6c5-d3c4041cda4f\",\"metric\":\"steps_a_mrjc6t1t\",\"value\":111}]}"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"fc621ec2-c3ca-4dd9-9c6b-568b0aadcdac\",\"metric\":\"steps_b_mrjc6t1t\",\"value\":222}]}"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-server-noskill/build-functions-006-dual-auth-with-server.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-server-skill",
+    "experimentSuite": "server",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "other",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"9b61f0ca-d61d-4a44-9bca-4c1740dbbbf6\",\"metric\":\"steps_a_mrjc6ak3\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"9b61f0ca-d61d-4a44-9bca-4c1740dbbbf6\",\"metric\":\"steps_a_mrjc6ak3\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"872c6849-bcc9-48ad-be57-8072b0b1dc59\",\"metric\":\"steps_b_mrjc6ak3\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices",
+        "supabase-server"
+      ],
+      "loaded": [
+        "supabase-server"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-server-skill/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
