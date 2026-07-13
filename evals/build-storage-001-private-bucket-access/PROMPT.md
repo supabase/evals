@@ -1,6 +1,7 @@
 ---
 stage: build
 suite: benchmark
+interface: mcp
 product:
   - storage
   - database

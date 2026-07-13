@@ -1,6 +1,7 @@
 ---
 stage: build
 suite: regression
+interface: mcp
 product:
   - realtime
   - database
