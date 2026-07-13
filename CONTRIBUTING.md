@@ -40,7 +40,9 @@ Prefer building checks declaratively and returning the list in one place instead
 
 ## Adding an experiment
 
-Add a file under `experiments/` for the agent, model, and runtime setup you want to compare. Set `suite: ["benchmark"]` or another experiment suite value so the runner and results UI can group comparable experiments.
+Add a file under `experiments/` for the agent, model, and runtime setup you want to compare. Here you can configure which skills and MCP servers are available.
+
+Select the experiment's `suite:` depending on your use case. If this experiment should be part of our published benchmark, assign `suite: ["benchmark"]` and add include a corresponding `*-no-skills` variant to compare results with and without skills. You can also assign custom experiment suites for grouping related experiments for other head-to-head comparisons as desired.
 
 ## Submitting evals for review
 
