@@ -330,37 +330,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing authorization token\"}"
+        "notes": "status 401: {\"error\":\"Missing or invalid Authorization header\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"user_id\":\"589a2368-a89c-4fa2-a94f-b54b4be081b8\",\"stats\":[{\"user_id\":\"589a2368-a89c-4fa2-a94f-b54b4be081b8\",\"metric\":\"steps_a_mrjbkjts\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"f78c12b6-63bc-4133-91ec-d7811832c541\",\"metric\":\"steps_a_mrjc4st7\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"user_id\":\"589a2368-a89c-4fa2-a94f-b54b4be081b8\",\"stats\":[{\"user_id\":\"589a2368-a89c-4fa2-a94f-b54b4be081b8\",\"metric\":\"steps_a_mrjbkjts\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"f78c12b6-63bc-4133-91ec-d7811832c541\",\"metric\":\"steps_a_mrjc4st7\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"user_id\":\"1098e312-b120-419f-af6f-1a4a8c8ad361\",\"stats\":[{\"user_id\":\"1098e312-b120-419f-af6f-1a4a8c8ad361\",\"metric\":\"steps_b_mrjbkjts\",\"value\":222}]}"
+        "notes": "status 200: [{\"user_id\":\"93629148-ab42-4045-af60-937acb05f573\",\"metric\":\"steps_b_mrjc4st7\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
+        "notes": "status 401: {\"error\":\"Missing or invalid Authorization header\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 200: {\"user_id\":\"589a2368-a89c-4fa2-a94f-b54b4be081b8\",\"stats\":[{\"user_id\":\"589a2368-a89c-4fa2-a94f-b54b4be081b8\",\"metric\":\"steps_a_mrjbkjts\",\"value\":111}]}"
+        "notes": "status 401: {\"error\":\"Missing or invalid Authorization header\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -1484,27 +1484,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing bearer token\"}"
+        "notes": "status 401: {\"error\":\"authentication required\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"9a0c6187-39a2-4f9c-ae4d-f7e72662d9b2\",\"metric\":\"steps_a_mrjbfra7\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"27cc0abc-61c9-4f09-b00d-8a92bdd29f9d\",\"metric\":\"steps_a_mrjc2qno\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"9a0c6187-39a2-4f9c-ae4d-f7e72662d9b2\",\"metric\":\"steps_a_mrjbfra7\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"27cc0abc-61c9-4f09-b00d-8a92bdd29f9d\",\"metric\":\"steps_a_mrjc2qno\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"e65dc830-666e-4748-bcf6-3746b4be3cc1\",\"metric\":\"steps_b_mrjbfra7\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"3cd41b59-3352-40b4-94e1-f11f88146572\",\"metric\":\"steps_b_mrjc2qno\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
+        "notes": "status 401: {\"error\":\"authentication required\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
@@ -1514,7 +1514,7 @@
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"9a0c6187-39a2-4f9c-ae4d-f7e72662d9b2\",\"metric\":\"steps_a_mrjbfra7\",\"value\":111}]"
+        "notes": "status 401: {\"error\":\"authentication required\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -2598,17 +2598,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"24349163-1a78-41e3-bbe6-5e4d1eca05fe\",\"metric\":\"steps_a_mrjbfno0\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"aff0db29-9a0a-4bbb-bcea-ed614c1c9a53\",\"metric\":\"steps_a_mrjbzyns\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"24349163-1a78-41e3-bbe6-5e4d1eca05fe\",\"metric\":\"steps_a_mrjbfno0\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"aff0db29-9a0a-4bbb-bcea-ed614c1c9a53\",\"metric\":\"steps_a_mrjbzyns\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"7964600a-2902-4b7f-a112-d269b658c66e\",\"metric\":\"steps_b_mrjbfno0\",\"value\":222}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"dd19900f-6bf1-45ff-9586-151da96eff92\",\"metric\":\"steps_b_mrjbzyns\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
@@ -2618,7 +2618,7 @@
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
+        "notes": "status 401: {\"error\":\"invalid or expired access token\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
@@ -3752,17 +3752,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"1d1fa548-d9a1-4cfa-a9ce-6a6cd3b65fde\",\"metric\":\"steps_a_mrjbf13q\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"6d3262fd-7d77-489b-bd91-3e021784008a\",\"metric\":\"steps_a_mrjc60jh\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"1d1fa548-d9a1-4cfa-a9ce-6a6cd3b65fde\",\"metric\":\"steps_a_mrjbf13q\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"6d3262fd-7d77-489b-bd91-3e021784008a\",\"metric\":\"steps_a_mrjc60jh\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"0e62de1e-0953-499d-a8cb-b1911098124b\",\"metric\":\"steps_b_mrjbf13q\",\"value\":222}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"c61c0e17-e538-4742-8f43-cee50c3f03c4\",\"metric\":\"steps_b_mrjc60jh\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
@@ -3772,7 +3772,7 @@
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"invalid or expired access token\"}"
+        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
@@ -3791,7 +3791,7 @@
     },
     "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-functions-005-dual-auth-user-secret.json"
   },
   {
@@ -4857,22 +4857,22 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Missing Authorization header\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"user_id\":\"3fd536b3-a698-4b45-a0a1-1577f0ebdf6a\",\"data\":[{\"user_id\":\"3fd536b3-a698-4b45-a0a1-1577f0ebdf6a\",\"metric\":\"steps_a_mrjbg2b2\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"5e41dae7-c013-449e-ae95-db6b7de75f6f\",\"metric\":\"steps_a_mrjbyd8f\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"user_id\":\"3fd536b3-a698-4b45-a0a1-1577f0ebdf6a\",\"data\":[{\"user_id\":\"3fd536b3-a698-4b45-a0a1-1577f0ebdf6a\",\"metric\":\"steps_a_mrjbg2b2\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"5e41dae7-c013-449e-ae95-db6b7de75f6f\",\"metric\":\"steps_a_mrjbyd8f\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"user_id\":\"102257a8-34c0-469a-9a19-558c5c1fd731\",\"data\":[{\"user_id\":\"102257a8-34c0-469a-9a19-558c5c1fd731\",\"metric\":\"steps_b_mrjbg2b2\",\"value\":222}]}"
+        "notes": "status 200: [{\"user_id\":\"9fa20e5c-b901-4038-8626-1f361556d9c8\",\"metric\":\"steps_b_mrjbyd8f\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -4887,7 +4887,7 @@
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 200: [{\"user_id\":\"5e41dae7-c013-449e-ae95-db6b7de75f6f\",\"metric\":\"steps_a_mrjbyd8f\",\"value\":111}]"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -6008,7 +6008,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "seed rows present",
@@ -6018,37 +6018,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing bearer token\"}"
+        "notes": "status 401: {\"msg\":\"Error: Missing authorization header\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"43f08868-1c72-4aa5-9617-4d11c8ed4b8f\",\"metric\":\"steps_a_mrjbf2f3\",\"value\":111}]"
+        "notes": "status 200: {\"user_id\":\"54ccebee-570f-4c0a-ac00-588f4d9a57a6\",\"stats\":[{\"user_id\":\"54ccebee-570f-4c0a-ac00-588f4d9a57a6\",\"metric\":\"steps_a_mrjcb7f8\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"43f08868-1c72-4aa5-9617-4d11c8ed4b8f\",\"metric\":\"steps_a_mrjbf2f3\",\"value\":111}]"
+        "notes": "status 200: {\"user_id\":\"54ccebee-570f-4c0a-ac00-588f4d9a57a6\",\"stats\":[{\"user_id\":\"54ccebee-570f-4c0a-ac00-588f4d9a57a6\",\"metric\":\"steps_a_mrjcb7f8\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"b8b96e9a-380a-4127-9ed3-078308397c95\",\"metric\":\"steps_b_mrjbf2f3\",\"value\":222}]"
+        "passed": false,
+        "notes": "status 401: {\"msg\":\"Error: Auth header is not 'Bearer {token}'\"}"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing bearer token\"}"
+        "notes": "status 401: {\"msg\":\"Error: Auth header is not 'Bearer {token}'\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"invalid bearer token\"}"
+        "notes": "status 401: {\"msg\":\"Invalid JWT\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing bearer token\"}"
+        "notes": "status 401: {\"msg\":\"Error: Auth header is not 'Bearer {token}'\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -6062,7 +6062,7 @@
     },
     "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/build-functions-005-dual-auth-user-secret.json"
   },
   {
@@ -7130,37 +7130,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Missing user access token\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"feec0202-f679-47c9-acf5-74beb41501d6\",\"metric\":\"steps_a_mrjbfo5o\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"200bf8e7-e3b2-461d-8d75-19c730fc21d5\",\"metric\":\"steps_a_mrjc1ndm\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"feec0202-f679-47c9-acf5-74beb41501d6\",\"metric\":\"steps_a_mrjbfo5o\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"200bf8e7-e3b2-461d-8d75-19c730fc21d5\",\"metric\":\"steps_a_mrjc1ndm\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"d0d4adad-55ea-47b5-b12d-b83074460f3a\",\"metric\":\"steps_b_mrjbfo5o\",\"value\":222}]}"
+        "notes": "status 200: [{\"user_id\":\"5f4a8e39-83a1-4b54-bf56-4abc3d190646\",\"metric\":\"steps_b_mrjc1ndm\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Missing user access token\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Invalid user access token\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Missing user access token\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -8288,37 +8288,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Missing bearer access token\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"55a20923-f51f-4cd5-8522-f3b1b00a8bb8\",\"metric\":\"steps_a_mrjbgpkf\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"ce79724f-7660-48ff-b740-161c9e79eb99\",\"metric\":\"steps_a_mrjc0w34\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"55a20923-f51f-4cd5-8522-f3b1b00a8bb8\",\"metric\":\"steps_a_mrjbgpkf\",\"value\":111}]}"
+        "notes": "status 200: [{\"user_id\":\"ce79724f-7660-48ff-b740-161c9e79eb99\",\"metric\":\"steps_a_mrjc0w34\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"ac4ee0a4-9c96-4028-b094-b9802d8668e6\",\"metric\":\"steps_b_mrjbgpkf\",\"value\":222}]}"
+        "notes": "status 200: [{\"user_id\":\"921ffdbc-28ce-40eb-9552-1f49040dc65f\",\"metric\":\"steps_b_mrjc0w34\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Missing bearer access token\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Invalid bearer access token\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Missing bearer access token\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
