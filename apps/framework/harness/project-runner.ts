@@ -52,7 +52,7 @@ function setupSource() {
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll } from "vitest";
-import { App, getAuthSchemaSql } from "@supabase/lite";
+import { App, getAuthSchemaSql, SUPABASE_AUTH_HELPERS_SQL } from "@supabase/lite";
 import { createPgliteConnection } from "@supabase/lite/pglite";
 
 const PROJECT_DB_URL = "http://supabase-evals.local";
@@ -68,12 +68,6 @@ BEGIN
 END $$;
 CREATE SCHEMA IF NOT EXISTS auth;
 GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
-CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
-  SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
-$$;
-CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
-  SELECT NULLIF(current_setting('request.jwt.claim.role', true), '');
-$$;
 \`;
 
 const workspace = process.env.SUPABASE_EVALS_WORKSPACE;
@@ -92,6 +86,7 @@ const app = new App({
 
 await app.init();
 await connection.driver.exec(AUTH_SQL);
+await connection.driver.exec(SUPABASE_AUTH_HELPERS_SQL);
 await connection.driver.exec(getAuthSchemaSql());
 
 const schemaDir = join(workspace, "supabase", "schemas");

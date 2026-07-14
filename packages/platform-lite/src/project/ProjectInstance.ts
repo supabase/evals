@@ -1,10 +1,10 @@
-import { App, getAuthSchemaSql } from '@supabase/lite'
+import { App, getAuthSchemaSql, getStorageSchemaSql, SUPABASE_AUTH_HELPERS_SQL } from '@supabase/lite'
 import { createPgliteConnection, type PgliteConnection } from '@supabase/lite/pglite'
 import { PGlite } from '@electric-sql/pglite'
 import { vector } from '@electric-sql/pglite/vector'
 import type { EdgeFunctionSeed, LogRow } from '../types.js'
 import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js'
-import { STORAGE_SCHEMA_SQL } from './storage-schema.js'
+import { STORAGE_SCHEMA_SUPPLEMENT_SQL } from './storage-schema.js'
 
 export type Migration = {
   version: string
@@ -27,6 +27,10 @@ export type EdgeFunctionEntry = {
 
 const JWT_SECRET = 'supabase-evals-dev-secret'
 
+// Roles, schemas and grants a real Supabase project provisions but @supabase/lite
+// does not create on our direct-exec init path. The auth helper functions
+// (auth.uid/role/email/jwt) come from lite's SUPABASE_AUTH_HELPERS_SQL, applied
+// separately in init().
 const AUTH_ROLES_SQL = `
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
@@ -42,12 +46,6 @@ GRANT USAGE ON SCHEMA extensions TO anon, authenticated, service_role;
 -- Real Supabase projects keep the extensions schema on the search path, so
 -- extension operators (e.g. pgvector's <#>) resolve unqualified.
 SET search_path TO public, extensions;
-CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
-  SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
-$$;
-CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
-  SELECT NULLIF(current_setting('request.jwt.claim.role', true), '');
-$$;
 `
 
 export class ProjectInstance {
@@ -94,8 +92,10 @@ export class ProjectInstance {
     })
     await this.app.init()
     await this.app.connection.exec(AUTH_ROLES_SQL)
+    await this.app.connection.exec(SUPABASE_AUTH_HELPERS_SQL)
     await this.app.connection.exec(getAuthSchemaSql())
-    await this.app.connection.exec(STORAGE_SCHEMA_SQL)
+    await this.app.connection.exec(getStorageSchemaSql())
+    await this.app.connection.exec(STORAGE_SCHEMA_SUPPLEMENT_SQL)
 
     if (sql) {
       await this.app.connection.exec(sql)

@@ -200,15 +200,15 @@ async function checkRevocationDiagnosis(ctx: ToolEvalContext): Promise<CheckResu
       includeToolCallInputs: true,
     }),
     rubric: stripIndent`
-      Pass if the assistant diagnoses why the deleted account still works, fixes the delete-account flow with real revocation, explains the remaining access-token window, and correctly clarifies publishable vs secret API keys.
+      Pass if the assistant diagnoses why the deleted account still works, fixes the delete-account flow with real revocation, explains any remaining access-token window consistently with the fix it implemented, and correctly clarifies publishable vs secret API keys.
 
       A passing answer should:
       - Identify that delete_account only soft-deletes the profile row and never removes the auth user or revokes their sessions, so the account keeps signing in.
       - Fix the flow so the auth user is deleted (or equivalently their identity and sessions are removed), revoking their sessions and refresh tokens.
-      - Explain that access tokens are stateless JWTs that stay valid until they expire even after revocation, so there can be a short window of access, and that server-side checks need auth.getUser() (or short JWT expiry) rather than only local JWT validation such as getClaims().
+      - Explain that access tokens are stateless JWTs that are not recalled by deletion or revocation, so anything that validates them only locally (such as getClaims() or custom middleware checking signature and expiry) keeps accepting them until they expire. Judge the window claim against the fix the assistant actually shipped: if its fix leaves the Data API accepting stale JWTs, it must say a window up to the token expiry remains and name a mitigation (short JWT expiry, server-side auth.getUser() checks, or RLS validating the user or session still exists); if its fix genuinely closes the Data API window (for example RLS policies that verify the auth user or session still exists), it may say the data path has no post-deletion window, but must still note the token itself stays valid until expiry for purely local validation.
       - Explain that the publishable key belongs in frontend code where requests run under the signed-in user's JWT and RLS applies, while the secret key is server-only, bypasses RLS, and must never ship to the client.
 
-      Fail if the assistant leaves the flow as a soft delete without revoking auth access, claims existing access tokens are instantly invalidated everywhere the moment the user is deleted, recommends putting the secret key or legacy service_role key in frontend code, says RLS applies to the secret key, or blames the symptom on caching or client bugs instead of the flow.
+      Fail if the assistant leaves the flow as a soft delete without revoking auth access, claims existing access tokens are instantly invalidated everywhere the moment the user is deleted without any caveat, makes a window claim that contradicts its own implemented fix in either direction, recommends putting the secret key or legacy service_role key in frontend code, says RLS applies to the secret key, or blames the symptom on caching or client bugs instead of the flow.
     `,
   });
 
