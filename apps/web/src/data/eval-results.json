@@ -696,7 +696,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "The answer identifies the soft-delete-only flaw, fixes deletion by removing auth.sessions and auth.users, explains JWT access-token expiry windows and session validation/short expiry, and correctly distinguishes frontend publishable keys with RLS from server-only secret/service keys that bypass RLS."
+        "judgeNotes": "Meets the rubric: diagnoses soft-delete-only flow, implements auth user/session/refresh-token removal, explains JWT expiry caveat consistently with added RLS hardening, and correctly distinguishes publishable vs secret keys and RLS behavior."
       }
     ],
     "skills": {
@@ -710,7 +710,7 @@
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-opus-4.8/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -1730,7 +1730,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "Covers the root cause, implements real auth-user/session/refresh-token revocation, explains stateless JWT expiry window and mitigation via RLS/short TTL, and correctly distinguishes publishable frontend keys from server-only secret keys that bypass RLS."
+        "judgeNotes": "Meets all rubric requirements: identifies soft-delete-only issue, implements auth user/session/refresh-token deletion plus RLS live-account gate, consistently explains stateless JWT residual window and DB/RLS mitigation, and correctly distinguishes publishable frontend key with RLS from server-only secret key bypassing RLS."
       }
     ],
     "skills": {
@@ -2784,7 +2784,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "The answer identifies the soft-delete-only root cause, implements real auth user deletion with session/refresh token revocation via cascades, explains the remaining stateless JWT access-token window and mitigation considerations, and correctly distinguishes publishable frontend/RLS-bound keys from secret backend/RLS-bypassing keys."
+        "judgeNotes": "Meets the rubric: diagnoses soft-delete-only flow, implements real auth user deletion with session/refresh-token revocation, consistently explains remaining stateless JWT validity while noting its RLS fix closes the data path, and correctly distinguishes frontend publishable/anon keys from server-only secret/service_role keys that bypass RLS."
       }
     ],
     "skills": {
@@ -2798,7 +2798,7 @@
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -3788,7 +3788,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -3809,8 +3809,7 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": false,
-        "notes": "deleted account can still sign in"
+        "passed": true
       },
       {
         "name": "other users keep their sessions and access",
@@ -3818,8 +3817,8 @@
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "The answer correctly diagnoses the soft-delete-only flow, implements auth-layer revocation via banning and session deletion, explains JWT expiry behavior, and correctly distinguishes publishable vs secret keys. However, it does not clarify that server-side checks should use auth.getUser() or short JWT expiry rather than only local JWT validation such as getClaims(), which is an explicit passing requirement."
+        "passed": true,
+        "judgeNotes": "Meets rubric: diagnoses soft-delete-only flow, implements auth.users deletion with cascades/session revocation, gives a consistent JWT expiry caveat with remaining mitigated data-access window, and correctly distinguishes publishable vs secret keys and RLS behavior."
       }
     ],
     "skills": {
@@ -3828,7 +3827,7 @@
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -4848,7 +4847,7 @@
       {
         "name": "victim session active before delete-account",
         "passed": false,
-        "notes": "permission denied for table users"
+        "notes": "permission denied for table sessions"
       },
       {
         "name": "delete_account flow ran for the victim",
@@ -4870,12 +4869,12 @@
       {
         "name": "other users keep their sessions and access",
         "passed": false,
-        "notes": "permission denied for table users"
+        "notes": "permission denied for table sessions"
       },
       {
         "name": "diagnosed and explained session revocation",
         "passed": false,
-        "judgeNotes": "The answer correctly identifies the soft-delete bug, implements real auth-user deletion/session cascade, explains JWTs can remain cryptographically valid until expiry, and correctly distinguishes publishable vs secret keys. However it does not clarify the required server-side validation point: use auth.getUser() (or short JWT expiry/session checks) rather than only local JWT validation such as getClaims()."
+        "judgeNotes": "Fails because it claims the only remaining access window is until transaction commit and does not caveat that the stateless JWT itself can still validate locally (e.g. getClaims/custom signature+expiry middleware) until exp. It also does not clearly state that secret/service-style keys bypass RLS; it only says they are server-only/highly privileged."
       }
     ],
     "skills": {
@@ -4884,8 +4883,7 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
@@ -5884,12 +5882,11 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
-        "passed": false,
-        "notes": "permission denied for table users"
+        "passed": true
       },
       {
         "name": "delete_account flow ran for the victim",
@@ -5910,13 +5907,12 @@
       },
       {
         "name": "other users keep their sessions and access",
-        "passed": false,
-        "notes": "permission denied for table users"
+        "passed": true
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "It correctly diagnosed the soft-delete-only bug, changed delete_account to delete auth.users, tightened RLS, and correctly described publishable vs secret keys. However, it failed the required JWT-window clarification: it claimed there is no practical post-commit window instead of explaining that stateless access tokens can remain valid until expiry after revocation, and it did not mention using auth.getUser() or short JWT expiry rather than relying only on local JWT validation/getClaims()."
+        "passed": true,
+        "judgeNotes": "The answer identifies soft-delete-only root cause, implements real auth user deletion with session/refresh-token cascade plus tombstone/RLS mitigation, explains JWT residual validity consistently with that fix, and correctly distinguishes publishable frontend keys from secret/server-only RLS-bypassing keys."
       }
     ],
     "skills": {
@@ -5925,7 +5921,7 @@
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -6943,7 +6939,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -6972,8 +6968,8 @@
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "The answer diagnoses the soft-delete-only flow, updates deletion to remove the auth user and tighten RLS, and correctly distinguishes publishable vs secret keys. However, it does not clearly explain the required server-side JWT validation guidance: that stateless access tokens remain valid until expiry and backend checks that need revocation awareness should use auth.getUser() or short JWT expiry rather than relying only on local JWT validation/getClaims()."
+        "passed": true,
+        "judgeNotes": "The answer identifies the exact soft-delete-only cause, implements real revocation by deleting sessions and auth.users, adds RLS/session validation that consistently closes the Data API window for the protected tables while correctly noting JWTs remain valid until exp for local-only validation or unguarded paths, and correctly distinguishes publishable/anon vs secret/service_role keys including RLS bypass and frontend/server-only usage."
       }
     ],
     "skills": {
@@ -6982,7 +6978,8 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
@@ -7991,8 +7988,8 @@
       },
       {
         "name": "delete-account revokes the user's sessions",
-        "passed": false,
-        "notes": "sessions left: 1"
+        "passed": true,
+        "notes": "sessions left: 0"
       },
       {
         "name": "deleted user's refresh token is rejected",
@@ -8009,8 +8006,8 @@
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "The answer diagnoses the soft-delete cause, implements revocation/active-user RLS checks, and correctly explains publishable vs secret keys. However, it does not clearly explain that access tokens are stateless JWTs that remain valid until expiry after revocation, nor does it advise server-side auth.getUser() or short JWT expiry instead of local-only JWT validation such as getClaims()."
+        "passed": true,
+        "judgeNotes": "Diagnosed soft-delete-only flow, implemented session/refresh revocation and auth-user disabling, added RLS session existence checks to close the Data API stale-JWT window, explained remaining local JWT validation window consistently, and correctly distinguished publishable vs secret keys."
       }
     ],
     "skills": {
