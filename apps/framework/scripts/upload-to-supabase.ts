@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Upsert the exported `eval-results.json` snapshot into the Supabase eval-results
- * store (AI-922) — the durable, queryable source of truth for the public
+ * store — the durable, queryable source of truth for the public
  * leaderboard, replacing the committed JSON file.
  *
  * One row per (experiment, eval); re-running upserts on that key so the store

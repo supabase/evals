@@ -1,4 +1,4 @@
--- Durable store for exported eval results (AI-922): the leaderboard's source of
+-- Durable store for exported eval results: the leaderboard's source of
 -- truth, replacing the committed apps/web/src/data/eval-results.json. One row per
 -- (experiment, eval); the uploader upserts the exported snapshot and apps/web
 -- reads from here. Mirrors the snapshot shape (rawEvalResultSchema in

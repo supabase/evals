@@ -5,7 +5,7 @@ import {
 } from "@supabase-evals/core/eval-metadata"
 
 /**
- * Runtime read path for the leaderboard (AI-922): fetch results from the
+ * Runtime read path for the leaderboard: fetch results from the
  * Supabase eval-results store instead of importing a committed JSON file.
  *
  * Reads use the publishable key under the table's "public read" RLS policy.
