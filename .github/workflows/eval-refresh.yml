@@ -71,7 +71,7 @@ jobs:
       pairs: ${{ steps.discover.outputs.pairs }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
-      scope: ${{ steps.inputs.outputs.scope }}
+      filter_changed: ${{ steps.inputs.outputs.filter_changed }}
       do_merge: ${{ steps.inputs.outputs.do_merge }}
     steps:
       - name: Prepare inputs
@@ -107,16 +107,17 @@ jobs:
           experiment_suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiment_suite")"
 
           # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
-          scope="all"
+          # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
+          filter_changed="false"
           if [ "${{ github.event_name }}" = "pull_request" ] && \
              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-changed') }}" = "true" ] && \
              [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals') }}" = "false" ]; then
-            scope="changed"
+            filter_changed="true"
           fi
 
           # do_merge drives the export --merge (graft into existing results). It's
           # always on for the changed path, and opt-in for manual dispatch.
-          do_merge="$([ "$scope" = "changed" ] && echo true || echo false)"
+          do_merge="$filter_changed"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.merge }}" = "true" ]; then
             do_merge="true"
           fi
@@ -128,7 +129,7 @@ jobs:
             echo "experiment_suite=$experiment_suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
-            echo "scope=$scope"
+            echo "filter_changed=$filter_changed"
             echo "do_merge=$do_merge"
           } >> "$GITHUB_OUTPUT"
 
@@ -179,7 +180,7 @@ jobs:
             done
           fi
 
-          if [ "${{ steps.inputs.outputs.scope }}" = "changed" ]; then
+          if [ "${{ steps.inputs.outputs.filter_changed }}" = "true" ]; then
             changed_evals=$(gh pr diff ${{ github.event.pull_request.number }} --name-only \
               | grep '^evals/' | cut -d/ -f2 | sort -u || true)
 
