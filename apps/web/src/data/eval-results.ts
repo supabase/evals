@@ -8,14 +8,13 @@ import {
  * Runtime read path for the leaderboard (AI-922): fetch results from the
  * Supabase eval-results store instead of importing a committed JSON file.
  *
- * Reads use the anon/publishable key under the table's "public read" RLS policy.
+ * Reads use the publishable key under the table's "public read" RLS policy.
  * Configure via Vite env (see apps/web/.env.example):
- *   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+ *   VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
  */
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as
-  | string
-  | undefined
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env
+  .VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
 
 const TABLE = "eval_results"
 
@@ -80,14 +79,14 @@ function rowToEvalResult(row: EvalResultRow): EvalResult {
  * render its empty state rather than crash.
  */
 export async function fetchEvalResults(): Promise<EvalResult[]> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     console.warn(
-      "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are not set — no results to show.",
+      "VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY are not set — no results to show.",
     )
     return []
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: false },
   })
 
