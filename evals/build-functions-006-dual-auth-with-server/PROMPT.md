@@ -1,7 +1,8 @@
 ---
 stage: build
-suite: other
+suite: benchmark
 interface: cli
+cliVersion: 2.109.1
 product:
   - edge-functions
   - auth
