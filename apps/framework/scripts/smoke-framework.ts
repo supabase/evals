@@ -138,6 +138,12 @@ function functionResponse(
   return { type: "response", status, headers: {}, body, outboundBearerTokens };
 }
 
+// Unlike the other smokes, this one fakes the ToolEvalContext instead of
+// booting a real backend: the scorer's *decision logic* (which statuses and
+// bodies pass) is what we want to pin, and driving that through a real stack
+// would mean deploying six edge-function variants. `responses` are consumed in
+// the scorer's invocation order (missingAuth, ownNotes, aRequestsB, bRequestsA);
+// `serviceRoleResponses` builds them in that same order.
 function serviceRoleBypassCtx(
   responses: EdgeFunctionsInvokeResult[],
 ): ToolEvalContext {
@@ -168,6 +174,7 @@ function serviceRoleBypassCtx(
   };
 }
 
+// Order matches the scorer's invocation sequence; overrides are keyed by role.
 function serviceRoleResponses(
   overrides: Partial<
     Record<
@@ -187,10 +194,12 @@ function serviceRoleResponses(
 
 async function smokeServiceRoleBypassEval() {
   const scorer = await loadScorer(SERVICE_ROLE_BYPASS_EVAL);
+  const runScorer = (overrides?: Parameters<typeof serviceRoleResponses>[0]) =>
+    scorer(serviceRoleBypassCtx(serviceRoleResponses(overrides)));
 
-  const secure = await scorer(
-    serviceRoleBypassCtx(serviceRoleResponses()),
-  );
+  // The recommended secure fix: reject anonymous access, serve the caller their
+  // own note over their JWT, and deny forced cross-user reads.
+  const secure = await runScorer();
   assert.equal(secure.passed, true, checksMessage(secure));
   assert.match(checksMessage(secure), /"notes":"status=401"/);
   assert.match(checksMessage(secure), /"notes":"status=200"/);
@@ -200,32 +209,27 @@ async function smokeServiceRoleBypassEval() {
     /"notes":"bearer_tokens=1, all_match=true"/,
   );
 
-  const callerScoped = await scorer(
-    serviceRoleBypassCtx(
-      serviceRoleResponses({
-        aRequestsB: functionResponse(
-          200,
-          "user A private note",
-          ["token-a"],
-        ),
-        bRequestsA: functionResponse(
-          200,
-          "user B private note",
-          ["token-b"],
-        ),
-      }),
-    ),
-  );
+  // Ignoring the spoofed user_id and returning the caller's own note is the
+  // other secure shape the scorer must accept.
+  const callerScoped = await runScorer({
+    aRequestsB: functionResponse(200, "user A private note", ["token-a"]),
+    bRequestsA: functionResponse(200, "user B private note", ["token-b"]),
+  });
   assert.equal(callerScoped.passed, true, checksMessage(callerScoped));
 
-  const leaky = await scorer(
-    serviceRoleBypassCtx(
-      serviceRoleResponses({
-        aRequestsB: functionResponse(200, "user B private note"),
-        bRequestsA: functionResponse(403, "user A private note"),
-      }),
-    ),
-  );
+  // An RLS-scoped read of another user's note returns no rows, which a function
+  // may surface as 404. That is still a non-leaking denial.
+  const notFound = await runScorer({
+    aRequestsB: functionResponse(404, "not found"),
+    bRequestsA: functionResponse(404, "not found"),
+  });
+  assert.equal(notFound.passed, true, checksMessage(notFound));
+
+  // A leaked note fails regardless of status (200 or 403).
+  const leaky = await runScorer({
+    aRequestsB: functionResponse(200, "user B private note"),
+    bRequestsA: functionResponse(403, "user A private note"),
+  });
   assert.equal(leaky.passed, false, checksMessage(leaky));
   assert.deepEqual(failedCheckNames(leaky), [
     "user A cannot force-read user B note",
@@ -234,23 +238,15 @@ async function smokeServiceRoleBypassEval() {
   assert.match(checksMessage(leaky), /"notes":"status=200"/);
   assert.match(checksMessage(leaky), /"notes":"status=403"/);
 
-  const ignoredAuth = await scorer(
-    serviceRoleBypassCtx(
-      serviceRoleResponses({
-        missingAuth: functionResponse(200),
-      }),
-    ),
-  );
+  // Serving data to an unauthenticated caller fails, even with no leaked note.
+  const ignoredAuth = await runScorer({ missingAuth: functionResponse(200) });
   assert.equal(ignoredAuth.passed, false, checksMessage(ignoredAuth));
   assert.deepEqual(failedCheckNames(ignoredAuth), ["rejects missing auth"]);
 
-  const unauthenticatedLeak = await scorer(
-    serviceRoleBypassCtx(
-      serviceRoleResponses({
-        missingAuth: functionResponse(401, "user A private note"),
-      }),
-    ),
-  );
+  // A 401 that still echoes a note is a leak, not a denial.
+  const unauthenticatedLeak = await runScorer({
+    missingAuth: functionResponse(401, "user A private note"),
+  });
   assert.equal(
     unauthenticatedLeak.passed,
     false,
@@ -260,17 +256,10 @@ async function smokeServiceRoleBypassEval() {
     "rejects missing auth",
   ]);
 
-  const serviceRoleRead = await scorer(
-    serviceRoleBypassCtx(
-      serviceRoleResponses({
-        ownNotes: functionResponse(
-          200,
-          "user A private note",
-          ["service-role-key"],
-        ),
-      }),
-    ),
-  );
+  // Reading via the service-role key instead of the caller's JWT fails.
+  const serviceRoleRead = await runScorer({
+    ownNotes: functionResponse(200, "user A private note", ["service-role-key"]),
+  });
   assert.equal(serviceRoleRead.passed, false, checksMessage(serviceRoleRead));
   assert.deepEqual(failedCheckNames(serviceRoleRead), [
     "reads only with the caller's JWT",
@@ -449,10 +438,6 @@ async function smokeFrontendBuildTooling() {
 }
 
 async function main() {
-  if (process.argv.includes("--service-role-bypass")) {
-    await smokeServiceRoleBypassEval();
-    return;
-  }
   await smokeClientRlsEval();
   await smokeFunctionsEval();
   await smokeServiceRoleBypassEval();
