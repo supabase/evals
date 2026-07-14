@@ -63,13 +63,23 @@ INSERT INTO private_notes (user_id, body) VALUES
     headers: authHeadersB,
   });
 
+  const ownNotesUsesCallerJwt =
+    ownNotes.type === "response" &&
+    ownNotes.outboundBearerTokens.length > 0 &&
+    ownNotes.outboundBearerTokens.every((token) => token === callerToken);
+
   const checks: CheckResult[] = [
     {
       name: "rejects missing auth",
       passed:
         missingAuth.type === "response" &&
-        (missingAuth.status === 401 || missingAuth.status === 403),
-      notes: missingAuth.type === "error" ? missingAuth.error : undefined,
+        (missingAuth.status === 401 || missingAuth.status === 403) &&
+        !missingAuth.body.includes(NOTE_A) &&
+        !missingAuth.body.includes(NOTE_B),
+      notes:
+        missingAuth.type === "response"
+          ? `status=${missingAuth.status}`
+          : missingAuth.error,
     },
     {
       name: "user A reads own note",
@@ -78,32 +88,45 @@ INSERT INTO private_notes (user_id, body) VALUES
         ownNotes.status === 200 &&
         ownNotes.body.includes(NOTE_A) &&
         !ownNotes.body.includes(NOTE_B),
-      notes: ownNotes.type === "error" ? ownNotes.error : undefined,
+      notes:
+        ownNotes.type === "response"
+          ? `status=${ownNotes.status}`
+          : ownNotes.error,
     },
     {
       // Reads should run as the signed-in user, never the service-role key.
       name: "reads only with the caller's JWT",
-      passed:
-        ownNotes.type === "response" &&
-        ownNotes.outboundBearerTokens.length > 0 &&
-        ownNotes.outboundBearerTokens.every((token) => token === callerToken),
-      notes: ownNotes.type === "error" ? ownNotes.error : undefined,
+      passed: ownNotesUsesCallerJwt,
+      notes:
+        ownNotes.type === "response"
+          ? `bearer_tokens=${ownNotes.outboundBearerTokens.length}, all_match=${ownNotesUsesCallerJwt}`
+          : ownNotes.error,
     },
     {
       name: "user A cannot force-read user B note",
       passed:
         aRequestsB.type === "response" &&
-        aRequestsB.status === 200 &&
+        (aRequestsB.status === 200 ||
+          aRequestsB.status === 401 ||
+          aRequestsB.status === 403) &&
         !aRequestsB.body.includes(NOTE_B),
-      notes: aRequestsB.type === "error" ? aRequestsB.error : undefined,
+      notes:
+        aRequestsB.type === "response"
+          ? `status=${aRequestsB.status}`
+          : aRequestsB.error,
     },
     {
       name: "user B cannot force-read user A note",
       passed:
         bRequestsA.type === "response" &&
-        bRequestsA.status === 200 &&
+        (bRequestsA.status === 200 ||
+          bRequestsA.status === 401 ||
+          bRequestsA.status === 403) &&
         !bRequestsA.body.includes(NOTE_A),
-      notes: bRequestsA.type === "error" ? bRequestsA.error : undefined,
+      notes:
+        bRequestsA.type === "response"
+          ? `status=${bRequestsA.status}`
+          : bRequestsA.error,
     },
   ];
 

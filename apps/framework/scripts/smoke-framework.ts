@@ -4,7 +4,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bootPlatformBackend } from "../harness/platform-backend.js";
 import { viteBuild, vitestRun } from "../harness/project-runner.js";
-import type { ToolScorer, TranscriptPart } from "../harness/types.js";
+import type {
+  EdgeFunctionsInvokeResult,
+  ToolEvalContext,
+  ToolScorer,
+  TranscriptPart,
+} from "../harness/types.js";
 import type { PlatformBackend } from "../harness/platform-backend.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..", "..");
@@ -19,6 +24,7 @@ if (!DEBUG) console.error = () => undefined;
 const CLIENT_RLS_EVAL = "evals/build-rls-002-own-todos-client";
 const FUNCTIONS_EVAL = "evals/build-functions-001-order-total";
 const EDGE_AUTH_DB_EVAL = "evals/build-functions-002-edge-auth-db";
+const SERVICE_ROLE_BYPASS_EVAL = "evals/build-functions-004-service-role-bypass";
 const INVESTIGATE_LOGS_EVAL = "evals/investigate-logs-001-top-error-function";
 const INVESTIGATE_SECURITY_EVAL = "evals/investigate-security-001-public-table";
 const FRONTEND_EVAL = "evals/build-frontend-001-todos-app";
@@ -47,6 +53,15 @@ function scorerCtx(
 
 function checksMessage(result: { checks?: unknown[] }) {
   return JSON.stringify(result.checks ?? []);
+}
+
+function failedCheckNames(result: {
+  checks?: { name: string; passed: boolean }[];
+}) {
+  return (
+    result.checks?.filter((check) => !check.passed).map((check) => check.name) ??
+    []
+  );
 }
 
 async function withBackend<T>(
@@ -113,6 +128,155 @@ async function smokeFunctionsEval() {
   });
 
   console.log("PASS functions scorer + edge-functions dispatcher");
+}
+
+function functionResponse(
+  status: number,
+  body = "",
+  outboundBearerTokens: string[] = [],
+): EdgeFunctionsInvokeResult {
+  return { type: "response", status, headers: {}, body, outboundBearerTokens };
+}
+
+function serviceRoleBypassCtx(
+  responses: EdgeFunctionsInvokeResult[],
+): ToolEvalContext {
+  const authResult = (id: string, accessToken: string) => ({
+    data: { user: { id }, session: { access_token: accessToken } },
+    error: null,
+  });
+  const clientA = {
+    auth: { signUp: async () => authResult("user-a", "token-a") },
+  } as unknown as ToolEvalContext["client"];
+  const clientB = {
+    auth: { signUp: async () => authResult("user-b", "token-b") },
+  } as unknown as ToolEvalContext["client"];
+
+  return {
+    mgmt: {} as ToolEvalContext["mgmt"],
+    ref: "test-ref",
+    client: clientA,
+    getClient: () => clientB,
+    query: async () => ({ rows: [] }),
+    invokeFunction: async () => {
+      const response = responses.shift();
+      if (!response) throw new Error("missing fake function response");
+      return response;
+    },
+    toolCalls: [],
+    transcript: [],
+  };
+}
+
+function serviceRoleResponses(
+  overrides: Partial<
+    Record<
+      "missingAuth" | "ownNotes" | "aRequestsB" | "bRequestsA",
+      EdgeFunctionsInvokeResult
+    >
+  > = {},
+): EdgeFunctionsInvokeResult[] {
+  return [
+    overrides.missingAuth ?? functionResponse(401),
+    overrides.ownNotes ??
+      functionResponse(200, "user A private note", ["token-a"]),
+    overrides.aRequestsB ?? functionResponse(401, "unauthorized"),
+    overrides.bRequestsA ?? functionResponse(403, "forbidden"),
+  ];
+}
+
+async function smokeServiceRoleBypassEval() {
+  const scorer = await loadScorer(SERVICE_ROLE_BYPASS_EVAL);
+
+  const secure = await scorer(
+    serviceRoleBypassCtx(serviceRoleResponses()),
+  );
+  assert.equal(secure.passed, true, checksMessage(secure));
+  assert.match(checksMessage(secure), /"notes":"status=401"/);
+  assert.match(checksMessage(secure), /"notes":"status=200"/);
+  assert.match(checksMessage(secure), /"notes":"status=403"/);
+  assert.match(
+    checksMessage(secure),
+    /"notes":"bearer_tokens=1, all_match=true"/,
+  );
+
+  const callerScoped = await scorer(
+    serviceRoleBypassCtx(
+      serviceRoleResponses({
+        aRequestsB: functionResponse(
+          200,
+          "user A private note",
+          ["token-a"],
+        ),
+        bRequestsA: functionResponse(
+          200,
+          "user B private note",
+          ["token-b"],
+        ),
+      }),
+    ),
+  );
+  assert.equal(callerScoped.passed, true, checksMessage(callerScoped));
+
+  const leaky = await scorer(
+    serviceRoleBypassCtx(
+      serviceRoleResponses({
+        aRequestsB: functionResponse(200, "user B private note"),
+        bRequestsA: functionResponse(403, "user A private note"),
+      }),
+    ),
+  );
+  assert.equal(leaky.passed, false, checksMessage(leaky));
+  assert.deepEqual(failedCheckNames(leaky), [
+    "user A cannot force-read user B note",
+    "user B cannot force-read user A note",
+  ]);
+  assert.match(checksMessage(leaky), /"notes":"status=200"/);
+  assert.match(checksMessage(leaky), /"notes":"status=403"/);
+
+  const ignoredAuth = await scorer(
+    serviceRoleBypassCtx(
+      serviceRoleResponses({
+        missingAuth: functionResponse(200),
+      }),
+    ),
+  );
+  assert.equal(ignoredAuth.passed, false, checksMessage(ignoredAuth));
+  assert.deepEqual(failedCheckNames(ignoredAuth), ["rejects missing auth"]);
+
+  const unauthenticatedLeak = await scorer(
+    serviceRoleBypassCtx(
+      serviceRoleResponses({
+        missingAuth: functionResponse(401, "user A private note"),
+      }),
+    ),
+  );
+  assert.equal(
+    unauthenticatedLeak.passed,
+    false,
+    checksMessage(unauthenticatedLeak),
+  );
+  assert.deepEqual(failedCheckNames(unauthenticatedLeak), [
+    "rejects missing auth",
+  ]);
+
+  const serviceRoleRead = await scorer(
+    serviceRoleBypassCtx(
+      serviceRoleResponses({
+        ownNotes: functionResponse(
+          200,
+          "user A private note",
+          ["service-role-key"],
+        ),
+      }),
+    ),
+  );
+  assert.equal(serviceRoleRead.passed, false, checksMessage(serviceRoleRead));
+  assert.deepEqual(failedCheckNames(serviceRoleRead), [
+    "reads only with the caller's JWT",
+  ]);
+
+  console.log("PASS service-role bypass scorer security contract");
 }
 
 async function smokeSupaliteClient() {
@@ -285,8 +449,13 @@ async function smokeFrontendBuildTooling() {
 }
 
 async function main() {
+  if (process.argv.includes("--service-role-bypass")) {
+    await smokeServiceRoleBypassEval();
+    return;
+  }
   await smokeClientRlsEval();
   await smokeFunctionsEval();
+  await smokeServiceRoleBypassEval();
   await smokeSupaliteClient();
   await smokePlatformBackendClose();
   await smokeEdgeAuthDbEval();
