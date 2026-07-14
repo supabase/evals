@@ -42,10 +42,12 @@ type EvalResultRow = {
   source_path: string | null
 }
 
-// Rehydrate a DB row into the EvalResult shape the app renders, then validate.
-// evalResultSchema strips unknown keys, so drift in the table is tolerated.
-function rowToEvalResult(row: EvalResultRow): EvalResult {
-  return evalResultSchema.parse({
+// Rehydrate a DB row into the EvalResult candidate shape the app renders.
+// Validated per-row by the caller with safeParse, so a single drifted row
+// (e.g. a stale out-of-enum value after a rename) is dropped rather than
+// throwing and blanking the whole leaderboard.
+function rowToCandidate(row: EvalResultRow): unknown {
+  return {
     experiment: row.experiment,
     eval: row.eval,
     experimentSuite: row.experiment_suite ?? undefined,
@@ -70,13 +72,14 @@ function rowToEvalResult(row: EvalResultRow): EvalResult {
     prompt: row.prompt ?? undefined,
     promptSourcePath: row.prompt_source_path ?? undefined,
     sourcePath: row.source_path ?? "",
-  })
+  }
 }
 
 /**
  * Fetch every eval result from the store. Returns an empty array (and warns)
- * when the Supabase env isn't configured or the request fails, so the app can
- * render its empty state rather than crash.
+ * when the Supabase env isn't configured, the request fails, or every row fails
+ * validation — so the app renders its empty state rather than crashing. Rows
+ * that individually fail validation are dropped, not fatal.
  */
 export async function fetchEvalResults(): Promise<EvalResult[]> {
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
@@ -101,5 +104,18 @@ export async function fetchEvalResults(): Promise<EvalResult[]> {
     return []
   }
 
-  return (data as EvalResultRow[]).map(rowToEvalResult)
+  const rows = data as EvalResultRow[]
+  const results: EvalResult[] = []
+  for (const row of rows) {
+    const parsed = evalResultSchema.safeParse(rowToCandidate(row))
+    if (parsed.success) {
+      results.push(parsed.data)
+    }
+  }
+
+  const skipped = rows.length - results.length
+  if (skipped > 0) {
+    console.warn(`Dropped ${skipped} eval result row(s) that failed validation.`)
+  }
+  return results
 }

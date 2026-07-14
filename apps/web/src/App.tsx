@@ -1260,7 +1260,7 @@ export function App() {
         </>
       ) : (
         <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
-          No result files found in the repo results directory.
+          No results to show — the results store is empty or unavailable.
         </div>
       )}
     </main>
