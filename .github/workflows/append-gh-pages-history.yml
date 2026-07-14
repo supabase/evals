@@ -38,7 +38,6 @@ jobs:
           append_if_changed() {
             local source="$1"
             local history="$2"
-            local wrap="$3"
 
             if [ "${{ github.event_name }}" != "workflow_dispatch" ] && \
               git diff --quiet "${{ github.event.before }}" "${{ github.sha }}" -- "$source"; then
@@ -49,17 +48,14 @@ jobs:
               return
             fi
 
-            if [ "$wrap" = "true" ]; then
-              git show "${{ github.sha }}:$source" \
-                | jq -c --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '{ts: $ts, results: .}' \
-                >> "$history"
-            else
-              git show "${{ github.sha }}:$source" | jq -c . >> "$history"
-            fi
+            git show "${{ github.sha }}:$source" \
+              | jq -c --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --arg sha "${{ github.sha }}" \
+                '{ts: $ts, sha: $sha, results: .}' \
+              >> "$history"
           }
 
-          append_if_changed apps/web/src/data/eval-results.json results.jsonl true
-          append_if_changed apps/web/src/data/regression-eval-results.json regression-results.jsonl false
+          append_if_changed apps/web/src/data/eval-results.json results.jsonl
+          append_if_changed apps/web/src/data/regression-eval-results.json regression-results.jsonl
 
           for history in results.jsonl regression-results.jsonl; do
             [ -f "$history" ] && git add "$history"

@@ -370,18 +370,9 @@ jobs:
           fi
 
           if jq -e 'any(.[]; .eval_suite == "regression")' <<< "$pairs" > /dev/null; then
-            output=apps/web/src/data/regression-eval-results.json
             pnpm --filter @supabase-evals/framework export-results -- \
               --suite regression \
-              --output "$output"
-
-            jq -n \
-              --arg generated_at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-              --arg evaluated_sha "$(git rev-parse HEAD)" \
-              --slurpfile results "$output" \
-              '{generatedAt: $generated_at, evaluatedSha: $evaluated_sha, results: $results[0]}' \
-              > "$output.tmp"
-            mv "$output.tmp" "$output"
+              --output apps/web/src/data/regression-eval-results.json
           fi
 
       - name: Upload exported results
