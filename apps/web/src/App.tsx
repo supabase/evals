@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { BotIcon, CheckIcon, CopyIcon, XIcon } from "lucide-react"
-import { z } from "zod"
-import {
-  evalResultSchema,
-  type EvalResult,
-} from "@supabase-evals/core/eval-metadata"
-import rawResults from "@/data/eval-results.json"
+import { type EvalResult } from "@supabase-evals/core/eval-metadata"
 
 import {
   Accordion,
@@ -138,13 +133,24 @@ function parseResult(result: EvalResult): ParsedResult {
   }
 }
 
-const exportedResults: EvalResult[] = z
-  .array(evalResultSchema)
-  .parse(rawResults)
-const results = exportedResults.map(parseResult)
-const experiments = Array.from(
-  new Set(results.map((result) => result.experiment))
-).sort((a, b) => a.localeCompare(b))
+// Runtime-populated result store. Data is loaded from Supabase (see
+// data/eval-results.ts) and installed by initResultsStore() before the app is
+// mounted, so these module-scope bindings are ready by first render.
+let results: ParsedResult[] = []
+let experiments: string[] = []
+let experimentLabel = new Map<string, string>()
+let sortedResults: ParsedResult[] = []
+
+export function initResultsStore(data: EvalResult[]): void {
+  results = data.map(parseResult)
+  experiments = Array.from(
+    new Set(results.map((result) => result.experiment))
+  ).sort((a, b) => a.localeCompare(b))
+  experimentLabel = new Map(
+    experiments.map((experiment) => [experiment, buildExperimentLabel(experiment)])
+  )
+  sortedResults = [...results].sort(sortResults)
+}
 
 type ExperimentDisplay = NonNullable<EvalResult["experimentDisplay"]>
 
@@ -306,13 +312,6 @@ function buildExperimentLabel(exp: string): string {
   return formatExperimentLabel(r?.experimentDisplay, exp)
 }
 
-const experimentLabel = new Map(
-  experiments.map((experiment) => [
-    experiment,
-    buildExperimentLabel(experiment),
-  ])
-)
-
 function sortResults(a: ParsedResult, b: ParsedResult) {
   const categoryDelta =
     (stageIndex.get(a.category as JourneyStage) ?? Number.MAX_SAFE_INTEGER) -
@@ -325,7 +324,6 @@ function sortResults(a: ParsedResult, b: ParsedResult) {
   )
 }
 
-const sortedResults = [...results].sort(sortResults)
 function getStageResults(
   category: JourneyStage,
   sourceResults = sortedResults

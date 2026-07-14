@@ -32,11 +32,6 @@ on:
         type: boolean
         required: false
         default: false
-      commit_to_branch:
-        description: "Commit exported results to the dispatched branch instead of opening a PR"
-        type: boolean
-        required: false
-        default: false
   pull_request:
     # Run whenever a PR carrying the run-evals label is opened, pushed to, or
     # receives the run-evals label. The job-level `if` gates on those cases.
@@ -293,6 +288,9 @@ jobs:
     needs: [prepare, run-evals]
     if: needs.prepare.outputs.evals != '[]'
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -358,50 +356,9 @@ jobs:
           path: apps/web/src/data/eval-results.json
           retention-days: 7
 
-      - name: Commit exported results to branch
-        # PR runs commit to the PR head branch. Manual dispatch commits to the
-        # selected branch only when commit_to_branch is enabled.
-        if: >-
-          github.event_name == 'pull_request' ||
-          (github.event_name == 'workflow_dispatch' && inputs.commit_to_branch)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          # github-actions[bot]'s noreply email uses its public user ID: https://github.com/actions/checkout#push-a-commit-using-the-built-in-token
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add apps/web/src/data/eval-results.json
-
-          if git diff --cached --quiet; then
-            echo "No eval result changes to commit"
-            exit 0
-          fi
-
-          git commit -m "chore: refresh eval results"
-          git push
-
-      - name: Generate GitHub App token
-        id: generate-token
-        if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-
-      - name: Create results pull request
-        if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-        with:
-          token: ${{ steps.generate-token.outputs.token }}
-          add-paths: apps/web/src/data/eval-results.json
-          # Per-base head branch so a branch refresh PR can't collide with main's.
-          branch: chore/refresh-eval-results-${{ github.ref_name }}
-          base: ${{ github.ref_name }}
-          commit-message: "chore: refresh eval results"
-          title: "chore: refresh eval results"
-          body: |
-            Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
-          draft: true
-          delete-branch: true
+      # Publish the exported snapshot to the Supabase store (AI-922) — the
+      # leaderboard's durable source of truth, replacing the committed JSON.
+      # Upserts by (experiment, eval); the web app reads from Supabase at runtime.
+      - name: Upload results to Supabase
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+        run: pnpm --filter @supabase-evals/framework upload:supabase
