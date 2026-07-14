@@ -42,11 +42,22 @@ GRANT USAGE ON SCHEMA extensions TO anon, authenticated, service_role;
 -- Real Supabase projects keep the extensions schema on the search path, so
 -- extension operators (e.g. pgvector's <#>) resolve unqualified.
 SET search_path TO public, extensions;
+-- Supabase auth helper functions. supalite 0.5.1-next.1 does not create any of
+-- these (newer versions define them in SUPABASE_AUTH_HELPERS_SQL, applied only
+-- on the migrate path we don't use), so this is their only source in the eval
+-- environment. Keep in sync with lite's db/postgres/rls-roles.ts; replace with
+-- an import once @supabase/lite exports SUPABASE_AUTH_HELPERS_SQL publicly.
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
 $$;
 CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.role', true), '');
+$$;
+CREATE OR REPLACE FUNCTION auth.email() RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT NULLIF(current_setting('request.jwt.claim.email', true), '');
+$$;
+CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb;
 $$;
 `
 
