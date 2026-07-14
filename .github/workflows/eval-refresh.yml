@@ -293,6 +293,10 @@ jobs:
     needs: [prepare, run-evals]
     if: needs.prepare.outputs.evals != '[]'
     runs-on: ubuntu-latest
+    env:
+      # Surfaced to the job so the guarded Braintrust step can gate on presence.
+      # Unset (empty) when the secret isn't configured — the step is then skipped.
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -349,6 +353,17 @@ jobs:
           fi
 
           pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
+
+      # Best-effort mirror of the exported snapshot into Braintrust (AI-921).
+      # Gated to manual dispatch so only deliberate, canonical refreshes are
+      # mirrored — label-triggered PR runs would otherwise push transient
+      # preview results into the shared project. Skipped when BRAINTRUST_API_KEY
+      # isn't configured; never fails the run so the JSON-commit path stays
+      # authoritative while we trial it.
+      - name: Upload results to Braintrust
+        if: ${{ github.event_name == 'workflow_dispatch' && env.BRAINTRUST_API_KEY != '' }}
+        continue-on-error: true
+        run: pnpm --filter @supabase-evals/framework upload:braintrust
 
       - name: Upload exported results
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'

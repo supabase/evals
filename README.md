@@ -89,6 +89,25 @@ Or run everything:
 pnpm eval
 ```
 
+### Upload results to Braintrust
+
+Mirror the exported `apps/web/src/data/eval-results.json` snapshot into
+[Braintrust experiments](https://www.braintrust.dev/docs/guides/evals) (AI-921) to
+trial their comparison/leaderboard UI. One Braintrust experiment is created per
+result-file experiment (Configuration) name, one event per eval; `passed` and the
+per-check pass rate become scores and the remaining fields become metadata/tags.
+
+```bash
+pnpm upload:braintrust            # upload the default snapshot
+pnpm upload:braintrust -- --dry   # map + print only, no network (no key needed)
+pnpm upload:braintrust -- --update # append to existing named experiments
+```
+
+Requires `BRAINTRUST_API_KEY` in `.env` (override the target project with
+`BRAINTRUST_PROJECT`, default `supabase-evals`). In CI, the `eval-refresh`
+workflow runs this as a best-effort step only when the `BRAINTRUST_API_KEY`
+secret is set; the committed JSON stays authoritative for now.
+
 ## Eval Shape
 
 Every eval contains:
