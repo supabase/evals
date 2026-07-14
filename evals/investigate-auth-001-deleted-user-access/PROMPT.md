@@ -16,7 +16,7 @@ morning that same person was back: still signed in, reading and saving their
 data like nothing happened.
 
 Figure out why the account still works, fix the flow so a deleted account
-must not be able to log back in, and tell me whether there is any window where they could still
+loses access, and tell me whether there is any window where they could still
 get in after the fix.
 
 One more thing while you're at it: we're migrating off the legacy
