@@ -65,6 +65,10 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
+const SELECTED_EXPERIMENT_SUITE =
+  EXPERIMENT_SUITE_FILTERS.length === 1
+    ? EXPERIMENT_SUITE_FILTERS[0]
+    : undefined;
 const RUNS = Number(readFlag("runs") ?? 1);
 const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
 const CONCURRENCY = Number(readFlag("concurrency") ?? 1);
@@ -757,7 +761,7 @@ async function main() {
           JSON.stringify(
             {
               experiment: name,
-              experimentSuite: config.suite?.[0],
+              experimentSuite: SELECTED_EXPERIMENT_SUITE ?? config.suite?.[0],
               experimentDisplay,
               eval: ev.id,
               ...ev.metadata,

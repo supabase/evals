@@ -67,6 +67,9 @@ const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const MERGE = rawArgs.includes("--merge");
 
+const OUTPUT_FLAG = readRepeatedFlag(rawArgs, "output")[0];
+const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
+
 async function readPrompt(evalId: string) {
   const promptPath = resolve(EVALS_DIR, evalId, "PROMPT.md");
   const normalizedEvalsDir = resolve(EVALS_DIR);
@@ -267,9 +270,9 @@ async function main() {
   }
 
   let results = newResults;
-  if (MERGE && existsSync(OUTPUT_PATH)) {
+  if (MERGE && existsSync(outputPath)) {
     const existing: EvalResult[] = JSON.parse(
-      await readFile(OUTPUT_PATH, "utf8"),
+      await readFile(outputPath, "utf8"),
     );
     const replaced = new Set(
       newResults.map((r) => `${r.experiment}::${r.eval}`),
@@ -284,12 +287,12 @@ async function main() {
     );
   }
 
-  await mkdir(dirname(OUTPUT_PATH), { recursive: true });
-  await writeFile(OUTPUT_PATH, `${JSON.stringify(results, null, 2)}\n`);
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(results, null, 2)}\n`);
 
   const passed = results.filter((result) => result.passed).length;
   console.log(
-    `Exported ${results.length} result(s) to ${relative(ROOT, OUTPUT_PATH)} ` +
+    `Exported ${results.length} result(s) to ${relative(ROOT, outputPath)} ` +
       `(${passed} pass, ${results.length - passed} fail)`,
   );
 }

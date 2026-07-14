@@ -3,11 +3,17 @@ name: Append gh-pages history
 on:
   push:
     branches: [main]
-    paths: [apps/web/src/data/eval-results.json]
+    paths:
+      - apps/web/src/data/eval-results.json
+      - apps/web/src/data/regression-eval-results.json
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: append-gh-pages-history
+  cancel-in-progress: false
 
 jobs:
   append:
@@ -29,11 +35,35 @@ jobs:
           git fetch origin gh-pages:gh-pages
           git checkout gh-pages
 
-          git show ${{ github.sha }}:apps/web/src/data/eval-results.json \
-            | jq -c --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '{ts: $ts, results: .}' \
-            >> results.jsonl
+          append_if_changed() {
+            local source="$1"
+            local history="$2"
 
-          git add results.jsonl
+            if [ "${{ github.event_name }}" != "workflow_dispatch" ] && \
+              git diff --quiet "${{ github.event.before }}" "${{ github.sha }}" -- "$source"; then
+              return
+            fi
+
+            if ! git cat-file -e "${{ github.sha }}:$source" 2> /dev/null; then
+              return
+            fi
+
+            git show "${{ github.sha }}:$source" \
+              | jq -c --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --arg sha "${{ github.sha }}" \
+                '{ts: $ts, sha: $sha, results: .}' \
+              >> "$history"
+          }
+
+          append_if_changed apps/web/src/data/eval-results.json results.jsonl
+          append_if_changed apps/web/src/data/regression-eval-results.json regression-results.jsonl
+
+          for history in results.jsonl regression-results.jsonl; do
+            [ -f "$history" ] && git add "$history"
+          done
+          if git diff --cached --quiet; then
+            echo "No result history changes to commit"
+            exit 0
+          fi
           git commit -m "chore: append eval results"
           git push origin gh-pages
           git checkout -
