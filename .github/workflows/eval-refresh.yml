@@ -370,9 +370,11 @@ jobs:
           fi
 
           if jq -e 'any(.[]; .eval_suite == "regression")' <<< "$pairs" > /dev/null; then
-            pnpm --filter @supabase-evals/framework export-results -- \
-              --suite regression \
-              --output apps/web/src/data/regression-eval-results.json
+            export_args=(--suite regression --output apps/web/src/data/regression-eval-results.json)
+            if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
+              export_args+=(--merge)
+            fi
+            pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
           fi
 
       - name: Upload exported results
