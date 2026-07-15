@@ -1,9 +1,37 @@
-import type { CheckResult, ToolScorer } from "@supabase-evals/core";
+import type {
+  CheckResult,
+  EdgeFunctionsInvokeResult,
+  ToolScorer,
+} from "@supabase-evals/core";
 
 const FUNCTION_NAME = "private-notes";
 const PASSWORD = "secret123";
 const NOTE_A = "user A private note";
 const NOTE_B = "user B private note";
+
+function responseNote(res: EdgeFunctionsInvokeResult): string | undefined {
+  return res.type === "response" ? `status=${res.status}` : res.error;
+}
+
+// A cross-user or unauthenticated request is secure as long as it returns a
+// graceful HTTP denial (or caller-scoped 200) and never echoes a forbidden
+// note. The exact status is left to the implementation; the no-leak invariant
+// is the real contract.
+function secureResponse(
+  name: string,
+  res: EdgeFunctionsInvokeResult,
+  acceptedStatuses: number[],
+  forbiddenNotes: string[],
+): CheckResult {
+  return {
+    name,
+    passed:
+      res.type === "response" &&
+      acceptedStatuses.includes(res.status) &&
+      forbiddenNotes.every((note) => !res.body.includes(note)),
+    notes: responseNote(res),
+  };
+}
 
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
@@ -63,14 +91,18 @@ INSERT INTO private_notes (user_id, body) VALUES
     headers: authHeadersB,
   });
 
+  const ownNotesUsesCallerJwt =
+    ownNotes.type === "response" &&
+    ownNotes.outboundBearerTokens.length > 0 &&
+    ownNotes.outboundBearerTokens.every((token) => token === callerToken);
+
   const checks: CheckResult[] = [
-    {
-      name: "rejects missing auth",
-      passed:
-        missingAuth.type === "response" &&
-        (missingAuth.status === 401 || missingAuth.status === 403),
-      notes: missingAuth.type === "error" ? missingAuth.error : undefined,
-    },
+    secureResponse(
+      "rejects missing auth",
+      missingAuth,
+      [401, 403],
+      [NOTE_A, NOTE_B],
+    ),
     {
       name: "user A reads own note",
       passed:
@@ -78,33 +110,29 @@ INSERT INTO private_notes (user_id, body) VALUES
         ownNotes.status === 200 &&
         ownNotes.body.includes(NOTE_A) &&
         !ownNotes.body.includes(NOTE_B),
-      notes: ownNotes.type === "error" ? ownNotes.error : undefined,
+      notes: responseNote(ownNotes),
     },
     {
       // Reads should run as the signed-in user, never the service-role key.
       name: "reads only with the caller's JWT",
-      passed:
-        ownNotes.type === "response" &&
-        ownNotes.outboundBearerTokens.length > 0 &&
-        ownNotes.outboundBearerTokens.every((token) => token === callerToken),
-      notes: ownNotes.type === "error" ? ownNotes.error : undefined,
+      passed: ownNotesUsesCallerJwt,
+      notes:
+        ownNotes.type === "response"
+          ? `bearer_tokens=${ownNotes.outboundBearerTokens.length}, all_match=${ownNotesUsesCallerJwt}`
+          : ownNotes.error,
     },
-    {
-      name: "user A cannot force-read user B note",
-      passed:
-        aRequestsB.type === "response" &&
-        aRequestsB.status === 200 &&
-        !aRequestsB.body.includes(NOTE_B),
-      notes: aRequestsB.type === "error" ? aRequestsB.error : undefined,
-    },
-    {
-      name: "user B cannot force-read user A note",
-      passed:
-        bRequestsA.type === "response" &&
-        bRequestsA.status === 200 &&
-        !bRequestsA.body.includes(NOTE_A),
-      notes: bRequestsA.type === "error" ? bRequestsA.error : undefined,
-    },
+    secureResponse(
+      "user A cannot force-read user B note",
+      aRequestsB,
+      [200, 401, 403, 404],
+      [NOTE_B],
+    ),
+    secureResponse(
+      "user B cannot force-read user A note",
+      bRequestsA,
+      [200, 401, 403, 404],
+      [NOTE_A],
+    ),
   ];
 
   return { passed: checks.every((check) => check.passed), checks };
