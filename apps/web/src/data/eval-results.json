@@ -330,22 +330,22 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing bearer token\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"c00f63e7-9598-4605-8a01-227e2d2ee727\",\"metric\":\"steps_a_mrjdxp77\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"7bb87677-07a8-44da-8523-46afdbecb19f\",\"metric\":\"steps_a_mrku33hf\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"c00f63e7-9598-4605-8a01-227e2d2ee727\",\"metric\":\"steps_a_mrjdxp77\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"7bb87677-07a8-44da-8523-46afdbecb19f\",\"metric\":\"steps_a_mrku33hf\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"590bfde3-46a2-48e3-86c8-898c4647a93e\",\"metric\":\"steps_b_mrjdxp77\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"1ff6b1a0-557e-472a-acbd-fd0173814e45\",\"metric\":\"steps_b_mrku33hf\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -360,7 +360,7 @@
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"c00f63e7-9598-4605-8a01-227e2d2ee727\",\"metric\":\"steps_a_mrjdxp77\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"7bb87677-07a8-44da-8523-46afdbecb19f\",\"metric\":\"steps_a_mrku33hf\",\"value\":111}]"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -381,6 +381,92 @@
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"62af436b-4e09-4e8d-8c0b-70b5ff76620c\",\"metric\":\"steps_a_mrku1j25\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"62af436b-4e09-4e8d-8c0b-70b5ff76620c\",\"metric\":\"steps_a_mrku1j25\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"ef47c9d6-1441-450b-8b59-1688d14fcac6\",\"metric\":\"steps_b_mrku1j25\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "claude-code-opus-4.8",
@@ -1484,37 +1570,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"missing credentials\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"1f64d950-822e-41bc-8755-3af802d25c4b\",\"metric\":\"steps_a_mrjdvk7e\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"c39bfabc-68e0-4d93-9b1b-f207230a5484\",\"metric\":\"steps_a_mrku49qh\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"1f64d950-822e-41bc-8755-3af802d25c4b\",\"metric\":\"steps_a_mrjdvk7e\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"c39bfabc-68e0-4d93-9b1b-f207230a5484\",\"metric\":\"steps_a_mrku49qh\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"b8ffb4f5-7441-44d3-8788-7d6ef1329a91\",\"metric\":\"steps_b_mrjdvk7e\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"ad31d6ee-d48c-4003-aac8-5ebefe18443c\",\"metric\":\"steps_b_mrku49qh\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"1f64d950-822e-41bc-8755-3af802d25c4b\",\"metric\":\"steps_a_mrjdvk7e\",\"value\":111}]"
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -1530,6 +1616,87 @@
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8-no-skills/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"512e3850-374e-467a-a54a-bd2c62c8e288\",\"metric\":\"steps_a_mrku1l8p\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"512e3850-374e-467a-a54a-bd2c62c8e288\",\"metric\":\"steps_a_mrku1l8p\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"752c453d-2560-4337-b80a-042087deb4de\",\"metric\":\"steps_b_mrku1l8p\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8-no-skills/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "claude-code-opus-4.8-no-skills",
@@ -2593,27 +2760,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing bearer access token\"}"
+        "notes": "status 401: {\"error\":\"Missing bearer token\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"1cadfbd7-ccd1-44f1-93ca-16566df5e086\",\"metric\":\"steps_a_mrjdyyqk\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"bf147f94-e188-4b03-aba2-08fe479a13da\",\"metric\":\"steps_a_mrku9tkk\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"1cadfbd7-ccd1-44f1-93ca-16566df5e086\",\"metric\":\"steps_a_mrjdyyqk\",\"value\":111}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"bf147f94-e188-4b03-aba2-08fe479a13da\",\"metric\":\"steps_a_mrku9tkk\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: {\"data\":[{\"user_id\":\"8e0b88a1-c421-4efd-93e8-2f2328998417\",\"metric\":\"steps_b_mrjdyyqk\",\"value\":222}]}"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"d90eabe7-3511-4d85-946b-705610739966\",\"metric\":\"steps_b_mrku9tkk\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing bearer access token\"}"
+        "notes": "status 401: {\"error\":\"Missing bearer token\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
@@ -2623,7 +2790,7 @@
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing bearer access token\"}"
+        "notes": "status 401: {\"error\":\"Missing bearer token\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -2644,6 +2811,92 @@
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"162c2695-4bc1-4b16-9843-c0920fb00b37\",\"metric\":\"steps_a_mrku4c2v\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"162c2695-4bc1-4b16-9843-c0920fb00b37\",\"metric\":\"steps_a_mrku4c2v\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"73118b8f-38ea-4c7f-9e7a-49d14554a07c\",\"metric\":\"steps_b_mrku4c2v\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -3747,37 +4000,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing bearer access token\"}"
+        "notes": "status 401: {\"error\":\"missing bearer token\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"e6a2ff03-f827-4870-a183-35d88b69f82a\",\"metric\":\"steps_a_mrjdvajv\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"08d862f8-34a1-4bcc-ac79-992802c7b1cd\",\"metric\":\"steps_a_mrku3azs\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"e6a2ff03-f827-4870-a183-35d88b69f82a\",\"metric\":\"steps_a_mrjdvajv\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"08d862f8-34a1-4bcc-ac79-992802c7b1cd\",\"metric\":\"steps_a_mrku3azs\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"a14b5ea3-80cb-4d60-b5b7-9f1e50c54fec\",\"metric\":\"steps_b_mrjdvajv\",\"value\":222}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"e97541dd-04d0-46b1-9a11-226b9229c76c\",\"metric\":\"steps_b_mrku3azs\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid or expired access token\"}"
+        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid or expired access token\"}"
+        "notes": "status 401: {\"error\":\"invalid or expired token\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"e6a2ff03-f827-4870-a183-35d88b69f82a\",\"metric\":\"steps_a_mrjdvajv\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[]}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -3793,6 +4046,87 @@
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"c1509822-b7a6-4371-9b0c-a31f25334e98\",\"metric\":\"steps_a_mrkua98x\",\"value\":111}]}"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"c1509822-b7a6-4371-9b0c-a31f25334e98\",\"metric\":\"steps_a_mrkua98x\",\"value\":111}]}"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"72ad4565-7b64-49aa-9e80-1b98b7dd8bfd\",\"metric\":\"steps_b_mrkua98x\",\"value\":222}]}"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
@@ -4847,52 +5181,12 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
-        "name": "seed rows present",
-        "passed": true,
-        "notes": "found 2/2 seeded rows"
-      },
-      {
-        "name": "rejects request with no credentials",
-        "passed": true,
-        "notes": "status 401: {\"error\":\"Missing Authorization header\"}"
-      },
-      {
-        "name": "user with JWT reads only their own rows",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"ff215c07-2c6f-44fe-b06e-0e7afbe8c141\",\"metric\":\"steps_a_mrjdwvta\",\"value\":111}]"
-      },
-      {
-        "name": "user cannot read another user's rows by passing user_id",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"ff215c07-2c6f-44fe-b06e-0e7afbe8c141\",\"metric\":\"steps_a_mrjdwvta\",\"value\":111}]"
-      },
-      {
-        "name": "service key bypasses RLS to read the target user's rows",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"4fc72d21-69a8-4d45-af25-bc643dde14a4\",\"metric\":\"steps_b_mrjdwvta\",\"value\":222}]"
-      },
-      {
-        "name": "non-service key is not granted service access",
-        "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid user token\"}"
-      },
-      {
-        "name": "rejects an unverified (forged) user token",
-        "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid user token\"}"
-      },
-      {
-        "name": "a user token in the apikey slot is not treated as the service key",
-        "passed": true,
-        "notes": "status 200: []"
-      },
-      {
-        "name": "signal: implementation uses @supabase/server",
-        "passed": true,
-        "notes": "no — hand-rolled (raw supabase-js or other)"
+        "name": "scorer completed without errors",
+        "passed": false,
+        "notes": "could not read `supabase status`: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-dual-auth\nTry rerunning the command with --debug to troubleshoot the error.\n"
       }
     ],
     "skills": {
@@ -4906,8 +5200,94 @@
     },
     "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"4d53c6b2-58b8-40f3-86e9-9d1ec99dd65d\",\"metric\":\"steps_a_mrku1tzi\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"4d53c6b2-58b8-40f3-86e9-9d1ec99dd65d\",\"metric\":\"steps_a_mrku1tzi\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"33483451-aba8-4b82-be00-f1785276ffb2\",\"metric\":\"steps_b_mrku1tzi\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -6018,37 +6398,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing user access token\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"d02e26d3-5f28-4883-980a-c70d6af651e8\",\"metric\":\"steps_a_mrjdw77x\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"28ab1f10-09e6-4473-a146-44d7fc2e8bcc\",\"metric\":\"steps_a_mrku6s9m\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"d02e26d3-5f28-4883-980a-c70d6af651e8\",\"metric\":\"steps_a_mrjdw77x\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"28ab1f10-09e6-4473-a146-44d7fc2e8bcc\",\"metric\":\"steps_a_mrku6s9m\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"db0b2def-1b97-4368-a51c-6fc52e62599d\",\"metric\":\"steps_b_mrjdw77x\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"50b5aa2a-6c16-4e0c-bfd9-83f11c11e940\",\"metric\":\"steps_b_mrku6s9m\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing user access token\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid or expired user access token\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing user access token\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -6064,6 +6444,87 @@
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"msg\":\"Error: Missing authorization header\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"8c24f10e-5149-4721-9015-63a3ff29cd6d\",\"metric\":\"steps_a_mrku3ycp\",\"value\":111}]}"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"8c24f10e-5149-4721-9015-63a3ff29cd6d\",\"metric\":\"steps_a_mrku3ycp\",\"value\":111}]}"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"e843527b-3a8b-4920-9e3a-924152e28b0d\",\"metric\":\"steps_b_mrku3ycp\",\"value\":222}]}"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"msg\":\"Invalid JWT\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini-no-skills",
@@ -7130,37 +7591,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"f960875d-e475-493f-b4bf-3397d8ee59e9\",\"metric\":\"steps_a_mrje1mfd\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"0c4e5568-c011-438c-b826-a739e04d5183\",\"metric\":\"steps_a_mrku5i27\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"f960875d-e475-493f-b4bf-3397d8ee59e9\",\"metric\":\"steps_a_mrje1mfd\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"0c4e5568-c011-438c-b826-a739e04d5183\",\"metric\":\"steps_a_mrku5i27\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"9da30d51-d93e-487c-b8d8-1a233e5c0ef6\",\"metric\":\"steps_b_mrje1mfd\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"2596cf1e-b311-4b45-a8c2-56ee078e7301\",\"metric\":\"steps_b_mrku5i27\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"unauthorized\"}"
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -7181,6 +7642,92 @@
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"6c1008c1-d2b2-4456-be8a-061b9e215c36\",\"metric\":\"steps_a_mrkuh0vm\",\"value\":111}]}"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"6c1008c1-d2b2-4456-be8a-061b9e215c36\",\"metric\":\"steps_a_mrkuh0vm\",\"value\":111}]}"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: {\"data\":[{\"user_id\":\"e25da81b-5c3e-482a-a390-42a5bd722296\",\"metric\":\"steps_b_mrkuh0vm\",\"value\":222}]}"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "codex-gpt-5.5/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "codex-gpt-5.5",
@@ -8288,37 +8835,37 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing bearer token.\"}"
+        "notes": "status 401: {\"error\":\"Missing user access token or service apikey\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"75971db9-2b89-4d1a-ac01-f49ea42e38cc\",\"metric\":\"steps_a_mrjdyrfb\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"f0775925-be2b-4557-9d5a-4f018dfdf1de\",\"metric\":\"steps_a_mrku3k1j\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"75971db9-2b89-4d1a-ac01-f49ea42e38cc\",\"metric\":\"steps_a_mrjdyrfb\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"f0775925-be2b-4557-9d5a-4f018dfdf1de\",\"metric\":\"steps_a_mrku3k1j\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"cbca11b8-8ad8-4667-a265-d1c57746314d\",\"metric\":\"steps_b_mrjdyrfb\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"0f4bc018-3a85-4296-97be-7082cab73ac4\",\"metric\":\"steps_b_mrku3k1j\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing bearer token.\"}"
+        "notes": "status 401: {\"error\":\"Missing user access token or service apikey\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid bearer token.\"}"
+        "notes": "status 401: {\"error\":\"Invalid user access token\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing bearer token.\"}"
+        "notes": "status 401: {\"error\":\"Missing user access token or service apikey\"}"
       },
       {
         "name": "signal: implementation uses @supabase/server",
@@ -8334,6 +8881,87 @@
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5-no-skills/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"b0485741-cb09-4b1c-b0df-37355ffea511\",\"metric\":\"steps_a_mrku8djv\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"b0485741-cb09-4b1c-b0df-37355ffea511\",\"metric\":\"steps_a_mrku8djv\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"f5f122bd-a149-4c19-aabe-6891cc29c1b4\",\"metric\":\"steps_b_mrku8djv\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"unauthorized\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows:\n\n```sql\nuser_stats(user_id uuid default auth.uid(), metric text, value int)\n```\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5-no-skills/build-functions-006-dual-auth-with-server.json"
   },
   {
     "experiment": "codex-gpt-5.5-no-skills",
