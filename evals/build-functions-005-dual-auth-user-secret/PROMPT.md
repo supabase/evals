@@ -2,6 +2,7 @@
 stage: build
 suite: benchmark
 interface: cli
+cliVersion: 2.109.1
 product:
   - edge-functions
   - auth
@@ -24,11 +25,7 @@ reachable over HTTP at `/functions/v1/user-stats`.
 
 Our product stores per-user metrics in a `user_stats` table that already exists
 (see `supabase/migrations/`), protected by row-level security so a user can read
-only their own rows:
-
-```sql
-user_stats(user_id uuid default auth.uid(), metric text, value int)
-```
+only their own rows.
 
 Two very different callers need to hit this one endpoint:
 

@@ -5,11 +5,12 @@ import {
   type LocalStackScorer,
 } from "@supabase-evals/core";
 
-// Sibling of build-functions-005: same dual-auth scenario and the same
-// behavioral checks, but this eval *mandates* the @supabase/server package. The
-// "uses @supabase/server" check is GATING here (in 005 it is an informational
-// signal), so a correct-but-hand-rolled solution fails: this eval measures
-// whether an agent can wield the package correctly, not just solve the task.
+// Regression sibling of build-functions-005: same dual-auth scenario and the
+// same checks, but the prompt *names* @supabase/server. Where 005 (benchmark)
+// asks whether agents discover the package unprompted, this eval guards the
+// usability property — "when pointed at the package, agents use it correctly"
+// (8/8 at time of writing) — as a canary for package or docs changes that
+// break agent usage. The "uses @supabase/server" check is GATING.
 const FUNCTION = "user-stats";
 const DEFAULT_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
@@ -186,9 +187,9 @@ const scorer: LocalStackScorer = async (ctx) => {
       notes: `status ${apikeyEscalate.status}: ${preview(apikeyEscalate.body)}`,
     });
 
-    // 8. GATING: the function must actually be built with @supabase/server.
-    // Unlike eval 005 (where this is an informational signal), a hand-rolled
-    // solution fails this eval even if it behaves correctly.
+    // 8. GATING: the function must actually be built with @supabase/server,
+    // as the prompt mandates — a hand-rolled solution fails this eval even if
+    // it behaves correctly.
     checks.push(await serverUsageCheck(ctx));
 
     return { passed: checks.every((c) => c.passed), checks };

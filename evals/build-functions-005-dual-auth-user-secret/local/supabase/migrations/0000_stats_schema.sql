@@ -15,3 +15,10 @@ create policy "users can read their own stats"
   for select
   to authenticated
   using (auth.uid() = user_id);
+
+-- Grant table privileges explicitly. The user path relies on RLS plus a SELECT
+-- grant to `authenticated`; the service path bypasses RLS as `service_role`.
+-- Newer Supabase CLIs (which this eval pins so the edge runtime exposes the new
+-- API-key env `@supabase/server` needs) no longer auto-grant privileges on
+-- migration-created tables, so grant them here.
+grant select on public.user_stats to authenticated, service_role;

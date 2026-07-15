@@ -5,6 +5,13 @@ import {
   type LocalStackScorer,
 } from "@supabase-evals/core";
 
+// Dual-auth Edge Function benchmark: the prompt is a requirements-only ticket
+// that never names @supabase/server, yet the "uses @supabase/server" check is
+// GATING — a correct-but-hand-rolled solution fails. This measures whether
+// agents *discover* the package the SDK team wants them to reach for, on top
+// of getting the user-JWT vs service-key security boundary right. Its sibling
+// build-functions-006 (suite: regression) names the package in the prompt and
+// guards the "can use it when pointed at it" property instead.
 const FUNCTION = "user-stats";
 const DEFAULT_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
@@ -26,15 +33,18 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     const status = await readStatus(ctx);
     const apiUrl = str(status.API_URL);
-    const serviceKey = str(status.SERVICE_ROLE_KEY);
-    // Newer CLIs report PUBLISHABLE_KEY; older ones ANON_KEY. Either works as a
-    // non-privileged client key for routing and for the negative check.
-    const anonKey = str(status.ANON_KEY) ?? str(status.PUBLISHABLE_KEY);
+    // @supabase/server validates against the *new* API keys only (it rejects the
+    // legacy service_role/anon JWTs), so this eval drives it with the new keys:
+    // sb_secret_… for the service path, sb_publishable_… for the user/negative
+    // paths. This is why the eval pins a CLI new enough to expose them and to
+    // inject SUPABASE_SECRET_KEYS/PUBLISHABLE_KEYS/JWKS into the edge runtime.
+    const secretKey = str(status.SECRET_KEY);
+    const publishableKey = str(status.PUBLISHABLE_KEY);
     const dbUrl = str(status.DB_URL) ?? DEFAULT_DB_URL;
-    if (!apiUrl || !serviceKey || !anonKey) {
+    if (!apiUrl || !secretKey || !publishableKey) {
       return fail(
         "read stack config from `supabase status`",
-        `missing API_URL/SERVICE_ROLE_KEY/(ANON|PUBLISHABLE)_KEY — is the stack running? got keys: ${Object.keys(status).join(", ")}`,
+        `missing API_URL/SECRET_KEY/PUBLISHABLE_KEY — new API keys are required for @supabase/server; is the stack running on a new-enough CLI? got keys: ${Object.keys(status).join(", ")}`,
       );
     }
 
@@ -101,7 +111,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     // 2. User path: A's JWT → only A's rows (RLS in force). Real clients also
     // send an apikey to route through the gateway.
     const aOwn = await invoke(
-      { authorization: `Bearer ${aToken}`, apikey: anonKey },
+      { authorization: `Bearer ${aToken}`, apikey: publishableKey },
       {},
     );
     checks.push({
@@ -113,7 +123,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     // 3. User path cannot escalate: A asks for B via body → still only A's rows.
     const aEscalate = await invoke(
-      { authorization: `Bearer ${aToken}`, apikey: anonKey },
+      { authorization: `Bearer ${aToken}`, apikey: publishableKey },
       { user_id: bId },
     );
     checks.push({
@@ -128,7 +138,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     // 4. Service path: service-role secret key in apikey + target user_id in
     // body → returns that user's rows, bypassing RLS.
     const service = await invoke(
-      { apikey: serviceKey },
+      { apikey: secretKey },
       { user_id: bId },
     );
     checks.push({
@@ -140,7 +150,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     // 5. Non-service key must NOT be granted service access: a bare client key
     // with no user JWT must not return another user's rows.
     const anonService = await invoke(
-      { apikey: anonKey },
+      { apikey: publishableKey },
       { user_id: bId },
     );
     checks.push({
@@ -155,7 +165,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     // token becomes the function's own job — an implementation that decodes the
     // JWT without checking its signature would trust the forged `sub`.
     const forged = await invoke(
-      { authorization: `Bearer ${forgeUnsignedToken(bId)}`, apikey: anonKey },
+      { authorization: `Bearer ${forgeUnsignedToken(bId)}`, apikey: publishableKey },
       {},
     );
     checks.push({
@@ -178,11 +188,12 @@ const scorer: LocalStackScorer = async (ctx) => {
       notes: `status ${apikeyEscalate.status}: ${preview(apikeyEscalate.body)}`,
     });
 
-    // Informational (non-gating): did the agent reach for @supabase/server, or
-    // hand-roll with raw supabase-js? Always passes; the finding lives in notes.
-    checks.push(await serverUsageSignal(ctx));
+    // 8. GATING: the function must actually be built with @supabase/server,
+    // even though the prompt never names it — a hand-rolled solution fails
+    // this eval even if it behaves correctly.
+    checks.push(await serverUsageCheck(ctx));
 
-    return { passed: checks.filter(gates).every((c) => c.passed), checks };
+    return { passed: checks.every((c) => c.passed), checks };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({ name: "scorer completed without errors", passed: false, notes: msg });
@@ -191,12 +202,6 @@ const scorer: LocalStackScorer = async (ctx) => {
 };
 
 export default scorer;
-
-// The informational signal is the only non-gating check; everything else counts.
-const INFO_CHECK = "signal: implementation uses @supabase/server";
-function gates(check: CheckResult): boolean {
-  return check.name !== INFO_CHECK;
-}
 
 function leaks(body: string, aMetric: string, bMetric: string): boolean {
   return body.includes(aMetric) || body.includes(bMetric);
@@ -268,8 +273,13 @@ async function readStatus(ctx: LocalStackEvalContext): Promise<Record<string, un
   return JSON.parse(res.stdout.slice(start, end + 1));
 }
 
-/** Non-gating: report whether the deployed function pulls in @supabase/server. */
-async function serverUsageSignal(ctx: LocalStackEvalContext): Promise<CheckResult> {
+/**
+ * GATING: the deployed function must genuinely be built with @supabase/server.
+ * We look for a real import of / call into the package, not a mention in a
+ * comment (a raw-supabase-js solution may name it in passing).
+ */
+async function serverUsageCheck(ctx: LocalStackEvalContext): Promise<CheckResult> {
+  const NAME = "implementation uses @supabase/server";
   const candidates = [
     `supabase/functions/${FUNCTION}/index.ts`,
     `supabase/functions/${FUNCTION}/index.tsx`,
@@ -277,17 +287,21 @@ async function serverUsageSignal(ctx: LocalStackEvalContext): Promise<CheckResul
   for (const path of candidates) {
     if (await ctx.fileExists(path)) {
       const src = await ctx.readFile(path).catch(() => "");
-      // Look for a real import of / call into the package, not any mention of
-      // the string (a raw-supabase-js solution may name it in a comment).
       const uses =
         /\bwithSupabase\s*\(/.test(src) ||
         /(?:from|import)\s*\(?\s*['"](?:npm:|jsr:)?@supabase\/server['"]/.test(src);
       return {
-        name: INFO_CHECK,
-        passed: true,
-        notes: uses ? "yes — imports @supabase/server / withSupabase" : "no — hand-rolled (raw supabase-js or other)",
+        name: NAME,
+        passed: uses,
+        notes: uses
+          ? "imports @supabase/server / withSupabase"
+          : "hand-rolled (raw supabase-js or other) — this eval requires @supabase/server",
       };
     }
   }
-  return { name: INFO_CHECK, passed: true, notes: "could not locate function source to inspect" };
+  return {
+    name: NAME,
+    passed: false,
+    notes: "could not locate function source to inspect",
+  };
 }
