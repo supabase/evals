@@ -1,6 +1,6 @@
 ---
 stage: investigate
-suite: benchmark
+suite: regression
 product:
   - edge-functions
 topic:
