@@ -156,6 +156,7 @@ describe("adaptTranscript", () => {
       {
         endpoint: "Bash",
         body: { command: "ls -la" },
+        name: "shell",
         command: "ls -la",
         result: "file1\nfile2",
         error: undefined,
@@ -164,6 +165,7 @@ describe("adaptTranscript", () => {
       {
         endpoint: "mcp__supabase__search_docs",
         body: { query: "rls" },
+        name: "tool_use",
         result: undefined,
         error: "boom",
         ts: 0,

@@ -65,6 +65,7 @@ describe("codexParser", () => {
       {
         endpoint: "command_execution",
         body: { command: "/bin/zsh -lc 'echo hi'" },
+        name: "shell",
         command: "/bin/zsh -lc 'echo hi'",
         result: "hi\n",
         error: undefined,
@@ -73,6 +74,7 @@ describe("codexParser", () => {
       {
         endpoint: "file_change",
         body: { changes: [{ path: "/work/note.txt", kind: "add" }] },
+        name: "file_write",
         path: "/work/note.txt",
         result: "completed",
         error: undefined,

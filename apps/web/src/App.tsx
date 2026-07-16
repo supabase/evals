@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { BotIcon, CheckIcon, CopyIcon, XIcon } from "lucide-react"
+import { BotIcon, CheckIcon, CopyIcon, FileTextIcon, SearchIcon, XIcon } from "lucide-react"
 import { z } from "zod"
 import {
   evalResultSchema,
@@ -70,6 +70,46 @@ type ParsedResult = Omit<EvalResult, "product" | "topic"> & {
 }
 
 type CheckResult = NonNullable<ParsedResult["checks"]>[number]
+type DocsResult = NonNullable<ParsedResult["docs"]>
+type DocsCall = DocsResult["calls"][number]
+
+const DOCS_CALL_SOURCE_LABEL: Record<DocsCall["source"], string> = {
+  search_docs: "MCP",
+  web_fetch: "Web Fetch",
+  web_search: "Web Search",
+}
+
+// A cool color for MCP (our own docs tool) vs a warm one for the agent going
+// around it onto the open web, so both read clearly and stand apart.
+const DOCS_CALL_SOURCE_CHIP_CLASS: Record<DocsCall["source"], string> = {
+  search_docs: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
+  web_fetch: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  web_search: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+}
+
+/**
+ * Search icon (muted) for a bare hit, a file icon for a call that actually
+ * pulled in page text, so the read-state lives on the icon rather than on
+ * the source chip, which is a different kind of information (which tool,
+ * not how much it read).
+ */
+function docsCallIcon(call: DocsCall) {
+  return call.hasContent === false ? SearchIcon : FileTextIcon
+}
+
+/**
+ * search_docs's `query` is a raw GraphQL document; pull out just the quoted
+ * search term for display, the rest is our own tool's plumbing, not
+ * something a reader needs to see at a glance. Falls back to the raw query
+ * (already plain text for web_fetch/web_search) if the shape is unexpected.
+ */
+function docsCallQueryLabel(call: DocsCall): string {
+  if (call.source === "search_docs") {
+    const match = call.query.match(/query:\s*"((?:[^"\\]|\\.)*)"/)
+    if (match) return match[1]
+  }
+  return call.query
+}
 
 type ExperimentStageSummary = {
   experiment: string
@@ -515,6 +555,61 @@ function ResultChecks({ checks }: { checks: CheckResult[] }) {
               </details>
             ) : null}
           </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * One row per tool call an agent made toward the docs (not one per page):
+ * the query it used, collapsed by default, expanding to the pages that call
+ * actually returned. Matches how the agent itself acts, issue one call, get
+ * a batch of results back together, rather than flattening every result
+ * into an undifferentiated list of pages.
+ */
+function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
+  return (
+    <div className="flex flex-col gap-1.5 leading-relaxed text-foreground">
+      {calls.map((call, index) => {
+        const searchOnly = call.hasContent === false
+        const Icon = docsCallIcon(call)
+        return (
+          <details key={index}>
+            <summary className="cursor-pointer">
+              <span className="inline-flex w-[calc(100%-1rem)] items-start gap-2 align-top">
+                <Icon
+                  className={cn("mt-0.5 size-4 shrink-0", searchOnly ? "text-muted-foreground/60" : "text-muted-foreground")}
+                  aria-hidden
+                />
+                <span className={cn("min-w-0 truncate", searchOnly ? "text-muted-foreground" : "text-foreground")}>
+                  {docsCallQueryLabel(call)}
+                </span>
+                <span className={cn(subgroupLabelClassName, "shrink-0", DOCS_CALL_SOURCE_CHIP_CLASS[call.source])}>
+                  {DOCS_CALL_SOURCE_LABEL[call.source]}
+                </span>
+              </span>
+            </summary>
+            <div className="mt-1 ml-6 flex flex-col gap-1">
+              {call.pages.length > 0 ? (
+                call.pages.map((page) => (
+                  <a
+                    key={page.url}
+                    href={page.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate text-foreground hover:underline"
+                  >
+                    {page.title ?? page.url}
+                  </a>
+                ))
+              ) : (
+                <span className="text-muted-foreground">
+                  No results recovered (the tool's output may have been truncated).
+                </span>
+              )}
+            </div>
+          </details>
         )
       })}
     </div>
@@ -1002,6 +1097,12 @@ function ExperimentSheet({
                                       </pre>
                                     </div>
                                   }
+                                />
+                              ) : null}
+                              {result.docs?.calls.length ? (
+                                <EvalMetadataRow
+                                  label="Docs activity"
+                                  value={<ResultDocsCalls calls={result.docs.calls} />}
                                 />
                               ) : null}
                             </dl>

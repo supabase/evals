@@ -229,6 +229,48 @@ export const skillResultSchema = z.object({
 });
 export type SkillResult = z.infer<typeof skillResultSchema>;
 
+// The tool that made a docs call. `search_docs` is matched by raw MCP
+// endpoint suffix (MCP tool identity isn't part of the harness's canonical
+// tool vocabulary). `web_fetch`/`web_search` are the harness's own normalized
+// name, so Claude Code's `WebSearch` and Codex's `web_search` (the same
+// action, spelled differently per harness) collapse into one value here.
+export const docsPageSourceSchema = z.enum(["search_docs", "web_fetch", "web_search"]);
+export type DocsPageSource = z.infer<typeof docsPageSourceSchema>;
+
+const docsCallPageSchema = z.object({
+  url: z.string(),
+  // Only present when the call's own data included it (search_docs and
+  // Claude Code's WebSearch return title alongside the url; a direct fetch or
+  // a Codex web_search used as a fetch don't).
+  title: z.string().optional(),
+});
+export type DocsCallPage = z.infer<typeof docsCallPageSchema>;
+
+// One tool call an agent made toward the docs: what it asked for (`query`,
+// the actual search term / GraphQL query / target URL, whichever applies)
+// and what came back (`pages`). This is the real unit of "an agent checking
+// docs", not an individual page, matching how the agent itself acts: it
+// issues one call and gets a batch of results back together.
+export const docsCallSchema = z.object({
+  source: docsPageSourceSchema,
+  query: z.string(),
+  // Whether the call's results included page text, not just a title/url hit.
+  // Known for search_docs (whether the agent's own GraphQL selection asked
+  // for `content`) and web_fetch (always true, that's what fetching is).
+  // False for Claude Code's WebSearch (its results never include page text,
+  // only title/url). Unknown (omitted) for a Codex web_search used as a
+  // fetch: no result payload is ever exposed on that tool.
+  hasContent: z.boolean().optional(),
+  pages: z.array(docsCallPageSchema),
+});
+export type DocsCall = z.infer<typeof docsCallSchema>;
+
+export const docsResultSchema = z.object({
+  // Every docs-related tool call, in the order the agent actually made them.
+  calls: z.array(docsCallSchema),
+});
+export type DocsResult = z.infer<typeof docsResultSchema>;
+
 // Every dimension that has an authoring enum is enforced against that same
 // enum here — the enum is the single source of truth for both authoring
 // (evalMetadataSchema) and results. Result files are gitignored, regenerated
@@ -251,6 +293,7 @@ const evalResultShape = {
   checks: z.array(checkResultSchema).optional(),
   attempts: z.number().optional(),
   skills: skillResultSchema.optional(),
+  docs: docsResultSchema.optional(),
 };
 
 // Raw result files may carry extra fields we don't model; tolerate them.

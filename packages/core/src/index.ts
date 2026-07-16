@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import type { ToolName } from "./transcript/types.js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
@@ -87,9 +88,13 @@ export {
   rawEvalResultSchema,
   reasoningEffortSchema,
   skillResultSchema,
+  docsResultSchema,
+  docsCallSchema,
+  docsPageSourceSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
 export { buildSkillResult } from "./skill-results.js";
+export { buildDocsResult } from "./docs-results.js";
 // CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
 export { createCliAgent } from "./agents/engine.js";
 export { claudeCodeAgent } from "./agents/claude-code/index.js";
@@ -127,6 +132,10 @@ export type {
   ParsedEvalMarkdown,
   ReasoningEffortLevel,
   SkillResult,
+  DocsResult,
+  DocsCall,
+  DocsCallPage,
+  DocsPageSource,
 } from "./eval-metadata.js";
 
 export interface ScoreResult {
@@ -176,6 +185,13 @@ export interface ToolCallRecord {
   path?: string;
   command?: string;
   url?: string;
+  /**
+   * Canonical tool category (e.g. `web_search` for both Claude Code's
+   * `WebSearch` and Codex's `web_search`), when the harness's parser
+   * normalized one. CLI agents always set this; ai-sdk tools keep their own
+   * name in `endpoint` with no normalization layer, so this stays unset.
+   */
+  name?: ToolName;
   /** Skill name loaded by this call, when the harness can identify one. */
   loadedSkill?: string;
   result?: unknown;

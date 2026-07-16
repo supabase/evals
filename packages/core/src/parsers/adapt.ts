@@ -62,6 +62,7 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         endpoint: event.tool.originalName,
         body,
         // Normalized views the parser extracted, for agent-agnostic scorers.
+        name: event.tool.name,
         path: event.tool.path,
         command: event.tool.command,
         url: event.tool.url,
