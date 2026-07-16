@@ -10,3 +10,4 @@ CREATE TABLE profiles (
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON profiles TO authenticated;
+GRANT ALL ON profiles TO service_role;

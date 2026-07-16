@@ -16,12 +16,37 @@ const scorer: ToolScorer = async (ctx) => {
     const clientB = userB.client;
     const clientC = userC.client;
 
+    // SET ROLE service_role so a policy-protected is_approved column (e.g. a trigger that
+    // only lets service_role set it) doesn't silently reset our seeded approval state.
     await ctx.query(stripIndent`
+      SET ROLE service_role;
       INSERT INTO profiles (user_id, display_name, phone_number, is_approved) VALUES
         ('${userA.id}', 'Alice', '555-0101', true),
         ('${userB.id}', 'Bob', '555-0102', true),
         ('${userC.id}', 'Cara', '555-0103', false);
+      RESET ROLE;
     `);
+
+    const { rows: seeded } = await ctx.query(stripIndent`
+      SELECT user_id, is_approved FROM profiles
+      WHERE user_id IN ('${userA.id}', '${userB.id}', '${userC.id}');
+    `);
+    const seededCorrectly =
+      seeded.find((r) => r.user_id === userA.id)?.is_approved === true &&
+      seeded.find((r) => r.user_id === userB.id)?.is_approved === true &&
+      seeded.find((r) => r.user_id === userC.id)?.is_approved === false;
+    if (!seededCorrectly) {
+      return {
+        passed: false,
+        checks: [
+          {
+            name: "seed data has expected approval states",
+            passed: false,
+            notes: `unexpected is_approved values after seeding: ${JSON.stringify(seeded)}`,
+          },
+        ],
+      };
+    }
 
     const { rows: rls } = await ctx.query(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'profiles';`,
