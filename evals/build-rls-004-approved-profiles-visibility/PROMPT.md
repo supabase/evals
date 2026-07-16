@@ -1,6 +1,6 @@
 ---
 stage: build
-suite: regression
+suite: benchmark
 interface: mcp
 product:
   - database
