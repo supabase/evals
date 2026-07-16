@@ -2,6 +2,8 @@ import type { CheckResult, SupabaseClient, ToolScorer } from "@supabase-evals/co
 import { stripIndent } from "common-tags";
 
 const PASSWORD = "secret123";
+const ACME = "11111111-1111-1111-1111-111111111111";
+const GLOBEX = "22222222-2222-2222-2222-222222222222";
 
 const scorer: ToolScorer = async (ctx) => {
   try {
@@ -11,16 +13,21 @@ const scorer: ToolScorer = async (ctx) => {
     if ("failure" in userB) return { passed: false, checks: [userB.failure] };
     const userC = await signUpUser(ctx.getClient(), "profiles-c@example.com");
     if ("failure" in userC) return { passed: false, checks: [userC.failure] };
+    const userD = await signUpUser(ctx.getClient(), "profiles-d@example.com");
+    if ("failure" in userD) return { passed: false, checks: [userD.failure] };
 
     const clientA = userA.client;
     const clientB = userB.client;
     const clientC = userC.client;
+    const clientD = userD.client;
 
+    // A and B are coworkers at Acme, C is an unapproved Acme hire, D works at Globex.
     await ctx.query(stripIndent`
-      INSERT INTO profiles (user_id, display_name, is_approved) VALUES
-        ('${userA.id}', 'Alice', true),
-        ('${userB.id}', 'Bob', true),
-        ('${userC.id}', 'Cara', false);
+      INSERT INTO profiles (user_id, company_id, display_name, is_approved) VALUES
+        ('${userA.id}', '${ACME}', 'Alice', true),
+        ('${userB.id}', '${ACME}', 'Bob', true),
+        ('${userC.id}', '${ACME}', 'Cara', false),
+        ('${userD.id}', '${GLOBEX}', 'Dana', true);
     `);
 
     const { rows: rls } = await ctx.query(
@@ -39,14 +46,16 @@ const scorer: ToolScorer = async (ctx) => {
       .update({ bio: "not approved yet" })
       .eq("user_id", userC.id)
       .select("bio");
-    const bReadsA = await clientB.from("profiles").select("id").eq("user_id", userA.id);
-    const aReadsB = await clientA.from("profiles").select("id").eq("user_id", userB.id);
-    const bUpdatesA = await clientB
+    const bReadsCoworkerA = await clientB.from("profiles").select("id").eq("user_id", userA.id);
+    const aReadsCoworkerB = await clientA.from("profiles").select("id").eq("user_id", userB.id);
+    const dReadsOtherCompanyA = await clientD.from("profiles").select("id").eq("user_id", userA.id);
+    const aReadsOtherCompanyD = await clientA.from("profiles").select("id").eq("user_id", userD.id);
+    const dUpdatesA = await clientD
       .from("profiles")
       .update({ display_name: "hijacked" })
       .eq("user_id", userA.id)
       .select("id");
-    const bDeletesA = await clientB.from("profiles").delete().eq("user_id", userA.id).select("id");
+    const dDeletesA = await clientD.from("profiles").delete().eq("user_id", userA.id).select("id");
 
     const checks: CheckResult[] = [
       { name: "RLS enabled on profiles", passed: rls[0]?.relrowsecurity === true },
@@ -71,20 +80,30 @@ const scorer: ToolScorer = async (ctx) => {
         notes: cOwnUpdate.error?.message,
       },
       {
-        name: "unrelated user B cannot select user A's approved profile",
-        passed: Boolean(bReadsA.error) || bReadsA.data?.length === 0,
+        name: "same-company coworker B can select A's approved profile",
+        passed: !bReadsCoworkerA.error && bReadsCoworkerA.data?.length === 1,
+        notes: bReadsCoworkerA.error?.message,
       },
       {
-        name: "unrelated user A cannot select user B's approved profile",
-        passed: Boolean(aReadsB.error) || aReadsB.data?.length === 0,
+        name: "same-company coworker A can select B's approved profile",
+        passed: !aReadsCoworkerB.error && aReadsCoworkerB.data?.length === 1,
+        notes: aReadsCoworkerB.error?.message,
       },
       {
-        name: "user B cannot update user A's profile",
-        passed: Boolean(bUpdatesA.error) || !bUpdatesA.data || bUpdatesA.data.length === 0,
+        name: "different-company user D cannot select A's approved profile",
+        passed: Boolean(dReadsOtherCompanyA.error) || dReadsOtherCompanyA.data?.length === 0,
       },
       {
-        name: "user B cannot delete user A's profile",
-        passed: Boolean(bDeletesA.error) || !bDeletesA.data || bDeletesA.data.length === 0,
+        name: "different-company user A cannot select D's approved profile",
+        passed: Boolean(aReadsOtherCompanyD.error) || aReadsOtherCompanyD.data?.length === 0,
+      },
+      {
+        name: "different-company user D cannot update A's profile",
+        passed: Boolean(dUpdatesA.error) || !dUpdatesA.data || dUpdatesA.data.length === 0,
+      },
+      {
+        name: "different-company user D cannot delete A's profile",
+        passed: Boolean(dDeletesA.error) || !dDeletesA.data || dDeletesA.data.length === 0,
       },
     ];
 
