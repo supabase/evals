@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { BotIcon, CheckIcon, CopyIcon, FileTextIcon, SearchIcon, XIcon } from "lucide-react"
+import { BotIcon, CheckIcon, ChevronRightIcon, CopyIcon, FileTextIcon, SearchIcon, XIcon } from "lucide-react"
 import { z } from "zod"
 import {
   evalResultSchema,
@@ -582,11 +582,15 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
         const searchOnly = call.hasContent === false
         const Icon = docsCallIcon(call)
         return (
-          <details key={index}>
-            <summary className="cursor-pointer">
-              <span className="inline-flex w-[calc(100%-1rem)] items-start gap-2 align-top">
+          <details key={index} className="group">
+            <summary className="cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex w-full items-center gap-2">
+                <ChevronRightIcon
+                  className="size-4 shrink-0 text-muted-foreground/50 transition-transform group-open:rotate-90"
+                  aria-hidden
+                />
                 <Icon
-                  className={cn("mt-0.5 size-4 shrink-0", searchOnly ? "text-muted-foreground/60" : "text-muted-foreground")}
+                  className={cn("size-4 shrink-0", searchOnly ? "text-muted-foreground/60" : "text-muted-foreground")}
                   aria-hidden
                 />
                 <span
@@ -605,7 +609,7 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                 </span>
               </span>
             </summary>
-            <div className="mt-1 ml-6 flex flex-col gap-1">
+            <div className="mt-1 ml-12 flex flex-col gap-1">
               {call.pages.length > 0 ? (
                 call.pages.map((page) => (
                   <a
@@ -613,7 +617,7 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                     href={page.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="truncate text-foreground hover:underline"
+                    className="truncate text-muted-foreground hover:text-foreground hover:underline"
                   >
                     {page.title ?? page.url}
                   </a>
