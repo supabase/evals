@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import type { ToolName } from "./transcript/types.js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
@@ -87,9 +88,14 @@ export {
   rawEvalResultSchema,
   reasoningEffortSchema,
   skillResultSchema,
+  docsResultSchema,
+  docsCallSchema,
+  docsPageSourceSchema,
 } from "./eval-metadata.js";
 export { parseEvalMarkdown } from "./eval-markdown.js";
 export { buildSkillResult } from "./skill-results.js";
+export { buildDocsResult, rehydrateTruncatedDocsResults } from "./docs-results.js";
+export type { DocsResultSandbox } from "./docs-results.js";
 // CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
 export { createCliAgent } from "./agents/engine.js";
 export { claudeCodeAgent } from "./agents/claude-code/index.js";
@@ -127,6 +133,10 @@ export type {
   ParsedEvalMarkdown,
   ReasoningEffortLevel,
   SkillResult,
+  DocsResult,
+  DocsCall,
+  DocsCallPage,
+  DocsPageSource,
 } from "./eval-metadata.js";
 
 export interface ScoreResult {
@@ -176,6 +186,8 @@ export interface ToolCallRecord {
   path?: string;
   command?: string;
   url?: string;
+  /** Canonical tool category, set by CLI agent parsers; unset for ai-sdk tools which have no normalization layer. */
+  name?: ToolName;
   /** Skill name loaded by this call, when the harness can identify one. */
   loadedSkill?: string;
   result?: unknown;

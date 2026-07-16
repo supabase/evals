@@ -28,7 +28,9 @@ import {
 import { bootPlatformBackend } from "./platform-backend.js";
 import { viteBuild, vitestRun } from "./project-runner.js";
 import {
+  buildDocsResult,
   buildSkillResult,
+  rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
 } from "@supabase-evals/core";
 import type {
@@ -41,6 +43,7 @@ import type {
   LocalStackScorer,
   ScoreResult,
   SkillResult,
+  DocsResult,
   ToolCallRecord,
   TranscriptPart,
 } from "./types.js";
@@ -352,6 +355,7 @@ async function runOne(
   ScoreResult & {
     attempts: number;
     skills: SkillResult;
+    docs: DocsResult;
     toolCalls: ToolCallRecord[];
     transcript: TranscriptPart[];
     agentReport: string;
@@ -446,6 +450,8 @@ async function runOne(
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
+      // Must run before session disposes below, see rehydrateTruncatedDocsResults.
+      await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
 
       lastToolCalls = run.toolCalls;
       lastTranscript = run.transcript;
@@ -484,6 +490,7 @@ async function runOne(
           ...last,
           attempts: attempt,
           skills: buildSkillResult(availableSkills, run.toolCalls),
+          docs: buildDocsResult(run.toolCalls),
           toolCalls: run.toolCalls,
           transcript: run.transcript,
           agentReport: run.agentReport,
@@ -529,6 +536,8 @@ async function runOne(
       sandbox: cliSandbox?.sandbox,
       timeoutSec: TIMEOUT_SEC,
     });
+    // Must run before cliSandbox disposes below, see rehydrateTruncatedDocsResults.
+    if (cliSandbox) await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
 
     lastToolCalls = run.toolCalls;
     lastTranscript = run.transcript;
@@ -546,6 +555,7 @@ async function runOne(
         ...last,
         attempts: attempt,
         skills: buildSkillResult(availableSkills, run.toolCalls),
+        docs: buildDocsResult(run.toolCalls),
         toolCalls: run.toolCalls,
         transcript: run.transcript,
         agentReport: run.agentReport,
@@ -559,6 +569,7 @@ async function runOne(
     ...last,
     attempts: RUNS,
     skills: buildSkillResult(availableSkills, lastToolCalls),
+    docs: buildDocsResult(lastToolCalls),
     toolCalls: lastToolCalls,
     transcript: lastTranscript,
     agentReport: lastAgentReport,

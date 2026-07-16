@@ -229,6 +229,52 @@ export const skillResultSchema = z.object({
 });
 export type SkillResult = z.infer<typeof skillResultSchema>;
 
+// The tool that made a docs call. `search_docs` is matched by raw MCP
+// endpoint suffix (MCP tool identity isn't part of the harness's canonical
+// tool vocabulary). `web_fetch`/`web_search` are the harness's own normalized
+// name, so Claude Code's `WebSearch` and Codex's `web_search` (the same
+// action, spelled differently per harness) collapse into one value here.
+export const docsPageSourceSchema = z.enum(["search_docs", "web_fetch", "web_search"]);
+export type DocsPageSource = z.infer<typeof docsPageSourceSchema>;
+
+const docsCallPageSchema = z.object({
+  url: z.string(),
+  // Only present when the call's own data included it (search_docs and
+  // Claude Code's WebSearch return title alongside the url; a direct fetch or
+  // a Codex web_search used as a fetch don't).
+  title: z.string().optional(),
+});
+export type DocsCallPage = z.infer<typeof docsCallPageSchema>;
+
+export const docsCallSchema = z.object({
+  source: docsPageSourceSchema,
+  // Whichever field is the meaningful "ask" for that source: search term, GraphQL query, WebFetch's extraction prompt, or target URL.
+  query: z.string(),
+  // Whether the call's results included page text, not just a title/url hit.
+  // Known for search_docs (whether the agent's own GraphQL selection asked
+  // for `content`) and web_fetch (always true, that's what fetching is).
+  // False for Claude Code's WebSearch (its results never include page text,
+  // only title/url). Unknown (omitted) for a Codex web_search used as a
+  // fetch: no result payload is ever exposed on that tool.
+  hasContent: z.boolean().optional(),
+  pages: z.array(docsCallPageSchema),
+  // Size of the result the call actually produced, in characters, an
+  // approximation of how much text this call pulled into the agent's
+  // context (divide by ~4 for a rough token estimate). Recovered from the
+  // rehydrated file when the CLI truncated the result, or parsed out of the
+  // truncation message's own reported size when rehydration wasn't
+  // possible or wasn't attempted (e.g. no sandbox, ai-sdk/Codex which don't
+  // truncate this way). Omitted only when there's no result at all.
+  resultChars: z.number().optional(),
+});
+export type DocsCall = z.infer<typeof docsCallSchema>;
+
+export const docsResultSchema = z.object({
+  // Every docs-related tool call, in the order the agent actually made them.
+  calls: z.array(docsCallSchema),
+});
+export type DocsResult = z.infer<typeof docsResultSchema>;
+
 // Every dimension that has an authoring enum is enforced against that same
 // enum here — the enum is the single source of truth for both authoring
 // (evalMetadataSchema) and results. Result files are gitignored, regenerated
@@ -251,6 +297,7 @@ const evalResultShape = {
   checks: z.array(checkResultSchema).optional(),
   attempts: z.number().optional(),
   skills: skillResultSchema.optional(),
+  docs: docsResultSchema.optional(),
 };
 
 // Raw result files may carry extra fields we don't model; tolerate them.

@@ -128,6 +128,7 @@ async function readResultFile(
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
     skills: parsedResult.skills,
+    docs: parsedResult.docs,
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
     attempts: parsedResult.attempts,
