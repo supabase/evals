@@ -2969,12 +2969,11 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": false,
-        "notes": "supabase-docker/ is missing docker-compose.yml or volumes/db — not the self-host docker/ tree"
+        "passed": true
       },
       {
         "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
@@ -2982,13 +2981,11 @@
       },
       {
         "name": "secrets rotated off the shipped defaults",
-        "passed": false,
-        "notes": "still default or empty: POSTGRES_PASSWORD, JWT_SECRET, DASHBOARD_PASSWORD, VAULT_ENC_KEY, PG_META_CRYPTO_KEY"
+        "passed": true
       },
       {
         "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": false,
-        "notes": "JWT_SECRET missing"
+        "passed": true
       }
     ],
     "skills": {
@@ -2996,10 +2993,94 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase"
+      ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"self-hosting with Docker docker-compose setup\", limit: 10) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting",
+              "title": "Self-Hosting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/postgres-upgrade-17",
+              "title": "Upgrade to Postgres 17"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-oauth",
+              "title": "Configure Social Login (OAuth) Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
+              "title": "Custom Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https",
+              "title": "Configure Reverse Proxy and HTTPS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            }
+          ],
+          "resultChars": 144083
+        },
+        {
+          "source": "web_fetch",
+          "query": "List any breaking-change tagged entries related to self-hosting, docker-compose, or the self-hosting docker setup.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1093
+        },
+        {
+          "source": "web_fetch",
+          "query": "Return the raw list of entries verbatim, especially any tagged breaking-change, from the last 12 months, with their dates and links.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3617
+        },
+        {
+          "source": "web_fetch",
+          "query": "Return the full setup instructions for self-hosting Supabase with Docker, including the exact git clone / download steps, .env setup, and how to generate secrets (JWT secret, ANON_KEY, SERVICE_ROLE_KEY, dashboard credentials, POSTGRES_PASSWORD).",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker.md"
+            }
+          ],
+          "resultChars": 3222
+        }
+      ]
     },
     "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
     "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
