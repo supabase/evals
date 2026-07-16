@@ -351,7 +351,7 @@ jobs:
       - name: Export results
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
 
           mkdir -p results
           pairs='${{ needs.prepare.outputs.pairs }}'
@@ -361,6 +361,11 @@ jobs:
               [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
             done
           done < <(jq -r '.[].experiment' <<< "$pairs" | sort -u)
+
+          echo "::group::DEBUG tree"
+          find downloaded-results -maxdepth 4
+          find results -maxdepth 4
+          echo "::endgroup::"
 
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
             export_args=(--suite benchmark --output apps/web/src/data/eval-results.json)
