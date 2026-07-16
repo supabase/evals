@@ -165,7 +165,7 @@ jobs:
             matching=()
             while IFS= read -r id; do
               [ -d "evals/$id" ] && matching+=("$id")
-            done < <(jq -r 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | .[]' <<< "$eval_ids")
+            done < <(jq -Rr 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | .[]' <<< "$eval_ids")
           else
             matching=()
             for dir in evals/*/; do
