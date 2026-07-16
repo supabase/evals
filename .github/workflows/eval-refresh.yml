@@ -344,14 +344,27 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download raw results
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: downloaded-results
+        # actions/download-artifact only nests a downloaded artifact under a
+        # directory named after it when there's more than one to disambiguate;
+        # with exactly one matching pair it dumps the contents flat into
+        # `path`, silently breaking the per-experiment glob below. Naming the
+        # destination directory ourselves side-steps that inconsistency.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p downloaded-results
+          pairs='${{ needs.prepare.outputs.pairs }}'
+          while IFS= read -r name; do
+            gh run download ${{ github.run_id }} --name "$name" --dir "downloaded-results/$name"
+          done < <(jq -r '.[] | "raw-results-\(.experiment)__\(.eval_id)"' <<< "$pairs" | sort -u)
 
       - name: Export results
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
 
           mkdir -p results
           pairs='${{ needs.prepare.outputs.pairs }}'
@@ -361,11 +374,6 @@ jobs:
               [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
             done
           done < <(jq -r '.[].experiment' <<< "$pairs" | sort -u)
-
-          echo "::group::DEBUG tree"
-          find downloaded-results -maxdepth 4
-          find results -maxdepth 4
-          echo "::endgroup::"
 
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
             export_args=(--suite benchmark --output apps/web/src/data/eval-results.json)
