@@ -79,30 +79,19 @@ const DOCS_CALL_SOURCE_LABEL: Record<DocsCall["source"], string> = {
   web_search: "Web Search",
 }
 
-// A cool color for MCP (our own docs tool) vs a warm one for the agent going
-// around it onto the open web, so both read clearly and stand apart.
+// Cool color for MCP (our own docs tool), warm for the agent going around it onto the open web.
 const DOCS_CALL_SOURCE_CHIP_CLASS: Record<DocsCall["source"], string> = {
   search_docs: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
   web_fetch: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
   web_search: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
 }
 
-/**
- * Search icon (muted) for a bare hit, a file icon for a call that actually
- * pulled in page text, so the read-state lives on the icon rather than on
- * the source chip, which is a different kind of information (which tool,
- * not how much it read).
- */
+/** Search icon for a bare hit, file icon for a call that actually pulled in page text. */
 function docsCallIcon(call: DocsCall) {
   return call.hasContent === false ? SearchIcon : FileTextIcon
 }
 
-/**
- * search_docs's `query` is a raw GraphQL document; pull out just the quoted
- * search term for display, the rest is our own tool's plumbing, not
- * something a reader needs to see at a glance. Falls back to the raw query
- * (already plain text for web_fetch/web_search) if the shape is unexpected.
- */
+/** Pulls the quoted search term out of search_docs's raw GraphQL query for display, else returns the query as-is. */
 function docsCallQueryLabel(call: DocsCall): string {
   if (call.source === "search_docs") {
     const match = call.query.match(/query:\s*"((?:[^"\\]|\\.)*)"/)
@@ -568,13 +557,7 @@ function ResultChecks({ checks }: { checks: CheckResult[] }) {
   )
 }
 
-/**
- * One row per tool call an agent made toward the docs (not one per page):
- * the query it used, collapsed by default, expanding to the pages that call
- * actually returned. Matches how the agent itself acts, issue one call, get
- * a batch of results back together, rather than flattening every result
- * into an undifferentiated list of pages.
- */
+/** One collapsible row per docs call (see DocsCall), expanding to the pages that call returned. */
 function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
   return (
     <div className="flex flex-col gap-1.5 leading-relaxed text-foreground">

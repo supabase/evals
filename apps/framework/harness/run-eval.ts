@@ -450,8 +450,7 @@ async function runOne(
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
-      // Must happen before `session` disposes below: a truncated docs result
-      // is persisted inside the sandbox container, unreachable once it's torn down.
+      // Must run before session disposes below, see rehydrateTruncatedDocsResults.
       await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
 
       lastToolCalls = run.toolCalls;
@@ -537,8 +536,7 @@ async function runOne(
       sandbox: cliSandbox?.sandbox,
       timeoutSec: TIMEOUT_SEC,
     });
-    // Must happen before `cliSandbox` disposes below: a truncated docs result
-    // is persisted inside the sandbox container, unreachable once it's torn down.
+    // Must run before cliSandbox disposes below, see rehydrateTruncatedDocsResults.
     if (cliSandbox) await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
 
     lastToolCalls = run.toolCalls;

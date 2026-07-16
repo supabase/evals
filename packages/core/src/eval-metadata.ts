@@ -246,14 +246,9 @@ const docsCallPageSchema = z.object({
 });
 export type DocsCallPage = z.infer<typeof docsCallPageSchema>;
 
-// One tool call an agent made toward the docs: what it asked for (`query`,
-// the search term / GraphQL query / WebFetch's extraction prompt / target
-// URL, whichever is the meaningful "ask" for that source) and what came back
-// (`pages`). This is the real unit of "an agent checking docs", not an
-// individual page, matching how the agent itself acts: it issues one call
-// and gets a batch of results back together.
 export const docsCallSchema = z.object({
   source: docsPageSourceSchema,
+  // Whichever field is the meaningful "ask" for that source: search term, GraphQL query, WebFetch's extraction prompt, or target URL.
   query: z.string(),
   // Whether the call's results included page text, not just a title/url hit.
   // Known for search_docs (whether the agent's own GraphQL selection asked

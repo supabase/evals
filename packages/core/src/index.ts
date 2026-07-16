@@ -186,12 +186,7 @@ export interface ToolCallRecord {
   path?: string;
   command?: string;
   url?: string;
-  /**
-   * Canonical tool category (e.g. `web_search` for both Claude Code's
-   * `WebSearch` and Codex's `web_search`), when the harness's parser
-   * normalized one. CLI agents always set this; ai-sdk tools keep their own
-   * name in `endpoint` with no normalization layer, so this stays unset.
-   */
+  /** Canonical tool category, set by CLI agent parsers; unset for ai-sdk tools which have no normalization layer. */
   name?: ToolName;
   /** Skill name loaded by this call, when the harness can identify one. */
   loadedSkill?: string;
