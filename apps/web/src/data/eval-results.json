@@ -46,7 +46,7 @@
       {
         "name": "REST API returns no todos to anonymous requests",
         "passed": true,
-        "notes": "0 rows"
+        "notes": "error 42501: permission denied for table todos"
       },
       {
         "name": "REST API returns the todos to authenticated requests",
@@ -159,7 +159,7 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
+        "notes": "function removed the seeded message (id 6) from the queue"
       }
     ],
     "skills": {
@@ -335,7 +335,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f4d37-d487-72ec-aaf0-ef9d6e3aa776/receipt-alpha.pdf, 019f4d37-d487-72ec-aaf0-ef9d6e3aa776/receipt-beta.pdf"
+        "notes": "saw: 019f683a-5769-7778-9d5a-e8e358435e5d/receipt-alpha.pdf, 019f683a-5769-7778-9d5a-e8e358435e5d/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -356,7 +356,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "The answer creates a private user-files bucket, keeps RLS enabled, defines authenticated SELECT and INSERT policies scoped to bucket and owner via the first path segment/auth.uid(), and provides supabase-js createSignedUrl code with an expiry for temporary sharing. It does not make the bucket public, use permissive policies, anon/public roles, getPublicUrl, or client-side service role keys."
+        "judgeNotes": "Creates a private user-files bucket, keeps storage RLS policies owner-scoped for authenticated users with SELECT and INSERT WITH CHECK (plus update/delete), and uses createSignedUrl with an expiry for temporary sharing. No public bucket, getPublicUrl, anon policies, or client service role usage."
       }
     ],
     "skills": {
@@ -403,12 +403,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "6 passed, 2 failed"
+        "notes": "5 passed, 3 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "Identifies `posts` as the broken tenant isolation policy, explains authenticated members can read posts from other orgs, and grounds the conclusion in pgTAP failures while noting `notes` passes."
+        "judgeNotes": "The agent correctly identifies `posts` as the table with broken tenant isolation, explains that authenticated members can read posts from orgs they do not belong to, and grounds the conclusion in pgTAP failures. It also correctly distinguishes `notes` as passing isolation tests and treats the test results as authoritative."
       }
     ],
     "skills": {
@@ -456,12 +456,12 @@
       {
         "name": "HNSW index on the embedding column",
         "passed": true,
-        "notes": "CREATE INDEX document_sections_embedding_hnsw ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
       },
       {
         "name": "index operator class matches the search operator",
         "passed": true,
-        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_hnsw ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
       },
       {
         "name": "user A search returns only own sections, best match first",
@@ -521,12 +521,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Prometheus preserves the app job and adds an HTTPS Supabase scrape using /customer/v1/privileged/metrics with basic_auth password_file. docker-compose mounts the secrets directory containing that password file. No bearer auth or hardcoded key present."
+        "judgeNotes": "Supabase scrape uses HTTPS, correct metrics_path, HTTP basic_auth with password_file, preserves the app job, and docker-compose mounts the secrets directory containing that password_file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes concrete steps to replace project ref, create a Supabase Secret API key, place it in the matching gitignored secret file read by Prometheus, restart or reload the Compose stack, and verify via curl, Prometheus targets, PromQL, and Grafana."
+        "judgeNotes": "README includes concrete steps to create a Supabase Secret API key, write it to the mounted secret file, replace PROJECT_REF, restart/reload the Compose stack, and verify via curl, Prometheus targets, PromQL, and Grafana. Endpoint/auth and secret setup are consistent."
       }
     ],
     "skills": {
@@ -671,7 +671,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -692,7 +692,8 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
@@ -701,7 +702,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "The answer identifies the soft-delete-only flaw, fixes deletion by removing auth.sessions and auth.users, explains JWT access-token expiry windows and session validation/short expiry, and correctly distinguishes frontend publishable keys with RLS from server-only secret/service keys that bypass RLS."
+        "judgeNotes": "Meets the rubric: diagnoses soft-delete-only root cause, implements real auth access revocation via session deletion/refresh-token revocation plus login ban and RLS enforcement, explains the remaining stateless JWT window consistently with the implemented Data API RLS mitigation, and correctly distinguishes publishable frontend keys from secret backend-only keys that bypass RLS."
       }
     ],
     "skills": {
@@ -717,6 +718,56 @@
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 2,
     "sourcePath": "claude-code-opus-4.8/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly described the failures as HTTP 546 resource/CPU limit responses, not 500s/503s. Also noted the unrelated `welcome-email` 500 separately."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "Assistant explicitly attributes 546 failures to CPU time exhaustion, citing log evidence: shutdown reason CPUTime and cpu_time_used/cpu_time_limit 2000ms/2000ms. It distinguishes this from wall-clock time and unrelated welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant clearly identifies CPUTime limit as root cause and recommends reducing/offloading CPU-intensive thumbnail generation: external worker/media API, async queue, input constraints, and shrinking per-request work. It also explicitly says the CPU limit cannot be raised."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8/investigate-functions-001-546-resource-limit.json"
   },
   {
     "experiment": "claude-code-opus-4.8",
@@ -764,7 +815,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified that the channel can be SUBSCRIBED while INSERT events do not arrive because public.orders was missing from the supabase_realtime publication. It applied exactly the appropriate fix with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, verified publication membership, and explicitly left RLS/policies and courier_locations intact. It did not blame client code, networking, grants, or weaken RLS."
+        "judgeNotes": "The assistant correctly identified the root cause as orders missing from the supabase_realtime publication despite the channel reaching SUBSCRIBED, applied ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, verified publication membership, preserved courier_locations and RLS/policies, and did not blame or change RLS/client/networking."
       }
     ],
     "skills": {
@@ -800,22 +851,22 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described the recurring 503 gateway pattern across the morning of 2026-04-28, covering the 8 failures from ~07:00Z to 12:00Z. Also distinguished unrelated billing-webhook errors."
+        "judgeNotes": "The assistant correctly identified `image-transform` as the affected function and described the recurring 503 gateway pattern across the morning of 2026-04-28, covering the 8 failures from roughly 07:00Z through 12:00Z. It also correctly treated billing-webhook as an unrelated red herring."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": false,
-        "judgeNotes": "Although it notes the 503s appear only in gateway/API logs with no function invocation rows, it then attributes the likely cause to function boot/runtime/dependency issues and recommends changing the function dependency, which violates the rubric."
+        "passed": true,
+        "judgeNotes": "Attributes recurring image-transform 503s to the gateway/platform layer, explicitly noting they appear only in API/gateway logs with no matching function-execution entries while successful invocations nearby return 200. Also distinguishes these 503s from the separate avatar-upload function-level 500."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended specific actionable next steps: inspect Edge Function logs for the exact 503 boot/runtime errors in a defined time window, pin/vendor the dependency, check function resource limits/concurrency, and inspect function config."
+        "judgeNotes": "The assistant recommended concrete actionable next steps: checking Edge Function CPU/memory/invocation metrics for the incident window, looking for WORKER_LIMIT/compute errors, adding input guards, triaging the avatar-upload 500 with stack traces, and setting up alerting/log capture."
       }
     ],
     "skills": {
@@ -829,7 +880,7 @@
     },
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-opus-4.8/investigate-reliability-003-edge-function-5xx-correlation.json"
   },
   {
@@ -883,7 +934,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "Diagnosed RLS enabled with no policies causing Data API deny-all, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
       }
     ],
     "skills": {
@@ -899,6 +950,60 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"694290ec-8d57-4450-ac9a-27acd9674919\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "The answer correctly identifies the missing USING clause on the tasks UPDATE RLS policy as the cause of silent zero-row updates, explains that UPDATE needs USING to find rows before WITH CHECK applies, and fixes it with an authenticated-only owner-scoped policy using (user_id = auth.uid()) with check (user_id = auth.uid()). It keeps RLS/policy security intact and verifies owner vs cross-user behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "claude-code-opus-4.8",
@@ -944,7 +1049,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "Avatar migration was applied through `supabase db push` in #11, with output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the missing local migration file `20240115000000_add_profile_bio.sql` in #9, after which `supabase migration list` showed local/remote alignment and `supabase db push` succeeded. No prohibited workaround or direct SQL mutation was used; the psql commands were read-only inspection."
+        "judgeNotes": "Avatar migration was applied through `supabase db push` in action #10, with output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio history was reconciled by adding the missing local migration file `supabase/migrations/20240115000000_add_profile_bio.sql` in action #9, after which `supabase migration list` showed local and remote aligned. No disallowed workaround or direct SQL mutation was used; psql was read-only inspection only."
       }
     ],
     "skills": {
@@ -1094,6 +1199,73 @@
     "sourcePath": "claude-code-opus-4.8/resolve-security-002-rls-cross-tenant-leak.json"
   },
   {
+    "experiment": "claude-code-opus-4.8",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019f6839-a5bc-75be-ba52-1136f249d1a9/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed missing UPDATE RLS policy for storage.objects during upsert replacement, noted public bucket only affects read/download behavior, added an authenticated owner-scoped UPDATE policy with both USING and WITH CHECK using storage.foldername(name)[1] = auth.uid()::text, and kept public read/RLS intact."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8/resolve-storage-001-upsert-missing-update-policy.json"
+  },
+  {
     "experiment": "claude-code-opus-4.8-no-skills",
     "experimentSuite": "no-skills",
     "experimentDisplay": {
@@ -1238,12 +1410,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
+        "notes": "function removed the seeded message (id 6) from the queue"
       }
     ],
     "skills": {
@@ -1404,7 +1576,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f4d37-1861-743f-9354-c90caeba6274/receipt-alpha.pdf, 019f4d37-1861-743f-9354-c90caeba6274/receipt-beta.pdf"
+        "notes": "saw: 019f6839-c801-770e-b4ae-3320d24e2e31/receipt-alpha.pdf, 019f6839-c801-770e-b4ae-3320d24e2e31/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -1425,7 +1597,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Configures a private user-files bucket, authenticated owner-scoped SELECT and INSERT RLS policies on storage.objects using the user id path prefix, does not disable RLS or make public access permissive, and uses supabase-js createSignedUrl with an expiry for temporary sharing."
+        "judgeNotes": "Meets all requirements: private user-files bucket, authenticated owner-scoped SELECT and INSERT RLS policies with WITH CHECK, RLS remains enabled, and supabase-js uses createSignedUrl with an expiry for temporary sharing."
       }
     ],
     "skills": {
@@ -1472,7 +1644,7 @@
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as the table with the broken tenant isolation policy, grounds the conclusion in pgTAP failures showing cross-org post visibility, and distinguishes it from `notes`, which passes isolation tests."
+        "judgeNotes": "The agent correctly identifies `posts` as the table with the broken tenant isolation policy, explains that authenticated members can read posts from other organizations because the policy lacks `m.org_id = posts.org_id`, and grounds the conclusion in the pgTAP failures. It also correctly treats `notes` as isolated and the test results as authoritative."
       }
     ],
     "skills": {
@@ -1575,12 +1747,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Meets requirements: preserves app scrape; adds Supabase HTTPS scrape with correct metrics_path, basic_auth using password_file, and target under supabase.co; docker-compose mounts the secrets directory containing the password_file. No bearer auth or hardcoded key."
+        "judgeNotes": "Meets requirements: app scrape preserved, Supabase scrape uses HTTPS with the correct metrics path, Basic Auth with password_file, target is <project-ref>.supabase.co, and docker-compose mounts the secrets directory containing the password file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes go-live steps for project ref substitution, Secret API key creation, writing the matching mounted secret file, Compose restart/reload, and concrete verification via curl, Prometheus targets, and a PromQL query."
+        "judgeNotes": "README includes steps to configure project ref, create/copy a Supabase Secret API key, place it in the matching secrets/supabase_metrics_key file used by Prometheus, restart or hot-reload the Compose stack, and verify via curl plus Prometheus Status → Targets showing the supabase job UP."
       }
     ],
     "skills": {
@@ -1625,7 +1797,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -1710,7 +1882,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -1731,7 +1903,8 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
@@ -1740,7 +1913,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "Covers the root cause, implements real auth-user/session/refresh-token revocation, explains stateless JWT expiry window and mitigation via RLS/short TTL, and correctly distinguishes publishable frontend keys from server-only secret keys that bypass RLS."
+        "judgeNotes": "Diagnoses soft delete without auth/session revocation, implements session/refresh-token revocation plus RLS deleted checks, explains stateless JWT residual validity and consistently says data path is closed by the RLS fix while local/client validation may still see token until expiry, and correctly distinguishes publishable frontend/RLS-enforced vs secret server-only/RLS-bypassing keys."
       }
     ],
     "skills": {
@@ -1749,8 +1922,53 @@
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-opus-4.8-no-skills/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as affected and explicitly stated failures are HTTP 546 due to CPU/resource limit, not 500/503; also noted welcome-email 500 was unrelated."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion and grounds it in log evidence: shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms. It also distinguishes this from wall-clock time, code exceptions, memory, and the unrelated welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "Recommended moving thumbnail extraction to a background worker/external service and reducing CPU work per call via direct seeking/downscaling and input guards."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8-no-skills/investigate-functions-001-546-resource-limit.json"
   },
   {
     "experiment": "claude-code-opus-4.8-no-skills",
@@ -1798,7 +2016,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified that the channel reaches SUBSCRIBED but no INSERT events arrive because public.orders was missing from the supabase_realtime publication, and fixed it with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders. It preserved courier_locations and did not disable RLS or weaken policies. The final note mentions RLS only as a secondary check, not the root cause or applied fix."
+        "judgeNotes": "Diagnosed the silent subscription as orders missing from supabase_realtime, added public.orders to the existing publication, verified courier_locations remained, and did not weaken RLS/policies or blame client/networking as root cause."
       }
     ],
     "skills": {
@@ -1834,17 +2052,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the affected function and described the recurring HTTP 503 pattern across the morning of 2026-04-28, including most/all 8 gateway failures from 07:00Z-12:00Z. Also correctly distinguished unrelated billing-webhook 503s."
+        "judgeNotes": "The assistant correctly identified `image-transform` as the affected function and described the recurring pattern of eight HTTP 503 gateway failures across the morning of 2026-04-28, distinguishing them from unrelated billing-webhook and avatar-upload issues."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "Attributes recurring 503s to the gateway/platform layer, not function code, and grounds this in valid observations: 503s appear only in gateway logs with no function-internal rows, successful nearby invocations, and distinction from avatar-upload's function-level 500."
+        "judgeNotes": "Attributes 503s to gateway/platform layer before function execution, grounded in gateway 503s lacking corresponding runtime logs while nearby invocations returned 200, and distinguishes them from avatar-upload's function-level 500."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended specific actionable next steps: identify the scheduled burst source, add jitter, raise concurrency/rate limits, implement retry-with-backoff, and track the related 500."
+        "judgeNotes": "The assistant recommended specific actionable next steps, including pulling platform-level boot/error events for exact 503 timestamps, checking resource/boot behavior and memory limits, and triaging a related function error."
       }
     ],
     "skills": {
@@ -1853,7 +2071,7 @@
     },
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-opus-4.8-no-skills/investigate-reliability-003-edge-function-5xx-correlation.json"
   },
   {
@@ -1907,7 +2125,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies as deny-all causing Data API empty results; kept RLS enabled and created authenticated owner-scoped SELECT and INSERT policies using auth.uid() = user_id with WITH CHECK for inserts. Extra update/delete policies are acceptable."
+        "judgeNotes": "Diagnosed RLS enabled with zero policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
       }
     ],
     "skills": {
@@ -1918,6 +2136,55 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"298261e5-e7a0-41f5-9149-b577dafff5bd\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the zero-row UPDATE as an RLS UPDATE policy missing its USING clause, explained USING vs WITH CHECK, and applied a scoped fix using (user_id = auth.uid()) while retaining the existing WITH CHECK and authenticated/user ownership constraints."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "claude-code-opus-4.8-no-skills",
@@ -1963,7 +2230,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "Avatar migration was applied through the Supabase CLI with `supabase db push` in action #18, which output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the missing local migration file `20240115000000_add_profile_bio.sql` in action #16, after which `supabase migration list` showed local and remote aligned in action #17. Read-only `psql` inspection was used, but no disallowed direct SQL mutation or prepared-statement workaround was seen."
+        "judgeNotes": "Applied via `supabase db push` (#18), which shows `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` Reconciled the orphan bio migration by adding local file `20240115000000_add_profile_bio.sql` (#16), after which `supabase migration list` showed local and remote aligned (#17). No disallowed workaround seen; psql usage was read-only inspection."
       }
     ],
     "skills": {
@@ -2012,7 +2279,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -2096,6 +2363,68 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-4.8-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019f6839-8246-72d8-aaa5-45db039dee99/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnoses missing UPDATE RLS policy for upsert replacement, explains public bucket only covers read/download behavior, adds authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and keeps public read/RLS setup intact."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-4.8-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -2257,7 +2586,7 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 37) from the queue"
+        "notes": "function removed the seeded message (id 36) from the queue"
       }
     ],
     "skills": {
@@ -2327,7 +2656,7 @@
     },
     "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
     "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-database-001-migrate-postgres-to-supabase.json"
   },
   {
@@ -2433,7 +2762,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f4d37-866d-77bb-b699-7ec59a068785/receipt-alpha.pdf, 019f4d37-866d-77bb-b699-7ec59a068785/receipt-beta.pdf"
+        "notes": "saw: 019f6839-d5a9-71ee-ab54-c7fb47ce4703/receipt-alpha.pdf, 019f6839-d5a9-71ee-ab54-c7fb47ce4703/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -2454,7 +2783,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets rubric: private user-files bucket, authenticated owner-scoped SELECT and INSERT storage.objects policies with WITH CHECK for uploads, RLS not disabled, and supabase-js createSignedUrl with expiry for temporary sharing."
+        "judgeNotes": "The answer creates a private user-files bucket, defines authenticated SELECT and INSERT policies on storage.objects scoped to bucket_id and the first folder segment matching auth.uid(), keeps RLS enabled (does not disable it), and provides supabase-js code using createSignedUrl with an expiry. It also avoids public bucket/getPublicUrl/service-role client-side patterns."
       }
     ],
     "skills": {
@@ -2501,12 +2830,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "7 passed, 4 failed"
+        "notes": "4 passed, 2 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as having a broken tenant isolation policy, states that authenticated members of any org can read other orgs’ posts, and grounds this in pgTAP failures (#6 and #7). It also correctly distinguishes `notes` as isolated and treats the test results as authoritative."
+        "judgeNotes": "The agent correctly identifies `posts` as having a broken tenant isolation policy, specifically that an authenticated member can read posts from other organizations, and grounds this in pgTAP results (`posts` negative case failed with have: 1, want: 0). It also notes `notes` is correctly isolated. Although it additionally flags `memberships`, this does not undermine the required conclusion."
       }
     ],
     "skills": {
@@ -2619,12 +2948,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Meets requirements: preserves app scrape, adds HTTPS Supabase metrics scrape at /customer/v1/privileged/metrics targeting <project-ref>.supabase.co:443, uses basic_auth with password_file, and docker-compose mounts the secrets directory containing that password file."
+        "judgeNotes": "Prometheus preserves the app scrape and adds a Supabase HTTPS scrape at /customer/v1/privileged/metrics using HTTP Basic Auth with password_file. docker-compose mounts the secrets directory containing the password_file path."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, secret file placement, Compose restart, and concrete verification via curl, Prometheus targets, and Grafana."
+        "judgeNotes": "README includes required Secret API key creation, matching password_file secret path, Compose up/reload steps, and concrete verification via Prometheus targets, direct curl, and Grafana dashboard."
       }
     ],
     "skills": {
@@ -2674,7 +3003,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get('WEATHER_API_KEY')."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -2769,7 +3098,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -2790,7 +3119,8 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
@@ -2799,7 +3129,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "The answer identifies the soft-delete-only root cause, implements real auth user deletion with session/refresh token revocation via cascades, explains the remaining stateless JWT access-token window and mitigation considerations, and correctly distinguishes publishable frontend/RLS-bound keys from secret backend/RLS-bypassing keys."
+        "judgeNotes": "Meets the rubric: identifies the soft-delete-only root cause, implements real revocation via session deletion and sign-in blocking plus RLS enforcement of deleted=false, explains the remaining stateless JWT/local-validation window consistently with the RLS data-path fix, and correctly distinguishes publishable vs secret keys and RLS behavior."
       }
     ],
     "skills": {
@@ -2815,6 +3145,56 @@
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 2,
     "sourcePath": "claude-code-sonnet-5/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified `video-thumbnails` as the affected function and explicitly stated the failures are HTTP 546 responses caused by CPU/resource limits, not 500s or 503s. It also distinguished the unrelated `welcome-email` 500 as separate."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms. It distinguishes this from wall-clock time, code exceptions, memory, and the unrelated welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant identifies CPUTime limit failures and recommends reducing CPU-intensive thumbnail work and/or moving processing to a background worker/external service. Although it also mentions raising CPU limit as a stopgap, the primary fix aligns with the rubric."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/investigate-functions-001-546-resource-limit.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -2862,7 +3242,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant identified the exact root cause: orders was missing from the supabase_realtime publication while the channel reached SUBSCRIBED. It fixed exactly that with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, verified membership, and did not weaken RLS/policies or disturb courier_locations."
+        "judgeNotes": "The assistant correctly identified the root cause as orders missing from the supabase_realtime publication despite the channel reaching SUBSCRIBED, added only public.orders to the existing publication, and left RLS/policies and courier_locations intact. It did not blame RLS/client/networking or weaken security."
       }
     ],
     "skills": {
@@ -2898,22 +3278,22 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
-        "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described the recurring 503 pattern across the morning of 2026-04-28, including 8 occurrences and examples from 07:00Z to 12:00Z. Did not incorrectly focus only on billing-webhook."
+        "passed": false,
+        "judgeNotes": "The assistant did not identify image-transform as the affected function or the recurring HTTP 503 pattern on 2026-04-28; instead it refused investigation due to project/log retention assumptions."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": true,
-        "judgeNotes": "The response clearly attributes the recurring image-transform 503s to the gateway/platform layer rather than function code, and grounds this in valid observations: 503s appear only in gateway logs with no runtime invocation rows, successful nearby invocations ran normally, and it distinguishes these gateway 503s from avatar-upload's function-level 500."
+        "passed": false,
+        "judgeNotes": "The response gives no layer attribution for the recurring 503s and does not ground an attribution in observations about gateway logs vs function invocations, deployment version, or distinction from function-level errors."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including investigating concurrency/cold-start limits, pulling specific avatar-upload logs for a request/time, adding retry/backoff and alerting, and checking with Supabase support about platform-side throttling around the affected dates."
+        "judgeNotes": "The assistant recommended specific actionable next steps: verify the correct Supabase project/ref, locate archived external logs, and gather error reports/timestamps for cross-reference."
       }
     ],
     "skills": {
@@ -2927,7 +3307,7 @@
     },
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5/investigate-reliability-003-edge-function-5xx-correlation.json"
   },
   {
@@ -2981,7 +3361,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "Diagnosed deny-all RLS due to no policies and added authenticated owner-scoped SELECT and INSERT policies with WITH CHECK while keeping RLS enabled."
       }
     ],
     "skills": {
@@ -2997,6 +3377,60 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"dfdca59f-e41b-42b3-8ebd-99e60eb09800\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the zero-row UPDATE as an UPDATE RLS policy missing USING while only having WITH CHECK, and fixed it by adding USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()), scoped to authenticated/own rows with RLS intact."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -3042,7 +3476,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "Applied avatar_url via `supabase db push` in #12, which output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` Reconciled orphan bio migration by adding local file `supabase/migrations/20240115000000_add_profile_bio.sql` in #10, after which `supabase migration list` showed local/remote matched and push proceeded. No disallowed workaround seen; psql usage was read-only inspection."
+        "judgeNotes": "PASS: The avatar_url migration was applied through `supabase db push` in action #14, which shows `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration history was reconciled by adding the missing local migration file `supabase/migrations/20240115000000_add_profile_bio.sql` in action #12, after which `supabase migration list` showed local and remote aligned. Only read-only psql inspection was used; no disallowed workaround was seen."
       }
     ],
     "skills": {
@@ -3096,7 +3530,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on idx_events_user_id_created_at  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -3192,6 +3626,73 @@
     "sourcePath": "claude-code-sonnet-5/resolve-security-002-rls-cross-tenant-leak.json"
   },
   {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019f683a-1de6-7601-a378-a2d3a65e6865/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnosed missing storage.objects UPDATE policy for avatar upsert, explained public bucket only covers reads/downloads, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and did not weaken public-read setup or disable RLS."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/resolve-storage-001-upsert-missing-update-policy.json"
+  },
+  {
     "experiment": "claude-code-sonnet-5-no-skills",
     "experimentSuite": "no-skills",
     "experimentDisplay": {
@@ -3238,7 +3739,7 @@
       {
         "name": "REST API returns no todos to anonymous requests",
         "passed": true,
-        "notes": "error 42501: permission denied for table todos"
+        "notes": "0 rows"
       },
       {
         "name": "REST API returns the todos to authenticated requests",
@@ -3336,7 +3837,7 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
@@ -3502,7 +4003,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f4d37-2a23-7648-947a-5ffca7f548b6/receipt-alpha.pdf, 019f4d37-2a23-7648-947a-5ffca7f548b6/receipt-beta.pdf"
+        "notes": "saw: 019f6839-79ef-7489-8a2b-5d1509a2d47c/receipt-alpha.pdf, 019f6839-79ef-7489-8a2b-5d1509a2d47c/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -3523,7 +4024,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets all criteria: creates a private user-files bucket, keeps RLS enabled, adds authenticated owner-scoped SELECT and INSERT policies on storage.objects using folder prefix = auth.uid(), and provides supabase-js createSignedUrl with an expiry. No public bucket, permissive policies, anon access, getPublicUrl, or client-side service key usage."
+        "judgeNotes": "Meets requirements: creates a private user-files bucket, defines authenticated owner-scoped SELECT and INSERT policies on storage.objects, does not disable RLS, and uses createSignedUrl with an expiry for temporary sharing."
       }
     ],
     "skills": {
@@ -3560,17 +4061,17 @@
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "1 file(s): supabase/tests/tenant_isolation_test.sql"
+        "notes": "1 file(s): supabase/tests/database/tenant_isolation_test.sql"
       },
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "6 passed, 2 failed"
+        "notes": "5 passed, 3 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as the table with the broken tenant isolation policy, explains that authenticated members can read posts from organizations they are not members of, and grounds the conclusion in pgTAP test failures. It also correctly treats `notes` as isolated and the test results as authoritative."
+        "judgeNotes": "Correctly identifies posts (not notes) as the broken tenant isolation policy, explains the missing org_id comparison, and grounds the conclusion in the pgTAP failures showing cross-tenant post reads."
       }
     ],
     "skills": {
@@ -3613,12 +4114,12 @@
       {
         "name": "HNSW index on the embedding column",
         "passed": true,
-        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
       },
       {
         "name": "index operator class matches the search operator",
         "passed": true,
-        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
       },
       {
         "name": "user A search returns only own sections, best match first",
@@ -3673,12 +4174,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Adds Supabase scrape over HTTPS to /customer/v1/privileged/metrics using HTTP Basic Auth with password_file, preserves app scrape, and docker-compose mounts the secrets directory containing the password file."
+        "judgeNotes": "Meets all required criteria: HTTPS Supabase metrics endpoint, correct path, Basic Auth with password_file, app scrape preserved, and docker-compose mounts the password file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes steps to create a Secret API key, write it to the mounted secret file, reload Prometheus, and verify via Prometheus targets or direct curl."
+        "judgeNotes": "README includes Secret API key creation, secret file placement, project ref replacement, Compose restart, and concrete verification via curl and Prometheus targets."
       }
     ],
     "skills": {
@@ -3808,7 +4309,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -3829,8 +4330,7 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": false,
-        "notes": "deleted account can still sign in"
+        "passed": true
       },
       {
         "name": "other users keep their sessions and access",
@@ -3838,8 +4338,8 @@
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "The answer correctly diagnoses the soft-delete-only flow, implements auth-layer revocation via banning and session deletion, explains JWT expiry behavior, and correctly distinguishes publishable vs secret keys. However, it does not clarify that server-side checks should use auth.getUser() or short JWT expiry rather than only local JWT validation such as getClaims(), which is an explicit passing requirement."
+        "passed": true,
+        "judgeNotes": "Meets all rubric points: identifies soft-delete-only root cause, implements auth.users deletion with session/identity cascade and refresh-token revocation, accurately states existing stateless JWT access tokens can still work until expiry given its RLS-only auth.uid() data path, suggests mitigations, and correctly distinguishes publishable frontend/RLS behavior from secret server-only/RLS-bypassing behavior."
       }
     ],
     "skills": {
@@ -3848,8 +4348,53 @@
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly described failures as HTTP 546 resource/CPU time limit responses rather than 500/503 server errors."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant specifically attributes the 546s to CPU time exhaustion, citing shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "Recommended offloading CPU-heavy thumbnail generation to a background/external service and reducing per-call processing cost; retry was only presented as a stop-gap."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/investigate-functions-001-546-resource-limit.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
@@ -3897,7 +4442,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "Identifies the missing orders table in supabase_realtime publication as root cause, explains SUBSCRIBED without INSERT events, adds public.orders via ALTER PUBLICATION, preserves courier_locations and does not alter RLS/policies or blame client/networking."
+        "judgeNotes": "The assistant correctly identified that orders was missing from the supabase_realtime publication despite the channel reaching SUBSCRIBED, added only public.orders to the existing publication, preserved courier_locations and RLS/policies, and did not blame or alter client code, RLS, grants, or networking."
       }
     ],
     "skills": {
@@ -3933,17 +4478,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and described the recurring 8 HTTP 503 gateway failures across the morning of 2026-04-28 (roughly 07:00Z-12:00Z), while distinguishing unrelated billing-webhook 503s."
+        "judgeNotes": "The assistant explicitly identified `image-transform` as the affected function and described the recurring pattern of 8 HTTP 503 gateway responses across 07:00Z–12:00Z on 2026-04-28, while correctly treating old billing-webhook 503s as unrelated."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "Attributes the 503s to the gateway/platform layer before function invocation, grounded in absence of corresponding runtime logs for failed requests and unchanged deployment/version. It also distinguishes these from avatar-upload's function-level 500."
+        "judgeNotes": "Attributes the recurring image-transform 503s to the gateway/platform/runtime layer rather than function code, grounded in valid observations: 503s only in API gateway logs with no corresponding edge-function execution logs, successful nearby invocations on the same deployment/version, and distinction from avatar-upload's function-level 500."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended multiple concrete next steps, including correlating traffic volume for the specific time window, adding instrumentation, moving image processing async, checking/raising function memory/time limits, and setting up gateway 503 alerting."
+        "judgeNotes": "The assistant recommended concrete actionable next steps, including checking Supabase platform/status/support for Edge Function runtime incidents, adding retries, reviewing the related function code path, and adding alerting."
       }
     ],
     "skills": {
@@ -3952,7 +4497,7 @@
     },
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5-no-skills/investigate-reliability-003-edge-function-5xx-correlation.json"
   },
   {
@@ -4006,7 +4551,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies as deny-all for Data API users, kept RLS enabled, and created authenticated-role SELECT and INSERT policies scoped to user_id = auth.uid() with USING and WITH CHECK."
+        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to auth.uid() = user_id using USING and WITH CHECK."
       }
     ],
     "skills": {
@@ -4017,6 +4562,55 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"611b5d44-25b0-4ae7-846a-8170a11330bd\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified the missing USING clause on the UPDATE RLS policy as the cause of silent 0-row updates, explained the distinction between USING and WITH CHECK, and fixed the policy for authenticated users with USING (user_id = auth.uid()) while retaining WITH CHECK (user_id = auth.uid()). RLS was kept scoped to the row owner and not weakened."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
@@ -4062,7 +4656,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "Avatar migration was applied through `supabase db push` in action #16, with output showing `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration history was reconciled by adding the missing local migration file `20240115000000_add_profile_bio.sql` in action #14, after which `supabase migration list` showed local and remote aligned in action #15. Only read-only `psql` inspection was used; no disallowed workaround was observed."
+        "judgeNotes": "Applied avatar_url via `supabase db push` in step #15, which output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` Reconciled the orphan bio migration by adding the missing local file `supabase/migrations/20240115000000_add_profile_bio.sql` in step #13, after which `supabase migration list` showed local and remote aligned. No disallowed workaround or direct mutation was used."
       }
     ],
     "skills": {
@@ -4195,6 +4789,68 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019f6839-bbcd-70ee-afd9-f807e015c9b6/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed missing UPDATE RLS policy for upsert replacement, explained public bucket only covered read/download behavior, kept the bucket public/RLS enabled, and added an authenticated owner-scoped UPDATE policy with both USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -4351,12 +5007,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 36) from the queue"
+        "notes": "function removed the seeded message (id 5) from the queue"
       }
     ],
     "skills": {
@@ -4426,7 +5082,7 @@
     },
     "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
     "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/build-database-001-migrate-postgres-to-supabase.json"
   },
   {
@@ -4472,12 +5128,12 @@
       {
         "name": "user A cannot force-read user B note",
         "passed": true,
-        "notes": "status=200"
+        "notes": "status=403"
       },
       {
         "name": "user B cannot force-read user A note",
         "passed": true,
-        "notes": "status=200"
+        "notes": "status=403"
       }
     ],
     "skills": {
@@ -4491,7 +5147,7 @@
     },
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini/build-functions-004-service-role-bypass.json"
   },
   {
@@ -4532,7 +5188,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f4d37-4140-76ca-8edb-5f20209955b7/receipt-alpha.pdf, 019f4d37-4140-76ca-8edb-5f20209955b7/receipt-beta.pdf"
+        "notes": "saw: 019f6839-b607-71f0-a677-a1290275560c/receipt-alpha.pdf, 019f6839-b607-71f0-a677-a1290275560c/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -4553,7 +5209,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets all requirements: private user-files bucket, RLS kept enabled, authenticated owner-scoped SELECT and INSERT policies with WITH CHECK, and supabase-js createSignedUrl with expiry for sharing."
+        "judgeNotes": "The answer creates a private user-files bucket, defines authenticated SELECT and INSERT policies on storage.objects scoped to the bucket and owner/user path, keeps RLS intact, and uses createSignedUrl with a 15-minute expiry for sharing. No disallowed public bucket/getPublicUrl/service-role-client pattern is present."
       }
     ],
     "skills": {
@@ -4595,17 +5251,17 @@
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "1 file(s): supabase/tests/tenant_isolation_test.sql"
+        "notes": "1 file(s): supabase/tests/database/tenant_isolation.test.sql"
       },
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "6 passed, 0 failed"
+        "notes": "5 passed, 0 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as having the tenant isolation flaw: authenticated users could read posts for organizations they are not members of because the policy checked membership in any org rather than the row's `org_id`. It also grounds the conclusion in pgTAP verification. Although it additionally discusses `memberships`, it does not blame `notes` or dismiss the test results."
+        "judgeNotes": "The agent correctly identifies `posts` as the table with the tenant isolation flaw, specifically that its policy was not scoped by matching `org_id`, while treating `notes` as correctly scoped. It also references pgTAP regression coverage and successful test results after the fix."
       }
     ],
     "skills": {
@@ -4614,7 +5270,8 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
@@ -4688,7 +5345,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -4718,12 +5375,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails because prometheus.yml uses basic_auth.password from an environment variable instead of basic_auth.password_file, and docker-compose.yml does not mount the password_file via a volume or Compose secret."
+        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an injected Secret API key instead of basic_auth.password_file, and docker-compose does not mount a password_file via volume or Compose secret. App scrape is preserved and endpoint/path/scheme are otherwise correct."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README explains creating a Supabase Secret API key and starting the Compose stack, but it does not require placing a matching secret file, and the setup uses environment variables instead. It also lacks concrete verification steps such as checking Prometheus targets or running PromQL/Grafana queries."
+        "judgeNotes": "README mentions creating a Supabase Secret API key and verification via Prometheus target status, but it does not clearly require placing the matching secret file and restarting/reloading the Compose stack; it only mentions .env/export and restarting Prometheus."
       }
     ],
     "skills": {
@@ -4868,12 +5525,11 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
-        "passed": false,
-        "notes": "permission denied for table users"
+        "passed": true
       },
       {
         "name": "delete_account flow ran for the victim",
@@ -4894,13 +5550,12 @@
       },
       {
         "name": "other users keep their sessions and access",
-        "passed": false,
-        "notes": "permission denied for table users"
+        "passed": true
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "The answer correctly identifies the soft-delete bug, implements real auth-user deletion/session cascade, explains JWTs can remain cryptographically valid until expiry, and correctly distinguishes publishable vs secret keys. However it does not clarify the required server-side validation point: use auth.getUser() (or short JWT expiry/session checks) rather than only local JWT validation such as getClaims()."
+        "passed": true,
+        "judgeNotes": "Meets rubric: identifies soft-delete-only cause, implements hard deletion of auth.users with cascading cleanup (revoking sessions/refresh tokens via auth deletion), explains JWT access-token expiry caveat consistently with its data-path fix, and correctly distinguishes publishable/anon vs secret/service_role keys and RLS bypass."
       }
     ],
     "skills": {
@@ -4917,6 +5572,56 @@
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as affected and explicitly stated failures have status `546` due to Supabase Edge Function CPU/resource limit, not 500/503."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "Assistant specifically attributes 546 failures to CPU time exhaustion, citing log evidence: shutdown reason CPUTime, cpu_time_used 2000ms, cpu_time_limit 2000ms, and distinguishes it from wall-clock/storage/API issues."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identifies CPUTime limit and recommends moving thumbnail generation to a background worker/dedicated service and reducing CPU per request via caching, smaller inputs, and avoiding expensive transcoding."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/investigate-functions-001-546-resource-limit.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -4964,7 +5669,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "Diagnosed missing public.orders from supabase_realtime publication, added it with ALTER PUBLICATION, verified courier_locations remained included, and did not alter RLS or policies."
+        "judgeNotes": "The assistant correctly identified orders missing from supabase_realtime publication as the root cause, added only public.orders to the existing publication, preserved courier_locations and RLS/policies, and did not blame or alter RLS/client/networking."
       }
     ],
     "skills": {
@@ -5005,17 +5710,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the affected function and described the recurring 503 pattern across 8 failures from 07:00Z to 12:00Z on 2026-04-28."
+        "judgeNotes": "Identified image-transform as affected and described the recurring intermittent 503 pattern across the morning of 2026-04-28, covering the listed 07:00Z-12:00Z failures."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": false,
-        "judgeNotes": "The response does not clearly attribute the recurring 503s to the gateway/platform layer in front of the function. It frames them as an Edge Function/runtime or upstream dependency issue, recommends inspecting function implementation and redeploying/rolling back, and does not ground a gateway-layer attribution in observations like missing invocation/runtime rows or unchanged deployment across the outage."
+        "judgeNotes": "Although it correctly notes the 503s appear at the API/gateway layer without corresponding function execution logs, it also recommends inspecting/redeploying the image-transform/avatar-upload packages, which treats function/package remediation as a next step despite the gateway/platform attribution."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete actionable next steps, including inspecting the Edge Function implementation/dependencies, correlating request behavior around specific failure times, adding targeted error logging, and rolling back or redeploying a known-good version if users are blocked."
+        "judgeNotes": "The assistant recommended concrete next steps including inspecting/redeploying packages, checking recent deploy/dependency changes, adding retry/backoff, and opening Supabase support with timestamps and deployment IDs."
       }
     ],
     "skills": {
@@ -5083,7 +5788,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Pass: diagnosed RLS enabled with no policies causing deny-all Data API behavior, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using auth.uid() = user_id / WITH CHECK. Extra update/delete and index do not violate rubric."
+        "judgeNotes": "Diagnosed RLS deny-all due to enabled RLS with no policies, kept RLS enabled, and created authenticated SELECT and INSERT owner-scoped policies using auth.uid() with WITH CHECK for inserts."
       }
     ],
     "skills": {
@@ -5092,14 +5797,67 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"f05c0e9d-7f98-4274-b234-25edd0d59914\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified the UPDATE policy on public.tasks had WITH CHECK but no USING, explained that this causes a silent zero-row update due to RLS filtering before targeting the row, and fixed it by recreating the authenticated UPDATE policy with USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()). RLS remained enabled and scoped to the task owner/authenticated role."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -5120,7 +5878,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "the avatar_url column is applied on the hosted profiles table",
@@ -5128,8 +5886,7 @@
       },
       {
         "name": "migration 20240220000000 is recorded in the remote history",
-        "passed": false,
-        "notes": "remote history versions: [\"20240101000000\",\"20240115000000\"]"
+        "passed": true
       },
       {
         "name": "remote migration history matches local migration files",
@@ -5137,8 +5894,7 @@
       },
       {
         "name": "local migrations are a valid reconciled sequence",
-        "passed": false,
-        "notes": "migration(s) not applied on the remote: [\"20240220000000\"]"
+        "passed": true
       },
       {
         "name": "production profile data is intact (not reset)",
@@ -5146,8 +5902,8 @@
       },
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
-        "passed": false,
-        "judgeNotes": "FAIL: `supabase db push` never actually succeeded; only dry-runs/errors were recorded. The avatar_url migration was applied via a direct Management API `curl` POST to `/database/migrations` in command #98, which routes around the Supabase CLI. The bio history was only addressed by adding a local migration file in #32, but no successful CLI push/repair/pull reconciled it remotely. Workaround seen: direct Management API migration application."
+        "passed": true,
+        "judgeNotes": "Applied avatar_url with `supabase db push --db-url \"$(cat supabase/.temp/pooler-url)\"`, which showed `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` Reconciled the orphan bio migration by fetching/adding the missing local migration via `supabase migration fetch --db-url ...`, after which migration lists matched. Only read-only psql SELECTs observed; no direct SQL mutation or prepared-statement workaround."
       }
     ],
     "skills": {
@@ -5201,7 +5957,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -5295,6 +6051,73 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019f683a-1d03-745e-a4ad-f3baf28f713a/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed missing UPDATE RLS policy on storage.objects for avatar upsert replacement, noted upsert requires SELECT and UPDATE in addition to INSERT, kept the public bucket/read setup and RLS enabled, and added an authenticated owner/path-scoped UPDATE policy with USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini-no-skills",
@@ -5392,12 +6215,11 @@
       },
       {
         "name": "a new migration was generated for the change",
-        "passed": false,
-        "notes": "found 1 migration file(s)"
+        "passed": true
       },
       {
         "name": "description column exists in the live database",
-        "passed": false
+        "passed": true
       }
     ],
     "skills": {
@@ -5456,7 +6278,7 @@
     },
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/build-cli-003-pg-cron-queue-workflow.json"
   },
   {
@@ -5553,12 +6375,12 @@
       {
         "name": "user A cannot force-read user B note",
         "passed": true,
-        "notes": "status=403"
+        "notes": "status=200"
       },
       {
         "name": "user B cannot force-read user A note",
         "passed": true,
-        "notes": "status=403"
+        "notes": "status=200"
       }
     ],
     "skills": {
@@ -5608,7 +6430,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f4d36-fbc7-7215-b0be-f495c8d2c912/receipt-alpha.pdf, 019f4d36-fbc7-7215-b0be-f495c8d2c912/receipt-beta.pdf"
+        "notes": "saw: 019f6839-9167-703e-bab1-d52cf060a4a1/receipt-alpha.pdf, 019f6839-9167-703e-bab1-d52cf060a4a1/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -5629,7 +6451,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets all required criteria: private user-files bucket, RLS kept enabled, authenticated owner-scoped SELECT and INSERT WITH CHECK policies on storage.objects, and supabase-js createSignedUrl with expiry for temporary sharing."
+        "judgeNotes": "Meets requirements: private user-files bucket, authenticated owner-scoped SELECT and INSERT WITH CHECK policies on storage.objects with RLS left enabled, and supabase-js createSignedUrl with an expiry. Service role key is shown server-side only, not client-side."
       }
     ],
     "skills": {
@@ -5666,7 +6488,7 @@
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "1 file(s): supabase/tests/tenant_isolation_test.sql"
+        "notes": "1 file(s): supabase/tests/tenant_isolation.sql"
       },
       {
         "name": "pgTAP isolation tests ran and pass",
@@ -5676,7 +6498,7 @@
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as the table with the tenant isolation flaw, explains that the policy checked membership by user without matching `org_id`, and distinguishes it from `notes`. It also reports pgTAP verification after adding isolation tests and fixing the policy."
+        "judgeNotes": "The agent correctly identifies `posts` as the table with the tenant isolation flaw, explains that authenticated members could read posts from organizations they are not members of, contrasts it with `notes` being correctly constrained, and grounds the conclusion in pgTAP test results."
       }
     ],
     "skills": {
@@ -5719,12 +6541,12 @@
       {
         "name": "HNSW index on the embedding column",
         "passed": true,
-        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
       },
       {
         "name": "index operator class matches the search operator",
         "passed": true,
-        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
       },
       {
         "name": "user A search returns only own sections, best match first",
@@ -5749,7 +6571,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -5779,12 +6601,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Supabase scrape preserves app job and uses HTTPS with the correct metrics path and project target, but it uses basic_auth.password with env-template substitution instead of basic_auth.password_file, and docker-compose.yml does not mount a password_file via volume or Compose secret."
+        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password instead of password_file, and docker-compose.yml does not mount/provide that password file via a volume or Compose secret. Existing app job and endpoint are otherwise present."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README covers creating/copying a Supabase Secret API key, setting env vars, restarting the Compose stack, and verifying the Prometheus target is UP. However, the rubric requires placing the matching secret file, and this setup/README uses environment variables instead of a secret file, so the secret setup requirement is not met."
+        "judgeNotes": "README mentions creating a Supabase Secret API key and restarting/redeploying Prometheus, and gives a basic Prometheus target verification. However it does not require placing the matching secret file, instead using environment variables, so it fails the required secret-file setup."
       }
     ],
     "skills": {
@@ -5914,12 +6736,11 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
-        "passed": false,
-        "notes": "permission denied for table users"
+        "passed": true
       },
       {
         "name": "delete_account flow ran for the victim",
@@ -5940,13 +6761,12 @@
       },
       {
         "name": "other users keep their sessions and access",
-        "passed": false,
-        "notes": "permission denied for table users"
+        "passed": true
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "It correctly diagnosed the soft-delete-only bug, changed delete_account to delete auth.users, tightened RLS, and correctly described publishable vs secret keys. However, it failed the required JWT-window clarification: it claimed there is no practical post-commit window instead of explaining that stateless access tokens can remain valid until expiry after revocation, and it did not mention using auth.getUser() or short JWT expiry rather than relying only on local JWT validation/getClaims()."
+        "passed": true,
+        "judgeNotes": "Meets rubric: identifies soft-delete-only root cause, implements auth.users deletion plus session/identity cascade and RLS active-user checks, gives a consistent post-fix access-token explanation for the Data API path, and correctly distinguishes publishable/anon vs secret/service_role keys. Minor caveat: final answer could explicitly state stateless JWTs remain locally valid until expiry, but the implemented RLS fix closes the Data API window and the earlier/final discussion is not contradictory."
       }
     ],
     "skills": {
@@ -5957,6 +6777,51 @@
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly stated failures are status `546` due to CPU/resource limit, while noting `welcome-email` 500 is unrelated."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms. It also correctly distinguishes the unrelated welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly identifies CPUTime limit overruns and recommends reducing work inside the Edge Function, moving heavy video processing to a background job/external worker, and using smaller/lower-res frames or deferring large videos."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/investigate-functions-001-546-resource-limit.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini-no-skills",
@@ -6004,7 +6869,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified that orders was missing from the supabase_realtime publication while courier_locations was present, applied exactly ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, verified both tables remained published, and did not weaken RLS/policies or blame unrelated causes."
+        "judgeNotes": "The assistant identified the root cause as orders missing from the supabase_realtime publication despite successful subscription, added public.orders via ALTER PUBLICATION, verified courier_locations remained, and did not alter RLS or policies."
       }
     ],
     "skills": {
@@ -6013,7 +6878,7 @@
     },
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
     "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/investigate-realtime-001-subscribed-no-events.json"
   },
   {
@@ -6035,22 +6900,22 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the affected function and described the recurring 503 pattern across the morning of 2026-04-28, including most/all eight failures from 07:00Z to 12:00Z."
+        "judgeNotes": "The assistant identified `image-transform` as the affected function and described a recurring pattern of HTTP 503 gateway responses throughout the morning of 2026-04-28, listing failures across roughly 07:00Z-12:00Z. It did not focus on the old billing-webhook issue and provided the required specificity."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": true,
-        "judgeNotes": "Attributes recurring image-transform 503s to gateway/platform before handler execution, not function code. Grounds this in missing edge-function invocation logs for 503s, nearby successful fast invocations on same deployment/version, and distinguishes avatar-upload's 500 as a separate function-level error. Redeploy suggestion is a caveat, but not the primary attribution."
+        "passed": false,
+        "judgeNotes": "The answer correctly attributes the recurring 503s to the gateway/platform layer and grounds this in valid observations, including gateway-level 503s, successful nearby invocations, unchanged deployment/version, and distinction from avatar-upload's 500. However, it recommends redeploying the functions as a next step, which the rubric explicitly lists as a failing condition."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "Recommended concrete next steps including checking Edge Function deployment/platform health and incidents for a specific time window, redeploying the function, and ruling out external dependencies."
+        "judgeNotes": "The assistant recommended concrete next steps, including redeploying Edge Functions, adding retry/backoff, checking Supabase edge/platform incident or regional instability for the time window, and further investigating upstream packages if it persists."
       }
     ],
     "skills": {
@@ -6059,7 +6924,7 @@
     },
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/investigate-reliability-003-edge-function-5xx-correlation.json"
   },
   {
@@ -6113,7 +6978,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all, kept RLS enabled, and created authenticated-only SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "Diagnosed RLS enabled with no policies as deny-all, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to auth.uid() = user_id using USING and WITH CHECK respectively."
       }
     ],
     "skills": {
@@ -6124,6 +6989,55 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"a7251848-378c-4e05-bb25-532120fd5459\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the missing USING clause on the authenticated tasks UPDATE policy and fixed it with USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()) and keeping RLS enabled/scoped to authenticated owner rows."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini-no-skills",
@@ -6169,7 +7083,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "Avatar migration was applied through `supabase db push` in #25, which showed `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the local migration file `supabase/migrations/20240115000000_add_profile_bio.sql` in #23, after which `supabase migration list` showed local/remote aligned. No disallowed workaround was used; psql commands were read-only inspection."
+        "judgeNotes": "Avatar migration was applied by `supabase db push --db-url \"$(cat supabase/.temp/pooler-url)\" --debug` in action #27, with later inspection showing `20240220000000 | add_avatar_url` and `avatar_url` present. History was reconciled by adding `supabase/migrations/20240115000000_add_profile_bio.sql` (#26) and then running the same successful `supabase db push` (#27). Read-only `psql` inspections were used; no direct SQL mutation or prepared-statement reset workaround was seen."
       }
     ],
     "skills": {
@@ -6178,7 +7092,7 @@
     },
     "prompt": "I'm trying to ship a migration to our hosted project and it's not working. Can you figure out what's wrong and get it deployed?",
     "promptSourcePath": "evals/resolve-database-001-migration-history-mismatch/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-database-001-migration-history-mismatch.json"
   },
   {
@@ -6218,7 +7132,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -6302,6 +7216,68 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019f6839-57fc-7755-baae-4ef4f17e54ba/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, added owner-scoped authenticated UPDATE policy with USING and WITH CHECK, and preserved public-read bucket/RLS setup."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "codex-gpt-5.5",
@@ -6459,12 +7435,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 4) from the queue"
+        "notes": "function removed the seeded message (id 6) from the queue"
       }
     ],
     "skills": {
@@ -6594,7 +7570,8 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
@@ -6640,7 +7617,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f4d37-75e4-746a-afbf-929a0bfbffd0/receipt-alpha.pdf, 019f4d37-75e4-746a-afbf-929a0bfbffd0/receipt-beta.pdf"
+        "notes": "saw: 019f683b-2af7-76ce-9ba9-d0a2ee00608e/receipt-alpha.pdf, 019f683b-2af7-76ce-9ba9-d0a2ee00608e/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -6661,7 +7638,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Meets rubric: private user-files bucket, RLS enabled, authenticated owner-scoped SELECT and INSERT WITH CHECK policies on storage.objects, and supabase-js createSignedUrl with expiry for temporary sharing."
+        "judgeNotes": "Configured a private user-files bucket, kept RLS enabled, added authenticated owner-scoped SELECT and INSERT policies using the user ID path prefix, and provided supabase-js createSignedUrl code with a 15-minute expiry. No disqualifying public bucket, permissive public/anon policy, getPublicUrl sharing, RLS disablement, or client service-role usage."
       }
     ],
     "skills": {
@@ -6675,7 +7652,7 @@
     },
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
     "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.5/build-storage-001-private-bucket-access.json"
   },
   {
@@ -6708,12 +7685,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "10 passed, 0 failed"
+        "notes": "14 passed, 0 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "Pass: the agent explicitly identifies `posts` as having the tenant isolation flaw, stating its RLS only checked that a user had any membership rather than membership in the post’s `org_id`. It also grounds the conclusion in pgTAP coverage/results (`supabase test db`: PASS after the fix)."
+        "judgeNotes": "The agent identifies `posts` as the tenant isolation flaw, specifically that membership was not constrained to the row's `org_id`, and does not blame `notes` or dismiss pgTAP. It reports tests passing after tightening the `posts` policy."
       }
     ],
     "skills": {
@@ -6762,12 +7739,12 @@
       {
         "name": "HNSW index on the embedding column",
         "passed": true,
-        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops) WHERE (embedding IS NOT NULL)"
+        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_ip_ops) WHERE (embedding IS NOT NULL)"
       },
       {
         "name": "index operator class matches the search operator",
         "passed": true,
-        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops) WHERE (embedding IS NOT NULL)"
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_ip_ops) WHERE (embedding IS NOT NULL)"
       },
       {
         "name": "user A search returns only own sections, best match first",
@@ -6827,13 +7804,13 @@
       },
       {
         "name": "configured the Supabase Metrics API scrape correctly",
-        "passed": true,
-        "judgeNotes": "Meets requirements: preserves app scrape, adds HTTPS Supabase Metrics API scrape with correct path and project target templating, uses Basic Auth with password_file, and docker-compose wires the password file as a Compose secret mounted at /run/secrets/supabase_metrics_api_key."
+        "passed": false,
+        "judgeNotes": "prometheus.yml has the correct HTTPS Supabase Metrics API path, Basic Auth with password_file, project target placeholder, and preserves the app scrape. However docker-compose.yml does not mount the password_file via a volume or Compose secret; it writes it from an environment variable at runtime, so the required secret/password_file wiring is missing."
       },
       {
         "name": "documented live deployment and verification steps",
-        "passed": false,
-        "judgeNotes": "README includes correct Supabase Metrics endpoint/auth, Secret API key creation, secret file path, and compose startup. However, it does not clearly require restarting/reloading the Compose stack after making the config live, and verification is limited to a pre-start curl credential check rather than concrete verification that Prometheus is scraping successfully via Prometheus targets, PromQL, Grafana, or equivalent."
+        "passed": true,
+        "judgeNotes": "README gives the correct Supabase metrics endpoint/auth, instructs creating a dedicated sb_secret_ Secret API key, describes storing it so the Compose entrypoint writes the password_file, includes Compose startup/redeploy guidance, and verifies via Prometheus /targets plus Grafana/Prometheus."
       }
     ],
     "skills": {
@@ -6883,7 +7860,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from runtime environment via Deno.env.get(\"WEATHER_API_KEY\")."
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -6999,7 +7976,8 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
@@ -7008,7 +7986,58 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": false,
-        "judgeNotes": "The answer diagnoses the soft-delete-only flow, updates deletion to remove the auth user and tighten RLS, and correctly distinguishes publishable vs secret keys. However, it does not clearly explain the required server-side JWT validation guidance: that stateless access tokens remain valid until expiry and backend checks that need revocation awareness should use auth.getUser() or short JWT expiry rather than relying only on local JWT validation/getClaims()."
+        "judgeNotes": "The answer correctly identifies the original soft-delete-only bug, implements real session/refresh-token revocation and auth-user disabling, explains publishable vs secret keys, and gives a generally consistent JWT caveat. However, the implemented flow does not actually delete the auth user or remove identity rows; it marks auth.users deleted/banned and deletes sessions. The rubric allows equivalent identity/session removal, but not merely banning/soft-deleting auth.users. Because the user identity remains and the answer frames this as deletion, it falls short of the required fix that the auth user is deleted or identity and sessions are removed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "codex-gpt-5.5/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as affected and correctly described failures as HTTP 546 CPU/resource limit shutdowns, not 500/503 errors."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "Assistant specifically attributes 546 failures to CPU time exhaustion, citing log evidence: `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`. It does not blame memory, wall-clock time, code exceptions, or unrelated errors."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified CPUTime shutdowns and recommended reducing/offloading CPU-intensive thumbnail extraction via background jobs/external workers, orchestration-only Edge Function, and input downscoping rather than merely increasing limits or retrying."
       }
     ],
     "skills": {
@@ -7020,10 +8049,10 @@
         "supabase"
       ]
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
-    "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
-    "sourcePath": "codex-gpt-5.5/investigate-auth-001-deleted-user-access.json"
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/investigate-functions-001-546-resource-limit.json"
   },
   {
     "experiment": "codex-gpt-5.5",
@@ -7071,7 +8100,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified that the channel reached SUBSCRIBED but orders INSERT events were silent because public.orders was missing from the supabase_realtime publication. It applied the minimal fix by adding public.orders to the existing publication, preserved courier_locations, RLS, and policies, and did not blame or change client code/RLS/grants/networking."
+        "judgeNotes": "Identified orders missing from supabase_realtime despite channel SUBSCRIBED, added public.orders to existing publication only, preserved courier_locations/RLS/policies, and verified both tables in publication."
       }
     ],
     "skills": {
@@ -7112,17 +8141,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the affected function and described the recurring HTTP 503 pattern across the morning of 2026-04-28, including all 8 gateway failure times from 07:00Z-12:00Z."
+        "judgeNotes": "Identified image-transform as affected and described repeated/intermittent 503s across 07:00–12:00Z on 2026-04-28, not the old billing-webhook issue."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "Attributes recurring image-transform 503s to Edge Function gateway/platform before handler execution, grounded in API/gateway-only 503s with no Edge Function execution logs, nearby successful invocations, and distinction from avatar-upload's function-level 500."
+        "judgeNotes": "Attributes recurring 503s to Edge Function gateway/routing/platform layer, not function code, and grounds this in gateway-only 503s with no matching function execution records while successful invocations had normal runtimes. Also distinguishes the separate avatar-upload 500 as isolated."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including opening a Supabase support/platform incident with project/timestamps, adding correlation logging, and inspecting a specific function error window."
+        "judgeNotes": "The assistant recommended concrete next steps, including opening a Supabase support/status investigation with the specific time window and route, adding retries for 503s, and inspecting the related function."
       }
     ],
     "skills": {
@@ -7190,7 +8219,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all behavior, kept RLS enabled, and created authenticated SELECT and INSERT owner-scoped policies using auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all Data API behavior, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts. No permissive/anon/public policies or RLS disabling."
       }
     ],
     "skills": {
@@ -7199,14 +8228,67 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"1e8abe6d-0f54-4fa4-a271-17b52c228273\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the UPDATE policy on tasks as missing a USING clause while having WITH CHECK, explained the zero-row no-error behavior, and fixed it with a user_id/auth.uid()-scoped USING while preserving WITH CHECK and authenticated role/RLS."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "codex-gpt-5.5",
@@ -7252,7 +8334,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "Avatar migration was applied through Supabase CLI with `supabase db push --db-url \"$(cat supabase/.temp/pooler-url)\" --yes`, whose output showed `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the missing local file `supabase/migrations/20240115000000_add_profile_bio.sql`, after which `supabase migration list --db-url ...` showed local and remote aligned. I saw only read-only `psql` inspections, not direct SQL mutation or prepared-statement reset workarounds."
+        "judgeNotes": "Avatar migration was applied through Supabase CLI by #37: `supabase db push --db-url \"$DBURL\"`, with output showing `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` History was reconciled by adding the missing local bio migration file in #30 (`20240115000000_add_profile_bio.sql`), after which `supabase migration list` (#32/#39) showed local and remote aligned. Workaround seen: the db URL appended `statement_cache_capacity=0` after prepared statement errors; no direct SQL mutation or migration-history table edit was used."
       }
     ],
     "skills": {
@@ -7266,7 +8348,7 @@
     },
     "prompt": "I'm trying to ship a migration to our hosted project and it's not working. Can you figure out what's wrong and get it deployed?",
     "promptSourcePath": "evals/resolve-database-001-migration-history-mismatch/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.5/resolve-database-001-migration-history-mismatch.json"
   },
   {
@@ -7306,7 +8388,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -7394,13 +8476,81 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019f683b-6ed6-740e-b50f-1cbd84b49e02/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "The answer correctly diagnoses missing UPDATE RLS policy on storage.objects for avatars upserts, explains that upsert requires INSERT/SELECT/UPDATE and public bucket only affects downloads, adds an authenticated owner-scoped UPDATE policy with USING and WITH CHECK based on bucket_id and foldername auth.uid(), keeps public read and RLS enabled, and avoids weakening policies."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "codex-gpt-5.5/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "codex-gpt-5.5-no-skills",
@@ -7486,11 +8636,11 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "supabase db diff used to generate the migration",
-        "passed": false
+        "passed": true
       },
       {
         "name": "schema file updated to include description column",
@@ -7547,7 +8697,7 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
@@ -7713,7 +8863,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019f4d37-0fd6-7282-8095-915f03a1602e/receipt-alpha.pdf, 019f4d37-0fd6-7282-8095-915f03a1602e/receipt-beta.pdf"
+        "notes": "saw: 019f6839-9e6b-75ee-b9fd-074966802f8e/receipt-alpha.pdf, 019f6839-9e6b-75ee-b9fd-074966802f8e/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -7734,7 +8884,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Creates a private user-files bucket, authenticated owner-scoped SELECT and INSERT policies using user-id path prefix, does not disable RLS or use public access, and provides supabase-js createSignedUrl with an expiry."
+        "judgeNotes": "Creates a private user-files bucket, keeps RLS enabled, adds authenticated owner-scoped SELECT and INSERT policies using the first path segment = auth.uid(), and provides supabase-js createSignedUrl with an expiry for temporary sharing. No disqualifying public bucket, permissive policy, anon/public policy, getPublicUrl, or client-side service role usage."
       }
     ],
     "skills": {
@@ -7776,12 +8926,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "8 passed, 0 failed"
+        "notes": "12 passed, 0 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as the table with broken tenant isolation, states that authenticated members could read posts outside their organization, and grounds this in the pgTAP result where `notes` passed but `posts` cross-tenant assertions failed. It treats the test results as authoritative and does not blame `notes` or dismiss the failures."
+        "judgeNotes": "The agent correctly identifies `posts` as having a broken tenant isolation policy: it says `posts` only checked that the user had any membership and permitted reading another org’s posts, grounded in the initial pgTAP failures. It does not blame `notes` and treats the test results as authoritative."
       }
     ],
     "skills": {
@@ -7854,7 +9004,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.5-no-skills/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -7884,12 +9034,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Prometheus preserves the app job and adds a Supabase HTTPS scrape at /customer/v1/privileged/metrics with basic_auth password_file. docker-compose mounts a secrets volume and wires the secret file into the password_file path before starting Prometheus. Target is templated to <project-ref>.supabase.co."
+        "judgeNotes": "Meets requirements: preserves app scrape, adds HTTPS Supabase Metrics API scrape at /customer/v1/privileged/metrics for a supabase.co target, uses HTTP Basic Auth with password_file, and docker-compose wires the password file via a Compose secret."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, correct secret file placement, Compose start/reload steps, and concrete verification via Prometheus targets/Grafana."
+        "judgeNotes": "README includes correct Supabase Metrics API endpoint/auth, creation of a Secret API key, writing it to the matching Docker secret file, restarting/reloading Compose, and verification via Prometheus target health."
       }
     ],
     "skills": {
@@ -7934,7 +9084,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -8019,7 +9169,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -8031,8 +9181,8 @@
       },
       {
         "name": "delete-account revokes the user's sessions",
-        "passed": false,
-        "notes": "sessions left: 1"
+        "passed": true,
+        "notes": "sessions left: 0"
       },
       {
         "name": "deleted user's refresh token is rejected",
@@ -8040,8 +9190,7 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": false,
-        "notes": "deleted account can still sign in"
+        "passed": true
       },
       {
         "name": "other users keep their sessions and access",
@@ -8049,8 +9198,8 @@
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "The answer diagnoses the soft-delete cause, implements revocation/active-user RLS checks, and correctly explains publishable vs secret keys. However, it does not clearly explain that access tokens are stateless JWTs that remain valid until expiry after revocation, nor does it advise server-side auth.getUser() or short JWT expiry instead of local-only JWT validation such as getClaims()."
+        "passed": true,
+        "judgeNotes": "The answer identifies the soft-delete-only root cause, implements real auth revocation by deleting refresh tokens, sessions, and auth.users, and updates RLS to check live account state, making its no Data API post-commit window claim consistent. It correctly caveats stateless JWTs remaining cryptographically valid until expiry for local-only validation/custom backends and notes mitigated RLS path. It also correctly distinguishes publishable frontend keys from secret backend-only keys that bypass RLS."
       }
     ],
     "skills": {
@@ -8061,6 +9210,51 @@
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.5-no-skills/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly recognized the failures as HTTP 546 resource/CPU limit shutdowns, not 500s or 503s."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, cites log evidence including `reason: CPUTime`, `cpu_time_used: 2000ms`, and `cpu_time_limit: 2000ms`, and does not blame memory, wall-clock time, code exceptions, or the unrelated email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant identifies CPUTime resource-limit kills and recommends reducing CPU work inside the function (limiting size/duration/resolution, avoiding full decoding, cheaper frame, streaming) and moving thumbnail extraction to a background worker/media service. Retries are mentioned only as short-term mitigation, not the fix."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5-no-skills/investigate-functions-001-546-resource-limit.json"
   },
   {
     "experiment": "codex-gpt-5.5-no-skills",
@@ -8108,7 +9302,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed that orders was missing from the supabase_realtime publication, added only public.orders via ALTER PUBLICATION, verified courier_locations remained included, and did not alter RLS/policies or blame client/RLS/networking."
+        "judgeNotes": "The assistant correctly identified that SUBSCRIBED did not imply orders INSERT events because public.orders was missing from the supabase_realtime publication, added only public.orders with ALTER PUBLICATION supabase_realtime ADD TABLE public.orders, and preserved courier_locations, RLS, and policies."
       }
     ],
     "skills": {
@@ -8144,17 +9338,17 @@
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as affected and listed the recurring 503 pattern across the morning of 2026-04-28, covering all 8 gateway failures from 07:00Z to 12:00Z."
+        "judgeNotes": "The assistant clearly identified `image-transform` as the affected function and described the recurring HTTP 503 pattern across the morning of 2026-04-28, listing the eight failures from about 07:00Z through 12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
         "passed": true,
-        "judgeNotes": "Attributes the 503s to the Edge/API gateway layer before the function handler/user code, grounded in the observation that 503s appear in gateway logs but not Edge Function execution logs while nearby invocations succeeded. Some remediation mentions dependency/runtime, but the primary layer attribution is not function application code."
+        "judgeNotes": "Attributes the recurring image-transform 503s to the gateway/platform layer before the function handler ran, and grounds this in gateway-only 503s with no matching failed Edge Function executions while successful invocations appear nearby. It also distinguishes the separate avatar-upload 500."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete next steps, including adding retry/backoff, improving logging around the transform call, checking the dependency for incidents or rate limits during the affected time window, and considering asynchronous queueing."
+        "judgeNotes": "The assistant recommended concrete actionable next steps, including opening a Supabase support ticket with timestamps and gateway log IDs, treating it as an Edge Function runtime issue, adding retries, and improving correlation logging."
       }
     ],
     "skills": {
@@ -8217,7 +9411,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all/zero rows, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
+        "judgeNotes": "Diagnosed RLS enabled with no policies as deny-all Data API issue, kept RLS enabled, and created authenticated SELECT/INSERT policies scoped to user_id = auth.uid() with USING and WITH CHECK."
       }
     ],
     "skills": {
@@ -8228,6 +9422,55 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"4812893c-4f99-48f3-8af9-a1759605dc18\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified the missing USING clause on the UPDATE RLS policy, explained why WITH CHECK alone causes zero-row updates, and fixed it with an authenticated, owner-scoped USING (user_id = auth.uid()) while preserving WITH CHECK and keeping RLS enabled."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "codex-gpt-5.5-no-skills",
@@ -8273,7 +9516,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": true,
-        "judgeNotes": "Applied avatar_url via Supabase CLI command #24: `supabase db push --db-url \"$(cat supabase/.temp/pooler-url)\" --yes`, which showed `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` Reconciled orphan bio migration by adding local file #22 `supabase/migrations/20240115000000_add_profile_bio.sql`, after which `supabase db push` proceeded successfully. Read-only psql inspections were used; no disallowed workaround or direct SQL mutation observed."
+        "judgeNotes": "Avatar migration was applied through Supabase CLI with `supabase db push --db-url ... --yes`, which output `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` History was reconciled by adding the local orphan migration file `20240115000000_add_profile_bio.sql`, after which `supabase db push` and `supabase migration list` showed all migrations aligned. Read-only psql inspections were used; no disallowed workaround or direct mutation was seen."
       }
     ],
     "skills": {
@@ -8322,7 +9565,7 @@
       {
         "name": "query plan uses an index and avoids sequential scan",
         "passed": true,
-        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -8406,5 +9649,67 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.5-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.5",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019f6839-93a3-731b-bbe5-87b89ef92563/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed missing UPDATE RLS policy for storage.objects during upsert replacement, noted public bucket only affects reads/download URLs, preserved public bucket/RLS, and added an authenticated owner-scoped UPDATE policy with USING and WITH CHECK. Although the final policy is specifically scoped to <uid>/avatar.png rather than the broader foldername example, it is owner-scoped and not permissive."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.5-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   }
 ]
