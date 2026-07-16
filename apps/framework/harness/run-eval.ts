@@ -30,6 +30,7 @@ import { viteBuild, vitestRun } from "./project-runner.js";
 import {
   buildDocsResult,
   buildSkillResult,
+  rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
 } from "@supabase-evals/core";
 import type {
@@ -449,6 +450,9 @@ async function runOne(
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
+      // Must happen before `session` disposes below: a truncated docs result
+      // is persisted inside the sandbox container, unreachable once it's torn down.
+      await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
 
       lastToolCalls = run.toolCalls;
       lastTranscript = run.transcript;
@@ -533,6 +537,9 @@ async function runOne(
       sandbox: cliSandbox?.sandbox,
       timeoutSec: TIMEOUT_SEC,
     });
+    // Must happen before `cliSandbox` disposes below: a truncated docs result
+    // is persisted inside the sandbox container, unreachable once it's torn down.
+    if (cliSandbox) await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
 
     lastToolCalls = run.toolCalls;
     lastTranscript = run.transcript;

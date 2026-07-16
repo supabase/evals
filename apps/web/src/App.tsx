@@ -111,6 +111,13 @@ function docsCallQueryLabel(call: DocsCall): string {
   return call.query
 }
 
+/** Rough token estimate (chars/4, the standard quick heuristic) for how much text a call pulled into context. */
+function docsCallSizeLabel(call: DocsCall): string | undefined {
+  if (call.resultChars === undefined) return undefined
+  const tokens = Math.round(call.resultChars / 4)
+  return tokens < 1000 ? `~${tokens} tokens` : `~${(tokens / 1000).toFixed(1)}k tokens`
+}
+
 type ExperimentStageSummary = {
   experiment: string
   category: JourneyStage | "overall"
@@ -582,9 +589,17 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                   className={cn("mt-0.5 size-4 shrink-0", searchOnly ? "text-muted-foreground/60" : "text-muted-foreground")}
                   aria-hidden
                 />
-                <span className={cn("min-w-0 truncate", searchOnly ? "text-muted-foreground" : "text-foreground")}>
+                <span
+                  title={docsCallQueryLabel(call)}
+                  className={cn("min-w-0 truncate", searchOnly ? "text-muted-foreground" : "text-foreground")}
+                >
                   {docsCallQueryLabel(call)}
                 </span>
+                {docsCallSizeLabel(call) ? (
+                  <span className="shrink-0 font-mono text-xs tracking-wide text-muted-foreground">
+                    {docsCallSizeLabel(call)}
+                  </span>
+                ) : null}
                 <span className={cn(subgroupLabelClassName, "shrink-0", DOCS_CALL_SOURCE_CHIP_CLASS[call.source])}>
                   {DOCS_CALL_SOURCE_LABEL[call.source]}
                 </span>

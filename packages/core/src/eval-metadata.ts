@@ -247,10 +247,11 @@ const docsCallPageSchema = z.object({
 export type DocsCallPage = z.infer<typeof docsCallPageSchema>;
 
 // One tool call an agent made toward the docs: what it asked for (`query`,
-// the actual search term / GraphQL query / target URL, whichever applies)
-// and what came back (`pages`). This is the real unit of "an agent checking
-// docs", not an individual page, matching how the agent itself acts: it
-// issues one call and gets a batch of results back together.
+// the search term / GraphQL query / WebFetch's extraction prompt / target
+// URL, whichever is the meaningful "ask" for that source) and what came back
+// (`pages`). This is the real unit of "an agent checking docs", not an
+// individual page, matching how the agent itself acts: it issues one call
+// and gets a batch of results back together.
 export const docsCallSchema = z.object({
   source: docsPageSourceSchema,
   query: z.string(),
@@ -262,6 +263,14 @@ export const docsCallSchema = z.object({
   // fetch: no result payload is ever exposed on that tool.
   hasContent: z.boolean().optional(),
   pages: z.array(docsCallPageSchema),
+  // Size of the result the call actually produced, in characters, an
+  // approximation of how much text this call pulled into the agent's
+  // context (divide by ~4 for a rough token estimate). Recovered from the
+  // rehydrated file when the CLI truncated the result, or parsed out of the
+  // truncation message's own reported size when rehydration wasn't
+  // possible or wasn't attempted (e.g. no sandbox, ai-sdk/Codex which don't
+  // truncate this way). Omitted only when there's no result at all.
+  resultChars: z.number().optional(),
 });
 export type DocsCall = z.infer<typeof docsCallSchema>;
 

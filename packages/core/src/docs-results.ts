@@ -1,7 +1,23 @@
 import type { DocsCall, DocsCallPage, DocsResult } from "./eval-metadata.js";
 import type { ToolCallRecord } from "./index.js";
 
+/** The subset of AgentSandbox rehydration needs; avoids a hard dependency on its full interface. */
+export interface DocsResultSandbox {
+  readFile(path: string): Promise<string>;
+}
+
 const URL_PATTERN = /^https?:\/\//i;
+// Claude Code persists a tool result to disk and hands back a short stub
+// instead, in one of two observed shapes:
+//   "Error: result (65,754 characters across 1 line) exceeds maximum
+//   allowed tokens. Output has been saved to /path/to/file.txt.\n..."
+//   "<persisted-output>\nOutput too large (50.8KB). Full output saved
+//   to: /path/to/file.json\n\nPreview (first 2KB):\n..."
+// Both name the file's absolute in-container path, and it's still readable
+// as long as the sandbox hasn't been disposed yet.
+const TRUNCATION_PATH_PATTERN = /(?:Output has been saved to|Full output saved to:)\s*(\S+)/;
+const TRUNCATION_EXACT_SIZE_PATTERN = /\(([\d,]+) characters/;
+const TRUNCATION_APPROX_SIZE_PATTERN = /Output too large \(([\d.]+)\s*(K|M)?B\)/i;
 // search_docs and Claude Code's WebSearch both return matches as
 // `{"title":"...","href|url":"..."}` pairs, title first, in that adjacency
 // (confirmed against a real search_docs response and a real WebSearch
@@ -32,6 +48,65 @@ function isSupabaseUrl(value: string): boolean {
     return hostname === "supabase.com" || hostname.endsWith(".supabase.com");
   } catch {
     return false;
+  }
+}
+
+/** The in-container path a truncated result was persisted to, if `result` is one of the known stub shapes. */
+function extractTruncatedResultPath(result: unknown): string | undefined {
+  if (typeof result !== "string") return undefined;
+  const match = result.match(TRUNCATION_PATH_PATTERN);
+  // Sentence punctuation sometimes lands right after the path with no
+  // separating space ("...file.txt.\nFormat: ..."); a real path never ends
+  // in a bare ".", so stripping trailing dots is always safe.
+  return match?.[1].replace(/\.+$/, "");
+}
+
+/** Best-effort size (in characters) a truncation stub reports about the result it's standing in for. */
+function extractTruncatedResultCharCount(result: string): number | undefined {
+  const exact = result.match(TRUNCATION_EXACT_SIZE_PATTERN);
+  if (exact) return Number(exact[1].replace(/,/g, ""));
+  const approx = result.match(TRUNCATION_APPROX_SIZE_PATTERN);
+  if (!approx) return undefined;
+  const unit = approx[2]?.toUpperCase();
+  const multiplier = unit === "M" ? 1024 * 1024 : unit === "K" ? 1024 : 1;
+  return Math.round(Number(approx[1]) * multiplier);
+}
+
+/** Approximate size of a tool result, in characters, favoring a truncation stub's own reported size when present. */
+function resultCharCount(result: unknown): number | undefined {
+  if (typeof result !== "string") {
+    if (result === undefined) return undefined;
+    return JSON.stringify(result).length;
+  }
+  return extractTruncatedResultCharCount(result) ?? result.length;
+}
+
+/** True when a tool call is one of the channels docs activation tracks (worth rehydrating if truncated). */
+function isDocsRelatedCall(call: ToolCallRecord): boolean {
+  return call.endpoint.endsWith("search_docs") || call.name === "web_fetch" || call.name === "web_search";
+}
+
+/**
+ * Fetches the real content back for any docs-related call the CLI truncated
+ * and persisted to disk, replacing the stub in place. Must run before the
+ * sandbox that produced the transcript is disposed, the file lives inside
+ * that container and won't be reachable afterward. A read failure (file
+ * already cleaned up, path parsed wrong) leaves the stub as-is; buildDocsResult
+ * already treats an unresolvable result as an omission, not a fabrication.
+ */
+export async function rehydrateTruncatedDocsResults(
+  sandbox: DocsResultSandbox,
+  toolCalls: ToolCallRecord[],
+): Promise<void> {
+  for (const call of toolCalls) {
+    if (!isDocsRelatedCall(call)) continue;
+    const path = extractTruncatedResultPath(call.result);
+    if (!path) continue;
+    try {
+      call.result = await sandbox.readFile(path);
+    } catch {
+      // Leave the stub in place.
+    }
   }
 }
 
@@ -92,13 +167,27 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
         query: graphqlQuery,
         hasContent: queryRequestsContent(graphqlQuery),
         pages: extractPages(result),
+        resultChars: resultCharCount(result),
       });
       continue;
     }
 
     if (call.name === "web_fetch") {
       if (!call.url || !isSupabaseUrl(call.url)) continue;
-      calls.push({ source: "web_fetch", query: call.url, hasContent: true, pages: [{ url: call.url }] });
+      // WebFetch doesn't hand back the raw page: it runs the fetch through
+      // an extraction step guided by `prompt` and returns that. Two calls to
+      // the identical url can return very different amounts of text
+      // depending only on this, so it's the meaningful "what did the agent
+      // ask for" here, same role `query` plays for search_docs. The target
+      // url is still recorded, just in `pages` rather than the summary line.
+      const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
+      calls.push({
+        source: "web_fetch",
+        query: prompt ?? call.url,
+        hasContent: true,
+        pages: [{ url: call.url }],
+        resultChars: resultCharCount(result),
+      });
       continue;
     }
 
@@ -112,7 +201,7 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       // whether content came back is genuinely unknown, not false.
       if (URL_PATTERN.test(query)) {
         if (!isSupabaseUrl(query)) continue;
-        calls.push({ source: "web_search", query, pages: [{ url: query }] });
+        calls.push({ source: "web_search", query, pages: [{ url: query }], resultChars: resultCharCount(result) });
         continue;
       }
 
@@ -120,7 +209,13 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       const pages = extractPages(result);
       // Claude Code's WebSearch result never carries page text, only
       // title/url per hit, so any pages found here are hits, not reads.
-      calls.push({ source: "web_search", query, hasContent: pages.length > 0 ? false : undefined, pages });
+      calls.push({
+        source: "web_search",
+        query,
+        hasContent: pages.length > 0 ? false : undefined,
+        pages,
+        resultChars: resultCharCount(result),
+      });
       continue;
     }
   }

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildDocsResult } from "./docs-results.js";
+import { describe, expect, it, vi } from "vitest";
+import { buildDocsResult, rehydrateTruncatedDocsResults } from "./docs-results.js";
 import type { ToolCallRecord } from "./index.js";
 
 /** Builds the minimal tool call record needed by docs-result tests. */
@@ -43,6 +43,7 @@ describe("buildDocsResult", () => {
             title: "Row Level Security",
           },
         ],
+        resultChars: expect.any(Number),
       },
     ]);
   });
@@ -62,6 +63,7 @@ describe("buildDocsResult", () => {
         query: '{ searchDocs(query: "rls") { nodes { title href content } } }',
         hasContent: true,
         pages: [],
+        resultChars: expect.any(Number),
       },
     ]);
   });
@@ -163,27 +165,40 @@ describe("buildDocsResult", () => {
         query: '{ searchDocs(query: "rls") { nodes { content } } }',
         hasContent: true,
         pages: [],
+        resultChars: expect.any(Number),
       },
     ]);
   });
 
-  it("takes a WebFetch call from its url arg, matched by canonical name not raw tool name, always counted as having content", () => {
+  it("takes a WebFetch call's query from its prompt arg, not the url, since the prompt is what actually varies the result", () => {
     const result = buildDocsResult([
       toolCall(
         "WebFetch",
-        { url: "https://supabase.com/docs/guides/auth", prompt: "summarize" },
-        { url: "https://supabase.com/docs/guides/auth", name: "web_fetch" },
+        { url: "https://supabase.com/changelog.md", prompt: "List breaking-change entries about self-hosting" },
+        { url: "https://supabase.com/changelog.md", name: "web_fetch" },
       ),
     ]);
 
     expect(result.calls).toEqual([
       {
         source: "web_fetch",
-        query: "https://supabase.com/docs/guides/auth",
+        query: "List breaking-change entries about self-hosting",
         hasContent: true,
-        pages: [{ url: "https://supabase.com/docs/guides/auth" }],
+        pages: [{ url: "https://supabase.com/changelog.md" }],
       },
     ]);
+  });
+
+  it("falls back to the url as the query when a WebFetch call has no prompt arg", () => {
+    const result = buildDocsResult([
+      toolCall(
+        "WebFetch",
+        { url: "https://supabase.com/docs/guides/auth" },
+        { url: "https://supabase.com/docs/guides/auth", name: "web_fetch" },
+      ),
+    ]);
+
+    expect(result.calls[0].query).toBe("https://supabase.com/docs/guides/auth");
   });
 
   it("ignores a fetch call on a non-Supabase domain", () => {
@@ -215,6 +230,7 @@ describe("buildDocsResult", () => {
             title: "Row Level Security | Supabase Docs",
           },
         ],
+        resultChars: expect.any(Number),
       },
     ]);
   });
@@ -295,5 +311,78 @@ describe("buildDocsResult", () => {
     expect(result.calls).toHaveLength(2);
     expect(result.calls[0].pages[0].url).toBe("https://supabase.com/docs/guides/auth");
     expect(result.calls[1].pages[0].url).toBe("https://supabase.com/docs/guides/auth");
+  });
+
+  it("recovers resultChars from an exact-count truncation stub", () => {
+    const result = buildDocsResult([
+      toolCall(
+        "search_docs",
+        { graphql_query: '{ searchDocs(query: "rls") { nodes { href } } }' },
+        {
+          result:
+            "Error: result (65,754 characters across 1 line) exceeds maximum allowed tokens. " +
+            "Output has been saved to /home/node/.claude/projects/x/tool-results/y.txt.\nFormat: Plain text",
+        },
+      ),
+    ]);
+
+    expect(result.calls[0].resultChars).toBe(65754);
+  });
+
+  it("recovers resultChars from a KB-sized truncation stub", () => {
+    const result = buildDocsResult([
+      toolCall(
+        "search_docs",
+        { graphql_query: '{ searchDocs(query: "rls") { nodes { href } } }' },
+        {
+          result:
+            "<persisted-output>\nOutput too large (50.8KB). Full output saved to: " +
+            "/home/node/.claude/projects/x/tool-results/y.json\n\nPreview (first 2KB):\n[...",
+        },
+      ),
+    ]);
+
+    expect(result.calls[0].resultChars).toBe(Math.round(50.8 * 1024));
+  });
+});
+
+describe("rehydrateTruncatedDocsResults", () => {
+  it("replaces a truncated search_docs result with the file's real content, read before the sandbox is disposed", async () => {
+    const path = "/home/node/.claude/projects/x/tool-results/y.txt";
+    const realContent = JSON.stringify({ searchDocs: { nodes: [{ href: "https://supabase.com/docs/guides/auth" }] } });
+    const readFile = vi.fn().mockResolvedValue(realContent);
+
+    const call = toolCall(
+      "search_docs",
+      { graphql_query: '{ searchDocs(query: "rls") { nodes { href } } }' },
+      { result: `Error: result exceeds maximum allowed tokens. Output has been saved to ${path}.` },
+    );
+
+    await rehydrateTruncatedDocsResults({ readFile }, [call]);
+
+    expect(readFile).toHaveBeenCalledWith(path);
+    expect(call.result).toBe(realContent);
+  });
+
+  it("leaves the stub in place when the file can't be read", async () => {
+    const stub = "Error: result exceeds maximum allowed tokens. Output has been saved to /gone.txt.";
+    const call = toolCall("search_docs", {}, { result: stub });
+    const readFile = vi.fn().mockRejectedValue(new Error("no such file"));
+
+    await rehydrateTruncatedDocsResults({ readFile }, [call]);
+
+    expect(call.result).toBe(stub);
+  });
+
+  it("ignores calls that aren't truncated, and calls outside the docs channels", async () => {
+    const readFile = vi.fn();
+    const calls = [
+      toolCall("search_docs", {}, { result: { ok: true } }),
+      toolCall("Bash", {}, { result: "Output has been saved to /some/other/tool/output.txt." }),
+    ];
+
+    await rehydrateTruncatedDocsResults({ readFile }, calls);
+
+    expect(readFile).not.toHaveBeenCalled();
   });
 });
