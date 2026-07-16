@@ -16,16 +16,13 @@ services:
   - kong
   - postgrest
   - edge-runtime
-projectRunning: false
 motivation: FDBKIN-19273
 ---
 
 Build and serve a Supabase Edge Function named `user-stats` for this project,
 reachable over HTTP at `/functions/v1/user-stats`.
 
-Our product stores per-user metrics in a `user_stats` table that already exists
-(see `supabase/migrations/`), protected by row-level security so a user can read
-only their own rows.
+Our product stores per-user metrics in the existing `user_stats` table.
 
 Two very different callers need to hit this one endpoint:
 
@@ -40,5 +37,3 @@ Two very different callers need to hit this one endpoint:
 Return the matching rows as JSON. The endpoint must be secure: only ever serve
 stats to a caller that is genuinely entitled to them, and turn away callers that
 are not.
-
-Get the local stack running so the function is reachable at the path above.
