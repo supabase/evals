@@ -8,6 +8,4 @@ CREATE TABLE profiles (
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Baseline privileges. The eval measures RLS policy correctness, not whether
--- the agent remembered to GRANT standard table access.
 GRANT SELECT, INSERT, UPDATE, DELETE ON profiles TO authenticated;
