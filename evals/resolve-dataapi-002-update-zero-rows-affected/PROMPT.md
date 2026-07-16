@@ -1,6 +1,6 @@
 ---
 stage: resolve
-suite: benchmark
+suite: regression
 product:
   - data-api
   - database
