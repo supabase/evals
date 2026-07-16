@@ -140,6 +140,80 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "build-rls-004-approved-profiles-visibility",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": false,
+    "checks": [
+      {
+        "name": "RLS enabled on profiles",
+        "passed": true
+      },
+      {
+        "name": "user A can select own profile",
+        "passed": true
+      },
+      {
+        "name": "user A can update own profile",
+        "passed": true
+      },
+      {
+        "name": "unapproved user C can still select own profile",
+        "passed": true
+      },
+      {
+        "name": "unapproved user C can still update own profile",
+        "passed": true
+      },
+      {
+        "name": "unrelated user B cannot select user A's approved profile",
+        "passed": false
+      },
+      {
+        "name": "unrelated user A cannot select user B's approved profile",
+        "passed": false
+      },
+      {
+        "name": "user B cannot update user A's profile",
+        "passed": true
+      },
+      {
+        "name": "user B cannot delete user A's profile",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "prompt": "Add RLS policies to our profiles table. Users should be able to see approved profiles and manage their own.",
+    "promptSourcePath": "evals/build-rls-004-approved-profiles-visibility/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "claude-code-sonnet-5/build-rls-004-approved-profiles-visibility.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "investigate-functions-001-546-resource-limit",
     "stage": "investigate",
     "product": [
@@ -466,6 +540,75 @@
     "promptSourcePath": "evals/build-realtime-001-live-chat-updates/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-realtime-001-live-chat-updates.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-rls-004-approved-profiles-visibility",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": false,
+    "checks": [
+      {
+        "name": "RLS enabled on profiles",
+        "passed": true
+      },
+      {
+        "name": "user A can select own profile",
+        "passed": true
+      },
+      {
+        "name": "user A can update own profile",
+        "passed": true
+      },
+      {
+        "name": "unapproved user C can still select own profile",
+        "passed": true
+      },
+      {
+        "name": "unapproved user C can still update own profile",
+        "passed": true
+      },
+      {
+        "name": "unrelated user B cannot select user A's approved profile",
+        "passed": false
+      },
+      {
+        "name": "unrelated user A cannot select user B's approved profile",
+        "passed": false
+      },
+      {
+        "name": "user B cannot update user A's profile",
+        "passed": true
+      },
+      {
+        "name": "user B cannot delete user A's profile",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "prompt": "Add RLS policies to our profiles table. Users should be able to see approved profiles and manage their own.",
+    "promptSourcePath": "evals/build-rls-004-approved-profiles-visibility/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-rls-004-approved-profiles-visibility.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
