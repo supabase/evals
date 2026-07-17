@@ -9,8 +9,8 @@ import { localStackRuntime } from "@supabase-evals/sandbox";
 export default defineExperiment({
   suite: ["no-skills"],
   agent: codexAgent({
-    model: "gpt-5.6",
-    reasoningEffort: "medium",
+    model: "gpt-5.6-sol",
+    reasoningEffort: "low",
   }),
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],
