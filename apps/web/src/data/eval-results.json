@@ -12086,5 +12086,2343 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-001-bootstrap-app",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "todos table is created by a migration file",
+        "passed": true
+      },
+      {
+        "name": "todos table exists with at least 2 seeded rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "row level security is enabled on todos",
+        "passed": true
+      },
+      {
+        "name": "a SELECT policy targets the authenticated role",
+        "passed": true
+      },
+      {
+        "name": "REST API returns no todos to anonymous requests",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "REST API returns the todos to authenticated requests",
+        "passed": true,
+        "notes": "2 rows"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security authenticated users SELECT policy anon no rows create table migration seed data local development\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
+              "title": "Multi-Factor Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            }
+          ],
+          "resultChars": 95821
+        }
+      ]
+    },
+    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
+    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-cli-001-bootstrap-app.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-002-declarative-schema",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "declarative-schema",
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase db diff used to generate the migration",
+        "passed": true
+      },
+      {
+        "name": "schema file updated to include description column",
+        "passed": true
+      },
+      {
+        "name": "a new migration was generated for the change",
+        "passed": true
+      },
+      {
+        "name": "description column exists in the live database",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local database migrations add column alter table\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 54403
+        }
+      ]
+    },
+    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
+    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-cli-002-declarative-schema.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-003-pg-cron-queue-workflow",
+    "stage": "build",
+    "product": [
+      "database",
+      "edge-functions",
+      "cron",
+      "queues"
+    ],
+    "topic": [
+      "sql",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
+        "passed": true,
+        "notes": "schedule='* * * * *', active=true"
+      },
+      {
+        "name": "cron command enqueues to the 'tasks' queue",
+        "passed": true,
+        "notes": "queue depth 0 -> 1"
+      },
+      {
+        "name": "process-tasks function drains the queue",
+        "passed": true,
+        "notes": "function removed the seeded message (id 5) from the queue"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Queues pgmq create queue send read delete messages SQL cron pg_cron local Edge Function scheduled worker\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron",
+              "title": "Cron"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api",
+              "title": "API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
+              "title": "pg_cron debugging guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/install",
+              "title": "Install"
+            }
+          ],
+          "resultChars": 31660
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Queues quickstart SQL pgmq.create pgmq.send pgmq.read pgmq.delete\", limit: 6) { nodes { ... on Guide { title href content subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues#resources",
+              "title": "Resources"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues#features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#what-happens-when-you-create-a-queue",
+              "title": "What happens when you create a queue?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#concepts",
+              "title": "Concepts"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#pull-based-queue",
+              "title": "Pull-Based Queue"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#message",
+              "title": "Message"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#queue-types",
+              "title": "Queue types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#create-queues",
+              "title": "Create Queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#expose-queues-to-client-side-consumers",
+              "title": "Expose Queues to client-side consumers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#enable-rls-on-your-tables-in-pgmq-schema",
+              "title": "Enable RLS on your tables in pgmq schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#grant-permissions-to-pgmq_public-database-functions",
+              "title": "Grant permissions to pgmq_public database functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart#enqueueing-and-dequeueing-messages",
+              "title": "Enqueueing and dequeueing messages"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api",
+              "title": "API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api#pgmq_publicreadqueue_name-sleep_seconds-n",
+              "title": "pgmq_public.read(queue_name, sleep_seconds, n)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api#pgmq_publicdeletequeue_name-message_id",
+              "title": "pgmq_public.delete(queue_name, message_id)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api#pgmq_publicarchivequeue_name-message_id",
+              "title": "pgmq_public.archive(queue_name, message_id)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api#pgmq_publicsend_batchqueue_name-messages-sleep_seconds",
+              "title": "pgmq_public.send_batch(queue_name, messages, sleep_seconds)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api#pgmq_publicsendqueue_name-message-sleep_seconds",
+              "title": "pgmq_public.send(queue_name, message, sleep_seconds)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api#pgmq_publicpopqueue_name",
+              "title": "pgmq_public.pop(queue_name)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions#concepts",
+              "title": "Concepts"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions#consuming-messages-in-an-edge-function",
+              "title": "Consuming messages in an Edge Function"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/expose-self-hosted-queues",
+              "title": "Expose Queues for local and self-hosted Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/expose-self-hosted-queues#stop-exposing-queues",
+              "title": "Stop exposing queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/expose-self-hosted-queues#expose-queues-with-supabase-cli",
+              "title": "Expose Queues with Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/expose-self-hosted-queues#expose-queues-with-docker-compose",
+              "title": "Expose queues with Docker compose"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#create_unlogged",
+              "title": "create_unlogged"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#create",
+              "title": "create"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#detach_archive",
+              "title": "detach_archive"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#drop_queue",
+              "title": "drop_queue"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#sending-messages",
+              "title": "Sending messages"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#send",
+              "title": "send"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#send_batch",
+              "title": "send_batch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#reading-messages",
+              "title": "Reading messages"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#read",
+              "title": "read"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#read_with_poll",
+              "title": "read_with_poll"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#pop",
+              "title": "pop"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#deletingarchiving-messages",
+              "title": "Deleting/Archiving messages"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#delete-single",
+              "title": "delete (single)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#delete-batch",
+              "title": "delete (batch)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#purge_queue",
+              "title": "purge_queue"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#archive-single",
+              "title": "archive (single)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#archive-batch",
+              "title": "archive (batch)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#utilities",
+              "title": "Utilities"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#set_vt",
+              "title": "set_vt"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#list_queues",
+              "title": "list_queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#metrics",
+              "title": "metrics"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#metrics_all",
+              "title": "metrics_all"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#types",
+              "title": "Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#message_record",
+              "title": "message_record"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#resources",
+              "title": "Resources"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#enable-the-extension",
+              "title": "Enable the extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#get-usage",
+              "title": "Usage "
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq#queue-management",
+              "title": "Queue management"
+            }
+          ],
+          "resultChars": 146561
+        }
+      ]
+    },
+    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
+    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-cli-003-pg-cron-queue-workflow.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-001-migrate-postgres-to-supabase",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "all 3 tables exist (teams, members, tasks)",
+        "passed": true
+      },
+      {
+        "name": "row counts match (teams=5, members=10, tasks=13)",
+        "passed": true
+      },
+      {
+        "name": "foreign key constraints survived the restore",
+        "passed": true
+      },
+      {
+        "name": "tasks_team_status_idx index survived the restore",
+        "passed": true
+      },
+      {
+        "name": "sequences synced (next insert won't conflict with existing IDs)",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local restore pg_restore existing Postgres dump\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/restoring-downloaded-backup",
+              "title": "Restoring a downloaded backup locally"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/dashboard-restore",
+              "title": "Restore Dashboard backup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/vercel-postgres",
+              "title": "Migrate from Vercel Postgres to Supabase"
+            }
+          ],
+          "resultChars": 49806
+        }
+      ]
+    },
+    "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
+    "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-database-001-migrate-postgres-to-supabase.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-004-service-role-bypass",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects missing auth",
+        "passed": true,
+        "notes": "status=401"
+      },
+      {
+        "name": "user A reads own note",
+        "passed": true,
+        "notes": "status=200"
+      },
+      {
+        "name": "reads only with the caller's JWT",
+        "passed": true,
+        "notes": "bearer_tokens=2, all_match=true"
+      },
+      {
+        "name": "user A cannot force-read user B note",
+        "passed": true,
+        "notes": "status=200"
+      },
+      {
+        "name": "user B cannot force-read user A note",
+        "passed": true,
+        "notes": "status=200"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions authenticate user Authorization header createClient getUser service role RLS\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            }
+          ],
+          "resultChars": 74319
+        }
+      ]
+    },
+    "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
+    "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-functions-004-service-role-bypass.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-005-dual-auth-user-secret",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Authentication required\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"d5d166c6-d39a-4f1b-b042-eee2b5707a0f\",\"metric\":\"steps_a_mrpd9ltv\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"d5d166c6-d39a-4f1b-b042-eee2b5707a0f\",\"metric\":\"steps_a_mrpd9ltv\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"582d44f6-8e92-48ac-986e-4de837b1aa0d\",\"metric\":\"steps_b_mrpd9ltv\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Authentication required\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Authentication required\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions authentication Authorization header getUser service role apikey verify_jwt config.toml\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/websockets",
+              "title": "Handling WebSockets"
+            }
+          ],
+          "resultChars": 80328
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions SUPABASE_SECRET_KEY environment variable secret key sb_secret service role apikey\", limit: 10) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/storage-caching",
+              "title": "Integrating with Supabase Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            }
+          ],
+          "resultChars": 108731
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"SUPABASE_SECRET_KEYS JSON.parse default Edge Functions createClient\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/websockets",
+              "title": "Handling WebSockets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/push-notifications",
+              "title": "Sending Push Notifications"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            }
+          ],
+          "resultChars": 50971
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"@supabase/server withSupabase auth user secret ctx.authMode Edge Functions\", limit: 10) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/byo-mcp",
+              "title": "Deploy MCP servers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/resumable-websockets",
+              "title": "Resumable WebSockets with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions",
+              "title": "Manage Supabase Edge functions"
+            }
+          ],
+          "resultChars": 70886
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"withSupabase userClaims id ctx.supabase from select authMode user\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/users",
+              "title": "Users"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-react",
+              "title": "Build a User Management App with React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            }
+          ],
+          "resultChars": 134522
+        }
+      ]
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in the existing `user_stats` table.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
+    "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-functions-005-dual-auth-user-secret.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 019f71a6-3c38-740a-9f4d-e543493dcc50/receipt-alpha.pdf, 019f71a6-3c38-740a-9f4d-e543493dcc50/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Meets rubric: private user-files bucket, authenticated owner-scoped SELECT and INSERT policies with WITH CHECK, no RLS disabling or public access, and createSignedUrl with expiry for temporary sharing."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage access control RLS policy foldername auth.uid createSignedUrl private bucket supabase-js\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/custom-roles",
+              "title": "Custom Roles"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/serving/downloads",
+              "title": "Serving assets from Storage"
+            }
+          ],
+          "resultChars": 17747
+        }
+      ]
+    },
+    "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-storage-001-private-bucket-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-tests-001-rls-tenant-isolation",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": true,
+        "notes": "1 file(s): supabase/tests/database/tenant_isolation.test.sql"
+      },
+      {
+        "name": "pgTAP isolation tests ran and pass",
+        "passed": true,
+        "notes": "6 passed, 0 failed"
+      },
+      {
+        "name": "agent correctly identifies the posts isolation bug from test results",
+        "passed": true,
+        "judgeNotes": "The agent correctly identified `posts` as having broken tenant isolation, grounded it in pgTAP failures, and did not blame `notes` or dismiss the tests."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase database testing pgTAP row level security auth.uid set local role authenticated\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/users",
+              "title": "Users"
+            }
+          ],
+          "resultChars": 58515
+        }
+      ]
+    },
+    "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
+    "promptSourcePath": "evals/build-tests-001-rls-tenant-isolation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-tests-001-rls-tenant-isolation.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-vectors-001-rag-with-permissions",
+    "stage": "build",
+    "product": [
+      "database",
+      "vectors"
+    ],
+    "topic": [
+      "sql",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase semantic search gte-small vector 384 match_documents row level security RPC\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/semantic-search",
+              "title": "Semantic Search"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/semantic-search",
+              "title": "Semantic search"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/querying-vectors",
+              "title": "Querying Vectors"
+            }
+          ],
+          "resultChars": 55623
+        }
+      ]
+    },
+    "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
+    "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-vectors-001-rag-with-permissions.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-001-prometheus-metrics",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "preserved existing app scrape job",
+        "passed": true
+      },
+      {
+        "name": "configured the Supabase Metrics API scrape correctly",
+        "passed": true,
+        "judgeNotes": "Meets all requirements: preserves app scrape, adds HTTPS Supabase Metrics API scrape with correct path and project target, uses Basic Auth with password_file, and wires the password file through a Compose secret mounted at the matching path."
+      },
+      {
+        "name": "documented live deployment and verification steps",
+        "passed": true,
+        "judgeNotes": "README includes Secret API key creation, matching Compose secret file placement, Compose start/recreate steps, and concrete verification via Prometheus targets and PromQL. Endpoint/auth and secret setup match the config."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase project metrics Prometheus endpoint observability authentication service_role metrics\", limit: 8) { nodes { ... on Guide { title href content subsections { nodes { title href content } } } ... on TroubleshootingGuide { title href content } ... on ManagementApiReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#4-configure-alerting",
+              "title": "4. Configure alerting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#3-import-supabase-dashboards",
+              "title": "3. Import Supabase dashboards"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#2-deploy-grafana",
+              "title": "2. Deploy Grafana"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#1-deploy-prometheus",
+              "title": "1. Deploy Prometheus"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#architecture",
+              "title": "Architecture"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#5-operating-tips",
+              "title": "5. Operating tips"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics",
+              "title": "Metrics API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics#choose-your-monitoring-stack",
+              "title": "Choose your monitoring stack"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics#what-you-can-do-with-the-metrics-api",
+              "title": "What you can do with the Metrics API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics#additional-resources",
+              "title": "Additional resources"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
+              "title": "Vendor-agnostic Metrics API setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#2-secure-the-credentials",
+              "title": "2. Secure the credentials"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#collector-specific-notes",
+              "title": "Collector-specific notes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#1-define-the-scrape-job",
+              "title": "1. Define the scrape job"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#components",
+              "title": "Components"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#5-multi-project-setups",
+              "title": "5. Multi-project setups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#4-alerts-and-automation",
+              "title": "4. Alerts and automation"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#3-downstream-dashboards",
+              "title": "3. Downstream dashboards"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
+              "title": "Metrics API with Grafana Cloud"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#5-troubleshooting",
+              "title": "5. Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#prerequisites",
+              "title": "Prerequisites"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#1-create-a-grafana-cloud-stack",
+              "title": "1. Create a Grafana Cloud stack"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#2-configure-the-supabase-integration",
+              "title": "2. Configure the Supabase integration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#3-import-the-supabase-dashboard",
+              "title": "3. Import the Supabase dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#4-configure-alerts-optional",
+              "title": "4. Configure alerts (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas",
+              "title": "Read Replicas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#dedicated-connection-pool",
+              "title": "Dedicated connection pool"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#querying-through-the-sql-editor",
+              "title": "Querying through the SQL editor"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#logging",
+              "title": "Logging"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#metrics",
+              "title": "Metrics"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#centralized-configuration-management",
+              "title": "Centralized configuration management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#pricing",
+              "title": "Pricing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#dedicated-endpoints",
+              "title": "Dedicated endpoints"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#about-read-replicas",
+              "title": "About Read Replicas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas#api-load-balancer",
+              "title": "API load balancer"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-do-i-see-auth--api-requests-in-the-dashboard-my-app-has-no-users-CyadiO",
+              "title": "Why do I see Auth & API requests in the dashboard? My app has no users"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports",
+              "title": "Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#auth-api-gateway",
+              "title": "Auth API Gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#realtime-api-gateway",
+              "title": "Realtime API Gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#realtime",
+              "title": "Realtime"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#postgrest",
+              "title": "PostgREST"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#edge-functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#database-size",
+              "title": "Database size"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#disk-usage",
+              "title": "Disk Usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#shared-pooler-supavisor-client-connections",
+              "title": "Shared Pooler (Supavisor) Client Connections"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#dedicated-pooler-pgbouncer-client-connections",
+              "title": "Dedicated Pooler (PgBouncer) Client Connections"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#database-connections",
+              "title": "Database connections"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#query-performance",
+              "title": "Query Performance"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#disk-size",
+              "title": "Disk size"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#disk-throughput",
+              "title": "Disk throughput"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#disk-inputoutput-operations-per-second-iops",
+              "title": "Disk input/output operations per second (IOPS)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#cpu-usage",
+              "title": "CPU usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#memory-usage",
+              "title": "Memory usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#advanced-telemetry",
+              "title": "Advanced Telemetry"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#database",
+              "title": "Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#api-gateway",
+              "title": "API gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports#using-reports",
+              "title": "Using reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management",
+              "title": "Connection management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management#configuring-supavisors-pool-size",
+              "title": "Configuring Supavisor's pool size"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management#connections",
+              "title": "Connections"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management#dashboard-monitoring-charts",
+              "title": "Dashboard monitoring charts"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management#capturing-historical-usage",
+              "title": "Capturing historical usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management#grafana-dashboard",
+              "title": "Grafana Dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management#observing-live-connections",
+              "title": "Observing live connections"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management#monitoring-connections",
+              "title": "Monitoring connections"
+            }
+          ],
+          "resultChars": 196138
+        }
+      ]
+    },
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/deploy-database-001-prometheus-metrics.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-001-edge-function-secrets",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "WEATHER_API_KEY is set as a Function secret on the project",
+        "passed": true
+      },
+      {
+        "name": "the weather function is deployed to the project",
+        "passed": true,
+        "notes": "status ACTIVE"
+      },
+      {
+        "name": "the weather function reads WEATHER_API_KEY from the environment",
+        "passed": true,
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+      },
+      {
+        "name": "WEATHER_API_KEY value is not committed to the repo",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions environment variables secrets Deno.env.get deploy no verify jwt CORS\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/inspecting-edge-function-environment-variables-wg5qOQ",
+              "title": "Inspecting edge function environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            }
+          ],
+          "resultChars": 48176
+        }
+      ]
+    },
+    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
+    "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/deploy-functions-001-edge-function-secrets.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-self-hosting-001-docker-compose",
+    "stage": "deploy",
+    "product": [
+      "database",
+      "auth",
+      "storage"
+    ],
+    "topic": [
+      "self-hosting"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
+        "passed": true
+      },
+      {
+        "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
+        "passed": true
+      },
+      {
+        "name": "secrets rotated off the shipped defaults",
+        "passed": true
+      },
+      {
+        "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"self-hosting Docker docker-compose secrets JWT_SECRET ANON_KEY SERVICE_ROLE_KEY latest\", limit: 8) { nodes { __typename title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-oauth",
+              "title": "Configure Social Login (OAuth) Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
+              "title": "Custom Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            }
+          ],
+          "resultChars": 172549
+        }
+      ]
+    },
+    "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
+    "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/deploy-self-hosting-001-docker-compose.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-auth-001-deleted-user-access",
+    "stage": "investigate",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "victim session active before delete-account",
+        "passed": true
+      },
+      {
+        "name": "delete_account flow ran for the victim",
+        "passed": true
+      },
+      {
+        "name": "delete-account revokes the user's sessions",
+        "passed": true,
+        "notes": "sessions left: 0"
+      },
+      {
+        "name": "deleted user's refresh token is rejected",
+        "passed": true
+      },
+      {
+        "name": "deleted user cannot sign back in",
+        "passed": true
+      },
+      {
+        "name": "other users keep their sessions and access",
+        "passed": true
+      },
+      {
+        "name": "diagnosed and explained session revocation",
+        "passed": true,
+        "judgeNotes": "Meets rubric: identifies soft-delete-only root cause, implements auth.users deletion with cascading session/identity removal plus RLS gating, explains JWT validity caveat consistently with its RLS fix, and correctly distinguishes publishable vs secret keys including RLS/bypass behavior."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"delete user auth.users access token remains valid until expiry sign out sessions JWT\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signout",
+              "title": "Signing out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide",
+              "title": "Advanced guide"
+            }
+          ],
+          "resultChars": 80901
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"JavaScript admin deleteUser should be called server never expose service role deleted user JWT remains valid\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-createuser"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteprovider"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-deleteclient"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            }
+          ],
+          "resultChars": 9355
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"publishable key secret key frontend RLS bypass new API keys sb_publishable sb_secret\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
+            }
+          ],
+          "resultChars": 135684
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Understanding API keys publishable secret key Row Level Security Authorization user JWT apikey\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
+              "title": "Multi-Factor Authentication"
+            }
+          ],
+          "resultChars": 80276
+        }
+      ]
+    },
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/investigate-auth-001-deleted-user-access.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-realtime-001-subscribed-no-events",
+    "stage": "investigate",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "orders table added to supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "courier_locations still in supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "publication still publishes INSERT events",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on orders",
+        "passed": true
+      },
+      {
+        "name": "staff can still read orders through RLS",
+        "passed": true,
+        "notes": "authenticated sees 2 of 2 orders"
+      },
+      {
+        "name": "diagnosed missing publication membership",
+        "passed": true,
+        "judgeNotes": "Diagnosed orders missing from supabase_realtime publication, added only public.orders to existing publication, verified courier_locations remains, and did not alter RLS/policies or blame unrelated causes."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
+    "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/investigate-realtime-001-subscribed-no-events.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-reliability-003-edge-function-5xx-correlation",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified image-transform and the recurring 503 pattern",
+        "passed": true,
+        "judgeNotes": "The assistant named `image-transform` as the affected function and identified eight intermittent/periodic HTTP 503s between 07:00 and 12:00 UTC on 2026-04-28, matching the required recurring gateway failure pattern."
+      },
+      {
+        "name": "attributed recurring 503s to gateway/platform layer, not function code",
+        "passed": true,
+        "judgeNotes": "Attributes the recurring 503s to the Edge Function gateway/infrastructure layer rather than function code, and grounds this in observations that failures appeared only in API gateway logs with no matching function executions while nearby version 42 executions succeeded. Also distinguishes the avatar-upload runtime 500 from the gateway 503s and advises against redeploying for this incident."
+      },
+      {
+        "name": "recommended a concrete next step",
+        "passed": true,
+        "judgeNotes": "The assistant recommended concrete next steps, including escalating the gateway request IDs to Supabase Support for infrastructure tracing, adding retries, decoupling upload/transformation, and adding correlation IDs/alerts."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
+    "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/investigate-reliability-003-edge-function-5xx-correlation.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Diagnosed RLS enabled with no policies, kept RLS enabled, and added authenticated-only SELECT and INSERT owner-scoped policies using auth.uid() with WITH CHECK for inserts."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-001-migration-history-mismatch",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the avatar_url column is applied on the hosted profiles table",
+        "passed": true
+      },
+      {
+        "name": "migration 20240220000000 is recorded in the remote history",
+        "passed": true
+      },
+      {
+        "name": "remote migration history matches local migration files",
+        "passed": true
+      },
+      {
+        "name": "local migrations are a valid reconciled sequence",
+        "passed": true
+      },
+      {
+        "name": "production profile data is intact (not reset)",
+        "passed": true
+      },
+      {
+        "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
+        "passed": true,
+        "judgeNotes": "Applied pending avatar_url with real CLI push: `supabase db push --db-url \"$DB_URL\" --yes` in #11. Reconciled orphan bio migration by adding local file `supabase/migrations/20240115000000_add_profile_bio.sql` in #10, after which migration list showed local/remote aligned and the subsequent CLI push completed. Only read-only psql inspection seen; no prohibited direct SQL mutation or DEALLOCATE workaround."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migration repair remote hosted project migration failure\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 61657
+        }
+      ]
+    },
+    "prompt": "I'm trying to ship a migration to our hosted project and it's not working. Can you figure out what's wrong and get it deployed?",
+    "promptSourcePath": "evals/resolve-database-001-migration-history-mismatch/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/resolve-database-001-migration-history-mismatch.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-performance-001-slow-query-cpu-spike",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "inspected pg_stat_statements for query performance",
+        "passed": true
+      },
+      {
+        "name": "ran EXPLAIN on the expensive query",
+        "passed": true
+      },
+      {
+        "name": "created index covering user_id and created_at",
+        "passed": true
+      },
+      {
+        "name": "query plan uses an index and avoids sequential scan",
+        "passed": true,
+        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_desc_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+      },
+      {
+        "name": "inserts still work",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "My database CPU keeps spiking and the app gets slow when loading recent events for a user. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
+    "promptSourcePath": "evals/resolve-performance-001-slow-query-cpu-spike/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/resolve-performance-001-slow-query-cpu-spike.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
   }
 ]
