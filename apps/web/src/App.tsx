@@ -209,7 +209,7 @@ function ExperimentSuiteControl({
     <div
       role="group"
       aria-label="Experiment suite"
-      className="inline-grid w-fit grid-cols-2 rounded-full border border-border bg-muted/35 p-1"
+      className="inline-grid h-[34px] w-fit grid-cols-2 rounded-full border border-input bg-card p-0.5"
     >
       {EXPERIMENT_SUITES.map((suite) => {
         const selected = suite === value
@@ -221,7 +221,7 @@ function ExperimentSuiteControl({
             aria-pressed={selected}
             onClick={() => onValueChange(suite)}
             className={cn(
-              "h-9 min-w-28 rounded-full px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "h-full min-w-28 rounded-full px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
               selected
                 ? "bg-foreground text-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -478,10 +478,10 @@ function formatGroupLabel(label: string) {
 }
 
 const pageContainerClassName =
-  "mx-auto w-full max-w-screen-2xl px-6 sm:px-8 md:px-12 lg:px-8 xl:px-24"
+  "mx-auto w-full max-w-7xl px-6 lg:px-12 xl:px-24"
 
 const groupHeadingClassName =
-  "font-heading text-[24px] leading-[33px] font-normal tracking-[-0.16px] text-foreground"
+  "font-heading text-2xl leading-tight font-semibold tracking-normal text-foreground"
 
 const subgroupLabelClassName =
   "rounded-md px-2 py-1 font-mono text-xs font-normal uppercase tracking-wide text-muted-foreground"
@@ -806,7 +806,7 @@ function SummaryBar({
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
-        <span className="truncate font-mono text-sm font-normal text-foreground">
+        <span className="truncate text-sm font-normal text-foreground">
           {label}
         </span>
         <span className="shrink-0 font-mono text-sm font-normal text-foreground">
@@ -868,7 +868,7 @@ function TimelineGroupRow({
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <p
                 className={cn(
-                  "text-2xl leading-none font-light tracking-[-0.02em]",
+                  "font-heading text-2xl leading-none font-medium tracking-normal",
                   getPassRateClass(group.passRate)
                 )}
               >
@@ -960,11 +960,11 @@ function ExperimentSheet({
   return (
     <SheetContent className="max-w-3xl">
       <SheetHeader className="flex-row items-end justify-between gap-6 border-b-0">
-        <SheetTitle className="flex flex-col gap-1 pr-0 font-heading tracking-[-0.02em]">
-          <span className="text-3xl leading-none font-light text-muted-foreground">
+        <SheetTitle className="flex flex-col gap-1 pr-0 font-heading tracking-normal">
+          <span className="text-3xl leading-none font-medium text-muted-foreground">
             {agentLabel}
           </span>
-          <span className="text-3xl leading-none font-light text-foreground">
+          <span className="text-3xl leading-none font-medium text-foreground">
             {modelLabel}
           </span>
         </SheetTitle>
@@ -1191,7 +1191,7 @@ function CopyCommandButton() {
   return (
     <button
       type="button"
-      className="flex w-fit items-center justify-between gap-4 rounded-md border bg-muted/25 px-3 py-2 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="flex h-[38px] w-fit items-center justify-between gap-4 rounded-md border border-input bg-background px-4 py-2 text-left font-mono text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-accent hover:text-foreground focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-ring"
       onClick={() => {
         void navigator.clipboard.writeText(CLI_COMMAND)
         setCopied(true)
@@ -1236,7 +1236,7 @@ function FooterCta() {
       <div className="px-6 py-24 sm:py-28 lg:py-36">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-8">
           <SupabaseLogo className="h-8" />
-          <h2 className="font-heading text-2xl leading-[1.05] font-light tracking-[-0.03em] sm:text-3xl lg:text-4xl xl:text-5xl">
+          <h2 className="font-heading text-4xl font-semibold tracking-normal sm:text-5xl sm:leading-none">
             <span className="block text-foreground">Set your agent free</span>
             <span className="block text-muted-foreground">
               with a Supabase project
@@ -1314,16 +1314,16 @@ export function App() {
                 )}
               >
                 <div className="flex max-w-2xl min-w-0 flex-col gap-8 sm:gap-10">
-                  <h1 className="font-heading text-3xl leading-[1.05] font-light tracking-[-0.03em] sm:text-4xl lg:text-5xl xl:text-6xl">
+                  <h1 className="font-heading text-4xl font-medium tracking-normal sm:text-5xl sm:leading-none">
                     <span className="block text-foreground">
-                      Evaluating agents across
+                      Evaluating agents
                     </span>
                     <span className="block text-muted-foreground">
-                      the Supabase journey.
+                      across Supabase.
                     </span>
                   </h1>
                 </div>
-                <p className="max-w-xl text-base leading-6 tracking-[-0.011em] text-pretty text-muted-foreground lg:max-w-2xl lg:flex-1 lg:pb-1">
+                <p className="max-w-xl text-base leading-6 text-pretty text-muted-foreground lg:max-w-2xl lg:flex-1 lg:pb-1">
                   We evaluate model experiments against each step of the
                   Supabase developer journey, from building application
                   primitives through deploying, investigating issues, and

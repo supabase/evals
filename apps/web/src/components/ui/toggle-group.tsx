@@ -20,14 +20,14 @@ const toggleGroupVariants = cva(
 )
 
 const toggleGroupItemVariants = cva(
-  "inline-flex items-center justify-center rounded-full bg-transparent font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:z-10 disabled:pointer-events-none disabled:opacity-50 data-[orientation=vertical]:w-full",
+  "inline-flex items-center justify-center rounded-full bg-transparent font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[orientation=vertical]:w-full",
   {
     variants: {
       variant: {
         default:
           "h-8 rounded-md px-2 text-xs hover:bg-muted/60 data-[state=on]:bg-muted data-[state=on]:text-foreground",
         outline:
-          "h-10 border border-border px-4 text-sm hover:bg-muted/50 data-[state=on]:border-foreground/15 data-[state=on]:bg-muted/40 data-[state=on]:text-foreground dark:hover:bg-input/30",
+          "h-[34px] border border-input bg-background px-4 text-sm opacity-80 hover:border-muted-foreground hover:text-foreground data-[state=on]:border-foreground data-[state=on]:text-foreground data-[state=on]:opacity-100",
       },
     },
     defaultVariants: {
