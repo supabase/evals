@@ -9,39 +9,21 @@ import { stripIndent } from "common-tags";
 
 const OBSERVABILITY_DIR = "observability";
 const PROMETHEUS_PATH = join(OBSERVABILITY_DIR, "prometheus.yml");
-const COMPOSE_PATH = join(OBSERVABILITY_DIR, "docker-compose.yml");
 const README_PATH = join(OBSERVABILITY_DIR, "README.md");
 
 const scorer: LocalStackScorer = async (ctx) => {
-  const prometheus = readWorkspaceFile(ctx.hostWorkspace, PROMETHEUS_PATH);
-  const compose = readWorkspaceFile(ctx.hostWorkspace, COMPOSE_PATH);
+  // Agents sometimes split scrape targets into a separate file (e.g. referenced
+  // via Prometheus file_sd_configs) instead of inlining them in prometheus.yml,
+  // so read every yaml file under observability/ rather than a fixed set of paths.
+  const yamlFiles = collectYamlFiles(ctx.hostWorkspace, OBSERVABILITY_DIR);
+  const prometheus =
+    yamlFiles.find((f) => f.path === PROMETHEUS_PATH)?.content ?? "";
   const readme = readWorkspaceFile(ctx.hostWorkspace, README_PATH);
 
-  // Agents sometimes split scrape targets into a separate file (e.g. referenced
-  // via Prometheus file_sd_configs) instead of inlining them in prometheus.yml.
-  // Sweep any other yaml under observability/ so that pattern isn't judged blind.
-  const extraConfigs = collectAdditionalYamlFiles(
-    ctx.hostWorkspace,
-    OBSERVABILITY_DIR,
-    new Set([PROMETHEUS_PATH, COMPOSE_PATH]),
-  );
-  const extraConfigsBlock = extraConfigs
-    .map(
-      ({ path, content }) => `\n${path}:\n\`\`\`yaml\n${content}\n\`\`\`\n`,
-    )
-    .join("");
-
   const input = stripIndent`
-    ${PROMETHEUS_PATH}:
-    \`\`\`yaml
-    ${prometheus}
-    \`\`\`
-
-    ${COMPOSE_PATH}:
-    \`\`\`yaml
-    ${compose}
-    \`\`\`
-    ${extraConfigsBlock}
+    ${yamlFiles
+      .map(({ path, content }) => `${path}:\n\`\`\`yaml\n${content}\n\`\`\`\n`)
+      .join("\n")}
     ${README_PATH}:
     \`\`\`md
     ${readme}
@@ -99,29 +81,18 @@ function readWorkspaceFile(workspace: string, path: string): string {
   return existsSync(fullPath) ? readFileSync(fullPath, "utf8") : "";
 }
 
-/** Recursively finds yaml files under `dir` (skipping `secrets/`) not already in `exclude`, so referenced config like a file_sd_configs target file gets included even though it lives outside the fixed set of judged paths. */
-function collectAdditionalYamlFiles(
+/** Reads every yaml file directly under `dir`, so a scrape target split into its own file (e.g. a file_sd_configs target) is judged instead of missed. */
+function collectYamlFiles(
   workspace: string,
   dir: string,
-  exclude: Set<string>,
 ): Array<{ path: string; content: string }> {
   const dirPath = join(workspace, dir);
   if (!existsSync(dirPath)) return [];
 
-  const results: Array<{ path: string; content: string }> = [];
-  for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
-    if (entry.name === "secrets") continue;
-    const relPath = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...collectAdditionalYamlFiles(workspace, relPath, exclude));
-    } else if (/\.ya?ml$/i.test(entry.name) && !exclude.has(relPath)) {
-      results.push({
-        path: relPath,
-        content: readFileSync(join(workspace, relPath), "utf8"),
-      });
-    }
-  }
-  return results;
+  return readdirSync(dirPath)
+    .filter((name) => /\.ya?ml$/i.test(name))
+    .map((name) => join(dir, name))
+    .map((path) => ({ path, content: readFileSync(join(workspace, path), "utf8") }));
 }
 
 export default scorer;
