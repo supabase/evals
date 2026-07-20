@@ -4,7 +4,7 @@ import { localStackRuntime } from "@supabase-evals/sandbox";
 
 export default defineExperiment({
   agent: aiSdkAgent({
-    model: openai("gpt-5.5"),
+    model: openai("gpt-5.6"),
     providerOptions: {
       openai: {
         reasoningEffort: "medium",
