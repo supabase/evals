@@ -1,16 +1,22 @@
 /**
- * Structured, agent-agnostic transcript: turns (one per model API call) with
- * their tool executions nested, results paired at assembly time, and subagent
- * sidechains attached under the tool call that spawned them.
+ * Structured, agent-agnostic transcript.
+ *
+ * A **turn** is everything the agent does between user inputs — one user
+ * prompt in, all autonomous work until the next user input. Evals send a
+ * single prompt, so most traces have exactly one turn (a mid-run injected
+ * user message, e.g. a skill body, opens a new one). Inside a turn, a
+ * **step** is one model API call: its thinking, assistant text, and the tool
+ * executions it requested, with results paired at assembly time and subagent
+ * sidechains nested under the tool call that spawned them.
  *
  * Assembled from the same canonical `TranscriptEvent[]` the flat scorer
  * surface (`adaptTranscript`) consumes, so the two views can never disagree
  * about what happened; this one just stops throwing the structure away.
- * Turn grouping uses `event.turnKey` when the parser stamped one (Claude
- * Code: one assistant line = one API message; ai-sdk builds turns directly
- * from steps) and otherwise falls back to a closure rule: thinking and tool
- * calls accumulate into the open turn, an assistant message closes it
- * (Codex's item stream).
+ * Step grouping uses `event.turnKey` when the parser stamped one (Claude
+ * Code: one assistant line = one API message; ai-sdk builds steps directly)
+ * and otherwise falls back to a closure rule: thinking and tool calls
+ * accumulate into the open step, an assistant message closes it (Codex's
+ * item stream).
  */
 
 import type { AgentUsage } from "../index.js";
@@ -35,33 +41,36 @@ export interface ToolExecution {
   /** Epoch-ms timing when the transcript carries real timestamps. */
   startMs?: number;
   /** Subagent sidechain (e.g. Claude Code Task) spawned by this call. */
-  children?: AgentTurn[];
+  children?: AgentStep[];
 }
 
-export interface AgentTurn {
+/** One model API call within a turn. */
+export interface AgentStep {
   index: number;
   /** Provider message id of the API call, when exposed. */
   messageId?: string;
-  /** Per-turn token usage, when the transcript carries it. */
+  /** Per-call token usage, when the transcript carries it. */
   usage?: AgentUsage;
   startMs?: number;
   thinking?: string;
-  /** Assistant prose (absent on pure-tool turns). */
+  /** Assistant prose (absent on pure-tool steps). */
   text?: string;
   toolCalls: ToolExecution[];
 }
 
-/** A user/system message arriving between turns (e.g. an injected skill body). */
-export interface TraceInterjection {
-  /** Index of the last turn opened before this message; -1 = before any turn. */
-  afterTurnIndex: number;
-  role: "user" | "system";
-  content: string;
+/** Everything the agent did between two user inputs. */
+export interface AgentTurn {
+  index: number;
+  /**
+   * The user/system message that opened this turn. Absent on the first turn
+   * — the eval prompt itself lives on the result, not in the transcript.
+   */
+  userMessage?: string;
+  steps: AgentStep[];
 }
 
 export interface AgentTrace {
   turns: AgentTurn[];
-  interjections: TraceInterjection[];
   /** Agent-reported error events, in order. */
   errors: string[];
 }
@@ -88,41 +97,59 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
   }
 
   const turns: AgentTurn[] = [];
-  const interjections: TraceInterjection[] = [];
   const errors: string[] = [];
   const executionsById = new Map<string, ToolExecution>();
-  const turnsByKey = new Map<string, AgentTurn>();
+  const stepsByKey = new Map<string, AgentStep>();
+  let stepCount = 0;
   // Closure-rule state for events without a turnKey: an assistant message
-  // marks the open turn closed, so the next event starts a fresh one.
-  let openTurn: AgentTurn | undefined;
-  let openTurnClosed = false;
+  // marks the open step closed, so the next event starts a fresh one.
+  let openStep: AgentStep | undefined;
+  let openStepClosed = false;
+  // A user/system message between steps opens the next turn; consecutive
+  // boundary messages fold into one.
+  let pendingUserMessage: string | undefined;
 
-  const turnFor = (event: TranscriptEvent): AgentTurn => {
-    if (event.turnKey) {
-      const existing = turnsByKey.get(event.turnKey);
-      if (existing) return existing;
-      const turn = newTurn(event);
-      turnsByKey.set(event.turnKey, turn);
+  const currentTurn = (): AgentTurn => {
+    if (turns.length === 0 || pendingUserMessage !== undefined) {
+      const turn: AgentTurn = {
+        index: turns.length,
+        ...(pendingUserMessage !== undefined
+          ? { userMessage: pendingUserMessage }
+          : {}),
+        steps: [],
+      };
+      pendingUserMessage = undefined;
+      turns.push(turn);
       return turn;
     }
-    if (!openTurn || openTurnClosed) {
-      openTurn = newTurn(event);
-      openTurnClosed = false;
-    }
-    return openTurn;
+    return turns[turns.length - 1]!;
   };
 
-  const newTurn = (event: TranscriptEvent): AgentTurn => {
-    const turn: AgentTurn = { index: turns.length, toolCalls: [] };
+  const newStep = (event: TranscriptEvent): AgentStep => {
+    const step: AgentStep = { index: stepCount, toolCalls: [] };
+    stepCount += 1;
     const startMs = parseMs(event.timestamp);
-    if (startMs !== undefined) turn.startMs = startMs;
-    turns.push(turn);
-    return turn;
+    if (startMs !== undefined) step.startMs = startMs;
+    currentTurn().steps.push(step);
+    return step;
   };
 
-  for (const event of events) {
-    if (event.parentToolUseId) continue;
+  const stepFor = (event: TranscriptEvent): AgentStep => {
+    if (event.turnKey) {
+      const existing = stepsByKey.get(event.turnKey);
+      if (existing) return existing;
+      const step = newStep(event);
+      stepsByKey.set(event.turnKey, step);
+      return step;
+    }
+    if (!openStep || openStepClosed) {
+      openStep = newStep(event);
+      openStepClosed = false;
+    }
+    return openStep;
+  };
 
+  for (const event of main) {
     if (event.type === "error") {
       if (event.content) errors.push(event.content);
       continue;
@@ -131,11 +158,12 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
     if (event.type === "message" && event.role && event.role !== "assistant") {
       const content = event.content?.trim();
       if (content) {
-        interjections.push({
-          afterTurnIndex: turns.length - 1,
-          role: event.role,
-          content,
-        });
+        pendingUserMessage =
+          pendingUserMessage === undefined
+            ? content
+            : `${pendingUserMessage}\n\n${content}`;
+        // A user input also ends whatever keyless step was open.
+        openStepClosed = true;
       }
       continue;
     }
@@ -161,28 +189,30 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
     }
 
     if (event.type === "message" && event.role === "assistant") {
-      const turn = turnFor(event);
+      const step = stepFor(event);
       const content = event.content?.trim();
       if (content) {
-        turn.text = turn.text ? `${turn.text}\n${content}` : content;
+        step.text = step.text ? `${step.text}\n${content}` : content;
       }
-      annotate(turn, event);
-      if (!event.turnKey) openTurnClosed = true;
+      annotate(step, event);
+      if (!event.turnKey) openStepClosed = true;
       continue;
     }
 
     if (event.type === "thinking") {
-      const turn = turnFor(event);
+      const step = stepFor(event);
       const content = event.content?.trim();
       if (content) {
-        turn.thinking = turn.thinking ? `${turn.thinking}\n${content}` : content;
+        step.thinking = step.thinking
+          ? `${step.thinking}\n${content}`
+          : content;
       }
-      annotate(turn, event);
+      annotate(step, event);
       continue;
     }
 
     if (event.type === "tool_call" && event.tool) {
-      const turn = turnFor(event);
+      const step = stepFor(event);
       const execution: ToolExecution = {
         ...(event.tool.id ? { id: event.tool.id } : {}),
         name: event.tool.originalName,
@@ -197,10 +227,20 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
       };
       const startMs = parseMs(event.timestamp);
       if (startMs !== undefined) execution.startMs = startMs;
-      turn.toolCalls.push(execution);
+      step.toolCalls.push(execution);
       if (execution.id) executionsById.set(execution.id, execution);
-      annotate(turn, event);
+      annotate(step, event);
     }
+  }
+
+  // A trailing user message with no assistant activity after it still opens
+  // an (empty) turn, so it isn't silently dropped.
+  if (pendingUserMessage !== undefined) {
+    turns.push({
+      index: turns.length,
+      userMessage: pendingUserMessage,
+      steps: [],
+    });
   }
 
   // Attach sidechains to their spawning tool call; groups whose parent call
@@ -210,24 +250,25 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
     const parent = executionsById.get(parentId);
     const subTrace = assembleAgentTrace(group);
     errors.push(...subTrace.errors);
+    const subSteps = subTrace.turns.flatMap((turn) => turn.steps);
     if (parent) {
-      parent.children = subTrace.turns;
-    } else if (subTrace.turns.length > 0) {
+      parent.children = subSteps;
+    } else if (subSteps.length > 0) {
       errors.push(
         `orphaned subagent transcript (parent tool_use ${parentId} not found)`,
       );
     }
   }
 
-  return { turns, interjections, errors };
+  return { turns, errors };
 }
 
-/** Fold an event's per-call identifiers/usage onto its turn. */
-function annotate(turn: AgentTurn, event: TranscriptEvent): void {
-  if (event.messageId && !turn.messageId) turn.messageId = event.messageId;
-  if (event.usage && !turn.usage) turn.usage = event.usage;
-  if (turn.startMs === undefined) {
+/** Fold an event's per-call identifiers/usage onto its step. */
+function annotate(step: AgentStep, event: TranscriptEvent): void {
+  if (event.messageId && !step.messageId) step.messageId = event.messageId;
+  if (event.usage && !step.usage) step.usage = event.usage;
+  if (step.startMs === undefined) {
     const startMs = parseMs(event.timestamp);
-    if (startMs !== undefined) turn.startMs = startMs;
+    if (startMs !== undefined) step.startMs = startMs;
   }
 }

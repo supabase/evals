@@ -30,9 +30,11 @@ import { viteBuild, vitestRun } from './project-runner.js';
 import {
   buildDocsResult,
   buildSkillResult,
+  collectJudgeCalls,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
 } from '@supabase-evals/core';
+import type { JudgeCallRecord } from '@supabase-evals/core';
 import type {
   AgentTrace,
   AgentUsage,
@@ -365,6 +367,7 @@ async function runOne(
     steps: number;
     usage?: AgentUsage;
     trace?: AgentTrace;
+    judgeCalls?: JudgeCallRecord[];
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -396,6 +399,7 @@ async function runOne(
   let lastSteps = 0;
   let lastUsage: AgentUsage | undefined;
   let lastTrace: AgentTrace | undefined;
+  let lastJudgeCalls: JudgeCallRecord[] = [];
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === 'local-stack') {
@@ -483,18 +487,22 @@ async function runOne(
         copiedWithheldTests = true;
       };
 
-      last = await (scorer as LocalStackScorer)({
-        ...session.scoringContext,
-        toolCalls: run.toolCalls,
-        transcript: run.transcript,
-        agentReport: run.agentReport,
-        hostWorkspace,
-        runViteBuild: () => viteBuild(hostWorkspace),
-        runVitest: () => {
-          ensureWithheldTests();
-          return vitestRun(hostWorkspace);
-        },
-      });
+      const scored = await collectJudgeCalls(() =>
+        (scorer as LocalStackScorer)({
+          ...session.scoringContext,
+          toolCalls: run.toolCalls,
+          transcript: run.transcript,
+          agentReport: run.agentReport,
+          hostWorkspace,
+          runViteBuild: () => viteBuild(hostWorkspace),
+          runVitest: () => {
+            ensureWithheldTests();
+            return vitestRun(hostWorkspace);
+          },
+        }),
+      );
+      last = scored.result;
+      lastJudgeCalls = scored.judgeCalls;
 
       if (STOP_ON_PASS && last.passed) {
         return {
@@ -509,6 +517,7 @@ async function runOne(
           steps: run.steps,
           usage: run.usage,
           trace: run.trace,
+          judgeCalls: lastJudgeCalls,
         };
       }
       logRetryAttempt(expName, ev, attempt, last);
@@ -561,12 +570,16 @@ async function runOne(
     lastSteps = run.steps;
     lastUsage = run.usage;
     lastTrace = run.trace;
-    last = await (scorer as ToolScorer)({
-      ...session.scoringContext,
-      toolCalls: run.toolCalls,
-      transcript: run.transcript,
-      agentReport: run.agentReport,
-    });
+    const scored = await collectJudgeCalls(() =>
+      (scorer as ToolScorer)({
+        ...session.scoringContext,
+        toolCalls: run.toolCalls,
+        transcript: run.transcript,
+        agentReport: run.agentReport,
+      }),
+    );
+    last = scored.result;
+    lastJudgeCalls = scored.judgeCalls;
 
     if (STOP_ON_PASS && last.passed) {
       return {
@@ -581,6 +594,7 @@ async function runOne(
         steps: run.steps,
         usage: run.usage,
         trace: run.trace,
+        judgeCalls: lastJudgeCalls,
       };
     }
     logRetryAttempt(expName, ev, attempt, last);
@@ -598,6 +612,7 @@ async function runOne(
     steps: lastSteps,
     usage: lastUsage,
     trace: lastTrace,
+    judgeCalls: lastJudgeCalls,
   };
 }
 

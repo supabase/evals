@@ -7,7 +7,7 @@ import {
 
 const BASE = Date.parse("2026-07-21T10:00:00.000Z");
 
-/** A modern raw result: transcript + toolCalls + usage + timing. */
+/** A modern raw result: transcript + toolCalls + usage + timing (no trace). */
 const modernResult = {
   experiment: "claude-code-sonnet-5",
   experimentSuite: "benchmark",
@@ -70,7 +70,7 @@ describe("uploadableEvalResultSchema", () => {
   });
 });
 
-describe("buildEvalTrace", () => {
+describe("buildEvalTrace (flat fallback)", () => {
   const trace = buildEvalTrace({
     experiment: "claude-code-sonnet-5",
     result: parse(modernResult),
@@ -84,15 +84,21 @@ describe("buildEvalTrace", () => {
     expect(trace.output).toBe("Final report.");
   });
 
-  it("scores passed plus one score per check", () => {
-    expect(trace.scores).toEqual({
-      passed: 1,
-      "named the vulnerable table": 1,
-      "proposed a concrete fix": 0,
+  it("exposes a single passed score with the checks in its output", () => {
+    expect(trace.scores).toEqual({ passed: 1 });
+    const verdict = trace.spans.find((s) => s.name === "passed")!;
+    expect(verdict.scores).toEqual({ passed: 1 });
+    expect(verdict.output).toEqual({
+      passed: true,
+      checksPassed: "1/2",
+      checks: [
+        { name: "named the vulnerable table", passed: true },
+        { name: "proposed a concrete fix", passed: false, notes: "missed RLS" },
+      ],
     });
   });
 
-  it("emits spans in transcript order, then the verdict and check score spans", () => {
+  it("emits spans in transcript order, then the verdict span", () => {
     expect(trace.spans.map((s) => `${s.type}:${s.name}`)).toEqual([
       "tool:Skill",
       "task:user",
@@ -100,12 +106,7 @@ describe("buildEvalTrace", () => {
       "tool:Bash",
       "llm:assistant",
       "score:passed",
-      "score:named the vulnerable table",
-      "score:proposed a concrete fix",
     ]);
-    const verdict = trace.spans.find((s) => s.name === "passed");
-    expect(verdict?.scores).toEqual({ passed: 1 });
-    expect(verdict?.output).toEqual({ passed: true, checksPassed: "1/2" });
   });
 
   it("pairs tool spans with the normalized toolCalls record", () => {
@@ -156,14 +157,6 @@ describe("buildEvalTrace", () => {
     expect(trace.tags).toEqual(["investigate", "database", "security", "rls"]);
   });
 
-  it("attaches check notes to score spans", () => {
-    const failedCheck = trace.spans.find(
-      (s) => s.name === "proposed a concrete fix",
-    );
-    expect(failedCheck?.scores).toEqual({ "proposed a concrete fix": 0 });
-    expect(failedCheck?.output).toEqual({ passed: false, notes: "missed RLS" });
-  });
-
   it("falls back to synthetic timing and eval-id input for legacy results", () => {
     const legacy = buildEvalTrace({
       experiment: "old",
@@ -178,117 +171,11 @@ describe("buildEvalTrace", () => {
     expect(legacy.input).toEqual({ eval: "legacy-eval" });
     expect(legacy.output).toBeUndefined();
     expect(legacy.startMs).toBe(BASE);
-    expect(legacy.endMs).toBe(BASE + 2000);
+    expect(legacy.endMs).toBe(BASE + 1000);
     expect(legacy.spans.map((s) => `${s.type}:${s.name}`)).toEqual([
       "score:passed",
-      "score:a check",
     ]);
     expect(legacy.metrics).toEqual({});
-  });
-
-  it("de-duplicates and reserves score names", () => {
-    const clashing = buildEvalTrace({
-      experiment: "x",
-      result: parse({
-        experiment: "x",
-        eval: "y",
-        passed: true,
-        checks: [
-          { name: "passed", passed: true },
-          { name: "same", passed: true },
-          { name: "same", passed: false },
-        ],
-      }),
-      baseTimeMs: BASE,
-    });
-    expect(Object.keys(clashing.scores)).toEqual([
-      "passed",
-      "check: passed",
-      "same",
-      "same (2)",
-    ]);
-    expect(clashing.scores["same (2)"]).toBe(0);
-  });
-
-  it("builds hierarchical spans from a structured trace", () => {
-    const structured = buildEvalTrace({
-      experiment: "x",
-      result: parse({
-        experiment: "x",
-        eval: "y",
-        passed: true,
-        checks: [{ name: "a check", passed: true }],
-        startedAt: "2026-07-21T09:00:00.000Z",
-        durationMs: 40_000,
-        trace: {
-          turns: [
-            {
-              index: 0,
-              messageId: "msg_1",
-              usage: { inputTokens: 100, outputTokens: 10 },
-              thinking: "hmm",
-              text: "Looking.",
-              toolCalls: [
-                {
-                  name: "Bash",
-                  canonicalName: "shell",
-                  args: { command: "ls" },
-                  command: "ls",
-                  output: "files",
-                },
-                {
-                  name: "Task",
-                  canonicalName: "agent_task",
-                  args: { prompt: "explore" },
-                  children: [
-                    {
-                      index: 0,
-                      toolCalls: [
-                        { name: "Read", canonicalName: "file_read", args: {}, output: "code" },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-            { index: 1, text: "Done.", toolCalls: [] },
-          ],
-          interjections: [{ afterTurnIndex: 0, role: "user", content: "tool says hi" }],
-          errors: [],
-        },
-      }),
-      baseTimeMs: BASE,
-    });
-
-    expect(structured.spans.map((s) => `${s.type}:${s.name}`)).toEqual([
-      "llm:turn 1",
-      "task:user",
-      "llm:turn 2",
-      "score:passed",
-      "score:a check",
-    ]);
-    const turn1 = structured.spans[0]!;
-    expect(turn1.metrics).toEqual({
-      prompt_tokens: 100,
-      completion_tokens: 10,
-      tokens: 110,
-    });
-    expect(turn1.metadata).toEqual({ messageId: "msg_1" });
-    expect(turn1.output).toEqual({ thinking: "hmm", text: "Looking." });
-    expect(turn1.children!.map((s) => `${s.type}:${s.name}`)).toEqual([
-      "tool:Bash",
-      "tool:Task",
-    ]);
-    const task = turn1.children![1]!;
-    expect(task.children!.map((s) => `${s.type}:${s.name}`)).toEqual(["llm:turn 1"]);
-    expect(task.children![0]!.children!.map((s) => s.name)).toEqual(["Read"]);
-
-    // Children subdivide their parent's slot; everything stays inside the window.
-    const start = Date.parse("2026-07-21T09:00:00.000Z");
-    expect(turn1.startMs).toBe(start);
-    expect(task.startMs).toBeGreaterThanOrEqual(turn1.startMs);
-    expect(task.endMs).toBeLessThanOrEqual(turn1.endMs);
-    expect(structured.spans.at(-1)!.endMs).toBeCloseTo(start + 40_000, 5);
   });
 
   it("truncates oversized tool outputs", () => {
@@ -313,5 +200,140 @@ describe("buildEvalTrace", () => {
     const output = big.spans[0]!.output as string;
     expect(output.length).toBeLessThan(30_000);
     expect(output).toContain("[truncated 150000 chars]");
+  });
+});
+
+describe("buildEvalTrace (structured trace)", () => {
+  const structured = buildEvalTrace({
+    experiment: "x",
+    result: parse({
+      experiment: "x",
+      eval: "y",
+      passed: true,
+      checks: [{ name: "a check", passed: true, judgeNotes: "solid work" }],
+      startedAt: "2026-07-21T09:00:00.000Z",
+      durationMs: 40_000,
+      trace: {
+        turns: [
+          {
+            index: 0,
+            steps: [
+              {
+                index: 0,
+                messageId: "msg_1",
+                usage: { inputTokens: 100, outputTokens: 10 },
+                thinking: "hmm",
+                text: "Looking.",
+                toolCalls: [
+                  {
+                    name: "Bash",
+                    canonicalName: "shell",
+                    args: { command: "ls" },
+                    command: "ls",
+                    output: "files",
+                  },
+                  {
+                    name: "Task",
+                    canonicalName: "agent_task",
+                    args: { prompt: "explore" },
+                    children: [
+                      {
+                        index: 0,
+                        toolCalls: [
+                          { name: "Read", canonicalName: "file_read", args: {}, output: "code" },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+              { index: 1, text: "Done.", toolCalls: [] },
+            ],
+          },
+          {
+            index: 1,
+            userMessage: "one more thing",
+            steps: [{ index: 2, text: "Sure.", toolCalls: [] }],
+          },
+        ],
+        errors: [],
+      },
+      judgeCalls: [
+        {
+          rubric: "Pass if the work is solid.",
+          input: "the files the judge saw",
+          passed: true,
+          notes: "solid work",
+          modelId: "gpt-5.5",
+          durationMs: 1234,
+          usage: { inputTokens: 700, outputTokens: 30 },
+        },
+      ],
+    }),
+    baseTimeMs: BASE,
+  });
+
+  it("nests steps inside turns and tools inside steps", () => {
+    expect(structured.spans.map((s) => `${s.type}:${s.name}`)).toEqual([
+      "task:turn 1",
+      "task:turn 2",
+      "score:passed",
+    ]);
+    const turn1 = structured.spans[0]!;
+    expect(turn1.children!.map((s) => `${s.type}:${s.name}`)).toEqual([
+      "llm:step 1",
+      "llm:step 2",
+    ]);
+    const step1 = turn1.children![0]!;
+    expect(step1.metrics).toEqual({
+      prompt_tokens: 100,
+      completion_tokens: 10,
+      tokens: 110,
+    });
+    expect(step1.metadata).toEqual({ messageId: "msg_1" });
+    expect(step1.output).toEqual({ thinking: "hmm", text: "Looking." });
+    expect(step1.children!.map((s) => `${s.type}:${s.name}`)).toEqual([
+      "tool:Bash",
+      "tool:Task",
+    ]);
+    const task = step1.children![1]!;
+    expect(task.children!.map((s) => `${s.type}:${s.name}`)).toEqual(["llm:step 1"]);
+    expect(task.children![0]!.children!.map((s) => s.name)).toEqual(["Read"]);
+  });
+
+  it("carries the opening user message on its turn", () => {
+    const turn2 = structured.spans[1]!;
+    expect(turn2.input).toBe("one more thing");
+    expect(turn2.children!.map((s) => s.name)).toEqual(["step 3"]);
+  });
+
+  it("nests judge evidence under the passed score span", () => {
+    const verdict = structured.spans[2]!;
+    expect(verdict.scores).toEqual({ passed: 1 });
+    expect(verdict.children!.map((s) => `${s.type}:${s.name}`)).toEqual([
+      "llm:judge: a check",
+    ]);
+    const judgeSpan = verdict.children![0]!;
+    expect(judgeSpan.input).toEqual({
+      rubric: "Pass if the work is solid.",
+      input: "the files the judge saw",
+    });
+    expect(judgeSpan.output).toEqual({ passed: true, notes: "solid work" });
+    expect(judgeSpan.metadata).toEqual({ modelId: "gpt-5.5", durationMs: 1234 });
+    expect(judgeSpan.metrics).toEqual({
+      prompt_tokens: 700,
+      completion_tokens: 30,
+      tokens: 730,
+    });
+  });
+
+  it("keeps everything inside the run window", () => {
+    const start = Date.parse("2026-07-21T09:00:00.000Z");
+    const turn1 = structured.spans[0]!;
+    expect(turn1.startMs).toBe(start);
+    const step1 = turn1.children![0]!;
+    expect(step1.startMs).toBeGreaterThanOrEqual(turn1.startMs);
+    expect(step1.endMs).toBeLessThanOrEqual(turn1.endMs);
+    expect(structured.spans.at(-1)!.endMs).toBeCloseTo(start + 40_000, 5);
   });
 });

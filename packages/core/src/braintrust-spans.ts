@@ -25,7 +25,7 @@
 
 import { z } from "zod";
 import { rawEvalResultSchema } from "./eval-metadata.js";
-import type { AgentTrace, AgentTurn, ToolExecution } from "./transcript/agent-trace.js";
+import type { AgentStep, AgentTrace, ToolExecution } from "./transcript/agent-trace.js";
 
 const transcriptPartSchema = z.discriminatedUnion("type", [
   z.object({
@@ -82,6 +82,16 @@ const agentTraceSchema = z.custom<AgentTrace>(
  * transcript fields the web export drops. Everything beyond the base shape is
  * optional so results written before these fields existed still upload.
  */
+const judgeCallSchema = z.looseObject({
+  rubric: z.string(),
+  input: z.string(),
+  passed: z.boolean(),
+  notes: z.string().optional(),
+  modelId: z.string().optional(),
+  durationMs: z.number().optional(),
+  usage: agentUsageSchema.optional(),
+});
+
 export const uploadableEvalResultSchema = rawEvalResultSchema.extend({
   transcript: z.array(transcriptPartSchema).optional(),
   toolCalls: z.array(toolCallRecordSchema).optional(),
@@ -92,6 +102,7 @@ export const uploadableEvalResultSchema = rawEvalResultSchema.extend({
   startedAt: z.string().optional(),
   durationMs: z.number().optional(),
   trace: agentTraceSchema.optional(),
+  judgeCalls: z.array(judgeCallSchema).optional(),
 });
 export type UploadableEvalResult = z.infer<typeof uploadableEvalResultSchema>;
 
@@ -155,15 +166,6 @@ function capForUpload(value: unknown): unknown {
   };
 }
 
-/** Unique, human-readable score name per check; `passed` is reserved. */
-function scoreNameFor(checkName: string, taken: Set<string>): string {
-  const base = checkName.trim() || "check";
-  let name = base === "passed" ? "check: passed" : base;
-  for (let n = 2; taken.has(name); n += 1) name = `${base} (${n})`;
-  taken.add(name);
-  return name;
-}
-
 function usageMetrics(
   usage: UploadableEvalResult["usage"],
 ): Record<string, number> {
@@ -190,41 +192,35 @@ function usageMetrics(
   return metrics;
 }
 
-/** One llm span per turn, its tool spans (and subagent turns) nested. */
+/**
+ * One task span per turn (everything between user inputs — usually exactly
+ * one in an eval), its per-API-call step llm spans nested inside, tool spans
+ * under their step.
+ */
 function turnSpans(trace: AgentTrace): UnplacedSpan[] {
-  const spans: UnplacedSpan[] = [];
-  const interjectionsAfter = new Map<number, UnplacedSpan[]>();
-  for (const interjection of trace.interjections ?? []) {
-    const group = interjectionsAfter.get(interjection.afterTurnIndex) ?? [];
-    group.push({
-      name: interjection.role,
-      type: "task",
-      output: capForUpload(interjection.content),
-    });
-    interjectionsAfter.set(interjection.afterTurnIndex, group);
-  }
-
-  spans.push(...(interjectionsAfter.get(-1) ?? []));
-  for (const turn of trace.turns) {
-    spans.push(turnSpan(turn));
-    spans.push(...(interjectionsAfter.get(turn.index) ?? []));
-  }
-  return spans;
+  return trace.turns.map((turn) => ({
+    name: `turn ${turn.index + 1}`,
+    type: "task" as const,
+    ...(turn.userMessage !== undefined
+      ? { input: capForUpload(turn.userMessage) }
+      : {}),
+    children: (turn.steps ?? []).map(stepSpan),
+  }));
 }
 
-function turnSpan(turn: AgentTurn): UnplacedSpan {
+function stepSpan(step: AgentStep): UnplacedSpan {
   const output: Record<string, unknown> = {};
-  if (turn.thinking) output.thinking = capForUpload(turn.thinking);
-  if (turn.text) output.text = capForUpload(turn.text);
+  if (step.thinking) output.thinking = capForUpload(step.thinking);
+  if (step.text) output.text = capForUpload(step.text);
   const metadata: Record<string, unknown> = {};
-  if (turn.messageId) metadata.messageId = turn.messageId;
+  if (step.messageId) metadata.messageId = step.messageId;
   return {
-    name: `turn ${turn.index + 1}`,
+    name: `step ${step.index + 1}`,
     type: "llm",
     ...(Object.keys(output).length > 0 ? { output } : {}),
     ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
-    ...(turn.usage ? { metrics: usageMetrics(turn.usage) } : {}),
-    children: (turn.toolCalls ?? []).map(toolSpan),
+    ...(step.usage ? { metrics: usageMetrics(step.usage) } : {}),
+    children: (step.toolCalls ?? []).map(toolSpan),
   };
 }
 
@@ -245,9 +241,9 @@ function toolSpan(execution: ToolExecution): UnplacedSpan {
       ? { output: capForUpload(execution.output) }
       : { error: execution.error }),
     ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
-    // A subagent sidechain renders as the Task call's own turn subtree.
+    // A subagent sidechain renders as the Task call's own step subtree.
     ...(execution.children?.length
-      ? { children: execution.children.map(turnSpan) }
+      ? { children: execution.children.map(stepSpan) }
       : {}),
   };
 }
@@ -295,6 +291,45 @@ function flatSpans(result: UploadableEvalResult): UnplacedSpan[] {
   return spans;
 }
 
+type ParsedCheck = NonNullable<UploadableEvalResult["checks"]>[number];
+type ParsedJudgeCall = z.infer<typeof judgeCallSchema>;
+
+/**
+ * One llm span per judge call, named after the check whose verdict it
+ * produced (matched by verbatim notes; a judge call is consumed at most
+ * once). Its input is the rubric plus the exact text the judge evaluated —
+ * the part that is otherwise discarded after scoring.
+ */
+function judgeCallSpans(
+  checks: ParsedCheck[],
+  judgeCalls: ParsedJudgeCall[],
+): UnplacedSpan[] {
+  const unmatched = [...checks];
+  return judgeCalls.map((call) => {
+    const index = unmatched.findIndex(
+      (check) =>
+        check.judgeNotes !== undefined &&
+        check.judgeNotes === call.notes &&
+        check.passed === call.passed,
+    );
+    const check = index >= 0 ? unmatched.splice(index, 1)[0] : undefined;
+    const metadata: Record<string, unknown> = {};
+    if (call.modelId) metadata.modelId = call.modelId;
+    if (call.durationMs !== undefined) metadata.durationMs = call.durationMs;
+    return {
+      name: check ? `judge: ${check.name}` : "judge",
+      type: "llm" as const,
+      input: { rubric: call.rubric, input: capForUpload(call.input) },
+      output: {
+        passed: call.passed,
+        ...(call.notes ? { notes: call.notes } : {}),
+      },
+      ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+      ...(call.usage ? { metrics: usageMetrics(call.usage) } : {}),
+    };
+  });
+}
+
 /**
  * Assign synthetic timing: siblings split their window into equal contiguous
  * slots, children subdivide their parent's slot. Order → position; durations
@@ -339,12 +374,15 @@ export function buildEvalTrace(args: {
     : flatSpans(result);
 
   const checks = result.checks ?? [];
+  // A single Braintrust scorer (`passed`), mirroring eval-results.json's
+  // headline flag; the checks array rides along as the scorer's output
+  // instead of one scorer per check, keeping the experiment UI to one score
+  // column. Judge calls made during scoring nest under it as llm spans — the
+  // evidence trail of exactly what each judge saw and what the verdict cost.
   const scores: Record<string, number> = {
     passed: result.passed === true ? 1 : 0,
   };
-  const takenScoreNames = new Set<string>(Object.keys(scores));
-  // The overall verdict as its own score span — the trace-view counterpart of
-  // eval-results.json's headline `passed`, ahead of the per-check spans.
+  const judgeSpans = judgeCallSpans(checks, result.judgeCalls ?? []);
   const scoreSpans: UnplacedSpan[] = [
     {
       name: "passed",
@@ -352,25 +390,12 @@ export function buildEvalTrace(args: {
       output: {
         passed: result.passed === true,
         checksPassed: `${checks.filter((c) => c.passed).length}/${checks.length}`,
+        checks,
       },
       scores: { passed: scores.passed! },
+      ...(judgeSpans.length > 0 ? { children: judgeSpans } : {}),
     },
   ];
-  for (const check of checks) {
-    const scoreName = scoreNameFor(check.name, takenScoreNames);
-    const value = check.passed ? 1 : 0;
-    scores[scoreName] = value;
-    scoreSpans.push({
-      name: scoreName,
-      type: "score",
-      output: {
-        passed: check.passed,
-        ...(check.notes ? { notes: check.notes } : {}),
-        ...(check.judgeNotes ? { judgeNotes: check.judgeNotes } : {}),
-      },
-      scores: { [scoreName]: value },
-    });
-  }
 
   const unplaced = [...activity, ...scoreSpans];
 
