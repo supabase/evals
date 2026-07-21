@@ -92,16 +92,20 @@ describe("buildEvalTrace", () => {
     });
   });
 
-  it("emits spans in transcript order, then score spans", () => {
+  it("emits spans in transcript order, then the verdict and check score spans", () => {
     expect(trace.spans.map((s) => `${s.type}:${s.name}`)).toEqual([
       "tool:Skill",
       "task:user",
       "llm:assistant",
       "tool:Bash",
       "llm:assistant",
+      "score:passed",
       "score:named the vulnerable table",
       "score:proposed a concrete fix",
     ]);
+    const verdict = trace.spans.find((s) => s.name === "passed");
+    expect(verdict?.scores).toEqual({ passed: 1 });
+    expect(verdict?.output).toEqual({ passed: true, checksPassed: "1/2" });
   });
 
   it("pairs tool spans with the normalized toolCalls record", () => {
@@ -174,9 +178,11 @@ describe("buildEvalTrace", () => {
     expect(legacy.input).toEqual({ eval: "legacy-eval" });
     expect(legacy.output).toBeUndefined();
     expect(legacy.startMs).toBe(BASE);
-    expect(legacy.endMs).toBe(BASE + 1000);
-    expect(legacy.spans).toHaveLength(1);
-    expect(legacy.spans[0]!.type).toBe("score");
+    expect(legacy.endMs).toBe(BASE + 2000);
+    expect(legacy.spans.map((s) => `${s.type}:${s.name}`)).toEqual([
+      "score:passed",
+      "score:a check",
+    ]);
     expect(legacy.metrics).toEqual({});
   });
 

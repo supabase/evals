@@ -184,7 +184,8 @@ export function buildEvalTrace(args: {
   const transcript = result.transcript ?? [];
   const toolCalls = result.toolCalls ?? [];
   const checks = result.checks ?? [];
-  const spanCount = transcript.length + checks.length;
+  // +1 for the overall `passed` score span emitted ahead of the checks.
+  const spanCount = transcript.length + checks.length + 1;
   // Real window when the run recorded one; otherwise one synthetic second per
   // span, purely so ordering survives.
   const durationMs = result.durationMs ?? Math.max(spanCount, 1) * 1000;
@@ -239,6 +240,18 @@ export function buildEvalTrace(args: {
     passed: result.passed === true ? 1 : 0,
   };
   const takenScoreNames = new Set<string>(Object.keys(scores));
+  // The overall verdict as its own score span — the trace-view counterpart of
+  // eval-results.json's headline `passed`, ahead of the per-check spans.
+  spans.push({
+    name: "passed",
+    type: "score",
+    output: {
+      passed: result.passed === true,
+      checksPassed: `${checks.filter((c) => c.passed).length}/${checks.length}`,
+    },
+    scores: { passed: scores.passed! },
+    ...slot(spans.length),
+  });
   for (const check of checks) {
     const scoreName = scoreNameFor(check.name, takenScoreNames);
     const value = check.passed ? 1 : 0;
