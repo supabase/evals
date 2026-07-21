@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
+import { logsServiceSchema } from '@supabase/mcp-server-supabase/platform'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import type { ProjectStore } from '../project-store.js'
@@ -152,5 +153,25 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
     const res = await app.request(url('DELETE FROM function_edge_logs'))
     expect(res.status).toBe(400)
     expect(await countRows()).toBe(before)
+  })
+})
+
+// Drift tripwire against the PINNED mcp package (the one importable artifact
+// here). The unified-stream 'source' names in the logs VIEW are not exported
+// by mcp as data, but the service-preset enum is; when a version bump
+// adds/renames services (e.g. edge-function-runtime already exists on mcp
+// main), this fails loudly and says: resync the logs view sources, the
+// translator, and this list.
+describe('pinned mcp logsServiceSchema alignment', () => {
+  it('matches the service presets this fixture was modeled against', () => {
+    expect([...logsServiceSchema.options].sort()).toEqual([
+      'api',
+      'auth',
+      'branch-action',
+      'edge-function',
+      'postgres',
+      'realtime',
+      'storage',
+    ])
   })
 })
