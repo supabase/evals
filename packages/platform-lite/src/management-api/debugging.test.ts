@@ -91,4 +91,12 @@ order by error_count desc`
     expect(result.rows[0]).toMatchObject({ function_id: 'stripe-webhook' })
     expect(Number((result.rows[0] as { error_count: unknown }).error_count)).toBe(2)
   })
+
+  it('runs the toString-nested ClickHouse SQL from the treatment rerun', async () => {
+    // verbatim model output (rerun call 4): toString wrapped inside toInt32OrZero
+    const sql = `select log_attributes['function_id'] as function_id, count(*) as total_events, countIf(toInt32OrZero(toString(log_attributes['status'])) >= 400 or level = 'error') as error_count from logs where source = 'function_edge_logs' group by function_id order by error_count desc`
+    const result = await logsDb.query<{ function_id: string; error_count: unknown }>(compileClickHouseLogsSql(sql))
+    expect(result.rows[0]).toMatchObject({ function_id: 'stripe-webhook' })
+    expect(Number((result.rows[0] as { error_count: unknown }).error_count)).toBe(2)
+  })
 })

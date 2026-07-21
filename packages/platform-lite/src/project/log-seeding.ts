@@ -136,6 +136,7 @@ CREATE FUNCTION toUInt32OrZero(v text) RETURNS numeric AS $ch$
 BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
 $ch$ LANGUAGE plpgsql IMMUTABLE;
 CREATE FUNCTION toUInt32OrZero(v numeric) RETURNS numeric AS $ch$ SELECT coalesce(v, 0) $ch$ LANGUAGE sql IMMUTABLE;
+CREATE FUNCTION toString(v anyelement) RETURNS text AS $ch$ SELECT v::text $ch$ LANGUAGE sql IMMUTABLE;
 `
 
 export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
