@@ -124,6 +124,13 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
  * would FAIL against the hosted ClickHouse endpoint, and vice versa. Extend
  * only from observed model output, never speculatively.
  *
+ * PROVENANCE: none of this is importable. The real dialect boundary lives in
+ * the hosted platform's Logflare/ClickHouse backend (supabase/platform#35096,
+ * platform-internal); mcp ships only tool descriptions, and ClickHouse
+ * builtins have no npm artifact. The verbatim SQL in debugging.test.ts is
+ * deliberately FROZEN observed output (regression fixtures) - importing live
+ * definitions would make those contract tests follow the thing they test.
+ *
  * KNOWN LIMITATION (time semantics): iso_timestamp_start/end are ignored
  * (fixed-date seeds), so window-correctness of model queries is NOT exercised
  * locally. A time-window-discriminating eval needs relative-time seeding.

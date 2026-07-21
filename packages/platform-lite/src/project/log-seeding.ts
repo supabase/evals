@@ -96,6 +96,15 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 -- log_attributes map. Mirror it so ClickHouse-dialect SQL from current mcp
 -- (get_logs presets, query_logs) runs with minimal translation. Column-backed
 -- attributes win over seeded metadata; nulls fall back to metadata keys.
+--
+-- Provenance (nothing here is importable, so this is hand-modeled):
+--   * The 'logs' relation shape is the hosted platform's Logflare/ClickHouse
+--     contract (supabase/platform#35096). It is platform-internal: no npm
+--     package exports the schema, so fixtures must model it, exactly like
+--     every other platform-lite emulation in this package.
+--   * The 'source' names must match mcp's logsServiceSchema
+--     (packages/mcp-server-supabase/src/tools/logs.ts). Resync this view when
+--     the pinned MCP_SERVER_VERSION moves or that schema changes.
 CREATE VIEW logs AS
   SELECT id, identifier, timestamp, ts, event_message, message, level, level AS severity_text, 'edge_logs'::text AS source,
     metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'request.method', method, 'request.path', path, 'response.status_code', status_code)) AS log_attributes
@@ -122,8 +131,11 @@ CREATE VIEW logs AS
 
 -- ClickHouse numeric-cast family, as models genuinely emit it in query_logs
 -- SQL (e.g. countIf(toInt32OrZero(log_attributes['status']) >= 400)).
+-- These are pg reimplementations of ClickHouse BUILTINS (also not importable
+-- from anywhere); signatures follow clickhouse.com/docs/sql-reference.
 -- ClickHouse semantics: parse the value, 0 when it isn't a number. Text and
 -- numeric overloads cover both raw jsonb access and the translator's casts.
+-- Grown strictly from observed model output - see debugging.ts translator note.
 CREATE FUNCTION toInt32OrZero(v text) RETURNS numeric AS $ch$
 BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
 $ch$ LANGUAGE plpgsql IMMUTABLE;
