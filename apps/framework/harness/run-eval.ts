@@ -277,6 +277,15 @@ function resultPath(modelName: string, ev: Pick<EvalManifest, 'id' | 'mode'>) {
   return join(ROOT, 'results', modelName, `${ev.id}.json`);
 }
 
+/**
+ * Sibling of a result file holding the agent CLI's verbatim JSONL transcript
+ * (`<evalId>.transcript.jsonl`). Not `.json`, so the results scan and the
+ * web export never pick it up.
+ */
+function rawTranscriptPath(resultFilePath: string) {
+  return `${resultFilePath.slice(0, -".json".length)}.transcript.jsonl`;
+}
+
 function workspacePath(modelName: string, evalId: string, attempt: number) {
   return join(
     ROOT,
@@ -368,6 +377,7 @@ async function runOne(
     usage?: AgentUsage;
     trace?: AgentTrace;
     judgeCalls?: JudgeCallRecord[];
+    rawTranscript?: string;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -400,6 +410,7 @@ async function runOne(
   let lastUsage: AgentUsage | undefined;
   let lastTrace: AgentTrace | undefined;
   let lastJudgeCalls: JudgeCallRecord[] = [];
+  let lastRawTranscript: string | undefined;
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === 'local-stack') {
@@ -472,6 +483,7 @@ async function runOne(
       lastSteps = run.steps;
       lastUsage = run.usage;
       lastTrace = run.trace;
+      lastRawTranscript = run.rawTranscript;
 
       // Export the agent's workspace to the host so scorers can run host
       // tooling (vite/vitest from the repo root) against the produced files
@@ -518,6 +530,7 @@ async function runOne(
           usage: run.usage,
           trace: run.trace,
           judgeCalls: lastJudgeCalls,
+          rawTranscript: run.rawTranscript,
         };
       }
       logRetryAttempt(expName, ev, attempt, last);
@@ -570,6 +583,7 @@ async function runOne(
     lastSteps = run.steps;
     lastUsage = run.usage;
     lastTrace = run.trace;
+    lastRawTranscript = run.rawTranscript;
     const scored = await collectJudgeCalls(() =>
       (scorer as ToolScorer)({
         ...session.scoringContext,
@@ -595,6 +609,7 @@ async function runOne(
         usage: run.usage,
         trace: run.trace,
         judgeCalls: lastJudgeCalls,
+        rawTranscript: run.rawTranscript,
       };
     }
     logRetryAttempt(expName, ev, attempt, last);
@@ -613,6 +628,7 @@ async function runOne(
     usage: lastUsage,
     trace: lastTrace,
     judgeCalls: lastJudgeCalls,
+    rawTranscript: lastRawTranscript,
   };
 }
 
@@ -803,8 +819,13 @@ async function main() {
     console.log(`⏳ RUN  ${name} x ${ev.id}`);
     const run = async () => {
       try {
-        const res = await runOne(name, config, ev);
+        const { rawTranscript, ...res } = await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
+        // The CLI's verbatim transcript is a sibling file, never part of the
+        // result JSON (it can be megabytes); the Braintrust upload attaches it.
+        if (rawTranscript) {
+          writeFileSync(rawTranscriptPath(out), rawTranscript);
+        }
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
           out,

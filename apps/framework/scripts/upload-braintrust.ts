@@ -22,6 +22,8 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import {
   buildEvalTrace,
@@ -98,6 +100,11 @@ interface PendingTrace {
   trace: BraintrustEvalTrace;
   /** Raw result file, attached to the root span for full-fidelity forensics. */
   filePath: string;
+  /**
+   * The agent CLI's verbatim JSONL transcript (sibling
+   * `<evalId>.transcript.jsonl` written by the runner), attached alongside.
+   */
+  rawTranscriptPath?: string;
 }
 
 async function collectTraces(
@@ -174,8 +181,13 @@ async function collectTraces(
       },
       baseTimeMs: Date.now(),
     });
+    const transcriptPath = ref.filePath.replace(/\.json$/, ".transcript.jsonl");
     const group = byExperiment.get(result.experiment) ?? [];
-    group.push({ trace, filePath: ref.filePath });
+    group.push({
+      trace,
+      filePath: ref.filePath,
+      ...(existsSync(transcriptPath) ? { rawTranscriptPath: transcriptPath } : {}),
+    });
     byExperiment.set(result.experiment, group);
   }
 
@@ -237,7 +249,7 @@ async function upload(
       },
     });
 
-    for (const { trace, filePath } of pending) {
+    for (const { trace, filePath, rawTranscriptPath } of pending) {
       const root = btExperiment.startSpan({
         name: trace.evalId,
         type: "eval",
@@ -254,6 +266,18 @@ async function upload(
             filename: `${trace.experiment}__${trace.evalId}.json`,
             contentType: "application/json",
           }),
+          // The agent CLI's own transcript, verbatim — attachments are
+          // Braintrust's mechanism for large documents (span fields cap out;
+          // attachments go to object storage and stay downloadable).
+          ...(rawTranscriptPath
+            ? {
+                rawTranscript: new Attachment({
+                  data: rawTranscriptPath,
+                  filename: basename(rawTranscriptPath),
+                  contentType: "application/jsonl",
+                }),
+              }
+            : {}),
         },
         ...(Object.keys(trace.metrics).length > 0
           ? { metrics: trace.metrics }

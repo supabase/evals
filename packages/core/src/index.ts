@@ -429,6 +429,13 @@ export type AgentRunResult = {
    * surface scorers consume is unchanged.
    */
   trace?: AgentTrace;
+  /**
+   * The agent CLI's own transcript, verbatim (stream-json / exec-json
+   * JSONL). Absent for in-process agents (ai-sdk), which have no CLI
+   * transcript. The runner persists it as a sibling file next to the result
+   * JSON, never inside it.
+   */
+  rawTranscript?: string;
 };
 
 export type AgentHarness = {
