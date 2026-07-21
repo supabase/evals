@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 -- Unified ClickHouse-shaped stream: the hosted /analytics/endpoints/logs
 -- endpoint exposes one 'logs' relation with a 'source' discriminator and a
 -- log_attributes map. Mirror it so ClickHouse-dialect SQL from current mcp
--- (get_logs presets, query_logs) runs with minimal translation. Column-backed
+-- (get_logs presets) and from mcp#333's query_logs runs with minimal
+-- translation. Column-backed
 -- attributes win over seeded metadata; nulls fall back to metadata keys.
 --
 -- Provenance (hand-modeled; nothing usable is importable):
@@ -106,7 +107,8 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --       - supabase/platform#35970: custom-SQL passthrough (timestamps
 --         normalized platform-side) - what mcp#333's query_logs (still open)
 --         targets; current mcp main does not depend on it.
---     The fixture models what current mcp emits against that contract. It is
+--     The fixture models both current main and the #333 validation branch
+--     against that contract. It is
 --     platform-internal either way: no npm package exports the schema, so
 --     fixtures must model it by hand, exactly like every other platform-lite
 --     emulation in this package.
