@@ -99,8 +99,12 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --
 -- Provenance (hand-modeled; nothing usable is importable):
 --   * The 'logs' relation shape is the hosted platform's Logflare/ClickHouse
---     contract (supabase/platform#35096). It is platform-internal: no npm
---     package exports the schema, so fixtures must model it, exactly like
+--     contract, established by the (in-review as of 2026-07-21) platform PRs
+--     supabase/platform#35096 (unified logs.all.otel stream, CH dialect) and
+--     #35970 (query_logs passthrough endpoint; timestamps normalized
+--     platform-side). mcp main is written against that contract, so the
+--     fixture models it. It is platform-internal either way: no npm package
+--     exports the schema, so fixtures must model it by hand, exactly like
 --     every other platform-lite emulation in this package.
 --   * The 'source' names are the unified-stream sources referenced by mcp's
 --     preset SQL and the query_logs sql description - not exported as data.
