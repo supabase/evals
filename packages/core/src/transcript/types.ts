@@ -32,6 +32,23 @@ export type ToolName =
 export interface TranscriptEvent {
   /** ISO timestamp of the event, when the agent records one. */
   timestamp?: string;
+  /**
+   * Groups events belonging to one model API call (a turn). Parsers stamp it
+   * when the raw transcript exposes the boundary (Claude Code: one assistant
+   * stream-json line = one API message). Absent = the trace assembler falls
+   * back to its closure rule (an assistant message ends the open turn).
+   */
+  turnKey?: string;
+  /** Provider message id of the API call this event belongs to, if exposed. */
+  messageId?: string;
+  /** Per-API-call token usage, when the raw transcript carries it. */
+  usage?: import("../index.js").AgentUsage;
+  /**
+   * Tool-use id of the parent Task/subagent call for sidechain events
+   * (Claude Code's `parent_tool_use_id`). The assembler nests these under
+   * that tool execution instead of the main thread.
+   */
+  parentToolUseId?: string;
   /** Event kind. */
   type: 'message' | 'tool_call' | 'tool_result' | 'thinking' | 'error';
   /** For `message` events: the speaker. */

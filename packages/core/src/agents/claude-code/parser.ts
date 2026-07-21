@@ -165,6 +165,52 @@ function loadedSkillsFromClaudeCodeCall(
   return [];
 }
 
+/**
+ * Per-API-call context stamped onto every event a line produces, so the
+ * trace assembler can group a line's message/thinking/tool_use blocks into
+ * one turn, attach the call's own token usage, and nest subagent sidechains
+ * (`parent_tool_use_id`) under their Task call.
+ */
+function lineContext(
+  data: Record<string, unknown>,
+  lineIndex: number,
+): Pick<TranscriptEvent, "turnKey" | "messageId" | "usage" | "parentToolUseId"> {
+  const context: ReturnType<typeof lineContext> = {};
+  const parent = data.parent_tool_use_id;
+  if (typeof parent === "string") context.parentToolUseId = parent;
+
+  if (data.type !== "assistant" && data.role !== "assistant") return context;
+  const message = isRecord(data.message) ? data.message : undefined;
+  const messageId = typeof message?.id === "string" ? message.id : undefined;
+  // One assistant stream-json line = one API message; the id groups a
+  // message's blocks (and any continuation lines for the same id) into one
+  // turn. Lines without an id still get a unique per-line key.
+  context.turnKey = messageId ?? `line-${lineIndex}`;
+  if (messageId) context.messageId = messageId;
+
+  const usage = isRecord(message?.usage) ? message.usage : undefined;
+  if (usage) {
+    const num = (value: unknown): number | undefined =>
+      typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    const rawInput = num(usage.input_tokens);
+    const cacheRead = num(usage.cache_read_input_tokens);
+    const cacheCreation = num(usage.cache_creation_input_tokens);
+    const outputTokens = num(usage.output_tokens);
+    if (rawInput !== undefined || cacheRead !== undefined || cacheCreation !== undefined || outputTokens !== undefined) {
+      context.usage = {
+        // OpenAI-style totals (cached ⊆ input), matching extractUsage.
+        inputTokens: (rawInput ?? 0) + (cacheRead ?? 0) + (cacheCreation ?? 0),
+        ...(outputTokens !== undefined ? { outputTokens } : {}),
+        ...(cacheRead !== undefined ? { cachedInputTokens: cacheRead } : {}),
+        ...(cacheCreation !== undefined
+          ? { cacheCreationInputTokens: cacheCreation }
+          : {}),
+      };
+    }
+  }
+  return context;
+}
+
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   const events: TranscriptEvent[] = [];
   const timestamp =
@@ -289,9 +335,11 @@ export const claudeCodeParser: AgentTranscriptParser = {
     const { records, errors } = parseJsonlRecords(raw);
     const events: TranscriptEvent[] = [];
     let lastAssistantText: string | undefined;
-    for (const record of records) {
+    for (const [lineIndex, record] of records.entries()) {
       try {
-        for (const event of recordToEvents(record)) {
+        const context = lineContext(record, lineIndex);
+        for (const bare of recordToEvents(record)) {
+          const event: TranscriptEvent = { ...context, ...bare };
           const isAssistantMessage =
             event.type === 'message' && event.role === 'assistant';
           // The terminal `result` line repeats the final assistant message that

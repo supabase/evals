@@ -34,6 +34,7 @@ import {
   getExperimentDisplayMetadata,
 } from '@supabase-evals/core';
 import type {
+  AgentTrace,
   AgentUsage,
   ExperimentConfig,
   EvalInterface,
@@ -363,6 +364,7 @@ async function runOne(
     stoppedReason: string;
     steps: number;
     usage?: AgentUsage;
+    trace?: AgentTrace;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -393,6 +395,7 @@ async function runOne(
   let lastStoppedReason = 'not_started';
   let lastSteps = 0;
   let lastUsage: AgentUsage | undefined;
+  let lastTrace: AgentTrace | undefined;
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === 'local-stack') {
@@ -464,6 +467,7 @@ async function runOne(
       lastStoppedReason = run.stoppedReason;
       lastSteps = run.steps;
       lastUsage = run.usage;
+      lastTrace = run.trace;
 
       // Export the agent's workspace to the host so scorers can run host
       // tooling (vite/vitest from the repo root) against the produced files
@@ -504,6 +508,7 @@ async function runOne(
           stoppedReason: run.stoppedReason,
           steps: run.steps,
           usage: run.usage,
+          trace: run.trace,
         };
       }
       logRetryAttempt(expName, ev, attempt, last);
@@ -555,6 +560,7 @@ async function runOne(
     lastStoppedReason = run.stoppedReason;
     lastSteps = run.steps;
     lastUsage = run.usage;
+    lastTrace = run.trace;
     last = await (scorer as ToolScorer)({
       ...session.scoringContext,
       toolCalls: run.toolCalls,
@@ -574,6 +580,7 @@ async function runOne(
         stoppedReason: run.stoppedReason,
         steps: run.steps,
         usage: run.usage,
+        trace: run.trace,
       };
     }
     logRetryAttempt(expName, ev, attempt, last);
@@ -590,6 +597,7 @@ async function runOne(
     stoppedReason: lastStoppedReason,
     steps: lastSteps,
     usage: lastUsage,
+    trace: lastTrace,
   };
 }
 

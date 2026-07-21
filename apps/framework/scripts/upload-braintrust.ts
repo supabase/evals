@@ -260,8 +260,11 @@ async function upload(
           : {}),
         ...(trace.tags.length > 0 ? { tags: trace.tags } : {}),
       });
-      for (const span of trace.spans) {
-        const child = root.startSpan({
+      const logSpanTree = (
+        parent: typeof root,
+        span: (typeof trace.spans)[number],
+      ): void => {
+        const child = parent.startSpan({
           name: span.name,
           type: span.type,
           startTime: span.startMs / 1000,
@@ -271,9 +274,16 @@ async function upload(
           ...(span.output !== undefined ? { output: span.output } : {}),
           ...(span.error !== undefined ? { error: span.error } : {}),
           ...(span.metadata ? { metadata: span.metadata } : {}),
+          ...(span.metrics ? { metrics: span.metrics } : {}),
           ...(span.scores ? { scores: span.scores } : {}),
         });
+        for (const grandchild of span.children ?? []) {
+          logSpanTree(child, grandchild);
+        }
         child.end({ endTime: span.endMs / 1000 });
+      };
+      for (const span of trace.spans) {
+        logSpanTree(root, span);
       }
       root.end({ endTime: trace.endMs / 1000 });
     }

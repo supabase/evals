@@ -210,6 +210,87 @@ describe("buildEvalTrace", () => {
     expect(clashing.scores["same (2)"]).toBe(0);
   });
 
+  it("builds hierarchical spans from a structured trace", () => {
+    const structured = buildEvalTrace({
+      experiment: "x",
+      result: parse({
+        experiment: "x",
+        eval: "y",
+        passed: true,
+        checks: [{ name: "a check", passed: true }],
+        startedAt: "2026-07-21T09:00:00.000Z",
+        durationMs: 40_000,
+        trace: {
+          turns: [
+            {
+              index: 0,
+              messageId: "msg_1",
+              usage: { inputTokens: 100, outputTokens: 10 },
+              thinking: "hmm",
+              text: "Looking.",
+              toolCalls: [
+                {
+                  name: "Bash",
+                  canonicalName: "shell",
+                  args: { command: "ls" },
+                  command: "ls",
+                  output: "files",
+                },
+                {
+                  name: "Task",
+                  canonicalName: "agent_task",
+                  args: { prompt: "explore" },
+                  children: [
+                    {
+                      index: 0,
+                      toolCalls: [
+                        { name: "Read", canonicalName: "file_read", args: {}, output: "code" },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            { index: 1, text: "Done.", toolCalls: [] },
+          ],
+          interjections: [{ afterTurnIndex: 0, role: "user", content: "tool says hi" }],
+          errors: [],
+        },
+      }),
+      baseTimeMs: BASE,
+    });
+
+    expect(structured.spans.map((s) => `${s.type}:${s.name}`)).toEqual([
+      "llm:turn 1",
+      "task:user",
+      "llm:turn 2",
+      "score:passed",
+      "score:a check",
+    ]);
+    const turn1 = structured.spans[0]!;
+    expect(turn1.metrics).toEqual({
+      prompt_tokens: 100,
+      completion_tokens: 10,
+      tokens: 110,
+    });
+    expect(turn1.metadata).toEqual({ messageId: "msg_1" });
+    expect(turn1.output).toEqual({ thinking: "hmm", text: "Looking." });
+    expect(turn1.children!.map((s) => `${s.type}:${s.name}`)).toEqual([
+      "tool:Bash",
+      "tool:Task",
+    ]);
+    const task = turn1.children![1]!;
+    expect(task.children!.map((s) => `${s.type}:${s.name}`)).toEqual(["llm:turn 1"]);
+    expect(task.children![0]!.children!.map((s) => s.name)).toEqual(["Read"]);
+
+    // Children subdivide their parent's slot; everything stays inside the window.
+    const start = Date.parse("2026-07-21T09:00:00.000Z");
+    expect(turn1.startMs).toBe(start);
+    expect(task.startMs).toBeGreaterThanOrEqual(turn1.startMs);
+    expect(task.endMs).toBeLessThanOrEqual(turn1.endMs);
+    expect(structured.spans.at(-1)!.endMs).toBeCloseTo(start + 40_000, 5);
+  });
+
   it("truncates oversized tool outputs", () => {
     const big = buildEvalTrace({
       experiment: "x",

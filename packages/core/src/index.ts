@@ -9,6 +9,11 @@ import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import type { ToolName } from './transcript/types.js';
+import type {
+  AgentTrace,
+  AgentTurn,
+  ToolExecution,
+} from './transcript/agent-trace.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
@@ -131,6 +136,13 @@ export type {
   TranscriptEvent,
   ParsedTranscript,
 } from './transcript/types.js';
+export { assembleAgentTrace } from './transcript/agent-trace.js';
+export type {
+  AgentTrace,
+  AgentTurn,
+  ToolExecution,
+  TraceInterjection,
+} from './transcript/agent-trace.js';
 export type {
   AgentHarnessId,
   CheckResult,
@@ -407,6 +419,12 @@ export type AgentRunResult = {
   steps: number;
   stoppedReason: string;
   usage?: AgentUsage;
+  /**
+   * Structured view of the same run — turns with nested tool executions
+   * (see transcript/agent-trace.ts). Additive: the flat transcript/toolCalls
+   * surface scorers consume is unchanged.
+   */
+  trace?: AgentTrace;
 };
 
 export type AgentHarness = {
@@ -758,6 +776,50 @@ export function aiSdkAgent(options: {
           totalTokens: result.totalUsage.totalTokens,
         };
 
+        // Structured trace straight from the steps: one turn per step, tool
+        // executions paired within it (`toolOutputs` above), per-step usage.
+        const turns: AgentTurn[] = result.steps.map((step, index) => {
+          const turn: AgentTurn = { index, toolCalls: [] };
+          for (const part of step.content) {
+            if (part.type === "text") {
+              const content = part.text.trim();
+              if (content) {
+                turn.text = turn.text ? `${turn.text}\n${content}` : content;
+              }
+            } else if (part.type === "reasoning") {
+              const content = part.text.trim();
+              if (content) {
+                turn.thinking = turn.thinking
+                  ? `${turn.thinking}\n${content}`
+                  : content;
+              }
+            } else if (part.type === "tool-call") {
+              const resolved = toolOutputs.get(part.toolCallId);
+              const execution: ToolExecution = {
+                id: part.toolCallId,
+                name: part.toolName,
+                canonicalName: "tool_use",
+                args: isRecord(part.input) ? part.input : {},
+                ...(resolved?.error === undefined
+                  ? { output: resolved?.output }
+                  : { error: resolved.error }),
+              };
+              turn.toolCalls.push(execution);
+            }
+          }
+          if (step.usage) {
+            turn.usage = {
+              inputTokens: step.usage.inputTokens,
+              outputTokens: step.usage.outputTokens,
+              cachedInputTokens: step.usage.cachedInputTokens,
+              reasoningTokens: step.usage.reasoningTokens,
+              totalTokens: step.usage.totalTokens,
+            };
+          }
+          return turn;
+        });
+        const trace: AgentTrace = { turns, interjections: [], errors: [] };
+
         return {
           agentReport,
           toolCalls,
@@ -768,6 +830,7 @@ export function aiSdkAgent(options: {
               ? 'max_steps'
               : result.finishReason,
           usage,
+          trace,
         };
       } finally {
         await closeMcpHandles(mcpHandles);

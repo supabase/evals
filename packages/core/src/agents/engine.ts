@@ -22,6 +22,7 @@
 import type { AgentHarness, AgentRunResult } from '../index.js';
 import type { ModelProvider, ReasoningEffortLevel } from '../eval-metadata.js';
 import { adaptTranscript } from '../parsers/adapt.js';
+import { assembleAgentTrace } from '../transcript/agent-trace.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
 import type { AgentRunner } from './types.js';
 import {
@@ -133,6 +134,7 @@ export function createCliAgent<M extends string = string>(
         stoppedReason:
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
         ...(usage ? { usage } : {}),
+        trace: assembleAgentTrace(events),
       };
     },
   };
