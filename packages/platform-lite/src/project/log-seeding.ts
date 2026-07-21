@@ -97,16 +97,18 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 -- (get_logs presets, query_logs) runs with minimal translation. Column-backed
 -- attributes win over seeded metadata; nulls fall back to metadata keys.
 --
--- Provenance (nothing here is importable, so this is hand-modeled):
+-- Provenance (hand-modeled; nothing usable is importable):
 --   * The 'logs' relation shape is the hosted platform's Logflare/ClickHouse
 --     contract (supabase/platform#35096). It is platform-internal: no npm
 --     package exports the schema, so fixtures must model it, exactly like
 --     every other platform-lite emulation in this package.
 --   * The 'source' names are the unified-stream sources referenced by mcp's
---     preset SQL and the query_logs sql description (not exported as data;
---     the exported logsServiceSchema enumerates service PRESETS, a different
---     namespace - see the drift tripwire in debugging.test.ts). Resync this
---     view when the pinned MCP_SERVER_VERSION moves.
+--     preset SQL and the query_logs sql description - not exported as data.
+--     (mcp's /platform entrypoint DOES export logsServiceSchema, but that
+--     enumerates service PRESETS, a different namespace; and the resolved
+--     package (^0.8.1) can drift ahead of the MCP_SERVER_VERSION pin the
+--     harness actually runs, so importing it would track the wrong artifact.)
+--     Resync this view when the pinned MCP_SERVER_VERSION moves.
 CREATE VIEW logs AS
   SELECT id, identifier, timestamp, ts, event_message, message, level, level AS severity_text, 'edge_logs'::text AS source,
     metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'request.method', method, 'request.path', path, 'response.status_code', status_code)) AS log_attributes
