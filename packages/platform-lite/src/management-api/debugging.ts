@@ -112,11 +112,21 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
 
 /**
  * Translate ClickHouse-dialect SQL (as current mcp emits for the unified logs
- * stream) into PGlite SQL against the 'logs' VIEW. Two constructs need help:
+ * stream) into PGlite SQL against the 'logs' VIEW. The supported surface is
+ * DELIBERATELY partial — exactly what models have been observed to emit:
  *   log_attributes['k']  ->  (log_attributes->>'k')   (numeric keys get a cast
  *     so agent-written comparisons like >= 500 work)
  *   countIf(cond)        ->  count(*) FILTER (WHERE cond)
- * Everything else (select/where/group/order/limit over the view) is plain SQL.
+ *   toInt32OrZero/toInt64OrZero/toUInt32OrZero/toString -> SQL shims in
+ *     LOGS_BASE_SQL (log-seeding.ts)
+ * Anything else surfaces the raw SQL error to the model, which adapts — fine
+ * for exploration, but remember: a query that only works here (postgres-isms)
+ * would FAIL against the hosted ClickHouse endpoint, and vice versa. Extend
+ * only from observed model output, never speculatively.
+ *
+ * KNOWN LIMITATION (time semantics): iso_timestamp_start/end are ignored
+ * (fixed-date seeds), so window-correctness of model queries is NOT exercised
+ * locally. A time-window-discriminating eval needs relative-time seeding.
  */
 const NUMERIC_LOG_ATTRIBUTES = new Set(['response.status_code', 'status_code', 'execution_time_ms'])
 
