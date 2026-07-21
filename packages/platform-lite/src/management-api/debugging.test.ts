@@ -76,4 +76,19 @@ describe('compileClickHouseLogsSql + unified logs view', () => {
     )
     expect(result.rows.length).toBeGreaterThan(0)
   })
+  it('runs the exact ClickHouse SQL claude-sonnet-5 emitted in the PR-333 A/B (toInt32OrZero)', async () => {
+    // verbatim model output from results-ab/investigate-logs-001-top-error-function.treatment.json
+    const sql = `select log_attributes['function_id'] as function_id,
+       count(*) as total_events,
+       countIf(level = 'error' or toInt32OrZero(log_attributes['status']) >= 400) as error_count
+from logs
+where source = 'function_edge_logs'
+group by function_id
+order by error_count desc`
+    const result = await logsDb.query<{ function_id: string; error_count: string | number; total_count: unknown }>(
+      compileClickHouseLogsSql(sql)
+    )
+    expect(result.rows[0]).toMatchObject({ function_id: 'stripe-webhook' })
+    expect(Number((result.rows[0] as { error_count: unknown }).error_count)).toBe(2)
+  })
 })

@@ -119,6 +119,23 @@ CREATE VIEW logs AS
   UNION ALL
   SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'storage_logs', metadata
   FROM storage_logs;
+
+-- ClickHouse numeric-cast family, as models genuinely emit it in query_logs
+-- SQL (e.g. countIf(toInt32OrZero(log_attributes['status']) >= 400)).
+-- ClickHouse semantics: parse the value, 0 when it isn't a number. Text and
+-- numeric overloads cover both raw jsonb access and the translator's casts.
+CREATE FUNCTION toInt32OrZero(v text) RETURNS numeric AS $ch$
+BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
+$ch$ LANGUAGE plpgsql IMMUTABLE;
+CREATE FUNCTION toInt32OrZero(v numeric) RETURNS numeric AS $ch$ SELECT coalesce(v, 0) $ch$ LANGUAGE sql IMMUTABLE;
+CREATE FUNCTION toInt64OrZero(v text) RETURNS numeric AS $ch$
+BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
+$ch$ LANGUAGE plpgsql IMMUTABLE;
+CREATE FUNCTION toInt64OrZero(v numeric) RETURNS numeric AS $ch$ SELECT coalesce(v, 0) $ch$ LANGUAGE sql IMMUTABLE;
+CREATE FUNCTION toUInt32OrZero(v text) RETURNS numeric AS $ch$
+BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
+$ch$ LANGUAGE plpgsql IMMUTABLE;
+CREATE FUNCTION toUInt32OrZero(v numeric) RETURNS numeric AS $ch$ SELECT coalesce(v, 0) $ch$ LANGUAGE sql IMMUTABLE;
 `
 
 export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
