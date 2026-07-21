@@ -197,8 +197,8 @@ export function buildEvalTrace(args: {
 
   const spans: BraintrustSpanNode[] = [];
   // The k-th tool_call transcript part and toolCalls[k] describe the same
-  // call (the adapter pushes both in lockstep); the record carries the
-  // normalized views the part lacks.
+  // call for CLI agents (the adapter pushes both in lockstep); the record
+  // carries the normalized views the part lacks.
   let toolCallIndex = 0;
   for (const part of transcript) {
     const timing = slot(spans.length);
@@ -211,8 +211,13 @@ export function buildEvalTrace(args: {
       });
       continue;
     }
-    const record = toolCalls.at(toolCallIndex);
+    const candidate = toolCalls.at(toolCallIndex);
     toolCallIndex += 1;
+    // ai-sdk populates toolCalls in completion order, which can differ from
+    // the transcript's call order when tools run concurrently — only trust
+    // the record when it names the same tool.
+    const record =
+      candidate && candidate.endpoint === part.name ? candidate : undefined;
     const normalized: Record<string, unknown> = {};
     if (record?.name) normalized.tool = record.name;
     if (record?.path) normalized.path = record.path;

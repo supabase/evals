@@ -100,7 +100,9 @@ interface PendingTrace {
   filePath: string;
 }
 
-async function collectTraces(): Promise<Map<string, PendingTrace[]>> {
+async function collectTraces(
+  experimentMetadata: Awaited<ReturnType<typeof loadExperimentMetadata>>,
+): Promise<Map<string, PendingTrace[]>> {
   const refs = await collectResultFiles({
     includeExperiment: (experiment) =>
       EXPERIMENT_FILTERS.length === 0 ||
@@ -117,14 +119,19 @@ async function collectTraces(): Promise<Map<string, PendingTrace[]>> {
     return promptCache.get(evalId);
   };
 
-  const experimentMetadata = await loadExperimentMetadata();
   const byExperiment = new Map<string, PendingTrace[]>();
   let skipped = 0;
 
   for (const ref of refs) {
-    const parsed = uploadableEvalResultSchema.safeParse(
-      JSON.parse(await readFile(ref.filePath, "utf8")),
-    );
+    let json: unknown;
+    try {
+      json = JSON.parse(await readFile(ref.filePath, "utf8"));
+    } catch {
+      skipped += 1;
+      console.warn(`SKIP ${ref.sourcePath}: not valid JSON`);
+      continue;
+    }
+    const parsed = uploadableEvalResultSchema.safeParse(json);
     if (!parsed.success) {
       skipped += 1;
       console.warn(`SKIP ${ref.sourcePath}: does not match the result schema`);
@@ -197,7 +204,10 @@ function printDry(byExperiment: Map<string, PendingTrace[]>): void {
   }
 }
 
-async function upload(byExperiment: Map<string, PendingTrace[]>) {
+async function upload(
+  byExperiment: Map<string, PendingTrace[]>,
+  experimentMetadata: Awaited<ReturnType<typeof loadExperimentMetadata>>,
+) {
   // Imported lazily so --dry works without braintrust needing credentials.
   const { init, Attachment, flush } = await import("braintrust");
 
@@ -205,10 +215,11 @@ async function upload(byExperiment: Map<string, PendingTrace[]>) {
   const projectId = process.env.BRAINTRUST_PROJECT_ID;
   const sha = gitShortSha();
   const suffix = NAME_SUFFIX ? `-${NAME_SUFFIX}` : "";
-  const experimentMetadata = await loadExperimentMetadata();
+  const runUrl = ciRunUrl();
 
   for (const [experiment, pending] of byExperiment) {
     const name = `${experiment}${sha ? `@${sha}` : ""}${suffix}`;
+    const meta = experimentMetadata.get(experiment);
     const btExperiment = init({
       ...(projectName ? { project: projectName } : {}),
       ...(projectId ? { projectId } : {}),
@@ -217,12 +228,12 @@ async function upload(byExperiment: Map<string, PendingTrace[]>) {
       metadata: {
         source: "supabase-evals",
         experiment,
-        ...(experimentMetadata.get(experiment)?.experimentSuite
-          ? { experimentSuite: experimentMetadata.get(experiment)?.experimentSuite }
+        ...(meta?.experimentSuite
+          ? { experimentSuite: meta.experimentSuite }
           : {}),
-        ...(experimentMetadata.get(experiment)?.display ?? {}),
+        ...(meta?.display ?? {}),
         ...(sha ? { gitShortSha: sha } : {}),
-        ...(ciRunUrl() ? { ciRunUrl: ciRunUrl() } : {}),
+        ...(runUrl ? { ciRunUrl: runUrl } : {}),
       },
     });
 
@@ -278,7 +289,8 @@ async function upload(byExperiment: Map<string, PendingTrace[]>) {
 }
 
 async function main() {
-  const byExperiment = await collectTraces();
+  const experimentMetadata = await loadExperimentMetadata();
+  const byExperiment = await collectTraces(experimentMetadata);
   const total = [...byExperiment.values()].reduce((n, t) => n + t.length, 0);
   if (total === 0) {
     console.log("No result files matched — nothing to upload.");
@@ -300,7 +312,7 @@ async function main() {
     return;
   }
 
-  await upload(byExperiment);
+  await upload(byExperiment, experimentMetadata);
   console.log(`Done: ${total} eval trace(s) across ${byExperiment.size} experiment(s).`);
 }
 

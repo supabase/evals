@@ -75,7 +75,9 @@ describe("claudeCodeRunner.extractUsage", () => {
       }),
     ].join("\n");
     expect(extract(raw)).toEqual({
-      inputTokens: 10,
+      // 10 raw + 3000 cache-read + 200 cache-creation: OpenAI-style totals
+      // so counts compare across agents.
+      inputTokens: 3210,
       outputTokens: 40,
       cachedInputTokens: 3000,
       cacheCreationInputTokens: 200,

@@ -108,11 +108,22 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     const num = (value: unknown): number | undefined =>
       typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
+    // Anthropic's `input_tokens` excludes cache reads/writes; report
+    // OpenAI-style totals (cached ⊆ input) so token counts compare across
+    // agents. The cache splits are still reported separately.
+    const rawInput = num(usage?.input_tokens);
+    const cacheRead = num(usage?.cache_read_input_tokens);
+    const cacheCreation = num(usage?.cache_creation_input_tokens);
+    const inputTokens =
+      rawInput === undefined && cacheRead === undefined && cacheCreation === undefined
+        ? undefined
+        : (rawInput ?? 0) + (cacheRead ?? 0) + (cacheCreation ?? 0);
+
     const extracted: AgentUsage = {
-      inputTokens: num(usage?.input_tokens),
+      inputTokens,
       outputTokens: num(usage?.output_tokens),
-      cachedInputTokens: num(usage?.cache_read_input_tokens),
-      cacheCreationInputTokens: num(usage?.cache_creation_input_tokens),
+      cachedInputTokens: cacheRead,
+      cacheCreationInputTokens: cacheCreation,
       costUsd: num(result.total_cost_usd),
     };
     return Object.values(extracted).some((v) => v !== undefined)
