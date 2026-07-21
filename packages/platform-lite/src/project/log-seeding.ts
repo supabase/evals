@@ -90,6 +90,35 @@ CREATE TABLE IF NOT EXISTS storage_logs (
   level text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+
+-- Unified ClickHouse-shaped stream: the hosted /analytics/endpoints/logs
+-- endpoint exposes one 'logs' relation with a 'source' discriminator and a
+-- log_attributes map. Mirror it so ClickHouse-dialect SQL from current mcp
+-- (get_logs presets, query_logs) runs with minimal translation. Column-backed
+-- attributes win over seeded metadata; nulls fall back to metadata keys.
+CREATE VIEW logs AS
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level AS severity_text, 'edge_logs'::text AS source,
+    metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'request.method', method, 'request.path', path, 'response.status_code', status_code)) AS log_attributes
+  FROM edge_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'function_edge_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('response.status_code', status_code, 'request.method', method, 'function_id', function_id, 'execution_time_ms', execution_time_ms, 'deployment_id', deployment_id, 'version', version))
+  FROM function_edge_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'function_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('level', level, 'function_id', function_id, 'deployment_id', deployment_id, 'version', version))
+  FROM function_edge_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'postgres_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'parsed.error_severity', error_severity))
+  FROM postgres_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'auth_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('level', level, 'status', status, 'path', path, 'msg', msg, 'error', error))
+  FROM auth_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'storage_logs', metadata
+  FROM storage_logs;
 `
 
 export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {

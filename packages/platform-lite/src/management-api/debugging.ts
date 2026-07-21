@@ -34,6 +34,44 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
     }
   })
 
+  // Current mcp (>= the #326 ClickHouse migration): GET /analytics/endpoints/logs
+  // with ClickHouse-dialect sql over the unified 'logs' stream. The 'logs' VIEW
+  // (log-seeding.ts) provides the shape; only map access and countIf need
+  // translating. iso_timestamp_start/end are accepted but IGNORED on purpose:
+  // scenario seeds carry fixed dates, while mcp defaults the window from the
+  // current clock — a faithful filter would empty every scenario (the legacy
+  // logs.all route makes the same choice).
+  routes.get('/v1/projects/:ref/analytics/endpoints/logs', async (c) => {
+    const { ref } = c.req.param()
+    const project = store.get(ref)
+    if (!project) return c.json({ message: 'Project not found' }, 404)
+
+    const sql =
+      c.req.query('sql') ??
+      "select id, timestamp, event_message from logs where source = 'edge_logs' order by timestamp desc limit 100"
+
+    // The hosted endpoint is read-only server-side; enforce the same contract on
+    // model-authored SQL. The prefix check only shapes the error message — the
+    // REAL enforcement is the read-only transaction below, which postgres applies
+    // to every statement including data-modifying CTEs.
+    const stmt = sql.trim().replace(/;+\s*$/, '')
+    if (stmt.includes(';') || !/^\s*(select|with)\b/i.test(stmt)) {
+      return c.json({ result: [], error: 'only a single read-only SELECT statement is supported' }, 400)
+    }
+
+    try {
+      const compiled = compileClickHouseLogsSql(stmt)
+      const result = await project.logsDb.transaction(async (tx) => {
+        await tx.exec('SET TRANSACTION READ ONLY')
+        return tx.query(compiled)
+      })
+      return c.json({ result: (result as { rows: unknown[] }).rows })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return c.json({ result: [], error: message })
+    }
+  })
+
   routes.get('/v1/projects/:ref/advisors/security', async (c) => {
     const { ref } = c.req.param()
     const project = store.get(ref)
@@ -70,6 +108,26 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
   })
 
   return routes
+}
+
+/**
+ * Translate ClickHouse-dialect SQL (as current mcp emits for the unified logs
+ * stream) into PGlite SQL against the 'logs' VIEW. Two constructs need help:
+ *   log_attributes['k']  ->  (log_attributes->>'k')   (numeric keys get a cast
+ *     so agent-written comparisons like >= 500 work)
+ *   countIf(cond)        ->  count(*) FILTER (WHERE cond)
+ * Everything else (select/where/group/order/limit over the view) is plain SQL.
+ */
+const NUMERIC_LOG_ATTRIBUTES = new Set(['response.status_code', 'status_code', 'execution_time_ms'])
+
+export function compileClickHouseLogsSql(sql: string): string {
+  return sql
+    .replace(/\blog_attributes\['([^']+)'\]/gi, (_m, key: string) =>
+      NUMERIC_LOG_ATTRIBUTES.has(key)
+        ? `((log_attributes->>'${key}')::numeric)`
+        : `(log_attributes->>'${key}')`
+    )
+    .replace(/\bcountIf\s*\(/gi, 'count(*) FILTER (WHERE ')
 }
 
 function compileLogsSql(sql: string): string {
