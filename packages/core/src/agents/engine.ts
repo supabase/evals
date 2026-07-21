@@ -108,6 +108,7 @@ export function createCliAgent<M extends string = string>(
 
       const { events } = raw ? parser.parseTranscript(raw) : { events: [] };
       const adapted = adaptTranscript(events);
+      const usage = runner.extractUsage?.(raw);
 
       // Surface run failures that would otherwise be invisible in results
       // (visible under --debug): the CLI's own error events, or a run that
@@ -131,6 +132,7 @@ export function createCliAgent<M extends string = string>(
         steps: adapted.steps,
         stoppedReason:
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
+        ...(usage ? { usage } : {}),
       };
     },
   };

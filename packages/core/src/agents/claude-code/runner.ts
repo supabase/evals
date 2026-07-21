@@ -5,8 +5,8 @@
  */
 
 import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messages';
-import type { McpServerConfig } from '../../index.js';
-import { parseJsonlRecords } from '../../json.js';
+import type { AgentUsage, McpServerConfig } from '../../index.js';
+import { isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
@@ -96,6 +96,28 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     if (subtype === 'success') return 'stop';
     if (subtype) return subtype; // e.g. error_max_turns — surface verbatim
     return processStopReason(command);
+  },
+
+  extractUsage(raw) {
+    // The terminal `result` line carries the run's aggregate accounting:
+    // `usage: { input_tokens, cache_creation_input_tokens,
+    // cache_read_input_tokens, output_tokens }` plus `total_cost_usd`.
+    const result = lastResultEvent(raw);
+    if (!result) return undefined;
+    const usage = isRecord(result.usage) ? result.usage : undefined;
+    const num = (value: unknown): number | undefined =>
+      typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+    const extracted: AgentUsage = {
+      inputTokens: num(usage?.input_tokens),
+      outputTokens: num(usage?.output_tokens),
+      cachedInputTokens: num(usage?.cache_read_input_tokens),
+      cacheCreationInputTokens: num(usage?.cache_creation_input_tokens),
+      costUsd: num(result.total_cost_usd),
+    };
+    return Object.values(extracted).some((v) => v !== undefined)
+      ? extracted
+      : undefined;
   },
 };
 

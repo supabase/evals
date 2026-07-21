@@ -1,16 +1,8 @@
 #!/usr/bin/env tsx
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { fileURLToPath } from 'node:url';
-import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
+import { dirname, join, relative, resolve } from 'node:path';
 import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
-import {
-  getExperimentDisplayMetadata,
-  type ExperimentConfig,
-  type ExperimentDisplayMetadata,
-} from '@supabase-evals/core';
 import type {
   EvalResult,
   EvalSuite,
@@ -22,12 +14,14 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import {
+  ROOT,
+  collectResultFiles,
+  loadExperimentMetadata,
+  readPrompt,
+  type ExperimentExportMetadata,
+} from '../lib/result-files.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, '..', '..', '..');
-const RESULTS_DIR = join(ROOT, 'results');
-const EVALS_DIR = join(ROOT, 'evals');
-const EXPERIMENTS_DIR = join(ROOT, 'experiments');
 const OUTPUT_PATH = join(
   ROOT,
   'apps',
@@ -37,27 +31,6 @@ const OUTPUT_PATH = join(
   'eval-results.json'
 );
 
-type ExperimentExportMetadata = {
-  display: ExperimentDisplayMetadata;
-  experimentSuite?: ExperimentSuite;
-};
-
-async function loadExperimentMetadata(): Promise<
-  Map<string, ExperimentExportMetadata>
-> {
-  const map = new Map<string, ExperimentExportMetadata>();
-  for (const f of (await readdir(EXPERIMENTS_DIR)).filter((f) =>
-    f.endsWith('.ts')
-  )) {
-    const mod = await import(pathToFileURL(join(EXPERIMENTS_DIR, f)).href);
-    const config = mod.default as ExperimentConfig;
-    map.set(f.replace(/\.ts$/, ''), {
-      display: getExperimentDisplayMetadata(config),
-      experimentSuite: config.suite?.[0],
-    });
-  }
-  return map;
-}
 const rawArgs = process.argv.slice(2);
 const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
   normalizeExperimentName
@@ -69,30 +42,6 @@ const MERGE = rawArgs.includes('--merge');
 
 const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
-
-async function readPrompt(evalId: string) {
-  const promptPath = resolve(EVALS_DIR, evalId, 'PROMPT.md');
-  const normalizedEvalsDir = resolve(EVALS_DIR);
-
-  if (!promptPath.startsWith(`${normalizedEvalsDir}${sep}`)) {
-    return undefined;
-  }
-
-  if (!existsSync(promptPath)) {
-    return undefined;
-  }
-
-  const parsed = parseEvalMarkdown(
-    await readFile(promptPath, 'utf8'),
-    promptPath
-  );
-
-  return {
-    ...parsed.metadata,
-    prompt: parsed.body,
-    promptSourcePath: relative(ROOT, promptPath).split(sep).join('/'),
-  };
-}
 
 async function readResultFile(
   filePath: string,
@@ -174,81 +123,25 @@ function shouldIncludeExperimentSuite(
 }
 
 async function loadEvalResults(): Promise<EvalResult[]> {
-  if (!existsSync(RESULTS_DIR)) {
-    return [];
-  }
-
   const experimentMetadata = await loadExperimentMetadata();
+  const refs = await collectResultFiles({
+    includeExperiment: shouldIncludeExperiment,
+    includeEval: shouldIncludeEval,
+  });
+
   const results: EvalResult[] = [];
-  const experiments = await readdir(RESULTS_DIR);
-
-  for (const experiment of experiments) {
-    if (experiment.startsWith('.') || experiment.startsWith('_')) {
-      continue;
-    }
-
-    if (!shouldIncludeExperiment(experiment)) {
-      continue;
-    }
-
-    const experimentDir = join(RESULTS_DIR, experiment);
-    if (!(await stat(experimentDir)).isDirectory()) {
-      continue;
-    }
-
-    for (const entry of await readdir(experimentDir)) {
-      const entryPath = join(experimentDir, entry);
-      const entryStat = await stat(entryPath);
-      const relativeEntryPath = relative(RESULTS_DIR, entryPath)
-        .split(sep)
-        .join('/');
-
-      if (entryStat.isFile() && entry.endsWith('.json')) {
-        const evalId = entry.replace(/\.json$/, '');
-        if (!shouldIncludeEval(evalId)) {
-          continue;
-        }
-
-        const result = await readResultFile(
-          entryPath,
-          relativeEntryPath,
-          experimentMetadata
-        );
-        if (
-          result &&
-          shouldIncludeSuite(result.suite) &&
-          shouldIncludeExperimentSuite(result.experimentSuite)
-        ) {
-          results.push(result);
-        }
-        continue;
-      }
-
-      if (!entryStat.isDirectory()) {
-        continue;
-      }
-
-      if (!shouldIncludeEval(entry)) {
-        continue;
-      }
-
-      const summaryPath = join(entryPath, 'summary.json');
-      if (!existsSync(summaryPath)) {
-        continue;
-      }
-
-      const result = await readResultFile(
-        summaryPath,
-        `${relativeEntryPath}/summary.json`,
-        experimentMetadata
-      );
-      if (
-        result &&
-        shouldIncludeSuite(result.suite) &&
-        shouldIncludeExperimentSuite(result.experimentSuite)
-      ) {
-        results.push(result);
-      }
+  for (const ref of refs) {
+    const result = await readResultFile(
+      ref.filePath,
+      ref.sourcePath,
+      experimentMetadata
+    );
+    if (
+      result &&
+      shouldIncludeSuite(result.suite) &&
+      shouldIncludeExperimentSuite(result.experimentSuite)
+    ) {
+      results.push(result);
     }
   }
 

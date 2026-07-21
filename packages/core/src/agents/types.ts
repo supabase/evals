@@ -11,7 +11,7 @@
  * concern that diverges per agent lives in exactly one place.
  */
 
-import type { CommandResult, McpServerConfig } from '../index.js';
+import type { AgentUsage, CommandResult, McpServerConfig } from '../index.js';
 import type {
   AgentHarnessId,
   ModelProvider,
@@ -107,6 +107,11 @@ export interface AgentRunner<M extends string = string> {
    * result. Falls back to a process-exit-based reason when omitted.
    */
   deriveStopReason?(raw: string | undefined, command: CommandResult): string;
+  /**
+   * Optional: whole-run token/cost usage from the raw transcript's own
+   * accounting events. Undefined when the transcript doesn't carry any.
+   */
+  extractUsage?(raw: string | undefined): AgentUsage | undefined;
 }
 
 /**
