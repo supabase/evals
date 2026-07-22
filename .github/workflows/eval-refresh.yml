@@ -451,8 +451,7 @@ jobs:
           delete-branch: true
 
       - name: Merge scheduled results pull request
-        # Merge immediately rather than GitHub's built-in auto-merge: the bot
-        # bypasses the review gate outright, so there's nothing to wait on.
+        # No checks or reviews to wait on, so merge right away.
         if: github.event_name == 'schedule' && steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
