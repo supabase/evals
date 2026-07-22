@@ -12,7 +12,6 @@ import {
   buildServiceWrapperScript,
   buildSupabaseStartCommand,
   computeExcludedServices,
-  isTransientImageBuildError,
 } from "../src/supabase.js";
 import {
   SKILLS_CLI_VERSION,
@@ -45,57 +44,6 @@ describe("sandbox Dockerfile", () => {
   it("pins the Supabase CLI version installed at setup time", () => {
     // The pin moved out of the Dockerfile into installSupabaseCli.
     expect(SUPABASE_CLI_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
-  });
-});
-
-describe("isTransientImageBuildError", () => {
-  it("matches the Docker Hub outage signatures seen in CI", () => {
-    // Verbatim (truncated) stderr from run 29926252232 — the same blip failed
-    // jobs at three different stages of the base-image pull.
-    expect(
-      isTransientImageBuildError(
-        "ERROR: failed to build: failed to solve: node:22-slim: failed to resolve source metadata for docker.io/library/node:22-slim: unexpected status from HEAD request to https://registry-1.docker.io/v2/library/node/manifests/22-slim: 502 Bad Gateway",
-      ),
-    ).toBe(true);
-    expect(
-      isTransientImageBuildError(
-        "#3 ERROR: failed to copy: httpReadSeeker: failed open: unexpected status code https://registry-1.docker.io/v2/library/node/blobs/sha256:bd16: 502 Bad Gateway",
-      ),
-    ).toBe(true);
-    expect(
-      isTransientImageBuildError(
-        "#3 ERROR: failed to authorize: failed to fetch oauth token: unexpected status from POST request to https://auth.docker.io/token: 502 Bad Gateway: error code: 502",
-      ),
-    ).toBe(true);
-  });
-
-  it("matches rate limits and common network failures", () => {
-    expect(
-      isTransientImageBuildError(
-        "unexpected status from HEAD request to https://registry-1.docker.io/v2/library/node/manifests/22-slim: 429 Too Many Requests",
-      ),
-    ).toBe(true);
-    expect(isTransientImageBuildError("read tcp 1.2.3.4: i/o timeout")).toBe(true);
-    expect(isTransientImageBuildError("net/http: TLS handshake timeout")).toBe(true);
-    expect(isTransientImageBuildError("connection reset by peer")).toBe(true);
-  });
-
-  it("does not match deterministic build failures", () => {
-    expect(
-      isTransientImageBuildError(
-        "ERROR: failed to build: dockerfile parse error on line 5: unknown instruction: FORM",
-      ),
-    ).toBe(false);
-    expect(
-      isTransientImageBuildError(
-        'ERROR: process "/bin/sh -c apt-get install nonexistent-package" did not complete successfully: exit code: 100',
-      ),
-    ).toBe(false);
-    expect(
-      isTransientImageBuildError(
-        "unexpected status from HEAD request to https://registry-1.docker.io/v2/library/node/manifests/22-slim: 401 Unauthorized",
-      ),
-    ).toBe(false);
   });
 });
 

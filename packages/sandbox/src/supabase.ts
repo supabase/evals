@@ -32,21 +32,12 @@ const SANDBOX_IMAGE_REPOSITORY = "supabase-evals-sandbox";
  * Backoff schedule for retrying the sandbox image build. The build pulls
  * `node:22-slim` from Docker Hub, which intermittently answers 5xx/429 (and
  * once took out ~130 CI matrix jobs in a single blip); a short outage should
- * cost a delay, not the run. Delays total ~100s — well under the job timeout.
+ * cost a delay, not the run. Every failure is retried — the transient
+ * registry-error strings come from BuildKit/containerd internals with no
+ * stable taxonomy to match against, and a deterministic failure (broken
+ * Dockerfile, bad build-arg) merely wastes the ~95s schedule before failing.
  */
 const IMAGE_BUILD_RETRY_DELAYS_MS = [5_000, 30_000, 60_000];
-
-/**
- * Registry/network failure signatures worth retrying. Anything else (a broken
- * Dockerfile, a bad build-arg) is deterministic and fails fast instead.
- */
-const TRANSIENT_IMAGE_BUILD_ERROR =
-  /unexpected status[^\n]*\b(429|5\d{2})\b|bad gateway|service unavailable|too many requests|timed? ?out|connection (reset|refused)|tls handshake|temporary failure|i\/o timeout|EOF/i;
-
-/** Whether a failed `docker build`'s stderr looks like a transient registry/network error. */
-export function isTransientImageBuildError(stderr: string): boolean {
-  return TRANSIENT_IMAGE_BUILD_ERROR.test(stderr);
-}
 
 /** The sandbox image definition lives in an actual Dockerfile for editability. */
 export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
@@ -82,11 +73,11 @@ export async function ensureSupabaseSandboxImage(): Promise<string> {
     if (build.ok) return tag;
 
     const delayMs = IMAGE_BUILD_RETRY_DELAYS_MS[attempt];
-    if (delayMs === undefined || !isTransientImageBuildError(build.stderr)) {
+    if (delayMs === undefined) {
       throw new Error(`failed to build sandbox image ${tag}: ${build.stderr}`);
     }
     console.warn(
-      `[sandbox] transient registry error building ${tag} ` +
+      `[sandbox] failed to build ${tag} ` +
         `(attempt ${attempt + 1}/${IMAGE_BUILD_RETRY_DELAYS_MS.length + 1}), ` +
         `retrying in ${delayMs / 1000}s`,
     );
