@@ -9,7 +9,7 @@
 
 import type { ChatModel } from 'openai/resources/shared';
 import type { AgentUsage, McpServerConfig } from '../../index.js';
-import { isRecord, parseJsonlRecords } from '../../json.js';
+import { finiteNumber, isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
@@ -129,11 +129,9 @@ export const codexRunner: AgentRunner<CodexModel> = {
     for (const record of records) {
       if (record.type !== 'turn.completed' || !isRecord(record.usage)) continue;
       sawUsage = true;
-      const num = (value: unknown): number =>
-        typeof value === 'number' && Number.isFinite(value) ? value : 0;
-      inputTokens += num(record.usage.input_tokens);
-      cachedInputTokens += num(record.usage.cached_input_tokens);
-      outputTokens += num(record.usage.output_tokens);
+      inputTokens += finiteNumber(record.usage.input_tokens) ?? 0;
+      cachedInputTokens += finiteNumber(record.usage.cached_input_tokens) ?? 0;
+      outputTokens += finiteNumber(record.usage.output_tokens) ?? 0;
     }
     if (!sawUsage) return undefined;
     const usage: AgentUsage = { inputTokens, cachedInputTokens, outputTokens };

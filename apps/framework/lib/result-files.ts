@@ -80,6 +80,16 @@ export async function readPrompt(
   };
 }
 
+/**
+ * Sibling of a result file holding the agent CLI's verbatim JSONL transcript
+ * (`<evalId>.transcript.jsonl`). Not `.json`, so the results scan and the
+ * web export never pick it up. Single definition so the runner (writer) and
+ * the Braintrust uploader (reader) can't drift.
+ */
+export function rawTranscriptPathFor(resultFilePath: string): string {
+  return `${resultFilePath.slice(0, -".json".length)}.transcript.jsonl`;
+}
+
 export interface ResultFileRef {
   experiment: string;
   evalId: string;

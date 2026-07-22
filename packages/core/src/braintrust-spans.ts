@@ -1,14 +1,14 @@
 /**
  * Pure mapping from a raw eval-result file to a Braintrust-shaped trace: one
- * root ("eval") row per result plus child spans — `llm` for assistant turns,
- * `tool` for tool calls, `task` for user/system messages, `score` for the
- * overall verdict and each scorer check.
+ * root ("eval") row per result plus child spans — `task` for turns (and, in
+ * the flat fallback, user/system messages), `llm` for steps (model API
+ * calls) and judge calls, `tool` for tool calls, `score` for the verdict.
  *
  * When the result carries the structured `trace` (AgentTrace, written by
- * runs since it landed), spans are hierarchical: turn llm spans own their
- * tool spans, and subagent sidechains nest under the tool call that spawned
- * them. Older results fall back to a flat sequence rebuilt from
- * `transcript[]`/`toolCalls[]`.
+ * runs since it landed), spans are hierarchical: turn task spans own their
+ * step llm spans, steps own their tool spans, and subagent sidechains nest
+ * under the tool call that spawned them. Older results fall back to a flat
+ * sequence rebuilt from `transcript[]`/`toolCalls[]`.
  *
  * Deliberately dependency-free (no braintrust import): this module only
  * builds a serializable tree; `apps/framework/scripts/upload-braintrust.ts`
@@ -55,6 +55,8 @@ const toolCallRecordSchema = z.looseObject({
   ts: z.number().default(0),
 });
 
+// Read-side twin of the AgentUsage interface (index.ts) — deliberately all-
+// optional so results written by older runners still parse. Keep in sync.
 const agentUsageSchema = z
   .object({
     inputTokens: z.number(),
@@ -77,11 +79,7 @@ const agentTraceSchema = z.custom<AgentTrace>(
     Array.isArray((value as AgentTrace).turns),
 );
 
-/**
- * A raw result file as the uploader consumes it: the exported shape plus the
- * transcript fields the web export drops. Everything beyond the base shape is
- * optional so results written before these fields existed still upload.
- */
+// Read-side twin of JudgeCallRecord (judge-recorder.ts). Keep in sync.
 const judgeCallSchema = z.looseObject({
   rubric: z.string(),
   input: z.string(),
@@ -92,6 +90,11 @@ const judgeCallSchema = z.looseObject({
   usage: agentUsageSchema.optional(),
 });
 
+/**
+ * A raw result file as the uploader consumes it: the exported shape plus the
+ * transcript fields the web export drops. Everything beyond the base shape is
+ * optional so results written before these fields existed still upload.
+ */
 export const uploadableEvalResultSchema = rawEvalResultSchema.extend({
   transcript: z.array(transcriptPartSchema).optional(),
   toolCalls: z.array(toolCallRecordSchema).optional(),

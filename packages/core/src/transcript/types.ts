@@ -33,12 +33,12 @@ export interface TranscriptEvent {
   /** ISO timestamp of the event, when the agent records one. */
   timestamp?: string;
   /**
-   * Groups events belonging to one model API call (a turn). Parsers stamp it
+   * Groups events belonging to one model API call (a step). Parsers stamp it
    * when the raw transcript exposes the boundary (Claude Code: one assistant
    * stream-json line = one API message). Absent = the trace assembler falls
-   * back to its closure rule (an assistant message ends the open turn).
+   * back to its closure rule (an assistant message ends the open step).
    */
-  turnKey?: string;
+  stepKey?: string;
   /** Provider message id of the API call this event belongs to, if exposed. */
   messageId?: string;
   /** Per-API-call token usage, when the raw transcript carries it. */

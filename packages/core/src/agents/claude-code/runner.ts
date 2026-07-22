@@ -5,8 +5,9 @@
  */
 
 import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messages';
-import type { AgentUsage, McpServerConfig } from '../../index.js';
-import { isRecord, parseJsonlRecords } from '../../json.js';
+import type { McpServerConfig } from '../../index.js';
+import { parseJsonlRecords } from '../../json.js';
+import { anthropicUsage } from './usage.js';
 import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
@@ -104,31 +105,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     // cache_read_input_tokens, output_tokens }` plus `total_cost_usd`.
     const result = lastResultEvent(raw);
     if (!result) return undefined;
-    const usage = isRecord(result.usage) ? result.usage : undefined;
-    const num = (value: unknown): number | undefined =>
-      typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-
-    // Anthropic's `input_tokens` excludes cache reads/writes; report
-    // OpenAI-style totals (cached ⊆ input) so token counts compare across
-    // agents. The cache splits are still reported separately.
-    const rawInput = num(usage?.input_tokens);
-    const cacheRead = num(usage?.cache_read_input_tokens);
-    const cacheCreation = num(usage?.cache_creation_input_tokens);
-    const inputTokens =
-      rawInput === undefined && cacheRead === undefined && cacheCreation === undefined
-        ? undefined
-        : (rawInput ?? 0) + (cacheRead ?? 0) + (cacheCreation ?? 0);
-
-    const extracted: AgentUsage = {
-      inputTokens,
-      outputTokens: num(usage?.output_tokens),
-      cachedInputTokens: cacheRead,
-      cacheCreationInputTokens: cacheCreation,
-      costUsd: num(result.total_cost_usd),
-    };
-    return Object.values(extracted).some((v) => v !== undefined)
-      ? extracted
-      : undefined;
+    return anthropicUsage(result.usage, result.total_cost_usd);
   },
 };
 

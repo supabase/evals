@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { assembleAgentTrace } from "./agent-trace.js";
 import type { TranscriptEvent } from "./types.js";
 
-describe("assembleAgentTrace with turn keys (Claude Code style)", () => {
+describe("assembleAgentTrace with step keys (Claude Code style)", () => {
   const events: TranscriptEvent[] = [
     // Step 1: one assistant API message with thinking + text + two tool uses.
     {
       type: "thinking",
       content: "let me look",
-      turnKey: "msg_1",
+      stepKey: "msg_1",
       messageId: "msg_1",
       usage: { inputTokens: 100, outputTokens: 10 },
     },
@@ -16,18 +16,18 @@ describe("assembleAgentTrace with turn keys (Claude Code style)", () => {
       type: "message",
       role: "assistant",
       content: "Checking the tables.",
-      turnKey: "msg_1",
+      stepKey: "msg_1",
       messageId: "msg_1",
       usage: { inputTokens: 100, outputTokens: 10 },
     },
     {
       type: "tool_call",
-      turnKey: "msg_1",
+      stepKey: "msg_1",
       tool: { name: "shell", originalName: "Bash", id: "t1", args: { command: "ls" }, command: "ls" },
     },
     {
       type: "tool_call",
-      turnKey: "msg_1",
+      stepKey: "msg_1",
       tool: { name: "agent_task", originalName: "Task", id: "t2", args: { prompt: "explore" } },
     },
     // Results arrive on later lines.
@@ -37,12 +37,12 @@ describe("assembleAgentTrace with turn keys (Claude Code style)", () => {
       type: "message",
       role: "assistant",
       content: "sub work",
-      turnKey: "msg_sub",
+      stepKey: "msg_sub",
       parentToolUseId: "t2",
     },
     {
       type: "tool_call",
-      turnKey: "msg_sub",
+      stepKey: "msg_sub",
       parentToolUseId: "t2",
       tool: { name: "file_read", originalName: "Read", id: "t3", args: { file_path: "a.ts" }, path: "a.ts" },
     },
@@ -52,7 +52,7 @@ describe("assembleAgentTrace with turn keys (Claude Code style)", () => {
       type: "message",
       role: "assistant",
       content: "Done.",
-      turnKey: "msg_2",
+      stepKey: "msg_2",
       messageId: "msg_2",
       usage: { inputTokens: 200, outputTokens: 20 },
     },
@@ -96,7 +96,7 @@ describe("assembleAgentTrace with turn keys (Claude Code style)", () => {
   });
 });
 
-describe("assembleAgentTrace closure rule (Codex style, no turn keys)", () => {
+describe("assembleAgentTrace closure rule (Codex style, no step keys)", () => {
   const events: TranscriptEvent[] = [
     { type: "thinking", content: "plan" },
     {
@@ -128,9 +128,9 @@ describe("assembleAgentTrace closure rule (Codex style, no turn keys)", () => {
 describe("assembleAgentTrace turn boundaries and edges", () => {
   it("opens a new turn on a mid-run user message", () => {
     const trace = assembleAgentTrace([
-      { type: "message", role: "assistant", content: "first", turnKey: "m1" },
+      { type: "message", role: "assistant", content: "first", stepKey: "m1" },
       { type: "message", role: "user", content: "extra instruction" },
-      { type: "message", role: "assistant", content: "second", turnKey: "m2" },
+      { type: "message", role: "assistant", content: "second", stepKey: "m2" },
     ]);
     expect(trace.turns).toHaveLength(2);
     expect(trace.turns[0]!.userMessage).toBeUndefined();
@@ -142,7 +142,7 @@ describe("assembleAgentTrace turn boundaries and edges", () => {
   it("folds a leading user message into the first turn", () => {
     const trace = assembleAgentTrace([
       { type: "message", role: "user", content: "skill body" },
-      { type: "message", role: "assistant", content: "ok", turnKey: "m1" },
+      { type: "message", role: "assistant", content: "ok", stepKey: "m1" },
     ]);
     expect(trace.turns).toHaveLength(1);
     expect(trace.turns[0]!.userMessage).toBe("skill body");
@@ -156,7 +156,7 @@ describe("assembleAgentTrace turn boundaries and edges", () => {
         type: "message",
         role: "assistant",
         content: "orphan",
-        turnKey: "m1",
+        stepKey: "m1",
         parentToolUseId: "missing",
       },
     ]);

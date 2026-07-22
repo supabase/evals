@@ -25,6 +25,7 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import { rawTranscriptPathFor } from '../lib/result-files.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
 import {
@@ -275,15 +276,6 @@ function resolveSkillSources(
 
 function resultPath(modelName: string, ev: Pick<EvalManifest, 'id' | 'mode'>) {
   return join(ROOT, 'results', modelName, `${ev.id}.json`);
-}
-
-/**
- * Sibling of a result file holding the agent CLI's verbatim JSONL transcript
- * (`<evalId>.transcript.jsonl`). Not `.json`, so the results scan and the
- * web export never pick it up.
- */
-function rawTranscriptPath(resultFilePath: string) {
-  return `${resultFilePath.slice(0, -".json".length)}.transcript.jsonl`;
 }
 
 function workspacePath(modelName: string, evalId: string, attempt: number) {
@@ -822,9 +814,13 @@ async function main() {
         const { rawTranscript, ...res } = await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
         // The CLI's verbatim transcript is a sibling file, never part of the
-        // result JSON (it can be megabytes); the Braintrust upload attaches it.
+        // result JSON (it can be megabytes); the Braintrust upload attaches
+        // it. Remove any stale sibling on runs that produce none, so a
+        // re-run can't pair an old transcript with a new result.
         if (rawTranscript) {
-          writeFileSync(rawTranscriptPath(out), rawTranscript);
+          writeFileSync(rawTranscriptPathFor(out), rawTranscript);
+        } else {
+          rmSync(rawTranscriptPathFor(out), { force: true });
         }
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(

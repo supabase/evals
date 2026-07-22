@@ -9,6 +9,7 @@ import type {
   ExperimentSuite,
 } from '@supabase-evals/core/eval-metadata';
 import {
+  makeFilterPredicate,
   normalizeExperimentName,
   readExperimentSuiteFilters,
   readRepeatedFlag,
@@ -101,26 +102,10 @@ function shouldIncludeEval(evalId: string): boolean {
   return EVAL_FILTERS.includes(evalId);
 }
 
-function shouldIncludeSuite(suite: EvalSuite | undefined): boolean {
-  if (SUITE_FILTERS.length === 0) {
-    return true;
-  }
-
-  return suite !== undefined && SUITE_FILTERS.includes(suite);
-}
-
-function shouldIncludeExperimentSuite(
-  experimentSuite: ExperimentSuite | undefined
-): boolean {
-  if (EXPERIMENT_SUITE_FILTERS.length === 0) {
-    return true;
-  }
-
-  return (
-    experimentSuite !== undefined &&
-    EXPERIMENT_SUITE_FILTERS.includes(experimentSuite)
-  );
-}
+const shouldIncludeSuite = makeFilterPredicate<EvalSuite>(SUITE_FILTERS);
+const shouldIncludeExperimentSuite = makeFilterPredicate<ExperimentSuite>(
+  EXPERIMENT_SUITE_FILTERS
+);
 
 async function loadEvalResults(): Promise<EvalResult[]> {
   const experimentMetadata = await loadExperimentMetadata();

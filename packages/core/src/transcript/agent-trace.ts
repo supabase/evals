@@ -12,7 +12,7 @@
  * Assembled from the same canonical `TranscriptEvent[]` the flat scorer
  * surface (`adaptTranscript`) consumes, so the two views can never disagree
  * about what happened; this one just stops throwing the structure away.
- * Step grouping uses `event.turnKey` when the parser stamped one (Claude
+ * Step grouping uses `event.stepKey` when the parser stamped one (Claude
  * Code: one assistant line = one API message; ai-sdk builds steps directly)
  * and otherwise falls back to a closure rule: thinking and tool calls
  * accumulate into the open step, an assistant message closes it (Codex's
@@ -38,8 +38,6 @@ export interface ToolExecution {
   output?: unknown;
   error?: string;
   success?: boolean;
-  /** Epoch-ms timing when the transcript carries real timestamps. */
-  startMs?: number;
   /** Subagent sidechain (e.g. Claude Code Task) spawned by this call. */
   children?: AgentStep[];
 }
@@ -51,7 +49,6 @@ export interface AgentStep {
   messageId?: string;
   /** Per-call token usage, when the transcript carries it. */
   usage?: AgentUsage;
-  startMs?: number;
   thinking?: string;
   /** Assistant prose (absent on pure-tool steps). */
   text?: string;
@@ -75,12 +72,6 @@ export interface AgentTrace {
   errors: string[];
 }
 
-function parseMs(timestamp: string | undefined): number | undefined {
-  if (!timestamp) return undefined;
-  const ms = Date.parse(timestamp);
-  return Number.isNaN(ms) ? undefined : ms;
-}
-
 export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
   // Split sidechain events (subagent activity) from the main thread; each
   // group is assembled recursively and attached to its spawning tool call.
@@ -101,7 +92,7 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
   const executionsById = new Map<string, ToolExecution>();
   const stepsByKey = new Map<string, AgentStep>();
   let stepCount = 0;
-  // Closure-rule state for events without a turnKey: an assistant message
+  // Closure-rule state for events without a stepKey: an assistant message
   // marks the open step closed, so the next event starts a fresh one.
   let openStep: AgentStep | undefined;
   let openStepClosed = false;
@@ -125,25 +116,23 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
     return turns[turns.length - 1]!;
   };
 
-  const newStep = (event: TranscriptEvent): AgentStep => {
+  const newStep = (): AgentStep => {
     const step: AgentStep = { index: stepCount, toolCalls: [] };
     stepCount += 1;
-    const startMs = parseMs(event.timestamp);
-    if (startMs !== undefined) step.startMs = startMs;
     currentTurn().steps.push(step);
     return step;
   };
 
   const stepFor = (event: TranscriptEvent): AgentStep => {
-    if (event.turnKey) {
-      const existing = stepsByKey.get(event.turnKey);
+    if (event.stepKey) {
+      const existing = stepsByKey.get(event.stepKey);
       if (existing) return existing;
-      const step = newStep(event);
-      stepsByKey.set(event.turnKey, step);
+      const step = newStep();
+      stepsByKey.set(event.stepKey, step);
       return step;
     }
     if (!openStep || openStepClosed) {
-      openStep = newStep(event);
+      openStep = newStep();
       openStepClosed = false;
     }
     return openStep;
@@ -195,7 +184,7 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
         step.text = step.text ? `${step.text}\n${content}` : content;
       }
       annotate(step, event);
-      if (!event.turnKey) openStepClosed = true;
+      if (!event.stepKey) openStepClosed = true;
       continue;
     }
 
@@ -225,8 +214,6 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
           ? { loadedSkill: event.tool.loadedSkill }
           : {}),
       };
-      const startMs = parseMs(event.timestamp);
-      if (startMs !== undefined) execution.startMs = startMs;
       step.toolCalls.push(execution);
       if (execution.id) executionsById.set(execution.id, execution);
       annotate(step, event);
@@ -267,8 +254,4 @@ export function assembleAgentTrace(events: TranscriptEvent[]): AgentTrace {
 function annotate(step: AgentStep, event: TranscriptEvent): void {
   if (event.messageId && !step.messageId) step.messageId = event.messageId;
   if (event.usage && !step.usage) step.usage = event.usage;
-  if (step.startMs === undefined) {
-    const startMs = parseMs(event.timestamp);
-    if (startMs !== undefined) step.startMs = startMs;
-  }
 }

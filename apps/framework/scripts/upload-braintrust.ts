@@ -35,6 +35,7 @@ import type {
   ExperimentSuite,
 } from "@supabase-evals/core/eval-metadata";
 import {
+  makeFilterPredicate,
   normalizeExperimentName,
   readExperimentSuiteFilters,
   readRepeatedFlag,
@@ -44,6 +45,7 @@ import {
   ROOT,
   collectResultFiles,
   loadExperimentMetadata,
+  rawTranscriptPathFor,
   readPrompt,
   type PromptData,
 } from "../lib/result-files.js";
@@ -60,20 +62,10 @@ const UPDATE = rawArgs.includes("--update");
 const PROJECT_FLAG = readRepeatedFlag(rawArgs, "project")[0];
 const NAME_SUFFIX = readRepeatedFlag(rawArgs, "name-suffix")[0];
 
-function shouldIncludeSuite(suite: EvalSuite | undefined): boolean {
-  if (SUITE_FILTERS.length === 0) return true;
-  return suite !== undefined && SUITE_FILTERS.includes(suite);
-}
-
-function shouldIncludeExperimentSuite(
-  experimentSuite: ExperimentSuite | undefined,
-): boolean {
-  if (EXPERIMENT_SUITE_FILTERS.length === 0) return true;
-  return (
-    experimentSuite !== undefined &&
-    EXPERIMENT_SUITE_FILTERS.includes(experimentSuite)
-  );
-}
+const shouldIncludeSuite = makeFilterPredicate<EvalSuite>(SUITE_FILTERS);
+const shouldIncludeExperimentSuite = makeFilterPredicate<ExperimentSuite>(
+  EXPERIMENT_SUITE_FILTERS,
+);
 
 function gitShortSha(): string | undefined {
   const fromEnv = process.env.GITHUB_SHA;
@@ -181,7 +173,7 @@ async function collectTraces(
       },
       baseTimeMs: Date.now(),
     });
-    const transcriptPath = ref.filePath.replace(/\.json$/, ".transcript.jsonl");
+    const transcriptPath = rawTranscriptPathFor(ref.filePath);
     const group = byExperiment.get(result.experiment) ?? [];
     group.push({
       trace,
