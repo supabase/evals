@@ -6,6 +6,7 @@ product:
 topic:
   - observability
 motivation: AI-817
+hostedProject: true
 projectRunning: false
 ---
 
