@@ -438,20 +438,15 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           add-paths: apps/web/src/data/*eval-results.json
-          # Per-base head branch so a branch refresh PR can't collide with main's.
-          # Scheduled runs always target main, so scope by run number instead.
-          branch: >-
-            ${{ github.event_name == 'schedule' &&
-              format('chore/refresh-regression-results-{0}', github.run_number) ||
-              format('chore/refresh-eval-results-{0}', github.ref_name) }}
+          # Per-ref-and-event head branch so a branch refresh PR can't collide
+          # with another ref's, or with the scheduled run's.
+          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name }}
           base: ${{ github.ref_name }}
           commit-message: "chore: refresh eval results"
           title: "chore: refresh eval results"
           body: |
             Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
-          # Draft PRs can't be merged, and the scheduled path needs to merge
-          # unattended (branch protection requires a PR, not a review, and the
-          # bot is a bypass actor for the review/approval gate).
+          # Draft PRs can't be merged, and the scheduled path merges itself.
           draft: ${{ github.event_name != 'schedule' }}
           delete-branch: true
 
