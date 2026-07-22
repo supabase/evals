@@ -147,50 +147,51 @@ function experimentsFilterUrl(
   return `${base}?search=${search}`;
 }
 
-interface BaselineExperiment {
-  id: string;
-  name: string;
-}
-
 /**
- * The Braintrust experiment marked `latestMain` for this repo experiment —
- * the source-of-truth baseline every run compares against. Main refreshes
- * mark themselves and demote the previous holder (see setLatestMain), so
- * exactly one experiment per model carries the marker; ties (a failed
- * demotion) break to the newest. The repo experiment name already encodes
- * agent + model + skills, so metadata equality is an exact identity match.
- * Best-effort: any failure means "no base", never a broken upload.
+ * The experiments marked `latestMain` for this repo experiment. `baseline`
+ * (the newest holder's name) is the source-of-truth base every run compares
+ * against;
+ * `holderIds` is every current holder, saved BEFORE uploading so a main
+ * refresh can demote them all only after the new batch is fully uploaded —
+ * if the upload dies, the old baselines keep the marker. Clearing every
+ * holder (not just the newest) also self-heals duplicates left by a past
+ * failed demotion. The repo experiment name already encodes agent + model +
+ * skills, so metadata equality is an exact identity match. Best-effort: any
+ * failure means "no base", never a broken upload.
  */
 async function findMainBaseline(
   projectId: string | undefined,
   experiment: string,
   currentName: string,
-): Promise<BaselineExperiment | undefined> {
+): Promise<{ baseline?: string; holderIds: string[] }> {
   const apiKey = process.env.BRAINTRUST_API_KEY;
-  if (!projectId || !apiKey) return undefined;
+  if (!projectId || !apiKey) return { holderIds: [] };
   try {
     const metadata = encodeURIComponent(
       JSON.stringify({ experiment, latestMain: true }),
     );
     const response = await fetch(
-      `https://api.braintrust.dev/v1/experiment?project_id=${encodeURIComponent(projectId)}&metadata=${metadata}&limit=10`,
+      `https://api.braintrust.dev/v1/experiment?project_id=${encodeURIComponent(projectId)}&metadata=${metadata}&limit=100`,
       { headers: { Authorization: `Bearer ${apiKey}` } },
     );
-    if (!response.ok) return undefined;
+    if (!response.ok) return { holderIds: [] };
     const body = (await response.json()) as {
       objects?: Array<{ id?: string; name?: string; created?: string }>;
     };
-    const candidate = (body.objects ?? [])
+    const holders = (body.objects ?? [])
       .filter(
         (o): o is { id: string; name: string; created?: string } =>
           typeof o.id === "string" &&
           typeof o.name === "string" &&
           o.name !== currentName,
       )
-      .sort((a, b) => (b.created ?? "").localeCompare(a.created ?? ""))[0];
-    return candidate ? { id: candidate.id, name: candidate.name } : undefined;
+      .sort((a, b) => (b.created ?? "").localeCompare(a.created ?? ""));
+    return {
+      ...(holders[0] ? { baseline: holders[0].name } : {}),
+      holderIds: holders.map((holder) => holder.id),
+    };
   } catch {
-    return undefined;
+    return { holderIds: [] };
   }
 }
 
@@ -199,8 +200,8 @@ async function findMainBaseline(
  * merges metadata, and a null value no longer matches `latestMain = true`
  * filters (verified against the API). Promotion happens only after a
  * successful upload+summarize, so a crashed main refresh can never win the
- * baseline tie-break; a failed demotion leaves two holders, which
- * findMainBaseline resolves to the newest.
+ * baseline tie-break; a failed demotion leaves extra holders, which
+ * findMainBaseline resolves to the newest (and clears on the next refresh).
  */
 async function setLatestMain(
   experimentId: string,
@@ -421,16 +422,24 @@ async function upload(
     !context.prNumber &&
     !NAME_SUFFIX;
 
+  // Old baseline holders across the whole batch, demoted only after every
+  // experiment uploaded (see findMainBaseline).
+  const supersededHolderIds: string[] = [];
+
   for (const [experiment, pending] of byExperiment) {
     const name = `${experiment}${sha ? `@${sha}` : ""}${suffix}`;
     const meta = experimentMetadata.get(experiment);
-    const baseline = await findMainBaseline(projectId, experiment, name);
+    const { baseline, holderIds } = await findMainBaseline(
+      projectId,
+      experiment,
+      name,
+    );
     const btExperiment = init({
       ...(projectName ? { project: projectName } : {}),
       ...(projectId ? { projectId } : {}),
       experiment: name,
       update: UPDATE,
-      ...(baseline ? { baseExperiment: baseline.name } : {}),
+      ...(baseline ? { baseExperiment: baseline } : {}),
       metadata: {
         source: "supabase-evals",
         experiment,
@@ -511,14 +520,16 @@ async function upload(
     const summary = await btExperiment.summarize();
     if (isMainRefresh && summary.experimentId) {
       await setLatestMain(summary.experimentId, true);
-      if (baseline) await setLatestMain(baseline.id, null);
+      supersededHolderIds.push(
+        ...holderIds.filter((id) => id !== summary.experimentId),
+      );
     }
     // Only trust the diff when it is against the baseline we selected — with
     // none set, Braintrust auto-picks a base by git ancestry, which could be
     // another PR's experiment.
     const baseName =
-      baseline && summary.comparisonExperimentName === baseline.name
-        ? baseline.name
+      baseline && summary.comparisonExperimentName === baseline
+        ? baseline
         : undefined;
     summaryRows.push({
       experiment,
@@ -544,6 +555,13 @@ async function upload(
   }
 
   await flush();
+
+  // The whole batch is uploaded and marked — only now retire the old
+  // baselines. A crash before this point leaves them in place (and any
+  // temporary duplicate holders resolve newest-first in findMainBaseline).
+  for (const id of supersededHolderIds) {
+    await setLatestMain(id, null);
+  }
 
   // Pre-filtered experiments-list links (Braintrust bakes view filters into
   // the URL): this PR's experiments, and the main-branch baseline history.
