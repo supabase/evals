@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import { BotIcon, CheckIcon, ChevronRightIcon, CopyIcon, FileTextIcon, SearchIcon, XIcon } from "lucide-react"
 import { z } from "zod"
 import {
@@ -8,21 +8,19 @@ import {
 import rawResults from "@/data/eval-results.json"
 
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
-import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { HeroGridPattern } from "@/components/hero-grid-pattern"
 import { cn } from "@/lib/utils"
 
@@ -60,7 +58,7 @@ const WEBSITE_URL = "https://supabase.com"
 const UNASSIGNED_PRODUCT = "__unassigned_product__"
 
 type JourneyStage = (typeof JOURNEY_STAGES)[number]["id"]
-type GroupBy = "stage" | "model" | "product" | "eval"
+type GroupBy = "model" | "stage" | "product" | "eval"
 
 type ParsedResult = Omit<EvalResult, "product" | "topic"> & {
   category: JourneyStage | "unknown"
@@ -109,50 +107,19 @@ function docsCallSizeLabel(call: DocsCall): string | undefined {
 
 type ExperimentStageSummary = {
   experiment: string
-  category: JourneyStage | "overall"
+  category: JourneyStage
   passed: number
   total: number
 }
 
-type ExperimentStageGroup = {
-  category: string
+type ModelResultRow = {
+  experiment: string
+  label: string
+  shortLabel: string
   passed: number
+  passRate: number
   results: ParsedResult[]
   total: number
-}
-
-type ChartBar = {
-  label: string
-  summary: ExperimentStageSummary
-}
-
-function getBarPassRate(bar: ChartBar) {
-  const { passed, total } = bar.summary
-  return total ? Math.round((passed / total) * 100) : 0
-}
-
-function sortBarsByScore(bars: ChartBar[]) {
-  return [...bars].sort((a, b) => {
-    const scoreDelta = getBarPassRate(b) - getBarPassRate(a)
-    return scoreDelta || a.label.localeCompare(b.label)
-  })
-}
-
-function sortGroupsByPassRate(groups: TimelineGroup[]) {
-  return [...groups].sort((a, b) => {
-    const scoreDelta = (b.passRate ?? 0) - (a.passRate ?? 0)
-    return scoreDelta || a.label.localeCompare(b.label)
-  })
-}
-
-type TimelineGroup = {
-  description?: string
-  id: string
-  label: string
-  meta: string
-  passRate?: number
-  sourceResults: ParsedResult[]
-  bars: ChartBar[]
 }
 
 const stageIndex = new Map(
@@ -198,6 +165,26 @@ const EXPERIMENT_SUITE_LABELS = {
   "no-skills": "Without skills",
 } satisfies Record<SelectedExperimentSuite, string>
 
+const GROUP_BY_OPTIONS = [
+  { value: "model", label: "Model" },
+  { value: "eval", label: "Eval" },
+  { value: "stage", label: "Journey" },
+  { value: "product", label: "Product" },
+] as const satisfies ReadonlyArray<{ value: GroupBy; label: string }>
+
+const GROUP_BY_ROW_LABEL: Record<GroupBy, string> = {
+  model: "Model",
+  stage: "Journey",
+  product: "Product",
+  eval: "Eval",
+}
+
+const segmentedControlClassName =
+  "inline-grid h-[34px] w-fit rounded-full border border-input bg-card p-0.5 text-sm"
+
+const segmentedControlItemClassName =
+  "h-full min-w-24 rounded-full px-3.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
 function ExperimentSuiteControl({
   value,
   onValueChange,
@@ -209,7 +196,7 @@ function ExperimentSuiteControl({
     <div
       role="group"
       aria-label="Experiment suite"
-      className="inline-grid h-[34px] w-fit grid-cols-2 rounded-full border border-input bg-card p-0.5"
+      className={cn(segmentedControlClassName, "grid-cols-2")}
     >
       {EXPERIMENT_SUITES.map((suite) => {
         const selected = suite === value
@@ -221,9 +208,9 @@ function ExperimentSuiteControl({
             aria-pressed={selected}
             onClick={() => onValueChange(suite)}
             className={cn(
-              "h-full min-w-28 rounded-full px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              segmentedControlItemClassName,
               selected
-                ? "bg-foreground text-background shadow-sm"
+                ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -243,27 +230,55 @@ function GroupByControl({
   onValueChange: (value: GroupBy) => void
 }) {
   return (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      value={value}
-      onValueChange={(nextValue) => {
-        if (
-          nextValue === "stage" ||
-          nextValue === "model" ||
-          nextValue === "product" ||
-          nextValue === "eval"
-        ) {
-          onValueChange(nextValue)
-        }
-      }}
-      className="w-fit"
+    <div
+      role="group"
+      aria-label="Group by"
+      className={cn(segmentedControlClassName, "grid-cols-4")}
     >
-      <ToggleGroupItem value="stage">Group by journey</ToggleGroupItem>
-      <ToggleGroupItem value="model">Group by model</ToggleGroupItem>
-      <ToggleGroupItem value="product">Group by product</ToggleGroupItem>
-      <ToggleGroupItem value="eval">Group by eval</ToggleGroupItem>
-    </ToggleGroup>
+      {GROUP_BY_OPTIONS.map((option) => {
+        const selected = option.value === value
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onValueChange(option.value)}
+            className={cn(
+              segmentedControlItemClassName,
+              selected
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function TableHeaderLabel({
+  children,
+  tooltip,
+}: {
+  children: ReactNode
+  tooltip?: ReactNode
+}) {
+  if (!tooltip) {
+    return children
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-help outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">{tooltip}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -331,6 +346,17 @@ function formatExperimentLabel(
   return `${AGENT_LABELS[display.agent]} / ${formatModelWithModifiers(display)}`
 }
 
+function formatModelColumnLabel(
+  display: ExperimentDisplay | undefined,
+  fallback: string
+) {
+  if (!display) {
+    return fallback
+  }
+
+  return formatModelWithModifiers(display)
+}
+
 function getVisibleExperiments(sourceResults: ParsedResult[]) {
   return Array.from(
     new Set(sourceResults.map((result) => result.experiment))
@@ -362,12 +388,6 @@ function sortResults(a: ParsedResult, b: ParsedResult) {
 }
 
 const sortedResults = [...results].sort(sortResults)
-function getStageResults(
-  category: JourneyStage,
-  sourceResults = sortedResults
-) {
-  return sourceResults.filter((result) => result.category === category)
-}
 
 function getExperimentResults(
   experiment: string,
@@ -393,54 +413,6 @@ function getExperimentStageSummary(
   }
 }
 
-function getExperimentOverallSummary(
-  experiment: string,
-  sourceResults = sortedResults
-): ExperimentStageSummary {
-  const experimentResults = getExperimentResults(experiment, sourceResults)
-
-  return {
-    experiment,
-    category: "overall",
-    passed: experimentResults.filter((result) => result.passed).length,
-    total: experimentResults.length,
-  }
-}
-
-function getEvalResults(evalId: string, sourceResults = sortedResults) {
-  return sourceResults.filter((result) => result.eval === evalId)
-}
-
-function getExperimentStageGroups(
-  experiment: string,
-  category: JourneyStage,
-  sourceResults = sortedResults
-): ExperimentStageGroup[] {
-  const stageResults = getExperimentResults(experiment, sourceResults).filter(
-    (result) => result.category === category
-  )
-  const groupedResults = new Map<string, ParsedResult[]>()
-
-  for (const result of stageResults) {
-    const existing = groupedResults.get(result.primaryCategory)
-
-    if (existing) {
-      existing.push(result)
-    } else {
-      groupedResults.set(result.primaryCategory, [result])
-    }
-  }
-
-  return Array.from(groupedResults.entries())
-    .map(([category, results]) => ({
-      category,
-      passed: results.filter((result) => result.passed).length,
-      results,
-      total: results.length,
-    }))
-    .sort((a, b) => a.category.localeCompare(b.category))
-}
-
 function formatTagLabel(value: string) {
   return value
     .split(" ")
@@ -448,12 +420,24 @@ function formatTagLabel(value: string) {
     .join(" ")
 }
 
+const PRODUCT_LABELS: Record<string, string> = {
+  auth: "Auth",
+  cron: "Cron",
+  "data-api": "Data API",
+  database: "Database",
+  "edge-functions": "Edge Functions",
+  queues: "Queues",
+  realtime: "Realtime",
+  storage: "Storage",
+  vectors: "Vectors",
+}
+
 function formatProductLabel(value: string) {
   if (value === UNASSIGNED_PRODUCT) {
     return "Unassigned"
   }
 
-  return formatTagLabel(value)
+  return PRODUCT_LABELS[value] ?? formatTagLabel(value)
 }
 
 function formatEvalName(evalId: string, includeSubcategory = true) {
@@ -469,25 +453,11 @@ function formatEvalName(evalId: string, includeSubcategory = true) {
     : `${sequence}: ${readableSlug}`
 }
 
-function formatPassPercentage(passed: number, total: number) {
-  return total ? `${Math.round((passed / total) * 100)}%` : "0%"
-}
-
-function formatGroupLabel(label: string) {
-  return label ? `${label[0].toUpperCase()}${label.slice(1)}` : label
-}
-
 const pageContainerClassName =
   "mx-auto w-full max-w-7xl px-6 lg:px-12 xl:px-24"
 
-const groupHeadingClassName =
-  "font-heading text-2xl leading-tight font-semibold tracking-normal text-foreground"
-
 const subgroupLabelClassName =
   "rounded-md px-2 py-1 font-mono text-xs font-normal uppercase tracking-wide text-muted-foreground"
-
-const subgroupMetaClassName =
-  "mr-3 shrink-0 font-mono text-xs tracking-wide text-muted-foreground"
 
 const evalMetaGridClassName =
   "grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-x-4 gap-y-4 text-xs"
@@ -516,41 +486,43 @@ function ResultChecks({ checks }: { checks: CheckResult[] }) {
       {checks.map((check, index) => {
         const StatusIcon = check.passed ? CheckIcon : XIcon
         const notes = check.judgeNotes ?? check.notes
-        const hasJudgeNotes = check.judgeNotes !== undefined
-
-        return (
-          <div key={`${index}-${check.name}`}>
-            <div className="flex items-start gap-2">
-              <StatusIcon
-                className={cn(
-                  "mt-0.5 size-4 shrink-0",
-                  check.passed
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-red-600 dark:text-red-400"
-                )}
+        const checkRow = (
+          <span className="inline-flex w-full items-start gap-2 pl-6">
+            {notes ? (
+              <ChevronRightIcon
+                className="-ml-6 mt-0.5 size-4 shrink-0 text-muted-foreground/50 transition-transform group-open:rotate-90"
                 aria-hidden
               />
-              <span className="sr-only">
-                {check.passed ? "Pass" : "Fail"}:{" "}
-              </span>
-              <span className="min-w-0 whitespace-pre-wrap">{check.name}</span>
-            </div>
-            {notes ? (
-              <details className="mt-1 ml-6 text-muted-foreground">
-                <summary className="cursor-pointer text-xs tracking-wide uppercase">
-                  <span className="inline-flex items-center gap-1.5">
-                    {hasJudgeNotes ? (
-                      <BotIcon className="size-3.5 text-muted-foreground/70" />
-                    ) : null}
-                    {hasJudgeNotes ? "Judge notes" : "Notes"}
-                  </span>
-                </summary>
-                <p className="mt-1 whitespace-pre-wrap text-foreground">
-                  {notes}
-                </p>
-              </details>
             ) : null}
-          </div>
+            <StatusIcon
+              className={cn(
+                "mt-0.5 size-4 shrink-0",
+                check.passed
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-red-600 dark:text-red-400"
+              )}
+              aria-hidden
+            />
+            <span className="sr-only">
+              {check.passed ? "Pass" : "Fail"}: {" "}
+            </span>
+            <span className="min-w-0 whitespace-pre-wrap">{check.name}</span>
+          </span>
+        )
+
+        return (
+          notes ? (
+            <details key={`${index}-${check.name}`} className="group">
+              <summary className="cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                {checkRow}
+              </summary>
+              <p className="mt-1 ml-12 whitespace-pre-wrap text-muted-foreground">
+                {notes}
+              </p>
+            </details>
+          ) : (
+            <div key={`${index}-${check.name}`}>{checkRow}</div>
+          )
         )
       })}
     </div>
@@ -656,289 +628,533 @@ function getProductResults(product: string, sourceResults: ParsedResult[]) {
   )
 }
 
-function getTimelineGroups(
-  groupBy: GroupBy,
+function getStageResults(
+  category: JourneyStage,
   sourceResults: ParsedResult[]
-): TimelineGroup[] {
-  const visibleExperiments = getVisibleExperiments(sourceResults)
-
-  if (groupBy === "model") {
-    return sortGroupsByPassRate(
-      visibleExperiments
-        .map((experiment) => {
-          const experimentResults = getExperimentResults(
-            experiment,
-            sourceResults
-          )
-          const bars = JOURNEY_STAGES.map((stage) => ({
-            label: stage.label,
-            summary: getExperimentStageSummary(
-              experiment,
-              stage.id,
-              experimentResults
-            ),
-          })).filter((bar) => bar.summary.total > 0)
-          const passed = experimentResults.filter(
-            (result) => result.passed
-          ).length
-          const summary = getExperimentOverallSummary(
-            experiment,
-            experimentResults
-          )
-
-          return {
-            id: experiment,
-            label: formatGroupLabel(
-              experimentLabel.get(experiment) ?? experiment
-            ),
-            meta: formatPassPercentage(summary.passed, summary.total),
-            passRate: experimentResults.length
-              ? Math.round((passed / experimentResults.length) * 100)
-              : 0,
-            sourceResults: experimentResults,
-            bars,
-          }
-        })
-        .filter((group) => group.sourceResults.length > 0)
-    )
-  }
-
-  if (groupBy === "product") {
-    return getProductKeys(sourceResults).map((product) => {
-      const productResults = getProductResults(product, sourceResults)
-      const bars = sortBarsByScore(
-        visibleExperiments
-          .map((experiment) => ({
-            label: experimentLabel.get(experiment) ?? experiment,
-            summary: getExperimentOverallSummary(experiment, productResults),
-          }))
-          .filter((bar) => bar.summary.total > 0)
-      )
-      const passed = productResults.filter((result) => result.passed).length
-
-      return {
-        id: product,
-        label: formatGroupLabel(formatProductLabel(product)),
-        meta: formatPassPercentage(passed, productResults.length),
-        sourceResults: productResults,
-        bars,
-      }
-    })
-  }
-
-  if (groupBy === "eval") {
-    // Preserve sortedResults order so eval rows follow journey/topic sorting.
-    const evalIds = Array.from(
-      new Set(sourceResults.map((result) => result.eval))
-    )
-
-    return evalIds.map((evalId) => {
-      const evalResults = getEvalResults(evalId, sourceResults)
-      const bars = sortBarsByScore(
-        visibleExperiments
-          .map((experiment) => ({
-            label: experimentLabel.get(experiment) ?? experiment,
-            summary: getExperimentOverallSummary(experiment, evalResults),
-          }))
-          .filter((bar) => bar.summary.total > 0)
-      )
-      const passed = evalResults.filter((result) => result.passed).length
-
-      return {
-        id: evalId,
-        label: formatGroupLabel(formatEvalName(evalId)),
-        meta: formatPassPercentage(passed, evalResults.length),
-        description: evalId,
-        sourceResults: evalResults,
-        bars,
-      }
-    })
-  }
-
-  return JOURNEY_STAGES.map((stage) => {
-    const stageResults = getStageResults(stage.id, sourceResults)
-    const bars = sortBarsByScore(
-      visibleExperiments
-        .map((experiment) => ({
-          label: experimentLabel.get(experiment) ?? experiment,
-          summary: getExperimentStageSummary(
-            experiment,
-            stage.id,
-            sourceResults
-          ),
-        }))
-        .filter((bar) => bar.summary.total > 0)
-    )
-    const passed = stageResults.filter((result) => result.passed).length
-
-    return {
-      description: stage.description,
-      id: stage.id,
-      label: formatGroupLabel(stage.label),
-      meta: formatPassPercentage(passed, stageResults.length),
-      sourceResults,
-      bars,
-    }
-  })
+) {
+  return sourceResults.filter((result) => result.category === category)
 }
 
-function SummaryBar({
+function getEvalResults(evalId: string, sourceResults: ParsedResult[]) {
+  return sourceResults.filter((result) => result.eval === evalId)
+}
+
+function getEvalIds(sourceResults: ParsedResult[]) {
+  return Array.from(new Set(sourceResults.map((result) => result.eval))).sort(
+    (a, b) => a.localeCompare(b)
+  )
+}
+
+function getModelRows(sourceResults: ParsedResult[]): ModelResultRow[] {
+  return getVisibleExperiments(sourceResults)
+    .map((experiment) => {
+      const experimentResults = getExperimentResults(experiment, sourceResults)
+      const passed = experimentResults.filter((result) => result.passed).length
+      const display = results.find(
+        (result) => result.experiment === experiment
+      )?.experimentDisplay
+
+      return {
+        experiment,
+        label: experimentLabel.get(experiment) ?? experiment,
+        shortLabel: formatModelColumnLabel(display, experiment),
+        passed,
+        passRate: experimentResults.length
+          ? Math.round((passed / experimentResults.length) * 100)
+          : 0,
+        results: experimentResults,
+        total: experimentResults.length,
+      }
+    })
+    .sort(
+      (a, b) =>
+        b.passRate - a.passRate || a.label.localeCompare(b.label)
+    )
+}
+
+function scoreResults(sourceResults: ParsedResult[]) {
+  const passed = sourceResults.filter((result) => result.passed).length
+
+  return {
+    passed,
+    total: sourceResults.length,
+  }
+}
+
+function ScoreCell({
+  passed,
+  total,
+  isTotal = false,
+}: {
+  passed: number
+  total: number
+  isTotal?: boolean
+}) {
+  if (!total) {
+    return <span className="text-muted-foreground/50">—</span>
+  }
+
+  const passRate = Math.round((passed / total) * 100)
+
+  return (
+    <span
+      title={`${passed} of ${total} evals passed`}
+      className={cn(
+        "font-mono text-xs",
+        isTotal && "font-semibold",
+        getPassRateClass(passRate)
+      )}
+    >
+      {passRate}%
+    </span>
+  )
+}
+
+const clickableTableItemClassName =
+  "cursor-pointer bg-card transition-colors outline-none hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+
+const modelColumnHighlightClassName = "bg-muted/35"
+
+function openExperimentKeyDown(
+  event: KeyboardEvent,
+  open: () => void
+) {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault()
+    open()
+  }
+}
+
+function ModelColumnCell({
+  experiment,
   label,
-  sourceResults,
-  summary,
-  interactive = true,
+  highlighted,
+  onHoverChange,
+  onSelect,
+  children,
 }: {
+  experiment: string
   label: string
-  sourceResults: ParsedResult[]
-  summary: ExperimentStageSummary
-  interactive?: boolean
+  highlighted: boolean
+  onHoverChange: (experiment: string | null) => void
+  onSelect: (experiment: string) => void
+  children: ReactNode
 }) {
-  const passRate = summary.total
-    ? Math.round((summary.passed / summary.total) * 100)
-    : 0
-
-  const bar = (
-    <div
+  return (
+    <td
+      tabIndex={0}
+      aria-label={`Open ${label}`}
       className={cn(
-        "flex w-full min-w-0 flex-col gap-2 rounded-xl px-3 py-3 text-left outline-none",
-        interactive &&
-          "transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+        "border-r border-b border-border px-2.5 py-2 cursor-pointer bg-card transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        highlighted && modelColumnHighlightClassName
       )}
+      onMouseEnter={() => onHoverChange(experiment)}
+      onClick={() => onSelect(experiment)}
+      onKeyDown={(event) =>
+        openExperimentKeyDown(event, () => onSelect(experiment))
+      }
     >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <span className="truncate text-sm font-normal text-foreground">
-          {label}
-        </span>
-        <span className="shrink-0 font-mono text-sm font-normal text-foreground">
-          {passRate}%
-        </span>
-      </div>
-      <div className="h-[3px] w-full bg-foreground/20">
-        <div
-          className="h-full bg-foreground transition-all group-hover:bg-foreground/90"
-          style={{ width: `${passRate}%` }}
-        />
-      </div>
-    </div>
+      {children}
+    </td>
+  )
+}
+
+function ResultsTable({
+  sourceResults,
+  groupBy,
+  selectedExperimentSuite,
+  onGroupByChange,
+  onExperimentSuiteChange,
+}: {
+  sourceResults: ParsedResult[]
+  groupBy: GroupBy
+  selectedExperimentSuite: SelectedExperimentSuite
+  onGroupByChange: (value: GroupBy) => void
+  onExperimentSuiteChange: (value: SelectedExperimentSuite) => void
+}) {
+  const modelRows = getModelRows(sourceResults)
+  const productKeys = getProductKeys(sourceResults)
+  const evalIds = getEvalIds(sourceResults)
+  const modelsAsRows = groupBy === "model"
+  const [selectedExperiment, setSelectedExperiment] = useState<string | null>(
+    null
+  )
+  const [hoveredExperiment, setHoveredExperiment] = useState<string | null>(
+    null
   )
 
-  if (!interactive) {
-    return bar
+  const openExperiment = (experiment: string) => {
+    setSelectedExperiment(experiment)
   }
 
   return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <button
-          type="button"
-          className="w-full text-left outline-none"
-          aria-label={`${label}: ${summary.passed} of ${summary.total} evals passed`}
+    <Sheet
+      open={selectedExperiment !== null}
+      onOpenChange={(open) => {
+        if (!open) setSelectedExperiment(null)
+      }}
+    >
+      <div>
+        <section
+          aria-label="Results"
+          className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_24px_80px_-36px_rgba(0,0,0,0.45),0_8px_28px_-18px_rgba(0,0,0,0.28)]"
         >
-          {bar}
-        </button>
-      </SheetTrigger>
-      <ExperimentSheet
-        experiment={summary.experiment}
-        sourceResults={sourceResults}
-      />
+          <div className="flex min-h-12 flex-col gap-2 border-b border-border bg-secondary/70 px-2 py-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="w-full overflow-x-auto pb-0.5 lg:w-auto lg:pb-0">
+              <GroupByControl
+                value={groupBy}
+                onValueChange={onGroupByChange}
+              />
+            </div>
+            <div className="w-full overflow-x-auto pb-0.5 lg:w-auto lg:pb-0">
+              <ExperimentSuiteControl
+                value={selectedExperimentSuite}
+                onValueChange={onExperimentSuiteChange}
+              />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            {modelRows.length ? (
+              <table
+                className={cn(
+                  "w-full border-collapse text-[13px]",
+                  modelsAsRows ? "min-w-[760px]" : "min-w-[1100px]"
+                )}
+                onMouseLeave={() => setHoveredExperiment(null)}
+              >
+                <thead className="bg-secondary/45 text-muted-foreground">
+                  <tr>
+                    <th
+                      scope="col"
+                      className={cn(
+                        "border-r border-b border-border px-2.5 py-1.5 text-left font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase",
+                        groupBy === "eval" ? "min-w-64 w-72" : "w-64"
+                      )}
+                    >
+                      {GROUP_BY_ROW_LABEL[groupBy]}
+                    </th>
+                    {modelsAsRows
+                      ? JOURNEY_STAGES.map((stage) => (
+                          <th
+                            key={stage.id}
+                            scope="col"
+                            className="w-24 border-r border-b border-border px-2.5 py-1.5 text-left font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase"
+                          >
+                            <TableHeaderLabel tooltip={stage.description}>
+                              {stage.label}
+                            </TableHeaderLabel>
+                          </th>
+                        ))
+                      : modelRows.map((row) => (
+                          <th
+                            key={row.experiment}
+                            scope="col"
+                            title={row.label}
+                            className={cn(
+                              "min-w-28 border-r border-b border-border px-2.5 py-1.5 text-left font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase transition-colors",
+                              hoveredExperiment === row.experiment &&
+                                modelColumnHighlightClassName
+                            )}
+                            onMouseEnter={() =>
+                              setHoveredExperiment(row.experiment)
+                            }
+                          >
+                            <span className="block truncate">{row.shortLabel}</span>
+                          </th>
+                        ))}
+                    <th
+                      scope="col"
+                      className="w-20 border-b border-border px-2.5 py-1.5 text-left font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase"
+                    >
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="[&>tr:last-child>th]:border-b-0 [&>tr:last-child>td]:border-b-0">
+                  {modelsAsRows
+                    ? modelRows.map((row) => (
+                        <tr
+                          key={row.experiment}
+                          tabIndex={0}
+                          className={clickableTableItemClassName}
+                          onClick={() => openExperiment(row.experiment)}
+                          onKeyDown={(event) =>
+                            openExperimentKeyDown(event, () =>
+                              openExperiment(row.experiment)
+                            )
+                          }
+                        >
+                          <th
+                            scope="row"
+                            className="border-r border-b border-border px-2.5 py-2 text-left font-normal text-foreground"
+                          >
+                            <span className="block truncate font-medium">
+                              {row.label}
+                            </span>
+                          </th>
+                          {JOURNEY_STAGES.map((stage) => {
+                            const summary = getExperimentStageSummary(
+                              row.experiment,
+                              stage.id,
+                              row.results
+                            )
+
+                            return (
+                              <td
+                                key={stage.id}
+                                className="border-r border-b border-border px-2.5 py-2"
+                              >
+                                <ScoreCell
+                                  passed={summary.passed}
+                                  total={summary.total}
+                                />
+                              </td>
+                            )
+                          })}
+                          <td className="border-b border-border px-2.5 py-2">
+                            <ScoreCell
+                              passed={row.passed}
+                              total={row.total}
+                              isTotal
+                            />
+                          </td>
+                        </tr>
+                      ))
+                    : null}
+
+                  {groupBy === "stage"
+                    ? JOURNEY_STAGES.map((stage) => {
+                        const stageResults = getStageResults(
+                          stage.id,
+                          sourceResults
+                        )
+                        const totalSummary = scoreResults(stageResults)
+
+                        return (
+                          <tr key={stage.id} className="bg-card">
+                            <th
+                              scope="row"
+                              className="border-r border-b border-border px-2.5 py-2 text-left font-normal text-foreground"
+                            >
+                              <TableHeaderLabel tooltip={stage.description}>
+                                <span className="font-medium">{stage.label}</span>
+                              </TableHeaderLabel>
+                            </th>
+                            {modelRows.map((row) => {
+                              const summary = getExperimentStageSummary(
+                                row.experiment,
+                                stage.id,
+                                row.results
+                              )
+
+                              return (
+                                <ModelColumnCell
+                                  key={row.experiment}
+                                  experiment={row.experiment}
+                                  label={row.label}
+                                  highlighted={
+                                    hoveredExperiment === row.experiment
+                                  }
+                                  onHoverChange={setHoveredExperiment}
+                                  onSelect={openExperiment}
+                                >
+                                  <ScoreCell
+                                    passed={summary.passed}
+                                    total={summary.total}
+                                  />
+                                </ModelColumnCell>
+                              )
+                            })}
+                            <td className="border-b border-border px-2.5 py-2">
+                              <ScoreCell
+                                passed={totalSummary.passed}
+                                total={totalSummary.total}
+                                isTotal
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })
+                    : null}
+
+                  {groupBy === "product"
+                    ? productKeys.map((product) => {
+                        const productResults = getProductResults(
+                          product,
+                          sourceResults
+                        )
+                        const totalSummary = scoreResults(productResults)
+
+                        return (
+                          <tr key={product} className="bg-card">
+                            <th
+                              scope="row"
+                              className="border-r border-b border-border px-2.5 py-2 text-left font-normal text-foreground"
+                            >
+                              <span className="font-medium">
+                                {formatProductLabel(product)}
+                              </span>
+                            </th>
+                            {modelRows.map((row) => {
+                              const summary = scoreResults(
+                                getProductResults(product, row.results)
+                              )
+
+                              return (
+                                <ModelColumnCell
+                                  key={row.experiment}
+                                  experiment={row.experiment}
+                                  label={row.label}
+                                  highlighted={
+                                    hoveredExperiment === row.experiment
+                                  }
+                                  onHoverChange={setHoveredExperiment}
+                                  onSelect={openExperiment}
+                                >
+                                  <ScoreCell
+                                    passed={summary.passed}
+                                    total={summary.total}
+                                  />
+                                </ModelColumnCell>
+                              )
+                            })}
+                            <td className="border-b border-border px-2.5 py-2">
+                              <ScoreCell
+                                passed={totalSummary.passed}
+                                total={totalSummary.total}
+                                isTotal
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })
+                    : null}
+
+                  {groupBy === "eval"
+                    ? evalIds.map((evalId) => {
+                        const evalResults = getEvalResults(
+                          evalId,
+                          sourceResults
+                        )
+                        const totalSummary = scoreResults(evalResults)
+
+                        return (
+                          <tr key={evalId} className="bg-card">
+                            <th
+                              scope="row"
+                              className="border-r border-b border-border px-2.5 py-2 text-left font-normal text-foreground"
+                            >
+                              <span
+                                className="block truncate font-medium"
+                                title={evalId}
+                              >
+                                {formatEvalName(evalId)}
+                                <span className="sr-only"> {evalId}</span>
+                              </span>
+                            </th>
+                            {modelRows.map((row) => {
+                              const result = row.results.find(
+                                (item) => item.eval === evalId
+                              )
+                              const summary = {
+                                passed: result?.passed ? 1 : 0,
+                                total: result ? 1 : 0,
+                              }
+
+                              return (
+                                <ModelColumnCell
+                                  key={row.experiment}
+                                  experiment={row.experiment}
+                                  label={row.label}
+                                  highlighted={
+                                    hoveredExperiment === row.experiment
+                                  }
+                                  onHoverChange={setHoveredExperiment}
+                                  onSelect={openExperiment}
+                                >
+                                  <ScoreCell
+                                    passed={summary.passed}
+                                    total={summary.total}
+                                  />
+                                </ModelColumnCell>
+                              )
+                            })}
+                            <td className="border-b border-border px-2.5 py-2">
+                              <ScoreCell
+                                passed={totalSummary.passed}
+                                total={totalSummary.total}
+                                isTotal
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })
+                    : null}
+                </tbody>
+              </table>
+            ) : (
+              <div className="grid min-h-72 place-items-center px-6 text-center text-sm text-muted-foreground">
+                No results match the selected filters.
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+      {selectedExperiment ? (
+        <ExperimentSheet
+          experiment={selectedExperiment}
+          sourceResults={sourceResults}
+        />
+      ) : null}
     </Sheet>
   )
 }
 
-function TimelineGroupRow({
-  group,
-  groupBy,
-}: {
-  group: TimelineGroup
-  groupBy: GroupBy
-}) {
-  const isModelGroup = groupBy === "model" && group.passRate != null
-
-  const rowContent = (
-    <div
-      className={cn(
-        pageContainerClassName,
-        "grid grid-cols-1 gap-4 lg:grid-cols-[26rem_minmax(0,1fr)] lg:gap-8"
-      )}
-    >
-      <div className="sticky top-40 z-10 flex min-w-0 flex-col gap-3 self-start pb-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2 className={groupHeadingClassName}>{group.label}</h2>
-          {group.passRate != null ? (
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <p
-                className={cn(
-                  "font-heading text-2xl leading-none font-medium tracking-normal",
-                  getPassRateClass(group.passRate)
-                )}
-              >
-                {group.meta}
-              </p>
-            </div>
-          ) : null}
-        </div>
-        {group.description ? (
-          groupBy === "eval" ? (
-            <code
-              className="inline-flex max-w-full rounded-md border bg-muted/35 px-2 py-1 font-mono text-xs leading-5 text-muted-foreground"
-              title={group.description}
-            >
-              <span className="truncate">{group.description}</span>
-            </code>
-          ) : (
-            <p className="text-sm leading-5 text-muted-foreground">
-              {group.description}
-            </p>
-          )
-        ) : null}
-      </div>
-      <div className="min-w-0">
-        <div className="flex min-w-0 flex-col gap-2">
-          {group.bars.length ? (
-            group.bars.map((bar) => (
-              <SummaryBar
-                key={`${group.id}-${bar.summary.experiment}-${bar.summary.category}-${bar.label}`}
-                label={bar.label}
-                sourceResults={group.sourceResults}
-                summary={bar.summary}
-                interactive={!isModelGroup}
-              />
-            ))
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              No results
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-
-  if (!isModelGroup) {
-    return (
-      <section className="w-full border-b border-border py-10 md:py-12">
-        {rowContent}
-      </section>
-    )
-  }
-
+function EvaluationDetails({ result }: { result: ParsedResult }) {
   return (
-    <Sheet>
-      <section className="relative w-full border-b border-border py-10 transition-colors hover:bg-muted/50 md:py-12">
-        <SheetTrigger asChild>
-          <button
-            type="button"
-            className="absolute inset-0 z-10 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`${group.label} model row`}
-          />
-        </SheetTrigger>
-        {rowContent}
-      </section>
-      <ExperimentSheet
-        experiment={group.id}
-        sourceResults={group.sourceResults}
+    <dl className={evalMetaGridClassName}>
+      {result.prompt ? (
+        <EvalMetadataRow
+          label="Prompt"
+          value={
+            <div className="rounded-md border bg-muted/35">
+              <pre className="max-h-56 overflow-auto px-3 py-2 leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                {result.prompt}
+              </pre>
+            </div>
+          }
+        />
+      ) : null}
+      <EvalMetadataRow label="Attempts" value={result.attempts ?? "-"} />
+      <EvalMetadataRow
+        label="Source"
+        value={<span className="break-all">{result.sourcePath}</span>}
       />
-    </Sheet>
+      <EvalMetadataRow
+        label="Product"
+        value={
+          result.product.length
+            ? result.product.map(formatProductLabel).join(", ")
+            : "-"
+        }
+      />
+      <EvalMetadataRow
+        label="Topic"
+        value={result.topic.map(formatTagLabel).join(", ") || "-"}
+      />
+      {result.checks?.length ? (
+        <EvalMetadataRow
+          label="Result details"
+          value={<ResultChecks checks={result.checks} />}
+        />
+      ) : null}
+      {result.docs?.calls.length ? (
+        <EvalMetadataRow
+          label="Docs activity"
+          value={<ResultDocsCalls calls={result.docs.calls} />}
+        />
+      ) : null}
+    </dl>
   )
 }
 
@@ -951,173 +1167,120 @@ function ExperimentSheet({
 }) {
   const experimentResults = getExperimentResults(experiment, sourceResults)
   const passed = experimentResults.filter((result) => result.passed).length
+  const passRate = experimentResults.length
+    ? Math.round((passed / experimentResults.length) * 100)
+    : null
   const r = results.find((result) => result.experiment === experiment)
   const display = r?.experimentDisplay
   const agentLabel = display ? AGENT_LABELS[display.agent] : experiment
   const modelLabel = display ? formatModelWithModifiers(display) : ""
-  const [isScrolled, setIsScrolled] = useState(false)
+  const [expandedEval, setExpandedEval] = useState<string | null>(null)
+
+  const toggleEval = (evalId: string) => {
+    setExpandedEval((current) => (current === evalId ? null : evalId))
+  }
 
   return (
-    <SheetContent className="max-w-3xl">
-      <SheetHeader className="flex-row items-end justify-between gap-6 border-b-0">
+    <SheetContent className="max-w-4xl shadow-none">
+      <SheetHeader className="flex-row items-end justify-between gap-6">
         <SheetTitle className="flex flex-col gap-1 pr-0 font-heading tracking-normal">
-          <span className="text-3xl leading-none font-medium text-muted-foreground">
+          <span className="text-xl leading-none font-medium text-muted-foreground">
             {agentLabel}
           </span>
-          <span className="text-3xl leading-none font-medium text-foreground">
+          <span className="text-xl leading-none font-medium text-foreground">
             {modelLabel}
           </span>
         </SheetTitle>
         <SheetDescription className="flex shrink-0 flex-col items-end gap-3 pb-0.5 text-right">
           <span>
-            {passed} of {experimentResults.length} evals passed
+            {passed} of {experimentResults.length} evals pass
+            {passRate !== null ? (
+              <>
+                {" / "}
+                <span className={getPassRateClass(passRate)}>{passRate}%</span>
+              </>
+            ) : null}
           </span>
         </SheetDescription>
       </SheetHeader>
-      <div
-        className={cn(
-          "pointer-events-none relative z-10 h-0 opacity-0 transition-opacity",
-          isScrolled && "opacity-100"
-        )}
-      >
-        <div className="absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-background to-transparent" />
-      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table className="w-full min-w-[720px] border-collapse text-[13px]">
+          <thead className="sticky top-0 z-10 bg-secondary/95 text-muted-foreground backdrop-blur">
+            <tr>
+              <th className="w-[38%] border-r border-b border-border pr-3 pl-6 py-2 text-left font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
+                Evaluation
+              </th>
+              <th className="w-28 border-r border-b border-border px-3 py-2 text-left font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
+                Journey
+              </th>
+              <th className="border-r border-b border-border px-3 py-2 text-left font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
+                Product
+              </th>
+              <th className="w-20 border-b border-border px-3 py-2 text-left font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {experimentResults.map((result) => {
+              const expanded = expandedEval === result.eval
+              const stage =
+                JOURNEY_STAGES.find((item) => item.id === result.category)
+                  ?.label ?? "Unknown"
 
-      <div
-        className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-6 pt-3 pb-6"
-        onScroll={(event) => {
-          const nextIsScrolled = event.currentTarget.scrollTop > 0
-          setIsScrolled((current) =>
-            current === nextIsScrolled ? current : nextIsScrolled
-          )
-        }}
-      >
-        {JOURNEY_STAGES.map((stage) => {
-          const stageResults = experimentResults.filter(
-            (result) => result.category === stage.id
-          )
-          const stageGroups = getExperimentStageGroups(
-            experiment,
-            stage.id,
-            sourceResults
-          )
-
-          if (!stageResults.length) {
-            return null
-          }
-
-          return (
-            <section
-              key={stage.id}
-              className="grid grid-cols-1 gap-3 border-t pt-5 sm:grid-cols-[9rem_1fr] sm:items-baseline"
-            >
-              <h2 className={groupHeadingClassName}>{stage.label}</h2>
-              <div className="flex min-w-0 flex-col gap-5">
-                {stageGroups.map((group) => (
-                  <div
-                    key={group.category}
-                    className="flex min-w-0 flex-col gap-2"
+              return (
+                <Fragment key={result.eval}>
+                  <tr
+                    tabIndex={0}
+                    aria-expanded={expanded}
+                    className="cursor-pointer bg-card transition-colors outline-none hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                    onClick={() => toggleEval(result.eval)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        toggleEval(result.eval)
+                      }
+                    }}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className={subgroupLabelClassName}>
-                        {group.category}
-                      </h3>
-                      <span className={subgroupMetaClassName}>
-                        {group.passed}/{group.total}
+                    <th className="border-r border-b border-border pr-3 pl-6 py-2.5 text-left font-normal text-foreground">
+                      {formatEvalName(result.eval)}
+                    </th>
+                    <td className="border-r border-b border-border px-3 py-2.5 text-muted-foreground">
+                      {stage}
+                    </td>
+                    <td className="border-r border-b border-border px-3 py-2.5 text-muted-foreground">
+                      {result.product.length
+                        ? result.product.map(formatProductLabel).join(", ")
+                        : "Unassigned"}
+                    </td>
+                    <td className="border-b border-border px-3 py-2.5">
+                      <span
+                        className={cn(
+                          "font-mono text-xs",
+                          result.passed
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-600 dark:text-red-400"
+                        )}
+                      >
+                        {result.passed ? "Pass" : "Fail"}
                       </span>
-                    </div>
-                    <Accordion type="single" collapsible className="min-w-0">
-                      {group.results.map((result) => (
-                        <AccordionItem key={result.eval} value={result.eval}>
-                          <AccordionTrigger>
-                            <div className="flex w-full min-w-0 flex-1 flex-col gap-2">
-                              <div className="flex items-start justify-between gap-3">
-                                <span className="min-w-0 font-mono text-sm leading-snug font-normal">
-                                  {formatEvalName(result.eval, false)}
-                                </span>
-                                <span
-                                  className={cn(
-                                    "shrink-0 font-mono text-xs tracking-wide",
-                                    result.passed
-                                      ? "text-emerald-600 dark:text-emerald-400"
-                                      : "text-red-600 dark:text-red-400"
-                                  )}
-                                >
-                                  {result.passed ? "Pass" : "Fail"}
-                                </span>
-                              </div>
-                              <div
-                                className={cn(
-                                  "h-[3px] w-full",
-                                  result.passed
-                                    ? "bg-emerald-500"
-                                    : "bg-red-500"
-                                )}
-                              />
-                            </div>
-                          </AccordionTrigger>
-                          <AccordionContent
-                            animated={false}
-                            className="flex flex-col gap-4"
-                          >
-                            <dl className={evalMetaGridClassName}>
-                              <EvalMetadataRow
-                                label="Attempts"
-                                value={result.attempts ?? "-"}
-                              />
-                              <EvalMetadataRow
-                                label="Source"
-                                value={
-                                  <span className="truncate">
-                                    {result.sourcePath}
-                                  </span>
-                                }
-                              />
-                              <EvalMetadataRow
-                                label="Product"
-                                value={result.product.join(", ") || "-"}
-                              />
-                              <EvalMetadataRow
-                                label="Topic"
-                                value={result.topic.join(", ") || "-"}
-                              />
-                              {result.checks?.length ? (
-                                <EvalMetadataRow
-                                  label="Result details"
-                                  value={
-                                    <ResultChecks checks={result.checks} />
-                                  }
-                                />
-                              ) : null}
-                              {result.prompt ? (
-                                <EvalMetadataRow
-                                  label="Prompt"
-                                  value={
-                                    <div className="rounded-md border bg-muted/35">
-                                      <pre className="max-h-56 overflow-auto px-3 py-2 leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                                        {result.prompt}
-                                      </pre>
-                                    </div>
-                                  }
-                                />
-                              ) : null}
-                              {result.docs?.calls.length ? (
-                                <EvalMetadataRow
-                                  label="Docs activity"
-                                  value={<ResultDocsCalls calls={result.docs.calls} />}
-                                />
-                              ) : null}
-                            </dl>
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )
-        })}
+                    </td>
+                  </tr>
+                  {expanded ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="border-b border-border bg-secondary/35 px-6 py-5"
+                      >
+                        <EvaluationDetails result={result} />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </SheetContent>
   )
@@ -1225,24 +1388,65 @@ function ReadDocsButton() {
   )
 }
 
+function EvalOverviewCards() {
+  const cards = [
+    {
+      title: "Real project context",
+      description:
+        "Each eval pairs a task prompt with the seeded remote state and local workspace the scenario requires.",
+      Icon: FileTextIcon,
+    },
+    {
+      title: "Controlled experiments",
+      description:
+        "Every run fixes the agent, model, runtime, tools, and skills, making benchmark comparisons explicit.",
+      Icon: BotIcon,
+    },
+    {
+      title: "Scored outcomes",
+      description:
+        "Scorers evaluate what the agent changed or reported, with checks and run details kept for review.",
+      Icon: CheckIcon,
+    },
+  ]
+
+  return (
+    <section aria-label="How evaluations run">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {cards.map(({ title, description, Icon }) => (
+          <article
+            key={title}
+            className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6"
+          >
+            <Icon className="size-5 text-muted-foreground" aria-hidden />
+            <h2 className="text-base font-medium text-foreground">{title}</h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {description}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function FooterCta() {
   const [patternReplayKey, setPatternReplayKey] = useState(0)
 
   return (
     <footer
-      className="bg-card text-center"
+      className="text-center"
       onMouseEnter={() => setPatternReplayKey((key) => key + 1)}
     >
-      <div className="px-6 py-24 sm:py-28 lg:py-36">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-8">
-          <SupabaseLogo className="h-8" />
-          <h2 className="font-heading text-4xl font-semibold tracking-normal sm:text-5xl sm:leading-none">
+      <div className="px-6 pb-24 sm:pb-28 lg:pb-36">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
+          <h2 className="font-heading text-4xl leading-[1.2] font-medium tracking-normal">
             <span className="block text-foreground">Set your agent free</span>
             <span className="block text-muted-foreground">
               with a Supabase project
             </span>
           </h2>
-          <div className="flex flex-col items-center gap-3 sm:flex-row">
+          <div className="flex flex-col items-center gap-2 sm:flex-row">
             <Button asChild>
               <a
                 href={CREATE_PROJECT_URL}
@@ -1270,18 +1474,18 @@ function FooterCta() {
 }
 
 export function App() {
-  const [groupBy, setGroupBy] = useState<GroupBy>("stage")
+  const [groupBy, setGroupBy] = useState<GroupBy>("model")
   const [selectedExperimentSuite, setSelectedExperimentSuite] =
     useState<SelectedExperimentSuite>("benchmark")
   const experimentSuiteResults = sortedResults.filter(
     (result) => result.experimentSuite === selectedExperimentSuite
   )
-  const timelineGroups = getTimelineGroups(groupBy, experimentSuiteResults)
 
   return (
-    <main className="min-h-svh bg-background text-foreground">
-      {results.length ? (
-        <>
+    <TooltipProvider delayDuration={200}>
+      <main className="min-h-svh bg-background text-foreground">
+        {results.length ? (
+          <>
           <div className="sticky top-0 z-50 border-b border-dotted bg-background">
             <div
               className={cn(
@@ -1305,8 +1509,7 @@ export function App() {
             </div>
           </div>
           <header className="border-b border-border">
-            <HeroGridPattern height={200} />
-            <div className="w-full py-12 sm:pt-16 sm:pb-14 md:pt-20 md:pb-16 lg:pt-28 lg:pb-20 xl:pt-32">
+            <div className="w-full pt-24 pb-20 sm:pb-24 md:pb-28 lg:pb-28">
               <div
                 className={cn(
                   pageContainerClassName,
@@ -1319,56 +1522,44 @@ export function App() {
                       Evaluating agents
                     </span>
                     <span className="block text-muted-foreground">
-                      across Supabase.
+                      across Supabase
                     </span>
                   </h1>
                 </div>
-                <p className="max-w-xl text-base leading-6 text-pretty text-muted-foreground lg:max-w-2xl lg:flex-1 lg:pb-1">
-                  We evaluate model experiments against each step of the
-                  Supabase developer journey, from building application
-                  primitives through deploying, investigating issues, and
-                  resolving production problems with the right project context.
+                <p className="max-w-md text-base leading-6 text-pretty text-muted-foreground lg:flex-none lg:pb-1">
+                  We evaluate model experiments across the Supabase developer
+                  journey, from building and deploying to investigating and
+                  resolving production issues, with real project context.
                 </p>
               </div>
             </div>
           </header>
-          <div className="sticky top-[57px] z-40 border-b border-border bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-            <div
-              className={cn(
-                pageContainerClassName,
-                "flex flex-wrap items-center gap-3 md:justify-between"
-              )}
-            >
-              <GroupByControl value={groupBy} onValueChange={setGroupBy} />
-              <ExperimentSuiteControl
-                value={selectedExperimentSuite}
-                onValueChange={setSelectedExperimentSuite}
-              />
-            </div>
-          </div>
-          <div className="flex flex-col">
-            {timelineGroups.length ? (
-              timelineGroups.map((group) => (
-                <TimelineGroupRow
-                  key={group.id}
-                  group={group}
-                  groupBy={groupBy}
-                />
-              ))
-            ) : (
-              <div className="grid min-h-72 place-items-center px-6 text-center text-sm text-muted-foreground">
-                No results match the selected filters.
-              </div>
+          <div
+            className={cn(
+              pageContainerClassName,
+              "relative z-20 -mt-10 pb-8 md:-mt-16 md:pb-10"
             )}
+          >
+            <ResultsTable
+              sourceResults={experimentSuiteResults}
+              groupBy={groupBy}
+              selectedExperimentSuite={selectedExperimentSuite}
+              onGroupByChange={setGroupBy}
+              onExperimentSuiteChange={setSelectedExperimentSuite}
+            />
+          </div>
+          <div className={cn(pageContainerClassName, "pb-24 md:pb-28")}>
+            <EvalOverviewCards />
           </div>
           <FooterCta />
-        </>
-      ) : (
-        <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
-          No result files found in the repo results directory.
-        </div>
-      )}
-    </main>
+          </>
+        ) : (
+          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
+            No result files found in the repo results directory.
+          </div>
+        )}
+      </main>
+    </TooltipProvider>
   )
 }
 
