@@ -92,6 +92,62 @@ function ciRunUrl(): string | undefined {
 }
 
 /**
+ * What produced this upload — the axis that separates scheduled main
+ * refreshes from PR runs (and local ad-hoc uploads) in Braintrust. Stored as
+ * experiment metadata/tags so the experiments list can be pre-filtered by
+ * BTQL, e.g. `metadata.trigger = 'schedule'` or `metadata.prNumber = '101'`.
+ */
+interface RunContext {
+  trigger: string;
+  branch?: string;
+  prNumber?: string;
+  runId?: string;
+}
+
+function runContext(): RunContext {
+  const event = process.env.GITHUB_EVENT_NAME;
+  if (!event) {
+    let branch: string | undefined;
+    try {
+      branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+        cwd: ROOT,
+        encoding: "utf8",
+      }).trim();
+    } catch {
+      branch = undefined;
+    }
+    return { trigger: "local", branch };
+  }
+  // For PR events GITHUB_REF_NAME is "<number>/merge".
+  const prMatch = /^(\d+)\/merge$/.exec(process.env.GITHUB_REF_NAME ?? "");
+  return {
+    trigger: event,
+    branch: process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME,
+    ...(event === "pull_request" && prMatch ? { prNumber: prMatch[1] } : {}),
+    runId: process.env.GITHUB_RUN_ID,
+  };
+}
+
+/**
+ * Experiments-list URL pre-filtered by BTQL expressions, mirroring the UI's
+ * own format: `?search={"filter":["<expr>"]}` with the expression
+ * URL-encoded inside the JSON and the JSON encoded again.
+ */
+function experimentsFilterUrl(
+  anyExperimentUrl: string,
+  exprs: string[],
+): string | undefined {
+  const marker = "/experiments/";
+  const index = anyExperimentUrl.lastIndexOf(marker);
+  if (index === -1) return undefined;
+  const base = anyExperimentUrl.slice(0, index + marker.length - 1);
+  const search = encodeURIComponent(
+    JSON.stringify({ filter: exprs.map((expr) => encodeURIComponent(expr)) }),
+  );
+  return `${base}?search=${search}`;
+}
+
+/**
  * Most recent prior Braintrust experiment for the same repo experiment, used
  * as the comparison base (score diffs in summarize() and in the UI).
  * Experiments are named `<experiment>@<sha>[-suffix]`; prefer plain-sha names
@@ -138,7 +194,10 @@ interface SummaryRow {
   comparedTo?: string;
 }
 
-function formatSummaryMarkdown(rows: SummaryRow[]): string {
+function formatSummaryMarkdown(
+  rows: SummaryRow[],
+  filterLinks: Array<{ label: string; url: string }>,
+): string {
   const pct = (value: number) => `${Math.round(value * 100)}%`;
   const lines = [
     "<!-- braintrust-eval-results -->",
@@ -155,6 +214,12 @@ function formatSummaryMarkdown(rows: SummaryRow[]): string {
         ? "–"
         : `${row.passedDiff > 0 ? "🟢 +" : row.passedDiff < 0 ? "🔴 " : "⚪ "}${pct(row.passedDiff)} (vs ${row.comparedTo})`;
     lines.push(`| ${name} | ${passed} | ${diff} | ${row.evalCount} |`);
+  }
+  if (filterLinks.length > 0) {
+    lines.push(
+      "",
+      filterLinks.map(({ label, url }) => `[${label}](${url})`).join(" · "),
+    );
   }
   return `${lines.join("\n")}\n`;
 }
@@ -291,6 +356,7 @@ async function upload(
   const sha = gitShortSha();
   const suffix = NAME_SUFFIX ? `-${NAME_SUFFIX}` : "";
   const runUrl = ciRunUrl();
+  const context = runContext();
   const summaryRows: SummaryRow[] = [];
 
   for (const [experiment, pending] of byExperiment) {
@@ -307,6 +373,10 @@ async function upload(
       experiment: name,
       update: UPDATE,
       ...(baseExperiment ? { baseExperiment } : {}),
+      tags: [
+        context.trigger,
+        ...(context.prNumber ? [`pr-${context.prNumber}`] : []),
+      ],
       metadata: {
         source: "supabase-evals",
         experiment,
@@ -316,6 +386,10 @@ async function upload(
         ...(meta?.display ?? {}),
         ...(sha ? { gitShortSha: sha } : {}),
         ...(runUrl ? { ciRunUrl: runUrl } : {}),
+        trigger: context.trigger,
+        ...(context.branch ? { branch: context.branch } : {}),
+        ...(context.prNumber ? { prNumber: context.prNumber } : {}),
+        ...(context.runId ? { ciRunId: context.runId } : {}),
       },
     });
 
@@ -400,8 +474,37 @@ async function upload(
 
   await flush();
 
+  // Pre-filtered experiments-list links for this run's slice of the project
+  // (Braintrust bakes view filters into the URL).
+  const anyUrl = summaryRows.find((row) => row.url)?.url;
+  const filterLinks: Array<{ label: string; url: string }> = [];
+  if (anyUrl) {
+    const add = (label: string, exprs: string[]) => {
+      const url = experimentsFilterUrl(anyUrl, exprs);
+      if (url) filterLinks.push({ label, url });
+    };
+    if (context.runId) {
+      add("All experiments from this CI run", [
+        `metadata.ciRunId = '${context.runId}'`,
+      ]);
+    }
+    if (context.prNumber) {
+      add(`All experiments for PR #${context.prNumber}`, [
+        `metadata.prNumber = '${context.prNumber}'`,
+      ]);
+    }
+    if (context.trigger === "schedule") {
+      add("All scheduled main-branch experiments", [
+        `metadata.trigger = 'schedule'`,
+      ]);
+    }
+    for (const { label, url } of filterLinks) {
+      console.log(`${label}: ${url}`);
+    }
+  }
+
   if (SUMMARY_MD) {
-    await writeFile(SUMMARY_MD, formatSummaryMarkdown(summaryRows));
+    await writeFile(SUMMARY_MD, formatSummaryMarkdown(summaryRows, filterLinks));
     console.log(`Wrote summary to ${SUMMARY_MD}`);
   }
 }
