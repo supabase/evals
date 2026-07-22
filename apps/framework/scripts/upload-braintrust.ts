@@ -19,9 +19,11 @@
  *   --project <name>  Braintrust project name (overrides env)
  *   --name-suffix <s> extra suffix on the Braintrust experiment names
  *   --update          append to existing same-named Braintrust experiments
+ *   --summary-md <p>  write a markdown summary (links + passed Δ vs base),
+ *                     used by CI to post/update a PR comment
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -61,6 +63,7 @@ const DRY = rawArgs.includes("--dry");
 const UPDATE = rawArgs.includes("--update");
 const PROJECT_FLAG = readRepeatedFlag(rawArgs, "project")[0];
 const NAME_SUFFIX = readRepeatedFlag(rawArgs, "name-suffix")[0];
+const SUMMARY_MD = readRepeatedFlag(rawArgs, "summary-md")[0];
 
 const shouldIncludeSuite = makeFilterPredicate<EvalSuite>(SUITE_FILTERS);
 const shouldIncludeExperimentSuite = makeFilterPredicate<ExperimentSuite>(
@@ -86,6 +89,74 @@ function ciRunUrl(): string | undefined {
     return undefined;
   }
   return `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
+}
+
+/**
+ * Most recent prior Braintrust experiment for the same repo experiment, used
+ * as the comparison base (score diffs in summarize() and in the UI).
+ * Experiments are named `<experiment>@<sha>[-suffix]`; prefer plain-sha names
+ * (real refreshes) over suffixed ad-hoc ones. Best-effort: any failure means
+ * "no base", never a broken upload.
+ */
+async function findBaseExperimentName(
+  projectId: string | undefined,
+  experiment: string,
+  currentName: string,
+): Promise<string | undefined> {
+  const apiKey = process.env.BRAINTRUST_API_KEY;
+  if (!projectId || !apiKey) return undefined;
+  try {
+    const response = await fetch(
+      `https://api.braintrust.dev/v1/experiment?project_id=${encodeURIComponent(projectId)}&limit=100`,
+      { headers: { Authorization: `Bearer ${apiKey}` } },
+    );
+    if (!response.ok) return undefined;
+    const body = (await response.json()) as {
+      objects?: Array<{ name?: string }>;
+    };
+    // Objects arrive newest-first.
+    const names = (body.objects ?? [])
+      .map((o) => o.name)
+      .filter(
+        (name): name is string =>
+          typeof name === "string" &&
+          name.startsWith(`${experiment}@`) &&
+          name !== currentName,
+      );
+    return names.find((name) => /^.+@[0-9a-f]{7,}$/.test(name)) ?? names[0];
+  } catch {
+    return undefined;
+  }
+}
+
+interface SummaryRow {
+  name: string;
+  url?: string;
+  evalCount: number;
+  passedScore?: number;
+  passedDiff?: number;
+  comparedTo?: string;
+}
+
+function formatSummaryMarkdown(rows: SummaryRow[]): string {
+  const pct = (value: number) => `${Math.round(value * 100)}%`;
+  const lines = [
+    "<!-- braintrust-eval-results -->",
+    "### Braintrust benchmark results",
+    "",
+    "| Experiment | passed | Δ vs base | evals |",
+    "|---|---|---|---|",
+  ];
+  for (const row of rows) {
+    const name = row.url ? `[${row.name}](${row.url})` : row.name;
+    const passed = row.passedScore !== undefined ? pct(row.passedScore) : "–";
+    const diff =
+      row.passedDiff === undefined || !row.comparedTo
+        ? "–"
+        : `${row.passedDiff > 0 ? "🟢 +" : row.passedDiff < 0 ? "🔴 " : "⚪ "}${pct(row.passedDiff)} (vs ${row.comparedTo})`;
+    lines.push(`| ${name} | ${passed} | ${diff} | ${row.evalCount} |`);
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 interface PendingTrace {
@@ -220,15 +291,22 @@ async function upload(
   const sha = gitShortSha();
   const suffix = NAME_SUFFIX ? `-${NAME_SUFFIX}` : "";
   const runUrl = ciRunUrl();
+  const summaryRows: SummaryRow[] = [];
 
   for (const [experiment, pending] of byExperiment) {
     const name = `${experiment}${sha ? `@${sha}` : ""}${suffix}`;
     const meta = experimentMetadata.get(experiment);
+    const baseExperiment = await findBaseExperimentName(
+      projectId,
+      experiment,
+      name,
+    );
     const btExperiment = init({
       ...(projectName ? { project: projectName } : {}),
       ...(projectId ? { projectId } : {}),
       experiment: name,
       update: UPDATE,
+      ...(baseExperiment ? { baseExperiment } : {}),
       metadata: {
         source: "supabase-evals",
         experiment,
@@ -304,7 +382,16 @@ async function upload(
       root.end({ endTime: trace.endMs / 1000 });
     }
 
-    const summary = await btExperiment.summarize({ summarizeScores: false });
+    const summary = await btExperiment.summarize();
+    const passed = summary.scores?.passed;
+    summaryRows.push({
+      name,
+      url: summary.experimentUrl,
+      evalCount: pending.length,
+      passedScore: passed?.score,
+      passedDiff: passed?.diff,
+      comparedTo: summary.comparisonExperimentName,
+    });
     console.log(
       `Uploaded ${pending.length} eval trace(s) to Braintrust experiment "${name}"` +
         (summary.experimentUrl ? `\n   → ${summary.experimentUrl}` : ""),
@@ -312,6 +399,11 @@ async function upload(
   }
 
   await flush();
+
+  if (SUMMARY_MD) {
+    await writeFile(SUMMARY_MD, formatSummaryMarkdown(summaryRows));
+    console.log(`Wrote summary to ${SUMMARY_MD}`);
+  }
 }
 
 async function main() {

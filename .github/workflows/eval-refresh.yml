@@ -460,8 +460,10 @@ jobs:
           set -euo pipefail
 
           pairs='${{ needs.prepare.outputs.pairs }}'
+          summary_md="$RUNNER_TEMP/braintrust-summary.md"
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
-            pnpm --filter @supabase-evals/framework upload-braintrust -- --suite benchmark
+            pnpm --filter @supabase-evals/framework upload-braintrust -- \
+              --suite benchmark --summary-md "$summary_md"
           fi
 
           # Custom-mode pairs aren't tagged benchmark/regression (that field
@@ -475,7 +477,38 @@ jobs:
             pnpm --filter @supabase-evals/framework upload-braintrust -- \
               --eval "$custom_evals" \
               --experiment "$custom_experiments" \
-              --name-suffix "-custom-${{ github.ref_name }}"
+              --name-suffix "-custom-${{ github.ref_name }}" \
+              --summary-md "$summary_md"
+          fi
+
+          if [ -f "$summary_md" ]; then
+            cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Comment Braintrust results on PR
+        # Single auto-updating comment (matched by the hidden marker), same
+        # reviewer experience as braintrustdata/eval-action but fed by our
+        # own uploader. Never blocks the publish path.
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          summary="$RUNNER_TEMP/braintrust-summary.md"
+          if [ ! -f "$summary" ]; then
+            echo "no Braintrust summary to post"
+            exit 0
+          fi
+          marker='<!-- braintrust-eval-results -->'
+          comment_id=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --paginate -q ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$comment_id" -F body=@"$summary"
+          else
+            gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" -F body=@"$summary"
           fi
 
       - name: Upload exported results
