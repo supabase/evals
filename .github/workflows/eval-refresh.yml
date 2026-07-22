@@ -451,7 +451,7 @@ jobs:
           delete-branch: true
 
       - name: Merge scheduled results pull request
-        # No checks or reviews to wait on, so merge right away.
+        # The app is on the ruleset's bypass list, so no review is required.
         if: github.event_name == 'schedule' && steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
