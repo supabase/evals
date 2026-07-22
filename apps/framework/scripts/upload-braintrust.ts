@@ -19,8 +19,10 @@
  *   --project <name>  Braintrust project name (overrides env)
  *   --name-suffix <s> extra suffix on the Braintrust experiment names
  *   --update          append to existing same-named Braintrust experiments
- *   --summary-md <p>  write a markdown summary (links + passed Δ vs base),
+ *   --summary-md <p>  write a markdown summary (links + passed Δ vs main),
  *                     used by CI to post/update a PR comment
+ *   --set-baseline    mark these experiments as the latest-main baseline
+ *                     (passed by CI only for full refreshes on main)
  */
 
 import { readFile, writeFile } from "node:fs/promises";
@@ -64,6 +66,7 @@ const UPDATE = rawArgs.includes("--update");
 const PROJECT_FLAG = readRepeatedFlag(rawArgs, "project")[0];
 const NAME_SUFFIX = readRepeatedFlag(rawArgs, "name-suffix")[0];
 const SUMMARY_MD = readRepeatedFlag(rawArgs, "summary-md")[0];
+const SET_BASELINE = rawArgs.includes("--set-baseline");
 
 const shouldIncludeSuite = makeFilterPredicate<EvalSuite>(SUITE_FILTERS);
 const shouldIncludeExperimentSuite = makeFilterPredicate<ExperimentSuite>(
@@ -92,39 +95,36 @@ function ciRunUrl(): string | undefined {
 }
 
 /**
- * What produced this upload — the axis that separates scheduled main
- * refreshes from PR runs (and local ad-hoc uploads) in Braintrust. Stored as
- * experiment metadata/tags so the experiments list can be pre-filtered by
- * BTQL, e.g. `metadata.trigger = 'schedule'` or `metadata.prNumber = '101'`.
+ * Which branch (and PR, if any) produced this upload, stored as experiment
+ * metadata. `branch` gates whether --set-baseline may stamp `latestMain`
+ * (the marker PR runs compare against); `prNumber` powers the "results for
+ * this PR" filter link.
  */
 interface RunContext {
-  trigger: string;
   branch?: string;
   prNumber?: string;
-  runId?: string;
 }
 
 function runContext(): RunContext {
-  const event = process.env.GITHUB_EVENT_NAME;
-  if (!event) {
-    let branch: string | undefined;
+  if (!process.env.GITHUB_EVENT_NAME) {
     try {
-      branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-        cwd: ROOT,
-        encoding: "utf8",
-      }).trim();
+      return {
+        branch: execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+          cwd: ROOT,
+          encoding: "utf8",
+        }).trim(),
+      };
     } catch {
-      branch = undefined;
+      return {};
     }
-    return { trigger: "local", branch };
   }
   // For PR events GITHUB_REF_NAME is "<number>/merge".
   const prMatch = /^(\d+)\/merge$/.exec(process.env.GITHUB_REF_NAME ?? "");
   return {
-    trigger: event,
     branch: process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME,
-    ...(event === "pull_request" && prMatch ? { prNumber: prMatch[1] } : {}),
-    runId: process.env.GITHUB_RUN_ID,
+    ...(process.env.GITHUB_EVENT_NAME === "pull_request" && prMatch
+      ? { prNumber: prMatch[1] }
+      : {}),
   };
 }
 
@@ -135,63 +135,109 @@ function runContext(): RunContext {
  */
 function experimentsFilterUrl(
   anyExperimentUrl: string,
-  exprs: string[],
+  expr: string,
 ): string | undefined {
   const marker = "/experiments/";
   const index = anyExperimentUrl.lastIndexOf(marker);
   if (index === -1) return undefined;
   const base = anyExperimentUrl.slice(0, index + marker.length - 1);
   const search = encodeURIComponent(
-    JSON.stringify({ filter: exprs.map((expr) => encodeURIComponent(expr)) }),
+    JSON.stringify({ filter: [encodeURIComponent(expr)] }),
   );
   return `${base}?search=${search}`;
 }
 
+interface BaselineExperiment {
+  id: string;
+  name: string;
+}
+
 /**
- * Most recent prior Braintrust experiment for the same repo experiment, used
- * as the comparison base (score diffs in summarize() and in the UI).
- * Experiments are named `<experiment>@<sha>[-suffix]`; prefer plain-sha names
- * (real refreshes) over suffixed ad-hoc ones. Best-effort: any failure means
- * "no base", never a broken upload.
+ * The Braintrust experiment marked `latestMain` for this repo experiment —
+ * the source-of-truth baseline every run compares against. Main refreshes
+ * mark themselves and demote the previous holder (see setLatestMain), so
+ * exactly one experiment per model carries the marker; ties (a failed
+ * demotion) break to the newest. The repo experiment name already encodes
+ * agent + model + skills, so metadata equality is an exact identity match.
+ * Best-effort: any failure means "no base", never a broken upload.
  */
-async function findBaseExperimentName(
+async function findMainBaseline(
   projectId: string | undefined,
   experiment: string,
   currentName: string,
-): Promise<string | undefined> {
+): Promise<BaselineExperiment | undefined> {
   const apiKey = process.env.BRAINTRUST_API_KEY;
   if (!projectId || !apiKey) return undefined;
   try {
+    const metadata = encodeURIComponent(
+      JSON.stringify({ experiment, latestMain: true }),
+    );
     const response = await fetch(
-      `https://api.braintrust.dev/v1/experiment?project_id=${encodeURIComponent(projectId)}&limit=100`,
+      `https://api.braintrust.dev/v1/experiment?project_id=${encodeURIComponent(projectId)}&metadata=${metadata}&limit=10`,
       { headers: { Authorization: `Bearer ${apiKey}` } },
     );
     if (!response.ok) return undefined;
     const body = (await response.json()) as {
-      objects?: Array<{ name?: string }>;
+      objects?: Array<{ id?: string; name?: string; created?: string }>;
     };
-    // Objects arrive newest-first.
-    const names = (body.objects ?? [])
-      .map((o) => o.name)
+    const candidate = (body.objects ?? [])
       .filter(
-        (name): name is string =>
-          typeof name === "string" &&
-          name.startsWith(`${experiment}@`) &&
-          name !== currentName,
-      );
-    return names.find((name) => /^.+@[0-9a-f]{7,}$/.test(name)) ?? names[0];
+        (o): o is { id: string; name: string; created?: string } =>
+          typeof o.id === "string" &&
+          typeof o.name === "string" &&
+          o.name !== currentName,
+      )
+      .sort((a, b) => (b.created ?? "").localeCompare(a.created ?? ""))[0];
+    return candidate ? { id: candidate.id, name: candidate.name } : undefined;
   } catch {
     return undefined;
   }
 }
 
+/**
+ * Set or clear an experiment's `latestMain` marker (best-effort). PATCH
+ * merges metadata, and a null value no longer matches `latestMain = true`
+ * filters (verified against the API). Promotion happens only after a
+ * successful upload+summarize, so a crashed main refresh can never win the
+ * baseline tie-break; a failed demotion leaves two holders, which
+ * findMainBaseline resolves to the newest.
+ */
+async function setLatestMain(
+  experimentId: string,
+  value: true | null,
+): Promise<void> {
+  const apiKey = process.env.BRAINTRUST_API_KEY;
+  if (!apiKey) return;
+  try {
+    const response = await fetch(
+      `https://api.braintrust.dev/v1/experiment/${experimentId}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ metadata: { latestMain: value } }),
+      },
+    );
+    if (!response.ok) {
+      console.warn(`latestMain update failed (${response.status}) for ${experimentId}`);
+    }
+  } catch (error) {
+    console.warn(`latestMain update failed for ${experimentId}: ${String(error)}`);
+  }
+}
+
 interface SummaryRow {
-  name: string;
+  /** Repo experiment name (identity: agent + model + skills). */
+  experiment: string;
   url?: string;
   evalCount: number;
-  passedScore?: number;
+  passedCount: number;
   passedDiff?: number;
-  comparedTo?: string;
+  baseName?: string;
+  /** PR experiment page pre-compared against the main baseline (`?c=`). */
+  compareUrl?: string;
 }
 
 function formatSummaryMarkdown(
@@ -203,17 +249,25 @@ function formatSummaryMarkdown(
     "<!-- braintrust-eval-results -->",
     "### Braintrust benchmark results",
     "",
-    "| Experiment | passed | Δ vs base | evals |",
-    "|---|---|---|---|",
+    "| Experiment | passed | Δ vs main |",
+    "|---|---|---|",
   ];
   for (const row of rows) {
-    const name = row.url ? `[${row.name}](${row.url})` : row.name;
-    const passed = row.passedScore !== undefined ? pct(row.passedScore) : "–";
-    const diff =
-      row.passedDiff === undefined || !row.comparedTo
-        ? "–"
-        : `${row.passedDiff > 0 ? "🟢 +" : row.passedDiff < 0 ? "🔴 " : "⚪ "}${pct(row.passedDiff)} (vs ${row.comparedTo})`;
-    lines.push(`| ${name} | ${passed} | ${diff} | ${row.evalCount} |`);
+    const name = row.url ? `[${row.experiment}](${row.url})` : row.experiment;
+    const passed = `${row.passedCount}/${row.evalCount} · ${pct(row.passedCount / Math.max(row.evalCount, 1))}`;
+    let diff = "– (no main baseline)";
+    if (row.baseName) {
+      const sha = row.baseName.split("@")[1];
+      const base = sha ? `main@${sha}` : row.baseName;
+      let label = `– vs ${base}`;
+      if (row.passedDiff !== undefined) {
+        const points = Math.round(row.passedDiff * 100);
+        const glyph = points > 0 ? "🟢 +" : points < 0 ? "🔴 " : "⚪ ";
+        label = `${glyph}${points}% vs ${base}`;
+      }
+      diff = row.compareUrl ? `[${label}](${row.compareUrl})` : label;
+    }
+    lines.push(`| ${name} | ${passed} | ${diff} |`);
   }
   if (filterLinks.length > 0) {
     lines.push(
@@ -359,24 +413,24 @@ async function upload(
   const context = runContext();
   const summaryRows: SummaryRow[] = [];
 
+  // Becoming the baseline is opt-in (--set-baseline, passed by CI only for
+  // full refreshes on main) with belt-and-braces local guards.
+  const isMainRefresh =
+    SET_BASELINE &&
+    context.branch === "main" &&
+    !context.prNumber &&
+    !NAME_SUFFIX;
+
   for (const [experiment, pending] of byExperiment) {
     const name = `${experiment}${sha ? `@${sha}` : ""}${suffix}`;
     const meta = experimentMetadata.get(experiment);
-    const baseExperiment = await findBaseExperimentName(
-      projectId,
-      experiment,
-      name,
-    );
+    const baseline = await findMainBaseline(projectId, experiment, name);
     const btExperiment = init({
       ...(projectName ? { project: projectName } : {}),
       ...(projectId ? { projectId } : {}),
       experiment: name,
       update: UPDATE,
-      ...(baseExperiment ? { baseExperiment } : {}),
-      tags: [
-        context.trigger,
-        ...(context.prNumber ? [`pr-${context.prNumber}`] : []),
-      ],
+      ...(baseline ? { baseExperiment: baseline.name } : {}),
       metadata: {
         source: "supabase-evals",
         experiment,
@@ -386,10 +440,8 @@ async function upload(
         ...(meta?.display ?? {}),
         ...(sha ? { gitShortSha: sha } : {}),
         ...(runUrl ? { ciRunUrl: runUrl } : {}),
-        trigger: context.trigger,
         ...(context.branch ? { branch: context.branch } : {}),
         ...(context.prNumber ? { prNumber: context.prNumber } : {}),
-        ...(context.runId ? { ciRunId: context.runId } : {}),
       },
     });
 
@@ -457,14 +509,33 @@ async function upload(
     }
 
     const summary = await btExperiment.summarize();
-    const passed = summary.scores?.passed;
+    if (isMainRefresh && summary.experimentId) {
+      await setLatestMain(summary.experimentId, true);
+      if (baseline) await setLatestMain(baseline.id, null);
+    }
+    // Only trust the diff when it is against the baseline we selected — with
+    // none set, Braintrust auto-picks a base by git ancestry, which could be
+    // another PR's experiment.
+    const baseName =
+      baseline && summary.comparisonExperimentName === baseline.name
+        ? baseline.name
+        : undefined;
     summaryRows.push({
-      name,
+      experiment,
       url: summary.experimentUrl,
       evalCount: pending.length,
-      passedScore: passed?.score,
-      passedDiff: passed?.diff,
-      comparedTo: summary.comparisonExperimentName,
+      passedCount: pending.filter(({ trace }) => trace.scores.passed === 1)
+        .length,
+      ...(baseName ? { passedDiff: summary.scores?.passed?.diff } : {}),
+      baseName,
+      // `?c=` opens the experiment pre-compared against the baseline
+      // (observed from the Braintrust UI's own comparison URLs; not a
+      // documented param — worst case the link opens uncompared).
+      ...(summary.experimentUrl && baseName
+        ? {
+            compareUrl: `${summary.experimentUrl}?c=${encodeURIComponent(baseName)}`,
+          }
+        : {}),
     });
     console.log(
       `Uploaded ${pending.length} eval trace(s) to Braintrust experiment "${name}"` +
@@ -474,30 +545,22 @@ async function upload(
 
   await flush();
 
-  // Pre-filtered experiments-list links for this run's slice of the project
-  // (Braintrust bakes view filters into the URL).
+  // Pre-filtered experiments-list links (Braintrust bakes view filters into
+  // the URL): this PR's experiments, and the main-branch baseline history.
   const anyUrl = summaryRows.find((row) => row.url)?.url;
   const filterLinks: Array<{ label: string; url: string }> = [];
   if (anyUrl) {
-    const add = (label: string, exprs: string[]) => {
-      const url = experimentsFilterUrl(anyUrl, exprs);
+    const add = (label: string, expr: string) => {
+      const url = experimentsFilterUrl(anyUrl, expr);
       if (url) filterLinks.push({ label, url });
     };
-    if (context.runId) {
-      add("All experiments from this CI run", [
-        `metadata.ciRunId = '${context.runId}'`,
-      ]);
-    }
     if (context.prNumber) {
-      add(`All experiments for PR #${context.prNumber}`, [
+      add(
+        `Braintrust results for PR #${context.prNumber}`,
         `metadata.prNumber = '${context.prNumber}'`,
-      ]);
+      );
     }
-    if (context.trigger === "schedule") {
-      add("All scheduled main-branch experiments", [
-        `metadata.trigger = 'schedule'`,
-      ]);
-    }
+    add("Latest main results", `metadata.latestMain = true`);
     for (const { label, url } of filterLinks) {
       console.log(`${label}: ${url}`);
     }

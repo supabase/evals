@@ -461,9 +461,21 @@ jobs:
 
           pairs='${{ needs.prepare.outputs.pairs }}'
           summary_md="$RUNNER_TEMP/braintrust-summary.md"
+
+          # Only a FULL benchmark refresh on main may become the latest-main
+          # baseline PRs compare against — never PR runs, never dispatches
+          # that filtered to a subset of evals/experiments.
+          baseline_args=()
+          if [ "${{ github.event_name }}" != "pull_request" ] && \
+             [ "${{ github.ref_name }}" = "main" ] && \
+             [ -z "${{ inputs.experiments }}" ] && [ -z "${{ inputs.eval }}" ]; then
+            baseline_args+=(--set-baseline)
+          fi
+
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
             pnpm --filter @supabase-evals/framework upload-braintrust -- \
-              --suite benchmark --summary-md "$summary_md"
+              --suite benchmark --summary-md "$summary_md" \
+              ${baseline_args[@]+"${baseline_args[@]}"}
           fi
 
           # Custom-mode pairs aren't tagged benchmark/regression (that field
