@@ -36,6 +36,7 @@ import {
 } from "@supabase-evals/core";
 import type {
   EvalSuite,
+  ExperimentDisplayMetadata,
   ExperimentSuite,
 } from "@supabase-evals/core/eval-metadata";
 import {
@@ -148,27 +149,45 @@ function experimentsFilterUrl(
 }
 
 /**
- * The experiments marked `latestMain` for this repo experiment. `baseline`
- * (the newest holder's name) is the source-of-truth base every run compares
- * against;
+ * The identity fields that together pin down "the same experiment config"
+ * across refreshes — decomposed so each is independently filterable/groupable
+ * in the Braintrust UI, rather than one opaque repo experiment name. `skills`
+ * is joined into a stable, order-independent string for exact-match
+ * filtering (the config's own array order is otherwise arbitrary).
+ */
+function identityKey(display: ExperimentDisplayMetadata | undefined) {
+  return {
+    agent: display?.agent,
+    modelProvider: display?.modelProvider,
+    modelId: display?.modelId,
+    ...(display?.reasoningEffort
+      ? { reasoningEffort: display.reasoningEffort }
+      : {}),
+    skills: [...(display?.skills ?? [])].sort().join(","),
+  };
+}
+
+/**
+ * The experiments marked `latestMain` for this identity (agent + model +
+ * reasoning effort + skills — see `identityKey`). `baseline` (the newest
+ * holder's name) is the source-of-truth base every run compares against;
  * `holderIds` is every current holder, saved BEFORE uploading so a main
  * refresh can demote them all only after the new batch is fully uploaded —
  * if the upload dies, the old baselines keep the marker. Clearing every
  * holder (not just the newest) also self-heals duplicates left by a past
- * failed demotion. The repo experiment name already encodes agent + model +
- * skills, so metadata equality is an exact identity match. Best-effort: any
- * failure means "no base", never a broken upload.
+ * failed demotion. Best-effort: any failure means "no base", never a broken
+ * upload.
  */
 async function findMainBaseline(
   projectId: string | undefined,
-  experiment: string,
+  display: ExperimentDisplayMetadata | undefined,
   currentName: string,
 ): Promise<{ baseline?: string; holderIds: string[] }> {
   const apiKey = process.env.BRAINTRUST_API_KEY;
   if (!projectId || !apiKey) return { holderIds: [] };
   try {
     const metadata = encodeURIComponent(
-      JSON.stringify({ experiment, latestMain: true }),
+      JSON.stringify({ ...identityKey(display), latestMain: true }),
     );
     const response = await fetch(
       `https://api.braintrust.dev/v1/experiment?project_id=${encodeURIComponent(projectId)}&metadata=${metadata}&limit=100`,
@@ -431,7 +450,7 @@ async function upload(
     const meta = experimentMetadata.get(experiment);
     const { baseline, holderIds } = await findMainBaseline(
       projectId,
-      experiment,
+      meta?.display,
       name,
     );
     const btExperiment = init({
@@ -442,7 +461,6 @@ async function upload(
       ...(baseline ? { baseExperiment: baseline } : {}),
       metadata: {
         source: "supabase-evals",
-        experiment,
         ...(meta?.experimentSuite
           ? { experimentSuite: meta.experimentSuite }
           : {}),

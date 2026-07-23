@@ -81,6 +81,8 @@ export const experimentDisplayMetadataSchema = z.object({
   modelProvider: modelProviderSchema,
   modelId: z.string(),
   reasoningEffort: reasoningEffortSchema.optional(),
+  /** Skill names installed for this experiment (empty for a no-skills variant). */
+  skills: z.array(z.string()).optional(),
 });
 export type ExperimentDisplayMetadata = z.infer<
   typeof experimentDisplayMetadataSchema

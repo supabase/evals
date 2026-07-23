@@ -575,7 +575,7 @@ export type ExperimentConfig = {
 export function getExperimentDisplayMetadata(
   config: ExperimentConfig
 ): ExperimentDisplayMetadata {
-  return config.agent.metadata;
+  return { ...config.agent.metadata, skills: config.skills };
 }
 
 export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
