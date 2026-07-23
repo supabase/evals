@@ -131,6 +131,12 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
  * would FAIL against the hosted ClickHouse endpoint, and vice versa. Extend
  * only from observed model output, never speculatively.
  *
+ * UNMODELED sources error loudly: workflow_run_logs (branch-action preset) and
+ * realtime_logs (realtime preset) have no backing table in platform-lite, so a
+ * query naming them throws here instead of silently returning 0 rows — an
+ * empty result would read as "no logs", green-lighting an eval the fixture
+ * cannot actually serve. The error surfaces to the model like any other.
+ *
  * PROVENANCE: none of this is importable. The real dialect boundary lives in
  * the hosted platform's Logflare/ClickHouse backend (supabase/platform#35096,
  * platform-internal); mcp ships only tool descriptions, and ClickHouse
@@ -142,7 +148,15 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
  * (fixed-date seeds), so window-correctness of model queries is NOT exercised
  * locally. A time-window-discriminating eval needs relative-time seeding.
  */
+const UNMODELED_SOURCES = /\b(workflow_run_logs|realtime_logs)\b/i
+
 export function compileClickHouseLogsSql(sql: string): string {
+  const unmodeled = UNMODELED_SOURCES.exec(sql)
+  if (unmodeled) {
+    throw new Error(
+      `source '${unmodeled[1]}' is not modeled by platform-lite — no backing table, so results would be silently empty`
+    )
+  }
   return sql
     .replace(/\blog_attributes\['([^']+)'\]/gi, (_m, key: string) => `(log_attributes->>'${key}')`)
     .replace(/\bcountIf\s*\(/gi, 'count(*) FILTER (WHERE ')

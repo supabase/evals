@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import type { ProjectStore } from '../src/project-store.js'
-import type { ProjectInstance } from '../src/project/ProjectInstance.js'
+import { ProjectInstance } from '../src/project/ProjectInstance.js'
 import { LOGS_BASE_SQL, seedLogRow } from '../src/project/log-seeding.js'
 import { compileClickHouseLogsSql, createDebuggingRoutes } from '../src/management-api/debugging.js'
 
@@ -84,6 +84,18 @@ describe('compileClickHouseLogsSql + unified logs view', () => {
     ).rejects.toThrow(/operator does not exist/i)
   })
 
+  it.each(['workflow_run_logs', 'realtime_logs'])(
+    'rejects the unmodeled %s source loudly instead of returning 0 rows',
+    (source) => {
+      // No backing table exists for these preset sources; a silent empty
+      // result would read as "no logs" and green-light an eval the fixture
+      // cannot serve. The translator throws before any SQL runs.
+      expect(() =>
+        compileClickHouseLogsSql(`select id from logs where source = '${source}' limit 10`)
+      ).toThrow(/not modeled/i)
+    }
+  )
+
   it('runs the runtime (function_logs) preset source', async () => {
     const result = await logsDb.query<{ function_id: string; level: string; severity_text: string }>(
       compileClickHouseLogsSql(
@@ -129,10 +141,13 @@ order by error_count desc`,
 })
 
 // Route-level contract: the read-only guarantee must hold at the HTTP boundary
-// where model-authored SQL arrives, not just in the translator. Dedicated DB so
-// a failing guard can't poison the other tests' fixture rows.
+// where model-authored SQL arrives, not just in the translator. A real
+// ProjectInstance (constructor is init-free; the route only touches logsDb) in
+// a real Map — the exact ProjectStore shape, no casts. Dedicated instance so a
+// failing guard can't poison the other tests' fixture rows.
 describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
-  const routeDb = new PGlite()
+  const project = new ProjectInstance('proj', 'proj', 'test-org')
+  const routeDb = project.logsDb
   const ready = (async () => {
     await routeDb.exec(LOGS_BASE_SQL)
     for (const id of ['r1', 'r2']) {
@@ -146,14 +161,10 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
       })
     }
   })()
-  afterAll(() => routeDb.close())
+  afterAll(() => project.close())
 
-  // Minimal fake: the routes only call store.get(ref) and touch project.logsDb.
-  // Pick<> keeps the used surface type-checked; the single cast is confined to
-  // the fake project object, whose other ProjectInstance fields are never read.
-  const fakeProject = { logsDb: routeDb } as Partial<ProjectInstance> as ProjectInstance
-  const store: Pick<ProjectStore, 'get'> = { get: (ref) => (ref === 'proj' ? fakeProject : undefined) }
-  const { app } = createDebuggingRoutes(store as ProjectStore)
+  const store: ProjectStore = new Map([['proj', project]])
+  const { app } = createDebuggingRoutes(store)
   const url = (sql: string) => `/v1/projects/proj/analytics/endpoints/logs?sql=${encodeURIComponent(sql)}`
   const countRows = async () =>
     Number((await routeDb.query<{ n: string }>('select count(*) as n from function_edge_logs')).rows[0]!.n)
@@ -193,5 +204,14 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
     expect(body.error).toBe(body.message)
     expect(body.result).toEqual([])
     expect(await countRows()).toBe(before)
+  })
+
+  it('surfaces the unmodeled-source error through the HTTP boundary', async () => {
+    await ready
+    const res = await app.request(url("select id from logs where source = 'realtime_logs' limit 10"))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { result: unknown[]; error?: string }
+    expect(body.error).toMatch(/not modeled/i)
+    expect(body.result).toEqual([])
   })
 })
