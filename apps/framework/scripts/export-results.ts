@@ -66,6 +66,7 @@ const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const MERGE = rawArgs.includes("--merge");
+const REQUESTED_PAIRS = new Set(readRepeatedFlag(rawArgs, "requested"));
 
 const OUTPUT_FLAG = readRepeatedFlag(rawArgs, "output")[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
@@ -275,11 +276,17 @@ async function main() {
     const existing: EvalResult[] = JSON.parse(
       await readFile(outputPath, "utf8"),
     );
-    const replaced = new Set(
+    const produced = new Set(
       newResults.map((r) => `${r.experiment}::${r.eval}`),
     );
     results = [
-      ...existing.filter((r) => !replaced.has(`${r.experiment}::${r.eval}`)),
+      ...existing.filter((r) => {
+        const key = `${r.experiment}::${r.eval}`;
+        // Dropped below: replaced by a fresh result, or requested this run
+        // but no result file was produced for it (e.g. skipEval now excludes
+        // it) — either way the stale row must not survive the merge.
+        return !produced.has(key) && !REQUESTED_PAIRS.has(key);
+      }),
       ...newResults,
     ].sort(
       (a, b) =>

@@ -380,6 +380,8 @@ jobs:
             export_args=(--suite benchmark --output apps/web/src/data/eval-results.json)
             if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
               export_args+=(--merge)
+              requested="$(jq -r '[.[] | select(.eval_suite == "benchmark") | "\(.experiment)::\(.eval_id)"] | join(",")' <<< "$pairs")"
+              [ -n "$requested" ] && export_args+=(--requested "$requested")
             fi
             pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
           fi
@@ -388,6 +390,8 @@ jobs:
             export_args=(--suite regression --output apps/web/src/data/regression-eval-results.json)
             if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
               export_args+=(--merge)
+              requested="$(jq -r '[.[] | select(.eval_suite == "regression") | "\(.experiment)::\(.eval_id)"] | join(",")' <<< "$pairs")"
+              [ -n "$requested" ] && export_args+=(--requested "$requested")
             fi
             pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
           fi
