@@ -19,11 +19,11 @@
  * specific agent, so adding one never touches this file.
  */
 
-import type { AgentHarness, AgentRunResult } from "../index.js";
-import type { ModelProvider, ReasoningEffortLevel } from "../eval-metadata.js";
-import { adaptTranscript } from "../parsers/adapt.js";
-import type { AgentTranscriptParser } from "../parsers/types.js";
-import type { AgentRunner } from "./types.js";
+import type { AgentHarness, AgentRunResult } from '../index.js';
+import type { ModelProvider, ReasoningEffortLevel } from '../eval-metadata.js';
+import { adaptTranscript } from '../parsers/adapt.js';
+import type { AgentTranscriptParser } from '../parsers/types.js';
+import type { AgentRunner } from './types.js';
 import {
   SCRATCH,
   SYSTEM_PROMPT_PATH,
@@ -31,16 +31,16 @@ import {
   processStopReason,
   rewriteLoopback,
   writeSandboxFile,
-} from "./shared.js";
+} from './shared.js';
 
-function modelProviderForAgent(id: AgentRunner["id"]): ModelProvider {
+function modelProviderForAgent(id: AgentRunner['id']): ModelProvider {
   switch (id) {
-    case "claude-code":
-      return "anthropic";
-    case "codex":
-      return "openai";
-    case "ai-sdk":
-      throw new Error("ai-sdk agents are not created through createCliAgent");
+    case 'claude-code':
+      return 'anthropic';
+    case 'codex':
+      return 'openai';
+    case 'ai-sdk':
+      throw new Error('ai-sdk agents are not created through createCliAgent');
   }
 }
 
@@ -52,7 +52,7 @@ export function createCliAgent<M extends string = string>(
     model: M;
     cliVersion?: string;
     reasoningEffort?: ReasoningEffortLevel;
-  },
+  }
 ): AgentHarness {
   const version = options.cliVersion ?? runner.defaultCliVersion;
   return {
@@ -75,7 +75,7 @@ export function createCliAgent<M extends string = string>(
       const sandbox = args.sandbox;
       if (!sandbox) {
         throw new Error(
-          `${runner.displayName} is a CLI agent and needs a sandbox to run in.`,
+          `${runner.displayName} is a CLI agent and needs a sandbox to run in.`
         );
       }
 
@@ -109,7 +109,8 @@ export function createCliAgent<M extends string = string>(
         toolCalls: adapted.toolCalls,
         transcript: adapted.transcript,
         steps: adapted.steps,
-        stoppedReason: runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
+        stoppedReason:
+          runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
       };
     },
   };
@@ -119,7 +120,7 @@ function requireApiKey(runner: AgentRunner): string {
   const apiKey = process.env[runner.apiKeyEnvVar];
   if (!apiKey) {
     throw new Error(
-      `Missing ${runner.displayName} credentials. Set ${runner.apiKeyEnvVar} before running ${runner.id} evals.`,
+      `Missing ${runner.displayName} credentials. Set ${runner.apiKeyEnvVar} before running ${runner.id} evals.`
     );
   }
   return apiKey;

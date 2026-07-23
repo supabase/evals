@@ -18,16 +18,22 @@
  * format (event_msg/response_item) that older parsers targeted.
  */
 
-import { isRecord, parseJsonlRecords } from "../../json.js";
-import type { ParsedTranscript, TranscriptEvent } from "../../transcript/types.js";
-import type { AgentTranscriptParser } from "../../parsers/types.js";
-import { normalizeToolName, type AgentToolMap } from "../../parsers/shared/normalize.js";
+import { isRecord, parseJsonlRecords } from '../../json.js';
+import type {
+  ParsedTranscript,
+  TranscriptEvent,
+} from '../../transcript/types.js';
+import type { AgentTranscriptParser } from '../../parsers/types.js';
+import {
+  normalizeToolName,
+  type AgentToolMap,
+} from '../../parsers/shared/normalize.js';
 import {
   extractArgs,
   extractLoadedSkillFromText,
   type ArgFieldMap,
   type ExtractedArgs,
-} from "../../parsers/shared/extract.js";
+} from '../../parsers/shared/extract.js';
 
 /**
  * Codex's tool names → canonical names. Codex names built-in tools by item type
@@ -35,13 +41,13 @@ import {
  */
 const CODEX_TOOLS: AgentToolMap = {
   tools: {
-    command_execution: "shell",
-    exec_command: "shell",
-    local_shell_call: "shell",
-    file_change: "file_write",
-    apply_patch: "file_write",
-    web_search: "web_search",
-    mcp_tool_call: "tool_use",
+    command_execution: 'shell',
+    exec_command: 'shell',
+    local_shell_call: 'shell',
+    file_change: 'file_write',
+    apply_patch: 'file_write',
+    web_search: 'web_search',
+    mcp_tool_call: 'tool_use',
   },
 };
 
@@ -51,11 +57,11 @@ const CODEX_TOOLS: AgentToolMap = {
  * so it's extracted directly (see `firstChangedPath`) rather than via this map.
  */
 const CODEX_ARG_FIELDS: ArgFieldMap = {
-  command: ["command"],
+  command: ['command'],
 };
 
 function str(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
+  return typeof value === 'string' ? value : undefined;
 }
 
 /**
@@ -65,8 +71,8 @@ function str(value: unknown): string | undefined {
  * tool item with no status isn't silently scored as a success.
  */
 function statusSuccess(status: unknown): boolean | undefined {
-  if (status === "completed") return true;
-  if (status === "failed") return false;
+  if (status === 'completed') return true;
+  if (status === 'failed') return false;
   return undefined;
 }
 
@@ -74,7 +80,7 @@ function statusSuccess(status: unknown): boolean | undefined {
 function firstChangedPath(item: Record<string, unknown>): string | undefined {
   if (!Array.isArray(item.changes)) return undefined;
   for (const change of item.changes) {
-    if (isRecord(change) && typeof change.path === "string") return change.path;
+    if (isRecord(change) && typeof change.path === 'string') return change.path;
   }
   return undefined;
 }
@@ -90,23 +96,28 @@ function toolCallPair(
   args: Record<string, unknown>,
   result: unknown,
   success: boolean | undefined,
-  normalized: ExtractedArgs = {},
+  normalized: ExtractedArgs = {}
 ): TranscriptEvent[] {
   const name = normalizeToolName(originalName, CODEX_TOOLS);
-  const tool: NonNullable<TranscriptEvent["tool"]> = { name, originalName, id, args };
+  const tool: NonNullable<TranscriptEvent['tool']> = {
+    name,
+    originalName,
+    id,
+    args,
+  };
   if (normalized.path) tool.path = normalized.path;
   if (normalized.command) tool.command = normalized.command;
   if (normalized.url) tool.url = normalized.url;
   tool.loadedSkill = loadedSkillFromCodexCall(tool);
   return [
-    { type: "tool_call", tool },
-    { type: "tool_result", tool: { name, originalName, id, result, success } },
+    { type: 'tool_call', tool },
+    { type: 'tool_result', tool: { name, originalName, id, result, success } },
   ];
 }
 
 /** Identifies Codex skill loads from normalized file paths or shell commands. */
 function loadedSkillFromCodexCall(
-  tool: NonNullable<TranscriptEvent["tool"]>,
+  tool: NonNullable<TranscriptEvent['tool']>
 ): string | undefined {
   if (tool.path) return extractLoadedSkillFromText(tool.path);
   if (tool.command) return extractLoadedSkillFromText(tool.command);
@@ -114,52 +125,68 @@ function loadedSkillFromCodexCall(
 }
 
 function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
-  const id = str(item.id) ?? "";
+  const id = str(item.id) ?? '';
   const itemType = str(item.type);
 
   switch (itemType) {
-    case "agent_message": {
+    case 'agent_message': {
       const text = str(item.text);
-      return text ? [{ type: "message", role: "assistant", content: text }] : [];
+      return text
+        ? [{ type: 'message', role: 'assistant', content: text }]
+        : [];
     }
-    case "reasoning": {
+    case 'reasoning': {
       const text = str(item.text);
-      return text ? [{ type: "thinking", content: text }] : [];
+      return text ? [{ type: 'thinking', content: text }] : [];
     }
-    case "command_execution": {
+    case 'command_execution': {
       const command = str(item.command);
       const args = command ? { command } : {};
-      const exitCode = typeof item.exit_code === "number" ? item.exit_code : undefined;
+      const exitCode =
+        typeof item.exit_code === 'number' ? item.exit_code : undefined;
       return toolCallPair(
         id,
-        "command_execution",
+        'command_execution',
         args,
         item.aggregated_output,
         exitCode === undefined ? undefined : exitCode === 0,
-        extractArgs(args, CODEX_ARG_FIELDS),
+        extractArgs(args, CODEX_ARG_FIELDS)
       );
     }
-    case "file_change": {
+    case 'file_change': {
       // Codex may touch several files in one item; `path` normalizes the first
       // (matching the single normalized `path` field), raw `changes` keeps all.
       const path = firstChangedPath(item);
       return toolCallPair(
         id,
-        "file_change",
+        'file_change',
         { changes: item.changes },
         item.status,
         statusSuccess(item.status),
-        { path },
+        { path }
       );
     }
-    case "mcp_tool_call": {
+    case 'mcp_tool_call': {
       // Shape not pinned across versions — be defensive about field names and
       // treat a missing status as unknown (not success).
-      const tool = str(item.tool) ?? str(item.name) ?? str(item.server) ?? "mcp_tool_call";
-      return toolCallPair(id, tool, item, item.result ?? item.output, statusSuccess(item.status));
+      const tool =
+        str(item.tool) ?? str(item.name) ?? str(item.server) ?? 'mcp_tool_call';
+      return toolCallPair(
+        id,
+        tool,
+        item,
+        item.result ?? item.output,
+        statusSuccess(item.status)
+      );
     }
-    case "web_search": {
-      return toolCallPair(id, "web_search", { query: item.query }, undefined, statusSuccess(item.status));
+    case 'web_search': {
+      return toolCallPair(
+        id,
+        'web_search',
+        { query: item.query },
+        undefined,
+        statusSuccess(item.status)
+      );
     }
     default:
       return [];
@@ -168,13 +195,13 @@ function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
 
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   switch (data.type) {
-    case "item.completed":
+    case 'item.completed':
       return isRecord(data.item) ? itemToEvents(data.item) : [];
-    case "turn.failed":
-    case "error": {
+    case 'turn.failed':
+    case 'error': {
       const message =
         (isRecord(data.error) && str(data.error.message)) || str(data.message);
-      return [{ type: "error", content: message ?? JSON.stringify(data) }];
+      return [{ type: 'error', content: message ?? JSON.stringify(data) }];
     }
     // thread.started / turn.started / item.started / turn.completed: no event.
     default:

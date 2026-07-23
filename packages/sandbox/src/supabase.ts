@@ -14,19 +14,19 @@
  * needed.
  */
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   SANDBOX_CONTAINER_LABEL,
   dockerCli,
   type DockerSandbox,
-} from "./docker-sandbox.js";
-import { SKILLS_CLI_VERSION } from "./skills.js";
-import { ALL_SUPABASE_SERVICES, type SupabaseService } from "./types.js";
+} from './docker-sandbox.js';
+import { SKILLS_CLI_VERSION } from './skills.js';
+import { ALL_SUPABASE_SERVICES, type SupabaseService } from './types.js';
 
-export const SUPABASE_CLI_VERSION = "2.67.1";
+export const SUPABASE_CLI_VERSION = '2.67.1';
 
-const SANDBOX_IMAGE_REPOSITORY = "supabase-evals-sandbox";
+const SANDBOX_IMAGE_REPOSITORY = 'supabase-evals-sandbox';
 
 /**
  * Backoff schedule for retrying the sandbox image build. The build pulls
@@ -41,7 +41,7 @@ const IMAGE_BUILD_RETRY_DELAYS_MS = [5_000, 30_000, 60_000];
 
 /** The sandbox image definition lives in an actual Dockerfile for editability. */
 export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
-  new URL("../Dockerfile", import.meta.url),
+  new URL('../Dockerfile', import.meta.url)
 );
 
 /**
@@ -54,21 +54,21 @@ export async function ensureSupabaseSandboxImage(): Promise<string> {
   // skills CLI. The Supabase CLI is installed per local-stack session
   // (installSupabaseCli), so the image is shared across modes and CLI versions.
   const tag = `${SANDBOX_IMAGE_REPOSITORY}:base-skills-${SKILLS_CLI_VERSION}`;
-  const existing = await dockerCli(["image", "inspect", tag]);
+  const existing = await dockerCli(['image', 'inspect', tag]);
   if (existing.ok) return tag;
 
-  const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, "utf8");
+  const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, 'utf8');
   for (let attempt = 0; ; attempt++) {
     const build = await dockerCli(
       [
-        "build",
-        "--build-arg",
+        'build',
+        '--build-arg',
         `SKILLS_CLI_VERSION=${SKILLS_CLI_VERSION}`,
-        "--tag",
+        '--tag',
         tag,
-        "-",
+        '-',
       ],
-      { input: dockerfile },
+      { input: dockerfile }
     );
     if (build.ok) return tag;
 
@@ -79,7 +79,7 @@ export async function ensureSupabaseSandboxImage(): Promise<string> {
     console.warn(
       `[sandbox] failed to build ${tag} ` +
         `(attempt ${attempt + 1}/${IMAGE_BUILD_RETRY_DELAYS_MS.length + 1}), ` +
-        `retrying in ${delayMs / 1000}s`,
+        `retrying in ${delayMs / 1000}s`
     );
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
@@ -93,15 +93,15 @@ export async function ensureSupabaseSandboxImage(): Promise<string> {
  */
 export async function installSupabaseCli(
   sandbox: DockerSandbox,
-  cliVersion: string = SUPABASE_CLI_VERSION,
+  cliVersion: string = SUPABASE_CLI_VERSION
 ): Promise<void> {
   await runOrThrow(
     sandbox,
     `ARCH="$(dpkg --print-architecture)" && ` +
       `curl -fsSL "https://github.com/supabase/cli/releases/download/v${cliVersion}/supabase_${cliVersion}_linux_$ARCH.deb" -o /tmp/supabase.deb && ` +
       `dpkg -i /tmp/supabase.deb && rm /tmp/supabase.deb`,
-    "install the Supabase CLI",
-    { asRoot: true },
+    'install the Supabase CLI',
+    { asRoot: true }
   );
 }
 
@@ -134,10 +134,10 @@ export interface SetupSupabaseSandboxOptions {
 }
 
 /** Workspace-relative path of the seeded CLI profile. */
-const EVAL_PROFILE_PATH = ".supabase-eval-profile.yaml";
+const EVAL_PROFILE_PATH = '.supabase-eval-profile.yaml';
 
 /** Workspace-relative path `supabase link` writes the project ref to. */
-const PROJECT_REF_PATH = "supabase/.temp/project-ref";
+const PROJECT_REF_PATH = 'supabase/.temp/project-ref';
 
 /**
  * Workspace-relative `.temp` files `supabase link` caches and the linked DB
@@ -151,16 +151,16 @@ const PROJECT_REF_PATH = "supabase/.temp/project-ref";
  * hosted project tracks the CLI's versions, so matching them is also the
  * faithful state. Update alongside SUPABASE_CLI_VERSION.
  */
-const POOLER_URL_PATH = "supabase/.temp/pooler-url";
+const POOLER_URL_PATH = 'supabase/.temp/pooler-url';
 // The CLI shim lives here: /usr/local/sbin is the first entry on the sandbox
 // PATH (see SANDBOX_PATH), so it shadows the real `supabase` binary (installed
 // in /usr/bin by the .deb) without renaming it.
-const SUPABASE_SHIM_PATH = "/usr/local/sbin/supabase";
+const SUPABASE_SHIM_PATH = '/usr/local/sbin/supabase';
 const REMOTE_VERSION_FILES: Record<string, string> = {
-  "supabase/.temp/postgres-version": "17.6.1.064",
-  "supabase/.temp/gotrue-version": "v2.184.0",
-  "supabase/.temp/rest-version": "v14.1",
-  "supabase/.temp/storage-version": "v1.33.0",
+  'supabase/.temp/postgres-version': '17.6.1.064',
+  'supabase/.temp/gotrue-version': 'v2.184.0',
+  'supabase/.temp/rest-version': 'v14.1',
+  'supabase/.temp/storage-version': 'v1.33.0',
 };
 
 /**
@@ -170,7 +170,7 @@ const REMOTE_VERSION_FILES: Record<string, string> = {
  */
 export async function setupSupabaseSandbox(
   sandbox: DockerSandbox,
-  options: SetupSupabaseSandboxOptions = {},
+  options: SetupSupabaseSandboxOptions = {}
 ): Promise<void> {
   // The Supabase CLI is a local-stack component: install it here (not in the
   // base image) so tools-mode sandboxes don't have it. Everything below needs
@@ -186,8 +186,8 @@ export async function setupSupabaseSandbox(
       `GRP=$(getent group "$SOCK_GID" | cut -d: -f1) && ` +
       `[ -n "$GRP" ] || { groupadd -g "$SOCK_GID" docker-host && GRP=docker-host; } && ` +
       `usermod -aG "$GRP" node`,
-    "grant docker socket access",
-    { asRoot: true },
+    'grant docker socket access',
+    { asRoot: true }
   );
 
   // Remove leftovers from previous eval runs that died before teardown.
@@ -214,10 +214,10 @@ export async function setupSupabaseSandbox(
   if (options.projectRunning ?? true) {
     // Fail with a clear authoring error before `supabase start` does with a
     // confusing one: a prestarted project needs a config in the workspace.
-    if (!(await sandbox.fileExists("supabase/config.toml"))) {
+    if (!(await sandbox.fileExists('supabase/config.toml'))) {
       throw new Error(
-        "projectRunning is enabled (the default) but the workspace has no supabase/config.toml — " +
-          "ship one in the eval's local/ directory or set `projectRunning: false` in the eval frontmatter",
+        'projectRunning is enabled (the default) but the workspace has no supabase/config.toml — ' +
+          "ship one in the eval's local/ directory or set `projectRunning: false` in the eval frontmatter"
       );
     }
     // Start the stack with the real binary first; the wrapper (installed next)
@@ -234,7 +234,7 @@ export async function setupSupabaseSandbox(
     sandbox,
     options.includeServices,
     poolerUrlPath,
-    options.hosted !== undefined,
+    options.hosted !== undefined
   );
 }
 
@@ -253,19 +253,19 @@ export async function setupSupabaseSandbox(
  */
 async function linkSandboxToHostedPlatform(
   sandbox: DockerSandbox,
-  hosted: { port: number; pgPort?: number; ref: string; accessToken: string },
+  hosted: { port: number; pgPort?: number; ref: string; accessToken: string }
 ): Promise<void> {
   const apiUrl = `http://host.docker.internal:${hosted.port}`;
   // Minimal valid profile: the CLI validates name/api_url/dashboard_url
   // (http_url) and project_host (hostname). Only api_url is functionally used
   // for `functions deploy` / `secrets set`.
   const profile = [
-    "name: evals",
+    'name: evals',
     `api_url: ${apiUrl}`,
     `dashboard_url: ${apiUrl}`,
-    "project_host: supabase.co",
-    "",
-  ].join("\n");
+    'project_host: supabase.co',
+    '',
+  ].join('\n');
   const files: Record<string, string> = {
     [EVAL_PROFILE_PATH]: profile,
     // Exactly what `supabase link` persists; the CLI reads (trimmed) the linked
@@ -291,10 +291,10 @@ async function linkSandboxToHostedPlatform(
   if (hosted.pgPort !== undefined) {
     const resolved = (
       await sandbox.runShell(
-        "getent ahostsv4 host.docker.internal | awk 'NR==1{print $1}'",
+        "getent ahostsv4 host.docker.internal | awk 'NR==1{print $1}'"
       )
     ).stdout.trim();
-    const dbHost = resolved || "host.docker.internal";
+    const dbHost = resolved || 'host.docker.internal';
     files[POOLER_URL_PATH] =
       `postgresql://postgres:postgres@${dbHost}:${hosted.pgPort}/postgres?sslmode=disable`;
     Object.assign(files, REMOTE_VERSION_FILES);
@@ -311,7 +311,7 @@ async function linkSandboxToHostedPlatform(
     // connection that hard-fails on the shim's refusal. `?sslmode=disable` in the
     // pooler-url is not honored on its own; PGSSLMODE is, so force it here.
     ...(hosted.pgPort !== undefined
-      ? { SUPABASE_DB_PASSWORD: "postgres", PGSSLMODE: "disable" }
+      ? { SUPABASE_DB_PASSWORD: 'postgres', PGSSLMODE: 'disable' }
       : {}),
   };
 }
@@ -322,23 +322,23 @@ async function linkSandboxToHostedPlatform(
  */
 export async function startSupabaseProject(
   sandbox: DockerSandbox,
-  includeServices?: readonly string[],
+  includeServices?: readonly string[]
 ): Promise<void> {
   await runOrThrow(
     sandbox,
     buildSupabaseStartCommand(includeServices),
-    "supabase start",
+    'supabase start'
   );
 }
 
 /** `supabase start`, with the exclude flag when an include list is given. */
 export function buildSupabaseStartCommand(
-  includeServices: readonly string[] | undefined,
+  includeServices: readonly string[] | undefined
 ): string {
   const excluded = computeExcludedServices(includeServices);
   return excluded.length > 0
-    ? `supabase start -x ${excluded.join(",")}`
-    : "supabase start";
+    ? `supabase start -x ${excluded.join(',')}`
+    : 'supabase start';
 }
 
 /**
@@ -346,15 +346,17 @@ export function buildSupabaseStartCommand(
  * containers/volumes/networks. Best-effort: never throws, so teardown cannot
  * mask an eval failure or block sandbox cleanup.
  */
-export async function teardownSupabaseProject(sandbox: DockerSandbox): Promise<void> {
+export async function teardownSupabaseProject(
+  sandbox: DockerSandbox
+): Promise<void> {
   try {
     // Scoped stop for this workspace's project (no --all: a developer's own
     // unrelated local stacks must survive eval runs).
-    await sandbox.runShell("supabase stop --no-backup", { timeoutMs: 120_000 });
+    await sandbox.runShell('supabase stop --no-backup', { timeoutMs: 120_000 });
   } catch (err) {
     console.warn(
-      "[sandbox] supabase stop failed (continuing with docker cleanup):",
-      err instanceof Error ? err.message : err,
+      '[sandbox] supabase stop failed (continuing with docker cleanup):',
+      err instanceof Error ? err.message : err
     );
   }
   await cleanupEvalSupabaseResources(sandbox);
@@ -368,9 +370,11 @@ export async function teardownSupabaseProject(sandbox: DockerSandbox): Promise<v
  * anchored on that prefix — a substring filter would catch developers' own
  * resources that merely contain "sandbox-".
  */
-async function cleanupEvalSupabaseResources(sandbox: DockerSandbox): Promise<void> {
+async function cleanupEvalSupabaseResources(
+  sandbox: DockerSandbox
+): Promise<void> {
   // Stack resources, identified by the Supabase CLI's own project label.
-  const projectLabel = "com.supabase.cli.project";
+  const projectLabel = 'com.supabase.cli.project';
   const selfId = sandbox.id.slice(0, 12);
   const commands = [
     `docker ps -a --filter label=${projectLabel} --format '{{.ID}} {{.Label "${projectLabel}"}}' | awk '$2 ~ /^sandbox-/ {print $1}' | xargs -r docker rm -f`,
@@ -384,8 +388,8 @@ async function cleanupEvalSupabaseResources(sandbox: DockerSandbox): Promise<voi
       await sandbox.runShellAsRoot(`{ ${command}; } 2>/dev/null || true`);
     } catch (err) {
       console.warn(
-        "[sandbox] docker cleanup error (best-effort):",
-        err instanceof Error ? err.message : err,
+        '[sandbox] docker cleanup error (best-effort):',
+        err instanceof Error ? err.message : err
       );
     }
   }
@@ -396,7 +400,7 @@ async function cleanupEvalSupabaseResources(sandbox: DockerSandbox): Promise<voi
  * required services into the services to exclude. Validates service names.
  */
 export function computeExcludedServices(
-  includeServices: readonly string[] | undefined,
+  includeServices: readonly string[] | undefined
 ): SupabaseService[] {
   // Omitted → full stack (exclude nothing). An explicit empty list is distinct:
   // it means "only the always-on database", so it falls through and excludes
@@ -404,11 +408,11 @@ export function computeExcludedServices(
   if (includeServices === undefined) return [];
 
   const invalid = includeServices.filter(
-    (service) => !ALL_SUPABASE_SERVICES.includes(service as SupabaseService),
+    (service) => !ALL_SUPABASE_SERVICES.includes(service as SupabaseService)
   );
   if (invalid.length > 0) {
     throw new Error(
-      `invalid Supabase services: ${invalid.join(", ")} (valid: ${ALL_SUPABASE_SERVICES.join(", ")})`,
+      `invalid Supabase services: ${invalid.join(', ')} (valid: ${ALL_SUPABASE_SERVICES.join(', ')})`
     );
   }
   const included = new Set(includeServices);
@@ -446,17 +450,17 @@ export function buildServiceWrapperScript(
   realBin: string,
   excluded: readonly SupabaseService[],
   poolerUrlPath?: string,
-  hosted?: boolean,
+  hosted?: boolean
 ): string {
-  const lines = ["#!/bin/bash", `REAL=${JSON.stringify(realBin)}`];
+  const lines = ['#!/bin/bash', `REAL=${JSON.stringify(realBin)}`];
   if (excluded.length > 0) {
     lines.push(
-      `if [ "$1" = "start" ]; then shift; exec "$REAL" start "$@" -x ${excluded.join(",")}; fi`,
+      `if [ "$1" = "start" ]; then shift; exec "$REAL" start "$@" -x ${excluded.join(',')}; fi`
     );
   }
   if (hosted) {
     lines.push(
-      `if [ "$1" = "link" ] && [[ " $* " != *" --dns-resolver "* ]]; then shift; exec "$REAL" link "$@" --dns-resolver native; fi`,
+      `if [ "$1" = "link" ] && [[ " $* " != *" --dns-resolver "* ]]; then shift; exec "$REAL" link "$@" --dns-resolver native; fi`
     );
   }
   if (poolerUrlPath) {
@@ -467,11 +471,11 @@ export function buildServiceWrapperScript(
       `    if [ -f "$POOLER_URL_FILE" ] && [[ " $* " != *" --db-url "* ]] && [[ " $* " != *" --local "* ]]; then`,
       `      exec "$REAL" "$@" --db-url "$(cat "$POOLER_URL_FILE")"`,
       `    fi ;;`,
-      `esac`,
+      `esac`
     );
   }
   lines.push(`exec "$REAL" "$@"`);
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 /**
@@ -485,7 +489,7 @@ async function installSupabaseCliWrapper(
   sandbox: DockerSandbox,
   includeServices: readonly string[] | undefined,
   poolerUrlPath?: string,
-  hosted?: boolean,
+  hosted?: boolean
 ): Promise<void> {
   const excluded = computeExcludedServices(includeServices);
   // Nothing to do: no services to exclude, no hosted wire to route at, and no
@@ -494,17 +498,19 @@ async function installSupabaseCliWrapper(
 
   // Resolve the real binary before the shim shadows it (so this can't resolve to
   // the shim); the shim then execs this absolute path and never recurses.
-  const real = (await sandbox.runShellAsRoot("command -v supabase")).stdout.trim();
+  const real = (
+    await sandbox.runShellAsRoot('command -v supabase')
+  ).stdout.trim();
   if (!real || real === SUPABASE_SHIM_PATH) {
     throw new Error(
-      `could not resolve the real supabase binary before installing the CLI shim (got ${JSON.stringify(real)})`,
+      `could not resolve the real supabase binary before installing the CLI shim (got ${JSON.stringify(real)})`
     );
   }
 
   await sandbox.writeRootFile(
     SUPABASE_SHIM_PATH,
     buildServiceWrapperScript(real, excluded, poolerUrlPath, hosted),
-    "0755",
+    '0755'
   );
 }
 
@@ -512,7 +518,7 @@ async function runOrThrow(
   sandbox: DockerSandbox,
   command: string,
   label: string,
-  options: { asRoot?: boolean } = {},
+  options: { asRoot?: boolean } = {}
 ): Promise<void> {
   const result = options.asRoot
     ? await sandbox.runShellAsRoot(command)

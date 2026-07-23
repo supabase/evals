@@ -10,17 +10,17 @@
  * spawn the local stack as sibling containers.
  */
 
-import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { promisify } from "node:util";
-import type { SandboxCommandResult } from "./types.js";
+import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
+import type { SandboxCommandResult } from './types.js';
 
 const execFileAsync = promisify(execFile);
 
-const DEFAULT_IMAGE = "node:22-slim";
+const DEFAULT_IMAGE = 'node:22-slim';
 
 /** Default timeout for container commands (10 minutes). */
 const DEFAULT_TIMEOUT_MS = 600_000;
@@ -35,7 +35,7 @@ const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
  * the Supabase CLI asks the host daemon to bind-mount project files into
  * sibling containers.
  */
-const WORKSPACE_BASE = "/tmp/sandbox";
+const WORKSPACE_BASE = '/tmp/sandbox';
 
 /**
  * Non-root user. node:*-slim images ship a `node` user with UID/GID 1000;
@@ -48,7 +48,7 @@ const SANDBOX_GID = 1000;
  * Sandbox containers carry this label so crashed runs' leftovers can be
  * identified and removed by later runs.
  */
-export const SANDBOX_CONTAINER_LABEL = "supabase-evals-sandbox";
+export const SANDBOX_CONTAINER_LABEL = 'supabase-evals-sandbox';
 
 /**
  * Headroom added to the in-container `timeout` before the docker CLI client
@@ -58,13 +58,13 @@ export const SANDBOX_CONTAINER_LABEL = "supabase-evals-sandbox";
 const CLIENT_TIMEOUT_HEADROOM_MS = 20_000;
 
 const SANDBOX_PATH = [
-  "/usr/local/sbin",
-  "/usr/local/bin",
-  "/usr/sbin",
-  "/usr/bin",
-  "/sbin",
-  "/bin",
-].join(":");
+  '/usr/local/sbin',
+  '/usr/local/bin',
+  '/usr/sbin',
+  '/usr/bin',
+  '/sbin',
+  '/bin',
+].join(':');
 
 export interface DockerSandboxOptions {
   /** Image to run; defaults to node:22-slim. */
@@ -106,7 +106,7 @@ export class DockerSandbox {
   }
 
   static async create(
-    options: DockerSandboxOptions = {},
+    options: DockerSandboxOptions = {}
   ): Promise<DockerSandbox> {
     const sandbox = new DockerSandbox(options);
     try {
@@ -125,28 +125,28 @@ export class DockerSandbox {
 
     const result = await dockerCli(
       [
-        "run",
-        "--detach",
-        "--rm",
-        "--label",
+        'run',
+        '--detach',
+        '--rm',
+        '--label',
         `${SANDBOX_CONTAINER_LABEL}=1`,
-        "--volume",
-        "/var/run/docker.sock:/var/run/docker.sock",
-        "--volume",
+        '--volume',
+        '/var/run/docker.sock:/var/run/docker.sock',
+        '--volume',
         `${this.workdir}:${this.workdir}`,
-        "--workdir",
+        '--workdir',
         this.workdir,
         // Reach host-side servers (e.g. the linked platform-lite) at
         // host.docker.internal on Linux/CI and Docker Desktop alike.
-        "--add-host",
-        "host.docker.internal:host-gateway",
-        ...(this.network ? ["--network", this.network] : []),
+        '--add-host',
+        'host.docker.internal:host-gateway',
+        ...(this.network ? ['--network', this.network] : []),
         this.image,
-        "sleep",
-        "infinity",
+        'sleep',
+        'infinity',
       ],
       // `docker run` pulls the image when missing; allow time for that.
-      { timeoutMs: DEFAULT_TIMEOUT_MS },
+      { timeoutMs: DEFAULT_TIMEOUT_MS }
     );
     if (!result.ok || !result.stdout.trim()) {
       throw new Error(`failed to start sandbox container: ${result.stderr}`);
@@ -154,7 +154,7 @@ export class DockerSandbox {
     this.containerId = result.stdout.trim();
 
     const chown = await this.runShellAsRoot(
-      `chown -R ${SANDBOX_UID}:${SANDBOX_GID} ${this.workdir}`,
+      `chown -R ${SANDBOX_UID}:${SANDBOX_GID} ${this.workdir}`
     );
     if (!chown.ok) {
       throw new Error(`failed to chown sandbox workspace: ${chown.stderr}`);
@@ -163,7 +163,7 @@ export class DockerSandbox {
 
   /** The sandbox container id (empty when not running). */
   get id(): string {
-    return this.containerId ?? "";
+    return this.containerId ?? '';
   }
 
   /**
@@ -173,26 +173,26 @@ export class DockerSandbox {
    */
   async runShell(
     command: string,
-    options: RunCommandOptions = {},
+    options: RunCommandOptions = {}
   ): Promise<SandboxCommandResult> {
     return this.execCommand(command, {
       ...options,
       env: {
         PATH: SANDBOX_PATH,
-        HOME: "/home/node",
+        HOME: '/home/node',
         ...this.extraEnv,
         ...options.env,
       },
-      user: "node",
+      user: 'node',
     });
   }
 
   /** Run a shell command as root. Intended for sandbox setup only. */
   async runShellAsRoot(
     command: string,
-    options: RunCommandOptions = {},
+    options: RunCommandOptions = {}
   ): Promise<SandboxCommandResult> {
-    return this.execCommand(command, { ...options, user: "root" });
+    return this.execCommand(command, { ...options, user: 'root' });
   }
 
   async readFile(path: string): Promise<string> {
@@ -221,7 +221,7 @@ export class DockerSandbox {
    * copyToHost, and writeFiles.
    */
   private async dockerCopy(source: string, dest: string): Promise<void> {
-    const result = await dockerCli(["cp", source, dest]);
+    const result = await dockerCli(['cp', source, dest]);
     if (!result.ok) {
       throw new Error(`failed to copy ${source} → ${dest}: ${result.stderr}`);
     }
@@ -242,15 +242,18 @@ export class DockerSandbox {
   async copyToContainer(hostDir: string, containerPath: string): Promise<void> {
     this.assertRunning();
     await this.runShellAsRoot(`mkdir -p ${shellQuote(containerPath)}`);
-    await this.dockerCopy(`${hostDir}/.`, `${this.containerRef(containerPath)}/`);
+    await this.dockerCopy(
+      `${hostDir}/.`,
+      `${this.containerRef(containerPath)}/`
+    );
     // Drop VCS/dependency noise that shouldn't be copied into the sandbox; a
     // cheap no-op when none of these are present in the source directory.
     await this.runShellAsRoot(
-      `find ${shellQuote(containerPath)} -depth \\( -name .git -o -name node_modules -o -name .DS_Store \\) -exec rm -rf {} + 2>/dev/null || true`,
+      `find ${shellQuote(containerPath)} -depth \\( -name .git -o -name node_modules -o -name .DS_Store \\) -exec rm -rf {} + 2>/dev/null || true`
     );
     // docker cp preserves host ownership; hand the files to the sandbox user.
     const chown = await this.runShellAsRoot(
-      `chown -R ${SANDBOX_UID}:${SANDBOX_GID} ${shellQuote(containerPath)}`,
+      `chown -R ${SANDBOX_UID}:${SANDBOX_GID} ${shellQuote(containerPath)}`
     );
     if (!chown.ok) {
       throw new Error(`failed to chown copied files: ${chown.stderr}`);
@@ -266,7 +269,10 @@ export class DockerSandbox {
   async copyToHost(containerPath: string, hostDir: string): Promise<void> {
     this.assertRunning();
     mkdirSync(hostDir, { recursive: true });
-    await this.dockerCopy(`${this.containerRef(containerPath)}/.`, `${hostDir}/`);
+    await this.dockerCopy(
+      `${this.containerRef(containerPath)}/.`,
+      `${hostDir}/`
+    );
   }
 
   /** Write files into the workspace. Paths are relative to the workspace root. */
@@ -277,21 +283,24 @@ export class DockerSandbox {
 
     // Stage on the host and `docker cp` in: copying through the engine keeps
     // a single write path that works regardless of how the host shares /tmp.
-    const staging = mkdtempSync(join(tmpdir(), "sandbox-upload-"));
+    const staging = mkdtempSync(join(tmpdir(), 'sandbox-upload-'));
     try {
       for (const [path, content] of entries) {
         const target = join(staging, path);
         mkdirSync(dirname(target), { recursive: true });
         writeFileSync(target, content);
       }
-      await this.dockerCopy(`${staging}/.`, `${this.containerRef(this.workdir)}/`);
+      await this.dockerCopy(
+        `${staging}/.`,
+        `${this.containerRef(this.workdir)}/`
+      );
     } finally {
       rmSync(staging, { recursive: true, force: true });
     }
 
     // docker cp preserves host ownership; hand the files to the sandbox user.
     const chown = await this.runShellAsRoot(
-      `chown -R ${SANDBOX_UID}:${SANDBOX_GID} ${this.workdir}`,
+      `chown -R ${SANDBOX_UID}:${SANDBOX_GID} ${this.workdir}`
     );
     if (!chown.ok) {
       throw new Error(`failed to chown uploaded files: ${chown.stderr}`);
@@ -308,19 +317,19 @@ export class DockerSandbox {
   async writeRootFile(
     containerPath: string,
     content: string,
-    mode = "0644",
+    mode = '0644'
   ): Promise<void> {
     this.assertRunning();
-    const staging = mkdtempSync(join(tmpdir(), "sandbox-rootfile-"));
+    const staging = mkdtempSync(join(tmpdir(), 'sandbox-rootfile-'));
     try {
-      const tmp = join(staging, "file");
+      const tmp = join(staging, 'file');
       writeFileSync(tmp, content);
       await this.dockerCopy(tmp, this.containerRef(containerPath));
     } finally {
       rmSync(staging, { recursive: true, force: true });
     }
     const chmod = await this.runShellAsRoot(
-      `chmod ${mode} ${shellQuote(containerPath)}`,
+      `chmod ${mode} ${shellQuote(containerPath)}`
     );
     if (!chmod.ok) {
       throw new Error(`failed to chmod ${containerPath}: ${chmod.stderr}`);
@@ -329,7 +338,7 @@ export class DockerSandbox {
 
   private async execCommand(
     command: string,
-    options: { env?: Record<string, string>; user: string; timeoutMs?: number },
+    options: { env?: Record<string, string>; user: string; timeoutMs?: number }
   ): Promise<SandboxCommandResult> {
     this.assertRunning();
     const timeoutMs = options.timeoutMs ?? this.defaultTimeoutMs;
@@ -341,24 +350,24 @@ export class DockerSandbox {
     // timeout is a backstop with headroom so the in-container path wins.
     const result = await dockerCli(
       [
-        "exec",
-        "--user",
+        'exec',
+        '--user',
         options.user,
-        "--workdir",
+        '--workdir',
         this.workdir,
         ...Object.entries(options.env ?? {}).flatMap(([key, value]) => [
-          "--env",
+          '--env',
           `${key}=${value}`,
         ]),
         this.containerId!,
-        "timeout",
-        "--kill-after=10",
+        'timeout',
+        '--kill-after=10',
         `${timeoutSec}`,
-        "bash",
-        "-c",
+        'bash',
+        '-c',
         command,
       ],
-      { timeoutMs: timeoutMs + CLIENT_TIMEOUT_HEADROOM_MS },
+      { timeoutMs: timeoutMs + CLIENT_TIMEOUT_HEADROOM_MS }
     );
 
     // coreutils timeout exits 124 on TERM-after-timeout, 137 on the KILL
@@ -374,7 +383,7 @@ export class DockerSandbox {
   }
 
   private assertRunning(): void {
-    if (!this.containerId) throw new Error("sandbox not running");
+    if (!this.containerId) throw new Error('sandbox not running');
   }
 
   /** Stop the container (--rm removes it) and the host-side workspace. */
@@ -386,21 +395,21 @@ export class DockerSandbox {
       // owned by uid 1000, which the host user cannot necessarily delete.
       try {
         await dockerCli([
-          "exec",
-          "--user",
-          "root",
+          'exec',
+          '--user',
+          'root',
           id,
-          "find",
+          'find',
           this.workdir,
-          "-mindepth",
-          "1",
-          "-delete",
+          '-mindepth',
+          '1',
+          '-delete',
         ]);
       } catch {
         // Best-effort cleanup.
       }
       try {
-        await dockerCli(["stop", "--timeout", "0", id]);
+        await dockerCli(['stop', '--timeout', '0', id]);
       } catch {
         // Container may already be stopped or removed.
       }
@@ -420,13 +429,13 @@ export class DockerSandbox {
 /** Run the host docker CLI. `input` is piped to stdin (e.g. `docker build -`). */
 export async function dockerCli(
   args: string[],
-  options: { timeoutMs?: number; input?: string } = {},
+  options: { timeoutMs?: number; input?: string } = {}
 ): Promise<SandboxCommandResult> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
-    const promise = execFileAsync("docker", args, {
+    const promise = execFileAsync('docker', args, {
       timeout: timeoutMs,
-      killSignal: "SIGKILL",
+      killSignal: 'SIGKILL',
       maxBuffer: MAX_OUTPUT_BYTES,
     });
     if (options.input !== undefined) {
@@ -443,18 +452,18 @@ export async function dockerCli(
       killed?: boolean;
       signal?: string;
     };
-    if (execErr.code === "ENOENT") {
+    if (execErr.code === 'ENOENT') {
       throw new Error(
-        "docker CLI not found on PATH — local-stack evals require a local Docker installation",
+        'docker CLI not found on PATH — local-stack evals require a local Docker installation'
       );
     }
-    if (execErr.killed || execErr.signal === "SIGKILL") {
+    if (execErr.killed || execErr.signal === 'SIGKILL') {
       throw new Error(`sandbox command timed out after ${timeoutMs}ms`);
     }
     return {
       ok: false,
-      exitCode: typeof execErr.code === "number" ? execErr.code : null,
-      stdout: execErr.stdout ?? "",
+      exitCode: typeof execErr.code === 'number' ? execErr.code : null,
+      stdout: execErr.stdout ?? '',
       stderr: execErr.stderr ?? String(execErr.message ?? err),
     };
   }

@@ -3,11 +3,11 @@ import {
   experimentSuiteSchema,
   type EvalSuite,
   type ExperimentSuite,
-} from "@supabase-evals/core/eval-metadata";
+} from '@supabase-evals/core/eval-metadata';
 
 export function splitList(value: string): string[] {
   return value
-    .split(",")
+    .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
 }
@@ -27,7 +27,7 @@ export function readRepeatedFlag(rawArgs: string[], name: string): string[] {
 
     if (arg === `--${name}`) {
       const value = rawArgs[index + 1];
-      if (!value || value.startsWith("--")) {
+      if (!value || value.startsWith('--')) {
         throw new Error(`--${name} requires a value`);
       }
       values.push(...splitList(value));
@@ -39,15 +39,15 @@ export function readRepeatedFlag(rawArgs: string[], name: string): string[] {
 }
 
 export function normalizeExperimentName(value: string): string {
-  return value.replace(/^experiments\//, "").replace(/\.ts$/, "");
+  return value.replace(/^experiments\//, '').replace(/\.ts$/, '');
 }
 
 export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
-  return readRepeatedFlag(rawArgs, "suite").map((value) => {
+  return readRepeatedFlag(rawArgs, 'suite').map((value) => {
     const parsed = evalSuiteSchema.safeParse(value.trim().toLowerCase());
     if (!parsed.success) {
       throw new Error(
-        `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(", ")}`,
+        `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(', ')}`
       );
     }
     return parsed.data;
@@ -55,13 +55,13 @@ export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
 }
 
 export function readExperimentSuiteFilters(
-  rawArgs: string[],
+  rawArgs: string[]
 ): ExperimentSuite[] {
-  return readRepeatedFlag(rawArgs, "experiment-suite").map((value) => {
+  return readRepeatedFlag(rawArgs, 'experiment-suite').map((value) => {
     const parsed = experimentSuiteSchema.safeParse(value.trim().toLowerCase());
     if (!parsed.success) {
       throw new Error(
-        `invalid experiment-suite "${value}". Expected one of: ${experimentSuiteSchema.options.join(", ")}`,
+        `invalid experiment-suite "${value}". Expected one of: ${experimentSuiteSchema.options.join(', ')}`
       );
     }
     return parsed.data;

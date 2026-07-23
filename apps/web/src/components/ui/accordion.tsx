@@ -3,7 +3,9 @@ import { Accordion as AccordionPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-function Accordion(props: React.ComponentProps<typeof AccordionPrimitive.Root>) {
+function Accordion(
+  props: React.ComponentProps<typeof AccordionPrimitive.Root>
+) {
   return <AccordionPrimitive.Root data-slot="accordion" {...props} />
 }
 
@@ -30,7 +32,7 @@ function AccordionTrigger({
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
-          "flex w-full flex-1 items-stretch rounded-md px-2 py-3 text-left text-sm outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+          "flex w-full flex-1 items-stretch rounded-md px-2 py-3 text-left text-sm transition-colors outline-none hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
           className
         )}
         {...props}

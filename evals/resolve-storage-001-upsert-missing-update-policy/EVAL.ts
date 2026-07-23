@@ -5,11 +5,11 @@ import {
   type SupabaseClient,
   type ToolEvalContext,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const BUCKET = "avatars";
-const PASSWORD = "secret123";
+const BUCKET = 'avatars';
+const PASSWORD = 'secret123';
 
 const scorer: ToolScorer = async (ctx) => {
   try {
@@ -28,7 +28,7 @@ const scorer: ToolScorer = async (ctx) => {
     }
 
     const setup = await setupTestUsers(ctx);
-    if ("failure" in setup) {
+    if ('failure' in setup) {
       return { passed: false, checks: [setup.failure] };
     }
     const users = setup.users;
@@ -40,7 +40,8 @@ const scorer: ToolScorer = async (ctx) => {
       {
         name: `bucket ${BUCKET} stays public`,
         passed: bucket.public === true,
-        notes: "the bucket being public is intentional (avatars need a public URL); it is not the bug",
+        notes:
+          'the bucket being public is intentional (avatars need a public URL); it is not the bug',
       },
       await checkRlsStillEnabled(ctx),
       await checkAnyoneCanReadAvatar(ctx, bucket.id, users),
@@ -59,7 +60,7 @@ const scorer: ToolScorer = async (ctx) => {
       passed: false,
       checks: [
         {
-          name: "scorer evaluated avatar upsert fix",
+          name: 'scorer evaluated avatar upsert fix',
           passed: false,
           notes: msg,
         },
@@ -80,14 +81,14 @@ type TestUsers = {
 const avatarPath = (userId: string) => `${userId}/avatar.png`;
 
 function storageObjects(client: SupabaseClient) {
-  return client.schema("storage").from("objects");
+  return client.schema('storage').from('objects');
 }
 
 async function findBucket(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<{ id: string; public: boolean | null } | undefined> {
   const { rows } = await ctx.query(
-    `SELECT id, public FROM storage.buckets WHERE id = '${BUCKET}' OR name = '${BUCKET}' LIMIT 1;`,
+    `SELECT id, public FROM storage.buckets WHERE id = '${BUCKET}' OR name = '${BUCKET}' LIMIT 1;`
   );
   const row = rows[0];
   if (!row) return undefined;
@@ -95,7 +96,7 @@ async function findBucket(
 }
 
 async function setupTestUsers(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<{ users: TestUsers } | { failure: CheckResult }> {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
@@ -119,9 +120,9 @@ async function setupTestUsers(
   ) {
     return {
       failure: {
-        name: "created auth sessions",
+        name: 'created auth sessions',
         passed: false,
-        notes: authAError?.message ?? authBError?.message ?? "missing session",
+        notes: authAError?.message ?? authBError?.message ?? 'missing session',
       },
     };
   }
@@ -134,7 +135,7 @@ async function setupTestUsers(
 async function seedExistingAvatar(
   ctx: ToolEvalContext,
   bucketId: string,
-  users: TestUsers,
+  users: TestUsers
 ): Promise<void> {
   await ctx.query(`
 INSERT INTO storage.objects (bucket_id, name, owner, owner_id, metadata) VALUES
@@ -142,7 +143,9 @@ INSERT INTO storage.objects (bucket_id, name, owner, owner_id, metadata) VALUES
   `);
 }
 
-async function checkRlsStillEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkRlsStillEnabled(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const { rows } = await ctx.query(`
 SELECT c.relrowsecurity
 FROM pg_class c
@@ -151,7 +154,7 @@ WHERE n.nspname = 'storage' AND c.relname = 'objects';
   `);
 
   return {
-    name: "RLS still enabled on storage.objects",
+    name: 'RLS still enabled on storage.objects',
     passed: rows[0]?.relrowsecurity === true,
   };
 }
@@ -159,22 +162,22 @@ WHERE n.nspname = 'storage' AND c.relname = 'objects';
 async function checkAnyoneCanReadAvatar(
   ctx: ToolEvalContext,
   bucketId: string,
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { data, error } = await storageObjects(ctx.getClient())
-    .select("name")
-    .eq("bucket_id", bucketId)
-    .eq("name", avatarPath(users.userAId));
+    .select('name')
+    .eq('bucket_id', bucketId)
+    .eq('name', avatarPath(users.userAId));
 
   return {
-    name: "anon can still read the public avatar",
+    name: 'anon can still read the public avatar',
     passed: !error && data?.length === 1,
     notes: error?.message,
   };
 }
 
 async function checkUserACanReplaceOwnAvatar(
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { data, error } = await storageObjects(users.clientA)
     .upsert(
@@ -183,19 +186,19 @@ async function checkUserACanReplaceOwnAvatar(
         name: avatarPath(users.userAId),
         owner: users.userAId,
         owner_id: users.userAId,
-        metadata: { version: "replacement" },
+        metadata: { version: 'replacement' },
       },
-      { onConflict: "bucket_id,name" },
+      { onConflict: 'bucket_id,name' }
     )
-    .select("name,metadata");
+    .select('name,metadata');
 
   return {
-    name: "user A can replace their own avatar via upsert",
+    name: 'user A can replace their own avatar via upsert',
     passed:
       !error &&
       data?.length === 1 &&
       (data[0]?.metadata as Record<string, unknown> | undefined)?.version ===
-        "replacement",
+        'replacement',
     notes: error?.message ?? `saw: ${JSON.stringify(data)}`,
   };
 }
@@ -203,7 +206,7 @@ async function checkUserACanReplaceOwnAvatar(
 async function checkUserBCannotReplaceUserAAvatar(
   ctx: ToolEvalContext,
   users: TestUsers,
-  bucketId: string,
+  bucketId: string
 ): Promise<CheckResult> {
   await storageObjects(users.clientB)
     .upsert(
@@ -212,23 +215,23 @@ async function checkUserBCannotReplaceUserAAvatar(
         name: avatarPath(users.userAId),
         owner: users.userAId,
         owner_id: users.userAId,
-        metadata: { version: "planted by user B" },
+        metadata: { version: 'planted by user B' },
       },
-      { onConflict: "bucket_id,name" },
+      { onConflict: 'bucket_id,name' }
     )
-    .select("name");
+    .select('name');
   const { rows } = await ctx.query(
-    `SELECT metadata->>'version' AS version FROM storage.objects WHERE bucket_id = '${bucketId}' AND name = '${avatarPath(users.userAId)}';`,
+    `SELECT metadata->>'version' AS version FROM storage.objects WHERE bucket_id = '${bucketId}' AND name = '${avatarPath(users.userAId)}';`
   );
 
   return {
     name: "user B cannot overwrite user A's avatar",
-    passed: rows[0]?.version !== "planted by user B",
+    passed: rows[0]?.version !== 'planted by user B',
   };
 }
 
 async function checkFixedUploadPolicyConfiguration(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<CheckResult> {
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, {
@@ -248,7 +251,7 @@ async function checkFixedUploadPolicyConfiguration(
   });
 
   return {
-    name: "added an owner-scoped UPDATE policy without weakening public reads",
+    name: 'added an owner-scoped UPDATE policy without weakening public reads',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };

@@ -4,17 +4,23 @@ import {
   type LocalStackEvalContext,
   type LocalStackScorer,
   type ToolCallRecord,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
 // The pending local migration the agent must get applied to the hosted project.
-const PENDING_VERSION = "20240220000000";
+const PENDING_VERSION = '20240220000000';
 const SEEDED_PROFILE_COUNT = 25;
 
 // The two seeded migrations that bookend a correct reconciliation. The agent
 // must keep them, unrenamed, as the first and last migration.
-const FIRST_MIGRATION = { version: "20240101000000", name: "create_profiles" } as const;
-const LAST_MIGRATION = { version: PENDING_VERSION, name: "add_avatar_url" } as const;
+const FIRST_MIGRATION = {
+  version: '20240101000000',
+  name: 'create_profiles',
+} as const;
+const LAST_MIGRATION = {
+  version: PENDING_VERSION,
+  name: 'add_avatar_url',
+} as const;
 
 /**
  * Verifies recovery from a remote migration-history mismatch (AI-823): the
@@ -47,10 +53,10 @@ const scorer: LocalStackScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            name: "linked to a hosted project",
+            name: 'linked to a hosted project',
             passed: false,
             notes:
-              "no hosted platform on the scoring context — the eval needs `hostedProject: true`",
+              'no hosted platform on the scoring context — the eval needs `hostedProject: true`',
           },
         ],
       };
@@ -71,7 +77,11 @@ const scorer: LocalStackScorer = async (ctx) => {
     return {
       passed: false,
       checks: [
-        { name: "scorer evaluated migration-history recovery", passed: false, notes: msg },
+        {
+          name: 'scorer evaluated migration-history recovery',
+          passed: false,
+          notes: msg,
+        },
       ],
     };
   }
@@ -81,26 +91,29 @@ export default scorer;
 
 // The pending migration's schema change actually landed on the hosted DB: the
 // avatar_url column now exists on public.profiles.
-async function checkAvatarApplied(ctx: LocalStackEvalContext): Promise<CheckResult> {
-  const name = "the avatar_url column is applied on the hosted profiles table";
+async function checkAvatarApplied(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
+  const name = 'the avatar_url column is applied on the hosted profiles table';
   const rows = await remoteQuery(
     ctx,
     `select 1 from information_schema.columns
        where table_schema = 'public'
          and table_name = 'profiles'
-         and column_name = 'avatar_url'`,
+         and column_name = 'avatar_url'`
   );
   return {
     name,
     passed: rows.length > 0,
-    notes: rows.length > 0 ? undefined : "avatar_url not found on public.profiles",
+    notes:
+      rows.length > 0 ? undefined : 'avatar_url not found on public.profiles',
   };
 }
 
 // The pending migration is recorded in the remote history — i.e. it was pushed,
 // not just applied as ad-hoc SQL.
 async function checkPendingMigrationRecorded(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const name = `migration ${PENDING_VERSION} is recorded in the remote history`;
   const versions = await remoteHistoryVersions(ctx);
@@ -108,7 +121,9 @@ async function checkPendingMigrationRecorded(
   return {
     name,
     passed: present,
-    notes: present ? undefined : `remote history versions: ${JSON.stringify(versions)}`,
+    notes: present
+      ? undefined
+      : `remote history versions: ${JSON.stringify(versions)}`,
   };
 }
 
@@ -118,9 +133,9 @@ async function checkPendingMigrationRecorded(
 // The orphan (20240115000000) must therefore either have been pulled down into
 // a local file or repaired out of the remote history.
 async function checkHistoryReconciled(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
-  const name = "remote migration history matches local migration files";
+  const name = 'remote migration history matches local migration files';
   const remoteVersions = await remoteHistoryVersions(ctx);
   const localVersions = await localMigrationVersions(ctx);
   const orphans = remoteVersions.filter((v) => !localVersions.includes(v));
@@ -145,18 +160,22 @@ async function checkHistoryReconciled(
 // (2 files), a bio pulled in after the avatar, reordering, renaming a seeded
 // file, duplicate timestamps, or a reconciliation left un-applied — states that
 // can slip past the looser checks but are wrong or un-pushable.
-async function checkMigrationOrder(ctx: LocalStackEvalContext): Promise<CheckResult> {
-  const name = "local migrations are a valid reconciled sequence";
+async function checkMigrationOrder(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
+  const name = 'local migrations are a valid reconciled sequence';
   const files = await localMigrationFiles(ctx); // ascending by filename (version)
   const versions = files.map((f) => f.version);
-  const shown = files.map((f) => f.file).join(", ") || "(none)";
+  const shown = files.map((f) => f.file).join(', ') || '(none)';
   const expectedShape =
     `${FIRST_MIGRATION.version}_${FIRST_MIGRATION.name} → <bio reconciliation> → ` +
     `${LAST_MIGRATION.version}_${LAST_MIGRATION.name}, strictly ascending`;
 
   const first = files[0];
   const last = files[files.length - 1];
-  const strictlyAscending = versions.every((v, i) => i === 0 || v > versions[i - 1]);
+  const strictlyAscending = versions.every(
+    (v, i) => i === 0 || v > versions[i - 1]
+  );
   const validShape =
     files.length === 3 &&
     strictlyAscending &&
@@ -165,7 +184,11 @@ async function checkMigrationOrder(ctx: LocalStackEvalContext): Promise<CheckRes
     last.version === LAST_MIGRATION.version &&
     last.name === LAST_MIGRATION.name;
   if (!validShape) {
-    return { name, passed: false, notes: `expected ${expectedShape}; got [${shown}]` };
+    return {
+      name,
+      passed: false,
+      notes: `expected ${expectedShape}; got [${shown}]`,
+    };
   }
 
   // The bio reconciliation (and every migration) must actually be applied on the
@@ -186,16 +209,17 @@ async function checkMigrationOrder(ctx: LocalStackEvalContext): Promise<CheckRes
 // Production data survived: the seeded profiles are all still present and their
 // bio values intact — the remote was reconciled, not reset/wiped.
 async function checkProductionDataIntact(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
-  const name = "production profile data is intact (not reset)";
+  const name = 'production profile data is intact (not reset)';
   const rows = await remoteQuery(
     ctx,
-    `select count(*)::int as total, count(bio)::int as with_bio from public.profiles`,
+    `select count(*)::int as total, count(bio)::int as with_bio from public.profiles`
   );
   const total = Number(rows[0]?.total ?? -1);
   const withBio = Number(rows[0]?.with_bio ?? -1);
-  const passed = total === SEEDED_PROFILE_COUNT && withBio === SEEDED_PROFILE_COUNT;
+  const passed =
+    total === SEEDED_PROFILE_COUNT && withBio === SEEDED_PROFILE_COUNT;
   return {
     name,
     passed,
@@ -218,11 +242,18 @@ async function checkProductionDataIntact(
 // agent should no longer need the `DEALLOCATE ALL` work-around the old broken
 // wire forced; the rubric still fails it if it appears (it's still a non-CLI
 // escape hatch), but in practice it shouldn't.
-async function checkUsedCliWorkflow(ctx: LocalStackEvalContext): Promise<CheckResult> {
-  const name = "the avatar migration and history reconciliation were done via the Supabase CLI";
+async function checkUsedCliWorkflow(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
+  const name =
+    'the avatar migration and history reconciliation were done via the Supabase CLI';
   const actions = formatActionsForJudge(ctx.toolCalls);
   if (!actions.trim()) {
-    return { name, passed: false, notes: "no agent actions recorded to evaluate" };
+    return {
+      name,
+      passed: false,
+      notes: 'no agent actions recorded to evaluate',
+    };
   }
   const verdict = await judge({
     input: `<<<AGENT_ACTIONS\n${actions}\nAGENT_ACTIONS>>>`,
@@ -294,75 +325,88 @@ function formatActionsForJudge(toolCalls: ToolCallRecord[]): string {
       const body = (tc.body ?? {}) as Record<string, unknown>;
       const action =
         tc.command ??
-        (typeof body.command === "string" ? body.command : undefined) ??
+        (typeof body.command === 'string' ? body.command : undefined) ??
         tc.url ??
-        (typeof body.path === "string" ? body.path : undefined) ??
+        (typeof body.path === 'string' ? body.path : undefined) ??
         truncHead(JSON.stringify(body), 200);
 
       // Result shape is harness-specific. Prefer the common {exit_code, stdout,
       // stderr}; otherwise stringify whatever is there so the judge still sees an
       // outcome (a command with no recorded result reads as "never succeeded").
-      let outcome = "";
+      let outcome = '';
       const res = tc.result;
       if (tc.error) {
         outcome = `\n   error: ${truncMiddle(String(tc.error), 600)}`;
-      } else if (res && typeof res === "object") {
-        const r = res as { exit_code?: number; stdout?: unknown; stderr?: unknown };
-        const text = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
-        const code = r.exit_code !== undefined ? ` (exit ${r.exit_code})` : "";
+      } else if (res && typeof res === 'object') {
+        const r = res as {
+          exit_code?: number;
+          stdout?: unknown;
+          stderr?: unknown;
+        };
+        const text = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+        const code = r.exit_code !== undefined ? ` (exit ${r.exit_code})` : '';
         const shown = text || truncHead(JSON.stringify(res), 600);
         if (shown) outcome = `${code}\n   output: ${truncMiddle(shown, 600)}`;
         else if (code) outcome = code;
-      } else if (typeof res === "string" && res.trim()) {
+      } else if (typeof res === 'string' && res.trim()) {
         outcome = `\n   output: ${truncMiddle(res, 600)}`;
       }
 
       return `#${i + 1} [${tc.endpoint}] ${truncHead(String(action), 300)}${outcome}`;
     })
-    .join("\n");
+    .join('\n');
 }
 
 // --- helpers ---------------------------------------------------------------
 
 async function remoteQuery(
   ctx: LocalStackEvalContext,
-  query: string,
+  query: string
 ): Promise<Record<string, unknown>[]> {
   const { rows } = await ctx.hostedQuery!(query);
   return rows;
 }
 
-async function remoteHistoryVersions(ctx: LocalStackEvalContext): Promise<string[]> {
+async function remoteHistoryVersions(
+  ctx: LocalStackEvalContext
+): Promise<string[]> {
   const rows = await remoteQuery(
     ctx,
-    `select version from supabase_migrations.schema_migrations order by version`,
+    `select version from supabase_migrations.schema_migrations order by version`
   );
   return rows.map((r) => String(r.version));
 }
 
 // Unique versions present as files in the agent's local supabase/migrations
 // directory, derived from the leading timestamp of each filename.
-async function localMigrationVersions(ctx: LocalStackEvalContext): Promise<string[]> {
+async function localMigrationVersions(
+  ctx: LocalStackEvalContext
+): Promise<string[]> {
   const result = await ctx.exec(
-    `ls supabase/migrations 2>/dev/null | sed -n 's/^\\([0-9]\\{14\\}\\).*/\\1/p' | sort -u`,
+    `ls supabase/migrations 2>/dev/null | sed -n 's/^\\([0-9]\\{14\\}\\).*/\\1/p' | sort -u`
   );
-  return result.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+  return result.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
 }
 
 // Local migration files parsed into { version, name }, in filename order
 // (lexical sort on the 14-digit prefix == chronological). Keeps duplicates and
 // preserves order so `checkMigrationOrder` can assert the exact sequence.
 async function localMigrationFiles(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<Array<{ version: string; name: string; file: string }>> {
   const result = await ctx.exec(`ls supabase/migrations 2>/dev/null | sort`);
   return result.stdout
-    .split("\n")
+    .split('\n')
     .map((l) => l.trim())
     .filter(Boolean)
     .map((file) => {
       const m = file.match(/^(\d{14})_(.+)\.sql$/);
-      return m ? { version: m[1], name: m[2], file } : { version: "", name: "", file };
+      return m
+        ? { version: m[1], name: m[2], file }
+        : { version: '', name: '', file };
     })
-    .filter((f) => f.version !== "");
+    .filter((f) => f.version !== '');
 }

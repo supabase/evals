@@ -2,7 +2,7 @@ import type {
   CheckResult,
   LocalStackScorer,
   VitestResult,
-} from "@supabase-evals/core";
+} from '@supabase-evals/core';
 
 const scorer: LocalStackScorer = async (ctx) => {
   const build = await ctx.runViteBuild();
@@ -10,12 +10,12 @@ const scorer: LocalStackScorer = async (ctx) => {
 
   const checks: CheckResult[] = [
     {
-      name: "vite build passed",
+      name: 'vite build passed',
       passed: build.ok,
       notes: build.ok ? undefined : trimOutput(build.stderr || build.stdout),
     },
     {
-      name: "vitest passed",
+      name: 'vitest passed',
       passed: build.ok && vitest?.ok === true,
       notes: getVitestNotes(build.ok, vitest),
     },
@@ -29,10 +29,10 @@ const scorer: LocalStackScorer = async (ctx) => {
 
 function getVitestNotes(buildPassed: boolean, vitest?: VitestResult) {
   if (!buildPassed) {
-    return "not run because vite build failed";
+    return 'not run because vite build failed';
   }
   if (!vitest) {
-    return "vitest did not run";
+    return 'vitest did not run';
   }
   if (vitest.ok) {
     return undefined;
@@ -41,7 +41,7 @@ function getVitestNotes(buildPassed: boolean, vitest?: VitestResult) {
   const failures = vitest.failures?.length
     ? vitest.failures
     : [vitest.stderr || vitest.stdout];
-  return failures.map(trimOutput).join("\n");
+  return failures.map(trimOutput).join('\n');
 }
 
 function trimOutput(output: string) {

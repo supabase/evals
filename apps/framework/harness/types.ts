@@ -3,7 +3,7 @@ import type {
   EvalProduct,
   EvalStage,
   EvalSuite,
-} from "@supabase-evals/core/eval-metadata";
+} from '@supabase-evals/core/eval-metadata';
 
 export type {
   ScoreResult,
@@ -26,8 +26,8 @@ export type {
   ToolScorer,
   LocalStackScorer,
   ExperimentConfig,
-} from "@supabase-evals/core";
-export { judge, serializeTranscript } from "@supabase-evals/core";
+} from '@supabase-evals/core';
+export { judge, serializeTranscript } from '@supabase-evals/core';
 export type {
   EvalInterface,
   EvalMetadata,
@@ -35,9 +35,9 @@ export type {
   EvalStage,
   EvalSuite,
   ExperimentSuite,
-} from "@supabase-evals/core/eval-metadata";
+} from '@supabase-evals/core/eval-metadata';
 
-export type EvalMode = "tools" | "local-stack";
+export type EvalMode = 'tools' | 'local-stack';
 
 export interface EvalManifest {
   id: string;

@@ -13,10 +13,13 @@
  * this builder, so adding/removing an environment component happens in one place.
  */
 
-import type { SkillSource } from "@supabase-evals/core";
-import { DockerSandbox } from "./docker-sandbox.js";
-import { ensureSupabaseSandboxImage, setupSupabaseSandbox } from "./supabase.js";
-import { installSkills, type SkillEntry } from "./skills.js";
+import type { SkillSource } from '@supabase-evals/core';
+import { DockerSandbox } from './docker-sandbox.js';
+import {
+  ensureSupabaseSandboxImage,
+  setupSupabaseSandbox,
+} from './supabase.js';
+import { installSkills, type SkillEntry } from './skills.js';
 
 /** Supabase-local-stack component of the environment. */
 export interface LocalStackSetup {
@@ -52,7 +55,7 @@ export interface AgentEnvironment {
 }
 
 export async function createAgentEnvironment(
-  options: AgentEnvironmentOptions = {},
+  options: AgentEnvironmentOptions = {}
 ): Promise<AgentEnvironment> {
   // Same base image for both modes — it carries the common agent tooling (node,
   // git, the skills CLI). The Supabase CLI is NOT in it; it's installed by
@@ -65,7 +68,7 @@ export async function createAgentEnvironment(
     // the ports `supabase start` publishes on 127.0.0.1. Tools mode runs no
     // stack and instead reaches host-side platform-lite over the default bridge
     // via host.docker.internal — so bridge there.
-    network: options.localStack ? "host" : undefined,
+    network: options.localStack ? 'host' : undefined,
   });
   try {
     if (options.localStack) {

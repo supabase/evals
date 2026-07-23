@@ -5,15 +5,15 @@ import {
   type SupabaseClient,
   type ToolEvalContext,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const PASSWORD = "secret123";
+const PASSWORD = 'secret123';
 
 const scorer: ToolScorer = async (ctx) => {
   try {
     const setup = await setupTestUsers(ctx);
-    if ("failure" in setup) {
+    if ('failure' in setup) {
       return { passed: false, checks: [setup.failure] };
     }
     const users = setup.users;
@@ -41,7 +41,7 @@ const scorer: ToolScorer = async (ctx) => {
       passed: false,
       checks: [
         {
-          name: "scorer evaluated deleted user access",
+          name: 'scorer evaluated deleted user access',
           passed: false,
           notes: msg,
         },
@@ -62,7 +62,7 @@ type TestUsers = {
 };
 
 async function setupTestUsers(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<{ users: TestUsers } | { failure: CheckResult }> {
   const victim = ctx.client;
   const bystander = ctx.getClient();
@@ -87,9 +87,9 @@ async function setupTestUsers(
   ) {
     return {
       failure: {
-        name: "created auth sessions",
+        name: 'created auth sessions',
         passed: false,
-        notes: authVError?.message ?? authBError?.message ?? "missing session",
+        notes: authVError?.message ?? authBError?.message ?? 'missing session',
       },
     };
   }
@@ -112,24 +112,26 @@ INSERT INTO profiles (id, email, full_name) VALUES
   };
 }
 
-async function checkVictimActiveBeforeDeletion(users: TestUsers): Promise<CheckResult> {
+async function checkVictimActiveBeforeDeletion(
+  users: TestUsers
+): Promise<CheckResult> {
   const { data, error } = await users.victim
-    .from("notes")
-    .insert({ body: "note before deletion" })
-    .select("user_id");
+    .from('notes')
+    .insert({ body: 'note before deletion' })
+    .select('user_id');
 
   return {
-    name: "victim session active before delete-account",
+    name: 'victim session active before delete-account',
     passed: !error && data?.length === 1 && data[0]?.user_id === users.victimId,
     notes: error?.message,
   };
 }
 
 async function runDeleteAccountFlow(users: TestUsers): Promise<CheckResult> {
-  const { error } = await users.victim.rpc("delete_account");
+  const { error } = await users.victim.rpc('delete_account');
 
   return {
-    name: "delete_account flow ran for the victim",
+    name: 'delete_account flow ran for the victim',
     passed: !error,
     notes: error?.message,
   };
@@ -137,10 +139,10 @@ async function runDeleteAccountFlow(users: TestUsers): Promise<CheckResult> {
 
 async function checkSessionsRevoked(
   ctx: ToolEvalContext,
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { rows } = await ctx.query(
-    `SELECT count(*)::int AS count FROM auth.sessions WHERE user_id = '${users.victimId}';`,
+    `SELECT count(*)::int AS count FROM auth.sessions WHERE user_id = '${users.victimId}';`
   );
 
   return {
@@ -152,7 +154,7 @@ async function checkSessionsRevoked(
 
 async function checkRefreshTokenRejected(
   ctx: ToolEvalContext,
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { data, error } = await ctx.getClient().auth.refreshSession({
     refresh_token: users.victimRefreshToken,
@@ -161,13 +163,13 @@ async function checkRefreshTokenRejected(
   return {
     name: "deleted user's refresh token is rejected",
     passed: Boolean(error) || !data.session,
-    notes: error ? undefined : "refresh token still produces a session",
+    notes: error ? undefined : 'refresh token still produces a session',
   };
 }
 
 async function checkCannotSignBackIn(
   ctx: ToolEvalContext,
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { data, error } = await ctx.getClient().auth.signInWithPassword({
     email: users.victimEmail,
@@ -175,26 +177,31 @@ async function checkCannotSignBackIn(
   });
 
   return {
-    name: "deleted user cannot sign back in",
+    name: 'deleted user cannot sign back in',
     passed: Boolean(error) || !data.session,
-    notes: error ? undefined : "deleted account can still sign in",
+    notes: error ? undefined : 'deleted account can still sign in',
   };
 }
 
-async function checkBystanderUnaffected(users: TestUsers): Promise<CheckResult> {
+async function checkBystanderUnaffected(
+  users: TestUsers
+): Promise<CheckResult> {
   const { data, error } = await users.bystander
-    .from("notes")
-    .insert({ body: "bystander still works" })
-    .select("user_id");
+    .from('notes')
+    .insert({ body: 'bystander still works' })
+    .select('user_id');
 
   return {
-    name: "other users keep their sessions and access",
-    passed: !error && data?.length === 1 && data[0]?.user_id === users.bystanderId,
+    name: 'other users keep their sessions and access',
+    passed:
+      !error && data?.length === 1 && data[0]?.user_id === users.bystanderId,
     notes: error?.message,
   };
 }
 
-async function checkRevocationDiagnosis(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkRevocationDiagnosis(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, {
       includeToolCallInputs: true,
@@ -213,7 +220,7 @@ async function checkRevocationDiagnosis(ctx: ToolEvalContext): Promise<CheckResu
   });
 
   return {
-    name: "diagnosed and explained session revocation",
+    name: 'diagnosed and explained session revocation',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };
