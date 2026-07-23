@@ -148,25 +148,36 @@ CREATE VIEW logs AS
   SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'storage_logs', metadata
   FROM storage_logs;
 
+-- Enforcement of "only the unified stream is queryable" lives HERE, not in a
+-- regex: the ClickHouse route's transaction runs SET LOCAL ROLE logs_reader,
+-- and this role can SELECT only the logs view. The view executes with its
+-- owner's privileges, so the backing tables stay readable THROUGH it while
+-- direct access — however spelled (edge_logs, public.edge_logs,
+-- "edge_logs") — is denied by postgres name resolution, which no regex can
+-- reliably reproduce. The legacy logs.all route sets no role and keeps full
+-- table access for its BigQuery-era dialect.
+CREATE ROLE logs_reader;
+GRANT SELECT ON logs TO logs_reader;
+
 -- ClickHouse numeric-cast family, as models genuinely emit it in query_logs
 -- SQL (e.g. countIf(toInt32OrZero(log_attributes['status']) >= 400)).
 -- These are pg reimplementations of ClickHouse BUILTINS (also not importable
--- from anywhere); signatures follow clickhouse.com/docs/sql-reference.
--- ClickHouse semantics: parse the value, 0 when it isn't a number. Text and
--- numeric overloads cover both raw jsonb access and the translator's casts.
+-- from anywhere); signatures follow clickhouse.com/docs/sql-reference:
+-- each *OrZero takes a String ONLY — no numeric overloads, so a bare
+-- toInt32OrZero(42) errors here exactly as it does on hosted ClickHouse.
+-- Map access always compiles to text (debugging.ts translator), which is the
+-- only argument form observed from models. toString is anyelement because
+-- ClickHouse's toString accepts any type.
 -- Grown strictly from observed model output - see debugging.ts translator note.
 CREATE FUNCTION toInt32OrZero(v text) RETURNS numeric AS $ch$
 BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
 $ch$ LANGUAGE plpgsql IMMUTABLE;
-CREATE FUNCTION toInt32OrZero(v numeric) RETURNS numeric AS $ch$ SELECT coalesce(v, 0) $ch$ LANGUAGE sql IMMUTABLE;
 CREATE FUNCTION toInt64OrZero(v text) RETURNS numeric AS $ch$
 BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
 $ch$ LANGUAGE plpgsql IMMUTABLE;
-CREATE FUNCTION toInt64OrZero(v numeric) RETURNS numeric AS $ch$ SELECT coalesce(v, 0) $ch$ LANGUAGE sql IMMUTABLE;
 CREATE FUNCTION toUInt32OrZero(v text) RETURNS numeric AS $ch$
 BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
 $ch$ LANGUAGE plpgsql IMMUTABLE;
-CREATE FUNCTION toUInt32OrZero(v numeric) RETURNS numeric AS $ch$ SELECT coalesce(v, 0) $ch$ LANGUAGE sql IMMUTABLE;
 CREATE FUNCTION toString(v anyelement) RETURNS text AS $ch$ SELECT v::text $ch$ LANGUAGE sql IMMUTABLE;
 `
 

@@ -68,6 +68,12 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
       const compiled = compileClickHouseLogsSql(stmt)
       const result = await project.logsDb.transaction(async (tx) => {
         await tx.exec('SET TRANSACTION READ ONLY')
+        // logs_reader may SELECT only the unified 'logs' view (grant in
+        // LOGS_BASE_SQL) — postgres name resolution denies the backing tables
+        // under ANY spelling (edge_logs, public.edge_logs, "edge_logs"),
+        // which the best-effort regex in compileClickHouseLogsSql cannot.
+        // SET LOCAL reverts with the transaction.
+        await tx.exec('SET LOCAL ROLE logs_reader')
         return tx.query<Record<string, unknown>>(compiled)
       })
       return c.json({ result: result.rows })
@@ -137,6 +143,16 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
  * empty result would read as "no logs", green-lighting an eval the fixture
  * cannot actually serve. The error surfaces to the model like any other.
  *
+ * ONLY the unified 'logs' relation is queryable, matching mcp's contract
+ * (nothing else is described); locally the backing tables share the PGlite
+ * db, so a direct `from edge_logs` would succeed here while failing hosted.
+ * ENFORCEMENT is the logs_reader role in the route's transaction (postgres
+ * resolves every spelling — qualified, quoted). The FROM/JOIN regex below is
+ * best-effort message shaping for the common unqualified form, pointing the
+ * model at the source-filter idiom; bypassing it just yields the role's
+ * "permission denied" instead. Source names remain valid as string literals
+ * (where source = 'edge_logs').
+ *
  * PROVENANCE: none of this is importable. The real dialect boundary lives in
  * the hosted platform's Logflare/ClickHouse backend (supabase/platform#35096,
  * platform-internal); mcp ships only tool descriptions, and ClickHouse
@@ -149,12 +165,19 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
  * locally. A time-window-discriminating eval needs relative-time seeding.
  */
 const UNMODELED_SOURCES = /\b(workflow_run_logs|realtime_logs)\b/i
+const PHYSICAL_RELATIONS = /\b(?:from|join)\s+(edge_logs|function_edge_logs|function_logs|postgres_logs|auth_logs|storage_logs)\b/i
 
 export function compileClickHouseLogsSql(sql: string): string {
   const unmodeled = UNMODELED_SOURCES.exec(sql)
   if (unmodeled) {
     throw new Error(
       `source '${unmodeled[1]}' is not modeled by platform-lite — no backing table, so results would be silently empty`
+    )
+  }
+  const physical = PHYSICAL_RELATIONS.exec(sql)
+  if (physical) {
+    throw new Error(
+      `relation '${physical[1]}' is not queryable on this endpoint — query the unified 'logs' stream and filter with where source = '${physical[1]}'`
     )
   }
   return sql

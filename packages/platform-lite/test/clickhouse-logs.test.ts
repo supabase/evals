@@ -104,6 +104,28 @@ describe('compileClickHouseLogsSql + unified logs view', () => {
     }
   )
 
+  it('rejects direct queries against a physical table (only the unified logs stream is exposed)', () => {
+    // Best-effort message shaping for the common unqualified form — the model
+    // gets pointed at the source-filter idiom. REAL enforcement is the
+    // logs_reader role in the route transaction (see the route describe for
+    // the qualified/quoted bypass spellings this regex cannot catch).
+    expect(() => compileClickHouseLogsSql('select * from edge_logs order by timestamp desc limit 5')).toThrow(
+      /not queryable/i
+    )
+    // ...while the same name stays valid as a source filter.
+    expect(() =>
+      compileClickHouseLogsSql("select id from logs where source = 'edge_logs' limit 5")
+    ).not.toThrow()
+  })
+
+  it('rejects a numeric argument to toInt32OrZero (ClickHouse takes String only)', async () => {
+    // ClickHouse's *OrZero builtins accept String; hosted rejects
+    // toInt32OrZero(42), so the shim must too — only the text overload exists.
+    await expect(
+      logsDb.query(compileClickHouseLogsSql("select countIf(toInt32OrZero(42) > 0) as n from logs where source = 'function_edge_logs'"))
+    ).rejects.toThrow(/does not exist/i)
+  })
+
   it('runs the mcp storage preset', async () => {
     // verbatim from mcp getClickHouseLogQuery('storage'), limit interpolated to 100
     const result = await logsDb.query<{ id: string; event_message: string }>(
@@ -217,7 +239,12 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
   it('rejects a data-modifying CTE and leaves fixture rows intact', async () => {
     await ready
     const before = await countRows()
-    const res = await app.request(url('WITH x AS (DELETE FROM function_edge_logs RETURNING *) SELECT count(*) FROM x'))
+    // This write passes the `with` prefix gate AND the relation guard (INSERT
+    // INTO is not a from/join position), so the ONLY thing stopping it is the
+    // read-only transaction — the last line of defense this test pins. (A CTE
+    // DELETE ... FROM a physical table is now caught earlier, by the
+    // unified-stream relation guard.)
+    const res = await app.request(url("WITH x AS (INSERT INTO function_edge_logs (id) VALUES ('evil') RETURNING id) SELECT * FROM x"))
     // Pin the status: 200 proves this went through the SQL-error path (the
     // read-only transaction), not the prefix gate's 400 — the gate's message
     // also matches /read-only/i, so without this a refactor unifying the two
@@ -250,5 +277,27 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
     const body = (await res.json()) as { result: unknown[]; error?: string }
     expect(body.error).toMatch(/not modeled/i)
     expect(body.result).toEqual([])
+  })
+
+  it.each([
+    ['schema-qualified', 'select * from public.function_edge_logs limit 5'],
+    ['quoted', 'select * from "function_edge_logs" limit 5'],
+  ])('denies %s access to a backing table via the logs_reader role', async (_label, sql) => {
+    await ready
+    // These spellings bypass the best-effort regex in compileClickHouseLogsSql;
+    // postgres name resolution under SET LOCAL ROLE logs_reader is what
+    // actually enforces the unified-stream-only contract.
+    const res = await app.request(url(sql))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { result: unknown[]; error?: string }
+    expect(body.error).toMatch(/permission denied/i)
+    expect(body.result).toEqual([])
+  })
+
+  it('still serves the unified logs view under the logs_reader role', async () => {
+    await ready
+    const res = await app.request(url("select id from logs where source = 'function_edge_logs' order by timestamp desc limit 10"))
+    const body = (await res.json()) as { result: unknown[] }
+    expect(body.result).toHaveLength(2)
   })
 })
