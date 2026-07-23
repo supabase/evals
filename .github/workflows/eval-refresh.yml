@@ -446,13 +446,17 @@ jobs:
           title: "chore: refresh eval results"
           body: |
             Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
-          # Draft PRs can't be merged, and the scheduled path merges itself.
-          draft: ${{ github.event_name != 'schedule' }}
+          # TEST: forced non-draft on this throwaway branch to verify the
+          # merge step below via workflow_dispatch. Revert before merging.
+          draft: false
           delete-branch: true
 
       - name: Merge scheduled results pull request
         # The app is on the ruleset's bypass list, so no review is required.
-        if: github.event_name == 'schedule' && steps.cpr.outputs.pull-request-number
+        # TEST: widened to workflow_dispatch on this throwaway branch only.
+        if: >-
+          (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+          steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --squash --delete-branch
