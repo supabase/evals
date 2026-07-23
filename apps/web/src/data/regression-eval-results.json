@@ -305,17 +305,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified `video-thumbnails` as the affected function and explicitly stated the failures are `status_code: 546` due to CPU/resource limits, while ruling out the unrelated `welcome-email` 500."
+        "judgeNotes": "Identified `video-thumbnails` as affected and correctly recognized failures as HTTP 546 due to CPU/resource limit, while distinguishing unrelated `welcome-email` 500."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion and grounds it in log evidence: shutdown reason CPUTime plus cpu_time_used 2000ms at cpu_time_limit 2000ms. It also explicitly rules out unrelated errors."
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing the log signature `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` and distinguishes it from wall-clock time, memory, code exceptions, and the unrelated welcome-email error."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly identifies CPUTime limit as root cause and recommends reducing/offloading CPU-intensive thumbnail generation: rejecting/downscaling large inputs, moving work to a background/external worker, and optimizing/profiling the thumbnailing code. It also notes the CPU ceiling cannot be raised."
+        "judgeNotes": "Recommended moving CPU-heavy thumbnail generation out of the Edge Function and reducing per-call CPU work if kept there."
       }
     ],
     "skills": {
@@ -972,17 +972,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly recognized HTTP 546 worker/resource/CPU limit errors, not 500/503 server errors."
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and explicitly described failures as HTTP 546 due to worker CPU/resource limit, not 500/503."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing log evidence including `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` and explicitly distinguishing it from wall-clock timeout."
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing log evidence including `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`, and explicitly rules out wall-clock timeout and memory."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant explicitly recommends offloading thumbnail generation to a background worker/external container and reducing per-call CPU cost, rather than retrying or raising limits."
+        "judgeNotes": "The assistant correctly identifies the CPU-time limit and recommends reducing/offloading CPU-intensive thumbnail generation: moving work to a background/external worker, keeping the Edge Function as a thin trigger, and reducing per-call CPU work via seeking/downscaling/rejecting large inputs."
       }
     ],
     "skills": {
