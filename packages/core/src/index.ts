@@ -5,7 +5,7 @@ import { execFile } from "node:child_process";
 import { createServer } from "node:net";
 import { promisify } from "node:util";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import type { ToolName } from "./transcript/types.js";
@@ -892,8 +892,11 @@ export function supabaseMcpServer(
   return {
     name: "supabase-mcp",
     async createConfig({ apiUrl, accessToken } = {}) {
-      const args = [
-        `@supabase/mcp-server-supabase@${version}`,
+      const localServerPath = process.env.SUPABASE_MCP_SERVER_PATH;
+
+      // Server flags are identical whether we launch the published package via
+      // npx or a local build directly with node.
+      const serverArgs = [
         // The server refuses to boot without a token; with only platform-
         // independent features (docs) it never authenticates against the
         // management API, so a well-formed throwaway is enough.
@@ -905,8 +908,37 @@ export function supabaseMcpServer(
       // Only point the server at a platform when one is given. `docs` is
       // platform-independent (it queries the public docs GraphQL API), so a
       // docs-only server runs standalone with no `--api-url`.
-      if (apiUrl) args.push("--api-url", apiUrl);
-      return { config: { command: "npx", args } };
+      if (apiUrl) serverArgs.push("--api-url", apiUrl);
+
+      // SUPABASE_MCP_SERVER_PATH swaps the published npx package for a local
+      // build (a repo/package dir or a direct .js/.mjs/.cjs entrypoint), so a
+      // workspace can test an unpublished server change without publishing to
+      // npm. Relative paths resolve against the eval process CWD — prefer
+      // absolute paths.
+      if (localServerPath) {
+        const entry = resolve(
+          /\.[cm]?js$/.test(localServerPath)
+            ? localServerPath
+            : join(localServerPath, "dist", "transports", "stdio.js"),
+        );
+        if (!existsSync(entry)) {
+          throw new Error(
+            `SUPABASE_MCP_SERVER_PATH resolved to ${entry}, which does not exist — ` +
+              `build the server first (pnpm install && pnpm build in the mcp checkout); ` +
+              `see README "Running against an exact MCP server revision".`,
+          );
+        }
+        return {
+          config: { command: process.execPath, args: [entry, ...serverArgs] },
+        };
+      }
+
+      return {
+        config: {
+          command: "npx",
+          args: [`@supabase/mcp-server-supabase@${version}`, ...serverArgs],
+        },
+      };
     },
   };
 }
