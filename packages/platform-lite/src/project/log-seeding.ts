@@ -119,6 +119,10 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --     package (^0.8.1) can drift ahead of the MCP_SERVER_VERSION pin the
 --     harness actually runs, so importing it would track the wrong artifact.)
 --     Resync this view when the pinned MCP_SERVER_VERSION moves.
+--   * UNMODELED preset sources: workflow_run_logs (branch-action) and
+--     realtime_logs (realtime) have no backing table in platform-lite, so
+--     those presets return 0 rows locally — a silent gap, not an error. Add
+--     tables + seeds before trusting a branch-action/realtime logs eval.
 CREATE VIEW logs AS
   SELECT id, identifier, timestamp, ts, event_message, message, level, level AS severity_text, 'edge_logs'::text AS source,
     metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'request.method', method, 'request.path', path, 'response.status_code', status_code)) AS log_attributes

@@ -2,6 +2,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import type { ProjectStore } from '../src/project-store.js'
+import type { ProjectInstance } from '../src/project/ProjectInstance.js'
 import { LOGS_BASE_SQL, seedLogRow } from '../src/project/log-seeding.js'
 import { compileClickHouseLogsSql, createDebuggingRoutes } from '../src/management-api/debugging.js'
 
@@ -53,7 +54,7 @@ describe('compileClickHouseLogsSql + unified logs view', () => {
 
   it('runs a query_logs-style countIf aggregation (top error function)', async () => {
     const sql = `select log_attributes['function_id'] as function_id,
-      countIf(log_attributes['response.status_code'] >= 500) as error_count,
+      countIf(toInt32OrZero(log_attributes['response.status_code']) >= 500) as error_count,
       count(*) as total_count
       from logs
       where source = 'function_edge_logs'
@@ -69,36 +70,61 @@ describe('compileClickHouseLogsSql + unified logs view', () => {
     expect(Number(result.rows[1]!.error_count)).toBe(1)
   })
 
+  it('surfaces an error for a bare numeric comparison on a map value (hosted-faithful)', async () => {
+    // Hosted ClickHouse map values are String, so a bare `>= 500` comparison is
+    // a type error there — it must error here too. The surfaced error is the
+    // friction that teaches the model to wrap in toInt32OrZero (exactly what
+    // the verbatim fixtures below show it doing).
+    await expect(
+      logsDb.query(
+        compileClickHouseLogsSql(
+          "select countIf(log_attributes['response.status_code'] >= 500) as n from logs where source = 'function_edge_logs'"
+        )
+      )
+    ).rejects.toThrow(/operator does not exist/i)
+  })
+
   it('runs the runtime (function_logs) preset source', async () => {
-    const result = await logsDb.query(
+    const result = await logsDb.query<{ function_id: string; level: string; severity_text: string }>(
       compileClickHouseLogsSql(
         `select id, timestamp, event_message, severity_text, log_attributes['level'] as level, log_attributes['function_id'] as function_id from logs where source = 'function_logs' order by timestamp desc limit 10`
       )
     )
-    expect(result.rows.length).toBeGreaterThan(0)
+    expect(result.rows.map((r) => r.function_id).sort()).toEqual([
+      'send-email',
+      'send-email',
+      'stripe-webhook',
+      'stripe-webhook',
+      'stripe-webhook',
+    ])
+    for (const row of result.rows) {
+      expect(['error', 'info']).toContain(row.level)
+      expect(row.severity_text).toBe(row.level)
+    }
   })
-  it('runs the exact ClickHouse SQL claude-sonnet-5 emitted in the PR-333 A/B (toInt32OrZero)', async () => {
-    // verbatim model output from results-ab/investigate-logs-001-top-error-function.treatment.json
-    const sql = `select log_attributes['function_id'] as function_id,
+
+  // Both cases are verbatim model output from the PR-333 A/B
+  // (results-ab/investigate-logs-001-top-error-function.treatment.json):
+  // frozen regression fixtures, one per ClickHouse builtin shim they exercise.
+  it.each([
+    [
+      'toInt32OrZero',
+      `select log_attributes['function_id'] as function_id,
        count(*) as total_events,
        countIf(level = 'error' or toInt32OrZero(log_attributes['status']) >= 400) as error_count
 from logs
 where source = 'function_edge_logs'
 group by function_id
-order by error_count desc`
-    const result = await logsDb.query<{ function_id: string; error_count: string | number; total_count: unknown }>(
-      compileClickHouseLogsSql(sql)
-    )
-    expect(result.rows[0]).toMatchObject({ function_id: 'stripe-webhook' })
-    expect(Number((result.rows[0] as { error_count: unknown }).error_count)).toBe(2)
-  })
-
-  it('runs the toString-nested ClickHouse SQL from the treatment rerun', async () => {
-    // verbatim model output (rerun call 4): toString wrapped inside toInt32OrZero
-    const sql = `select log_attributes['function_id'] as function_id, count(*) as total_events, countIf(toInt32OrZero(toString(log_attributes['status'])) >= 400 or level = 'error') as error_count from logs where source = 'function_edge_logs' group by function_id order by error_count desc`
+order by error_count desc`,
+    ],
+    [
+      'toString nested inside toInt32OrZero (rerun call 4)',
+      `select log_attributes['function_id'] as function_id, count(*) as total_events, countIf(toInt32OrZero(toString(log_attributes['status'])) >= 400 or level = 'error') as error_count from logs where source = 'function_edge_logs' group by function_id order by error_count desc`,
+    ],
+  ])('runs the exact ClickHouse SQL claude-sonnet-5 emitted in the PR-333 A/B (%s)', async (_label, sql) => {
     const result = await logsDb.query<{ function_id: string; error_count: unknown }>(compileClickHouseLogsSql(sql))
     expect(result.rows[0]).toMatchObject({ function_id: 'stripe-webhook' })
-    expect(Number((result.rows[0] as { error_count: unknown }).error_count)).toBe(2)
+    expect(Number(result.rows[0]!.error_count)).toBe(2)
   })
 })
 
@@ -122,8 +148,12 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
   })()
   afterAll(() => routeDb.close())
 
-  const store = { get: (ref: string) => (ref === 'proj' ? { logsDb: routeDb } : undefined) }
-  const { app } = createDebuggingRoutes(store as unknown as ProjectStore)
+  // Minimal fake: the routes only call store.get(ref) and touch project.logsDb.
+  // Pick<> keeps the used surface type-checked; the single cast is confined to
+  // the fake project object, whose other ProjectInstance fields are never read.
+  const fakeProject = { logsDb: routeDb } as Partial<ProjectInstance> as ProjectInstance
+  const store: Pick<ProjectStore, 'get'> = { get: (ref) => (ref === 'proj' ? fakeProject : undefined) }
+  const { app } = createDebuggingRoutes(store as ProjectStore)
   const url = (sql: string) => `/v1/projects/proj/analytics/endpoints/logs?sql=${encodeURIComponent(sql)}`
   const countRows = async () =>
     Number((await routeDb.query<{ n: string }>('select count(*) as n from function_edge_logs')).rows[0]!.n)

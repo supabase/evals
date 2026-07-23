@@ -68,9 +68,9 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
       const compiled = compileClickHouseLogsSql(stmt)
       const result = await project.logsDb.transaction(async (tx) => {
         await tx.exec('SET TRANSACTION READ ONLY')
-        return tx.query(compiled)
+        return tx.query<Record<string, unknown>>(compiled)
       })
-      return c.json({ result: (result as { rows: unknown[] }).rows })
+      return c.json({ result: result.rows })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       return c.json({ result: [], error: message })
@@ -119,8 +119,10 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
  * Translate ClickHouse-dialect SQL (as current mcp emits for the unified logs
  * stream) into PGlite SQL against the 'logs' VIEW. The supported surface is
  * DELIBERATELY partial — exactly what models have been observed to emit:
- *   log_attributes['k']  ->  (log_attributes->>'k')   (numeric keys get a cast
- *     so agent-written comparisons like >= 500 work)
+ *   log_attributes['k']  ->  (log_attributes->>'k')   (always text — hosted
+ *     ClickHouse map values are String too, so a bare numeric comparison like
+ *     log_attributes['status'] >= 400 errors here exactly as it does there;
+ *     models adapt by wrapping in toInt32OrZero, as observed)
  *   countIf(cond)        ->  count(*) FILTER (WHERE cond)
  *   toInt32OrZero/toInt64OrZero/toUInt32OrZero/toString -> SQL shims in
  *     LOGS_BASE_SQL (log-seeding.ts)
@@ -140,15 +142,9 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
  * (fixed-date seeds), so window-correctness of model queries is NOT exercised
  * locally. A time-window-discriminating eval needs relative-time seeding.
  */
-const NUMERIC_LOG_ATTRIBUTES = new Set(['response.status_code', 'status_code', 'execution_time_ms'])
-
 export function compileClickHouseLogsSql(sql: string): string {
   return sql
-    .replace(/\blog_attributes\['([^']+)'\]/gi, (_m, key: string) =>
-      NUMERIC_LOG_ATTRIBUTES.has(key)
-        ? `((log_attributes->>'${key}')::numeric)`
-        : `(log_attributes->>'${key}')`
-    )
+    .replace(/\blog_attributes\['([^']+)'\]/gi, (_m, key: string) => `(log_attributes->>'${key}')`)
     .replace(/\bcountIf\s*\(/gi, 'count(*) FILTER (WHERE ')
 }
 
