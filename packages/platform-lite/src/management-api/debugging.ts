@@ -53,10 +53,15 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
     // The hosted endpoint is read-only server-side; enforce the same contract on
     // model-authored SQL. The prefix check only shapes the error message — the
     // REAL enforcement is the read-only transaction below, which postgres applies
-    // to every statement including data-modifying CTEs.
+    // to every statement including data-modifying CTEs. The 400 body carries
+    // `message` because mcp's assertSuccess parses non-2xx bodies as {message}
+    // (the management-API error envelope) — without it the model only sees the
+    // generic "Failed to fetch logs" fallback; `error` kept for shape
+    // consistency with the 200 SQL-error path.
     const stmt = sql.trim().replace(/;+\s*$/, '')
     if (stmt.includes(';') || !/^\s*(select|with)\b/i.test(stmt)) {
-      return c.json({ result: [], error: 'only a single read-only SELECT statement is supported' }, 400)
+      const message = 'only a single read-only SELECT statement is supported'
+      return c.json({ result: [], error: message, message }, 400)
     }
 
     try {

@@ -1,9 +1,9 @@
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, describe, expect, it } from 'vitest'
 
-import type { ProjectStore } from '../project-store.js'
-import { LOGS_BASE_SQL, seedLogRow } from '../project/log-seeding.js'
-import { compileClickHouseLogsSql, createDebuggingRoutes } from './debugging.js'
+import type { ProjectStore } from '../src/project-store.js'
+import { LOGS_BASE_SQL, seedLogRow } from '../src/project/log-seeding.js'
+import { compileClickHouseLogsSql, createDebuggingRoutes } from '../src/management-api/debugging.js'
 
 // Contract test for the ClickHouse-shaped /analytics/endpoints/logs fixture:
 // the SQL current mcp emits (get_logs presets and query_logs-style aggregation
@@ -140,6 +140,11 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
     await ready
     const before = await countRows()
     const res = await app.request(url('WITH x AS (DELETE FROM function_edge_logs RETURNING *) SELECT count(*) FROM x'))
+    // Pin the status: 200 proves this went through the SQL-error path (the
+    // read-only transaction), not the prefix gate's 400 — the gate's message
+    // also matches /read-only/i, so without this a refactor unifying the two
+    // rejection paths would leave the transaction guard silently untested.
+    expect(res.status).toBe(200)
     const body = (await res.json()) as { result: unknown[]; error?: string }
     expect(body.error).toMatch(/read-only/i)
     expect(body.result).toEqual([])
@@ -151,6 +156,12 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
     const before = await countRows()
     const res = await app.request(url('DELETE FROM function_edge_logs'))
     expect(res.status).toBe(400)
+    // mcp's assertSuccess parses non-2xx bodies as {message} — pin that key so
+    // the informative text reaches the model instead of the generic fallback.
+    const body = (await res.json()) as { result: unknown[]; error?: string; message?: string }
+    expect(body.message).toMatch(/read-only SELECT/i)
+    expect(body.error).toBe(body.message)
+    expect(body.result).toEqual([])
     expect(await countRows()).toBe(before)
   })
 })
