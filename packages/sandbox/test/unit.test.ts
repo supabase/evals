@@ -402,6 +402,71 @@ describe('cliVersion frontmatter', () => {
   });
 });
 
+describe('skills frontmatter', () => {
+  const buildMarkdown = (extra: string) =>
+    [
+      '---',
+      'stage: build',
+      'suite: regression',
+      'interface: cli',
+      'product: [database]',
+      'topic: [sdk]',
+      extra,
+      '---',
+      'body',
+    ].join('\n');
+
+  it('preserves hyphenated skill directory names', () => {
+    const { metadata } = parseEvalMarkdown(
+      buildMarkdown('skills: [supabase, supabase-postgres-best-practices]')
+    );
+    expect(metadata.skills).toEqual([
+      'supabase',
+      'supabase-postgres-best-practices',
+    ]);
+  });
+
+  it('parses an empty override distinctly from an omitted key', () => {
+    const overridden = parseEvalMarkdown(buildMarkdown('skills: []'));
+    expect(overridden.metadata.skills).toEqual([]);
+
+    const omitted = parseEvalMarkdown(buildMarkdown(''));
+    expect(omitted.metadata.skills).toBeUndefined();
+  });
+});
+
+describe('skipCliInstall frontmatter', () => {
+  const buildMarkdown = (extra: string) =>
+    [
+      '---',
+      'stage: build',
+      'suite: regression',
+      'interface: cli',
+      'product: [database]',
+      'topic: [sdk]',
+      extra,
+      '---',
+      'body',
+    ].join('\n');
+
+  it('accepts a real boolean and a quoted string form', () => {
+    expect(
+      parseEvalMarkdown(buildMarkdown('skipCliInstall: true')).metadata
+        .skipCliInstall
+    ).toBe(true);
+    expect(
+      parseEvalMarkdown(buildMarkdown('skipCliInstall: "true"')).metadata
+        .skipCliInstall
+    ).toBe(true);
+  });
+
+  it('defaults to undefined when omitted', () => {
+    expect(
+      parseEvalMarkdown(buildMarkdown('')).metadata.skipCliInstall
+    ).toBeUndefined();
+  });
+});
+
 describe('resolveSandboxPath', () => {
   it('accepts and normalizes relative paths', () => {
     expect(resolveSandboxPath('a/b.txt')).toBe('a/b.txt');

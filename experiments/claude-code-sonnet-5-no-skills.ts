@@ -18,4 +18,5 @@ export default defineExperiment({
   }),
   localStack: localStackRuntime(),
   skills: [],
+  skipEval: (ev) => ev.metadata.skills?.length === 0,
 });
