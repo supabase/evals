@@ -38,8 +38,8 @@ This runner replaces step 2's machine, one Firecracker microVM per pair:
 | `ubuntu-latest` runner            | `Sandbox.create()` VM (Amazon Linux 2023)          |
 | `actions/checkout` + submodules   | `source: { type: "git", revision }` + submodule init |
 | runner's built-in Docker daemon   | `dnf install docker` + detached `dockerd`          |
-| `strategy.matrix` parallelism     | N sandboxes in flight (`--concurrency`; the workflow defaults to 16 — the matrix ran as wide as the org's runner pool, ~20–60 jobs, while Vercel Pro allows 2,000 concurrent sandboxes and 50 × 4-vCPU creations/min) |
-| artifact upload/download          | `tar` + `sandbox.readFileToBuffer()` → `results/`  |
+| `strategy.matrix` parallelism     | N sandboxes in flight (`--concurrency`; the workflow defaults to 32 — the matrix ran as wide as the org's runner pool, ~20–60 jobs, while Vercel Pro allows 2,000 concurrent sandboxes and 50 × 4-vCPU creations/min) |
+| artifact upload/download          | `tar` + `sandbox.downloadFile()` → `results/`  |
 
 `packages/sandbox` is untouched: the agent container and the Supabase sibling
 containers run against the VM's own dockerd exactly as they do against a
