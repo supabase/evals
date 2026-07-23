@@ -200,7 +200,20 @@ export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
 
   if (normalizedSource === 'auth') {
     await seedAuthLog(logsDb, log)
+    return
   }
+
+  if (normalizedSource === 'storage' || normalizedSource === 'storage_logs') {
+    await seedStorageLog(logsDb, log)
+    return
+  }
+
+  // Loud failure over a silent no-op: a dropped seed surfaces later as a false
+  // "no logs" query result, which reads as a passing scenario. Same doctrine as
+  // the unmodeled-source guard in debugging.ts.
+  throw new Error(
+    `unknown log seed source '${row.source}' — expected edge-function, edge, postgres/database, auth, or storage`
+  )
 }
 
 type NormalizedLogSeed = {
@@ -317,6 +330,23 @@ async function seedAuthLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void
       metadataText(log.metadata, ['status']),
       metadataText(log.metadata, ['path']),
       metadataText(log.metadata, ['error']),
+    ]
+  )
+}
+
+async function seedStorageLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void> {
+  await logsDb.query(
+    `INSERT INTO storage_logs
+      (id, identifier, timestamp, ts, event_message, message, source, level, metadata)
+     VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7::jsonb)`,
+    [
+      log.id,
+      metadataText(log.metadata, ['identifier']),
+      log.ts,
+      log.message,
+      log.source,
+      log.level,
+      log.metadataJson,
     ]
   )
 }

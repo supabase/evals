@@ -28,6 +28,14 @@ for (const [id, functionId, status] of [
     metadata: { function_id: functionId, status, duration_ms: 100 },
   })
 }
+await seedLogRow(logsDb, {
+  id: 's1',
+  ts: new Date('2026-04-28T10:00:00Z'),
+  source: 'storage',
+  level: 'error',
+  message: 'upload failed: object too large',
+  metadata: { identifier: 'avatars-bucket' },
+})
 afterAll(() => logsDb.close())
 
 // verbatim from mcp getClickHouseLogQuery('edge-function')
@@ -95,6 +103,35 @@ describe('compileClickHouseLogsSql + unified logs view', () => {
       ).toThrow(/not modeled/i)
     }
   )
+
+  it('runs the mcp storage preset', async () => {
+    // verbatim from mcp getClickHouseLogQuery('storage'), limit interpolated to 100
+    const result = await logsDb.query<{ id: string; event_message: string }>(
+      compileClickHouseLogsSql(
+        `select id, timestamp, event_message
+from logs
+where source = 'storage_logs'
+order by timestamp desc
+limit 100`
+      )
+    )
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0]).toMatchObject({ id: 's1', event_message: 'upload failed: object too large' })
+  })
+
+  it('rejects an unknown seed source loudly instead of silently dropping the row', async () => {
+    // A silently dropped seed surfaces later as a false "no logs" query result;
+    // a typo'd source must fail at seed time, not read as a passing scenario.
+    await expect(
+      seedLogRow(logsDb, {
+        id: 'x1',
+        ts: new Date('2026-04-28T10:00:00Z'),
+        source: 'realtime',
+        level: 'info',
+        message: 'nope',
+      })
+    ).rejects.toThrow(/unknown log seed source/i)
+  })
 
   it('runs the runtime (function_logs) preset source', async () => {
     const result = await logsDb.query<{ function_id: string; level: string; severity_text: string }>(
