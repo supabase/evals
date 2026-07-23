@@ -28,6 +28,15 @@ const SANDBOX_CWD = "/vercel/sandbox";
 /** Ready-poll budget for dockerd inside the VM. */
 const DOCKERD_READY_TIMEOUT_SEC = 60;
 
+/**
+ * Backoff schedule for retrying sandbox creation. A full-matrix fan-out can
+ * brush the vCPU allocation rate limit or hit a transient API error; like the
+ * sandbox-image build retry in packages/sandbox, every failure is retried (no
+ * stable error taxonomy) and a deterministic failure merely wastes the
+ * schedule before surfacing.
+ */
+const CREATE_RETRY_DELAYS_MS = [20_000, 60_000];
+
 export interface SandboxJobOptions {
   pair: EvalPair;
   /** HTTPS clone URL of this repo. */
@@ -105,21 +114,34 @@ export async function runPairInSandbox(
   let sandbox: Sandbox | undefined;
   try {
     log(`creating sandbox (vcpus=${options.vcpus}, timeout=${Math.round(options.sandboxTimeoutMs / 60000)}m, rev=${options.revision.slice(0, 8)})`);
-    sandbox = await Sandbox.create({
-      ...credentialsFromEnv(),
-      runtime: "node22",
-      resources: { vcpus: options.vcpus },
-      timeout: options.sandboxTimeoutMs,
-      source: {
-        type: "git",
-        url: options.repoUrl,
-        revision: options.revision,
-        // Vercel clones with these as basic-auth; x-access-token is GitHub's
-        // conventional username for token auth.
-        username: "x-access-token",
-        password: options.githubToken,
-      },
-    });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        sandbox = await Sandbox.create({
+          ...credentialsFromEnv(),
+          runtime: "node22",
+          resources: { vcpus: options.vcpus },
+          timeout: options.sandboxTimeoutMs,
+          source: {
+            type: "git",
+            url: options.repoUrl,
+            revision: options.revision,
+            // Vercel clones with these as basic-auth; x-access-token is
+            // GitHub's conventional username for token auth.
+            username: "x-access-token",
+            password: options.githubToken,
+          },
+        });
+        break;
+      } catch (err) {
+        const delayMs = CREATE_RETRY_DELAYS_MS[attempt];
+        if (delayMs === undefined) throw err;
+        stderr.write(
+          `sandbox creation failed (attempt ${attempt + 1}/${CREATE_RETRY_DELAYS_MS.length + 1}), ` +
+            `retrying in ${delayMs / 1000}s: ${err instanceof Error ? err.message : err}\n`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
     log(`sandbox ${sandbox.name} created`);
 
     const run = async (

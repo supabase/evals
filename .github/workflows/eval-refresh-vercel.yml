@@ -50,6 +50,10 @@ on:
         type: boolean
         required: false
         default: false
+      concurrency:
+        description: "Max sandboxes in flight at once"
+        required: false
+        default: "16"
   pull_request:
     # Run whenever a PR carrying the run-evals-sandbox label is opened, pushed
     # to, or receives the label. The job-level `if` gates on those cases.
@@ -93,6 +97,7 @@ jobs:
             experiment_suite="${{ inputs.experiment_suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
+            concurrency="${{ inputs.concurrency }}"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             experiments=""
             eval_ids=""
@@ -100,6 +105,7 @@ jobs:
             experiment_suite="regression"
             runs="2"
             timeout_sec="720"
+            concurrency="16"
           else
             experiments=""
             eval_ids=""
@@ -107,6 +113,7 @@ jobs:
             experiment_suite="benchmark,no-skills,regression"
             runs="2"
             timeout_sec="720"
+            concurrency="16"
           fi
 
           # run-evals-sandbox takes priority; run-evals-sandbox-changed only
@@ -133,6 +140,7 @@ jobs:
             echo "experiment_suite=$experiment_suite"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
+            echo "concurrency=$concurrency"
             echo "filter_changed=$filter_changed"
             echo "do_merge=$do_merge"
           } >> "$GITHUB_OUTPUT"
@@ -199,12 +207,27 @@ jobs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "eval=$(IFS=,; echo "${changed[*]}")" >> "$GITHUB_OUTPUT"
 
-      - name: Run evals in Vercel Sandbox
-        if: steps.changed.outputs.skip != 'true'
+      - name: Write eval environment
+        # The framework's `pnpm eval` scripts load the repo-root .env with
+        # node's --env-file, which hard-fails when the file is missing — and
+        # experiment discovery (`pnpm eval -- list`) shells out to them. Same
+        # step as eval-refresh.yml's run-evals job.
         shell: bash
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          {
+            echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+            echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+          } > .env
+
+      - name: Run evals in Vercel Sandbox
+        if: steps.changed.outputs.skip != 'true'
+        shell: bash
+        env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -219,7 +242,7 @@ jobs:
             --experiment-suite "${{ steps.inputs.outputs.experiment_suite }}"
             --runs "${{ steps.inputs.outputs.runs }}"
             --timeout-sec "${{ steps.inputs.outputs.timeout_sec }}"
-            --concurrency 8
+            --concurrency "${{ steps.inputs.outputs.concurrency }}"
           )
 
           experiments="${{ steps.inputs.outputs.experiments }}"
@@ -234,7 +257,10 @@ jobs:
           pnpm eval:vercel -- "${args[@]}"
 
       - name: Upload raw results
-        if: steps.changed.outputs.skip != 'true'
+        # !cancelled(): with the matrix, pairs that passed still uploaded their
+        # artifacts when a sibling job failed; keep partial results retrievable
+        # the same way when one sandbox job fails mid-fan-out.
+        if: ${{ !cancelled() && steps.changed.outputs.skip != 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: raw-results

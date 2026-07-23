@@ -38,7 +38,7 @@ This runner replaces step 2's machine, one Firecracker microVM per pair:
 | `ubuntu-latest` runner            | `Sandbox.create()` VM (Amazon Linux 2023)          |
 | `actions/checkout` + submodules   | `source: { type: "git", revision }` + submodule init |
 | runner's built-in Docker daemon   | `dnf install docker` + detached `dockerd`          |
-| `strategy.matrix` parallelism     | N sandboxes in flight (`--concurrency`)            |
+| `strategy.matrix` parallelism     | N sandboxes in flight (`--concurrency`; the workflow defaults to 16 — the matrix ran as wide as the org's runner pool, ~20–60 jobs, while Vercel Pro allows 2,000 concurrent sandboxes and 50 × 4-vCPU creations/min) |
 | artifact upload/download          | `tar` + `sandbox.readFileToBuffer()` → `results/`  |
 
 `packages/sandbox` is untouched: the agent container and the Supabase sibling
@@ -56,7 +56,9 @@ pnpm eval:vercel -- \
 
 Omit `--experiment`/`--eval` to fan out over the same matrix the scheduled
 workflow would (`--suite`, `--experiment-suite` filter it). `--dry` prints the
-plan without dispatching. The sandbox runs the **pushed commit** (`--revision`
+plan without dispatching. Experiment discovery shells out to `pnpm eval --
+list`, whose `--env-file` hard-requires a repo-root `.env` — the file must
+exist (even empty; the workflow writes it like eval-refresh.yml does). The sandbox runs the **pushed commit** (`--revision`
 overrides; defaults to `HEAD`, which must be on a remote branch).
 
 Required in `.env`:
