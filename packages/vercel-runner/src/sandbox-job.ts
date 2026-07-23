@@ -11,7 +11,7 @@
  * daemon runs on does.
  */
 
-import { mkdirSync, rmSync, mkdtempSync } from "node:fs";
+import { mkdirSync, rmSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
@@ -37,8 +37,13 @@ const DOCKERD_READY_TIMEOUT_SEC = 60;
  */
 const CREATE_RETRY_DELAYS_MS = [20_000, 60_000];
 
+/** Coarse lifecycle phase of a pair's sandbox, for fleet progress reporting. */
+export type SandboxJobPhase = "create" | "bootstrap" | "eval" | "collect";
+
 export interface SandboxJobOptions {
   pair: EvalPair;
+  /** Phase-transition callback for the dispatcher's progress heartbeat. */
+  onPhase?: (phase: SandboxJobPhase) => void;
   /** HTTPS clone URL of this repo. */
   repoUrl: string;
   /** Commit SHA to run — must be reachable on the remote. */
@@ -79,6 +84,8 @@ export interface SandboxJobResult {
   ok: boolean;
   /** Failure summary when ok is false. */
   error?: string;
+  /** Scored eval outcome from the extracted result JSON, when readable. */
+  evalPassed?: boolean;
   durationMs: number;
   sandboxId?: string;
 }
@@ -114,6 +121,7 @@ export async function runPairInSandbox(
   let sandbox: Sandbox | undefined;
   try {
     log(`creating sandbox (vcpus=${options.vcpus}, timeout=${Math.round(options.sandboxTimeoutMs / 60000)}m, rev=${options.revision.slice(0, 8)})`);
+    options.onPhase?.("create");
     for (let attempt = 0; ; attempt++) {
       try {
         sandbox = await Sandbox.create({
@@ -121,6 +129,14 @@ export async function runPairInSandbox(
           runtime: "node22",
           resources: { vcpus: options.vcpus },
           timeout: options.sandboxTimeoutMs,
+          // Makes the Vercel dashboard's Sandboxes view a live per-CI-run
+          // board, filterable by these keys (max 5 tags).
+          tags: {
+            runner: "supabase-evals",
+            run: process.env.GITHUB_RUN_ID ?? "local",
+            experiment: pair.experiment,
+            eval: pair.evalId,
+          },
           source: {
             type: "git",
             url: options.repoUrl,
@@ -143,6 +159,7 @@ export async function runPairInSandbox(
       }
     }
     log(`sandbox ${sandbox.name} created`);
+    options.onPhase?.("bootstrap");
 
     const run = async (
       step: string,
@@ -277,7 +294,9 @@ export async function runPairInSandbox(
     ]
       .filter(Boolean)
       .join(" ");
+    options.onPhase?.("eval");
     await runPolled("run eval", `pnpm eval -- ${evalArgs}`);
+    options.onPhase?.("collect");
 
     // -- Collect: the artifact-upload equivalent. The results tree (scores,
     // transcripts, and the attempt workspaces run-eval exports under
@@ -305,9 +324,25 @@ export async function runPairInSandbox(
     }
     log(`results extracted to ${options.resultsDir}`);
 
+    // Surface the scored outcome (run-eval exits 0 on a scored FAIL, so job
+    // ok ≠ eval pass). Best-effort: a missing/renamed file just omits it.
+    let evalPassed: boolean | undefined;
+    try {
+      const result = JSON.parse(
+        readFileSync(
+          join(options.resultsDir, pair.experiment, `${pair.evalId}.json`),
+          "utf8",
+        ),
+      ) as { passed?: unknown };
+      if (typeof result.passed === "boolean") evalPassed = result.passed;
+    } catch {
+      // No scored verdict available.
+    }
+
     return {
       pair,
       ok: true,
+      evalPassed,
       durationMs: Date.now() - start,
       sandboxId: sandbox.name,
     };
