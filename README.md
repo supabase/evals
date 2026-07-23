@@ -58,6 +58,34 @@ pnpm eval -- \
 
 `--suite`, `--experiment-suite`, `--experiment`, and `--eval` accept multiple inputs via repeated flags as well as comma-separated values.
 
+### Running against an exact MCP server revision
+
+Evals launch `@supabase/mcp-server-supabase` via npx, pinned to the version in
+`MCP_SERVER_VERSION` (`packages/core/src/index.ts`). To eval an exact source
+revision instead — an unpublished branch, a PR, or the pinned submodule —
+build it and point the harness at the build:
+
+```bash
+# submodules/mcp is pinned at the release tag for the npx version above
+git submodule update --init submodules/mcp
+(cd submodules/mcp && pnpm install && pnpm build)
+
+SUPABASE_MCP_SERVER_PATH="$PWD/submodules/mcp/packages/mcp-server-supabase" \
+  pnpm eval -- --eval <id> --experiment <exp>
+```
+
+`SUPABASE_MCP_SERVER_PATH` accepts a package dir (launches
+`dist/transports/stdio.js`) or a direct `.js`/`.mjs`/`.cjs` entrypoint path;
+prefer absolute paths (relative ones resolve against the eval process CWD).
+The path is existence-checked at config time, so an unbuilt checkout fails
+fast with a pointer back here. To test a different revision, check out any
+commit inside `submodules/mcp` and rebuild — the gitlink pin only moves when
+a bump is committed here.
+
+Note the pin tracks the published npm package's source (via its release tag),
+not the hosted production deployment — the prod deploy commit is separate
+provenance that this repo does not record.
+
 Run all benchmark and no-skills experiments across all benchmark evals:
 
 ```bash
