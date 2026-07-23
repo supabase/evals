@@ -1,0 +1,224 @@
+#!/usr/bin/env tsx
+/**
+ * Dispatch eval runs to Vercel Sandbox microVMs — a drop-in stand-in for the
+ * GitHub Actions matrix in eval-refresh.yml (AI-912 spike).
+ *
+ *   pnpm eval:vercel -- --experiment claude-haiku-4.5 \
+ *     --eval investigate-db-001-table-row-counts,build-cli-001-bootstrap-app \
+ *     --runs 1
+ *
+ * Requires in .env (or the environment):
+ *   VERCEL_TOKEN, VERCEL_TEAM_ID, VERCEL_PROJECT_ID  — sandbox auth
+ *   GITHUB_TOKEN                                     — repo checkout (internal repo)
+ *   ANTHROPIC_API_KEY / OPENAI_API_KEY               — forwarded to the agents
+ */
+
+import { execFileSync, spawnSync } from "node:child_process";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { discoverPairs, type EvalPair } from "./discover.js";
+import { runPairInSandbox, type SandboxJobResult } from "./sandbox-job.js";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+
+/** Setup (docker + pnpm install) and scoring headroom around the eval runs. */
+const SANDBOX_SETUP_HEADROOM_MIN = 20;
+
+const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
+
+function readFlag(name: string): string | undefined {
+  const prefix = `--${name}=`;
+  const inline = rawArgs.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length);
+  const index = rawArgs.indexOf(`--${name}`);
+  if (index !== -1) {
+    const value = rawArgs[index + 1];
+    if (!value || value.startsWith("--")) {
+      throw new Error(`--${name} requires a value`);
+    }
+    return value;
+  }
+  return undefined;
+}
+
+function readList(name: string): string[] {
+  return (readFlag(name) ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function git(...args: string[]): string {
+  return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
+}
+
+function requireEnv(name: string, hint: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set — ${hint}`);
+  return value;
+}
+
+async function main() {
+  const dry = rawArgs.includes("--dry");
+  const runs = Number(readFlag("runs") ?? 2);
+  const timeoutSec = Number(readFlag("timeout-sec") ?? 720);
+  const vcpus = Number(readFlag("vcpus") ?? 4);
+  const concurrency = Number(readFlag("concurrency") ?? 4);
+  const suites = readList("suite");
+  const experimentSuites = readList("experiment-suite");
+
+  const pairs = await discoverPairs({
+    root: ROOT,
+    evalIds: readList("eval"),
+    experiments: readList("experiment"),
+    suites: suites.length > 0 ? suites : ["benchmark"],
+    experimentSuites:
+      experimentSuites.length > 0 ? experimentSuites : ["benchmark", "no-skills"],
+  });
+  if (pairs.length === 0) throw new Error("no experiment and eval pairs matched");
+
+  const revision = readFlag("revision") ?? git("rev-parse", "HEAD");
+  const sandboxTimeoutMs =
+    Number(
+      readFlag("sandbox-timeout-min") ??
+        Math.ceil((runs * timeoutSec) / 60) + SANDBOX_SETUP_HEADROOM_MIN,
+    ) *
+    60_000;
+
+  console.log(
+    `${pairs.length} pair(s), runs=${runs}, timeout=${timeoutSec}s, ` +
+      `vcpus=${vcpus}, concurrency=${concurrency}, sandbox timeout=${sandboxTimeoutMs / 60000}m, rev=${revision.slice(0, 8)}`,
+  );
+  for (const pair of pairs) {
+    console.log(`PLAN ${pair.experiment} x ${pair.evalId}`);
+  }
+  if (dry) return;
+
+  // The SDK reads VERCEL_TOKEN/VERCEL_TEAM_ID/VERCEL_PROJECT_ID (or an OIDC
+  // token) from the environment; fail fast with a useful message instead.
+  if (!process.env.VERCEL_OIDC_TOKEN) {
+    requireEnv("VERCEL_TOKEN", "create one at https://vercel.com/account/settings/tokens");
+    requireEnv("VERCEL_TEAM_ID", "team settings → General → Team ID");
+    requireEnv("VERCEL_PROJECT_ID", "project settings → General → Project ID");
+  }
+  const githubToken = requireEnv(
+    "GITHUB_TOKEN",
+    "the sandbox clones this internal repo over HTTPS (`gh auth token` works)",
+  );
+
+  // The commit must be on the remote for the sandbox to fetch it.
+  if (!readFlag("revision")) {
+    const onRemote = git("branch", "-r", "--contains", revision);
+    if (!onRemote) {
+      throw new Error(
+        `HEAD (${revision.slice(0, 8)}) is not on any remote branch — push first, or pass --revision`,
+      );
+    }
+    if (git("status", "--porcelain")) {
+      console.warn("warning: working tree is dirty; the sandbox runs the pushed commit, not local changes");
+    }
+  }
+
+  const agentEnv: Record<string, string> = {};
+  for (const key of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]) {
+    if (process.env[key]) agentEnv[key] = process.env[key]!;
+  }
+
+  const repoUrl = git("remote", "get-url", "origin").replace(
+    /^git@github\.com:/,
+    "https://github.com/",
+  );
+
+  // Same fan-out/parallelism model as the Actions matrix: every pair gets its
+  // own isolated machine; only the number in flight at once is capped.
+  const queue: EvalPair[] = [...pairs];
+  const results: SandboxJobResult[] = [];
+  const workers = Array.from(
+    { length: Math.min(concurrency, pairs.length) },
+    async () => {
+      let pair: EvalPair | undefined;
+      while ((pair = queue.shift()) !== undefined) {
+        results.push(
+          await runPairInSandbox({
+            pair,
+            repoUrl,
+            revision,
+            githubToken,
+            runs,
+            timeoutSec,
+            vcpus,
+            sandboxTimeoutMs,
+            agentEnv,
+            resultsDir: join(ROOT, "results"),
+          }),
+        );
+      }
+    },
+  );
+  await Promise.all(workers);
+
+  console.log("\n=== summary ===");
+  for (const result of results) {
+    const minutes = (result.durationMs / 60000).toFixed(1);
+    console.log(
+      `${result.ok ? "✅" : "💥"} ${result.pair.experiment} x ${result.pair.evalId} ` +
+        `(${minutes}m${result.ok ? "" : `, ${result.error}`})`,
+    );
+  }
+  const failed = results.filter((result) => !result.ok);
+  if (failed.length > 0) {
+    throw new Error(`${failed.length} sandbox job(s) failed`);
+  }
+
+  exportResults(pairs, rawArgs.includes("--merge"));
+}
+
+/**
+ * The publish step of eval-refresh.yml's `publish-results` job: export the
+ * collected results into the web app's data files, per eval suite present in
+ * the matrix. Like CI, it runs only when every job succeeded, and evals
+ * outside the benchmark/regression suites are not published. Committing or
+ * PR-ing the JSON stays with the caller.
+ */
+const EXPORT_OUTPUT_BY_SUITE: Record<string, string> = {
+  benchmark: "apps/web/src/data/eval-results.json",
+  regression: "apps/web/src/data/regression-eval-results.json",
+};
+
+function exportResults(pairs: EvalPair[], merge: boolean): void {
+  for (const [suite, output] of Object.entries(EXPORT_OUTPUT_BY_SUITE)) {
+    const suitePairs = pairs.filter((pair) => pair.evalSuite === suite);
+    if (suitePairs.length === 0) continue;
+    console.log(`\nexporting ${suite} results → ${output}`);
+    // Unlike CI — whose workspace only ever contains this run's downloaded
+    // artifacts — a dev machine's results/ tree carries older local runs, so
+    // scope the export to exactly what this dispatch produced.
+    const experiments = [...new Set(suitePairs.map((pair) => pair.experiment))];
+    const evalIds = [...new Set(suitePairs.map((pair) => pair.evalId))];
+    const result = spawnSync(
+      "pnpm",
+      [
+        "--filter",
+        "@supabase-evals/framework",
+        "export-results",
+        "--",
+        "--suite",
+        suite,
+        ...experiments.flatMap((name) => ["--experiment", name]),
+        ...evalIds.flatMap((id) => ["--eval", id]),
+        "--output",
+        output,
+        ...(merge ? ["--merge"] : []),
+      ],
+      { cwd: ROOT, stdio: "inherit" },
+    );
+    if (result.status !== 0) {
+      throw new Error(`export-results failed for suite ${suite}`);
+    }
+  }
+}
+
+main().catch((err) => {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+});
