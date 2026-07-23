@@ -94,11 +94,21 @@ checks inside the VM):
   what the current matrix needs.
 - **Cost** is metered on *active* CPU (~$0.128/h) + provisioned memory
   (~$0.021/GB-h); an eval pair (mostly waiting on the model) costs cents.
-- **Cold start** is the main overhead: dnf + dockerd + pnpm install + pulling
-  the Supabase images adds ~4–6 minutes per VM vs. a GitHub runner's warm
-  image cache. A [sandbox snapshot](https://vercel.com/docs/sandbox/concepts/snapshots)
-  with docker + node_modules + Supabase images pre-baked would cut this to
-  seconds and is the obvious next step.
+- **Warm-boot snapshots kill the cold start** (`src/snapshot.ts`): docker,
+  node_modules, the agent sandbox image, and the pulled Supabase stack images
+  are pre-baked into a [sandbox snapshot](https://vercel.com/docs/sandbox/concepts/snapshots),
+  built once per input key (lockfile + sandbox Dockerfile + pinned CLI
+  versions; ~3 min) and resolved by builder-sandbox name. A warm pair boots,
+  restarts dockerd, fetches the target revision, and is running its eval in
+  well under a minute — measured 0.8 min *total* for a tools-mode pair that
+  took ~2 min cold (CLI pairs save more: `supabase start` pulls nothing).
+  Any snapshot failure falls back to cold git-source boots; `--no-snapshot`
+  forces that. Expected CI wall-clock: scheduled regression ~10 min; full
+  166-pair matrix ≈ creation ramp (~4 min at 46 sandboxes/min, the Pro
+  200 vCPUs/min limit) + the slowest eval — ~13–18 min warm.
+- **Sandboxes auto-snapshot on stop by default** ("persistent") — throwaway
+  eval VMs must pass `persistent: false`, or a full-matrix run banks 166
+  multi-GB snapshots (435 GB had accumulated before the flag).
 - **Not built here** (out of spike scope): the durable-queue dispatch the
-  issue floats, and snapshot caching. Committing/PR-ing the exported JSON
-  stays in the workflow's existing steps, which are unchanged.
+  issue floats. Committing/PR-ing the exported JSON stays in the workflow's
+  existing steps, which are unchanged.

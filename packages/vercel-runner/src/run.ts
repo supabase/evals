@@ -22,6 +22,7 @@ import {
   type SandboxJobPhase,
   type SandboxJobResult,
 } from "./sandbox-job.js";
+import { ensureSnapshot } from "./snapshot.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
@@ -138,6 +139,20 @@ async function main() {
     "https://github.com/",
   );
 
+  // Warm-boot snapshot: docker, node_modules, the agent sandbox image, and
+  // the Supabase stack images pre-baked, cutting per-pair bootstrap from
+  // ~5 minutes to well under one. Built once per input key (~10m); any
+  // failure falls back to cold git-source boots.
+  const snapshotId = rawArgs.includes("--no-snapshot")
+    ? undefined
+    : await ensureSnapshot({
+        root: ROOT,
+        repoUrl,
+        revision,
+        githubToken,
+        vcpus,
+      });
+
   // Same fan-out/parallelism model as the Actions matrix: every pair gets its
   // own isolated machine; only the number in flight at once is capped.
   const queue: EvalPair[] = [...pairs];
@@ -181,6 +196,7 @@ async function main() {
             repoUrl,
             revision,
             githubToken,
+            snapshotId,
             runs,
             timeoutSec,
             vcpus,
