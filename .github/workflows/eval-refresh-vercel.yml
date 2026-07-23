@@ -1,0 +1,312 @@
+name: Refresh eval results (Vercel Sandbox)
+
+# The Vercel Sandbox counterpart of eval-refresh.yml (AI-912 spike): identical
+# inputs and publish behavior, but instead of a runner-per-pair Actions matrix,
+# a single job runs `pnpm eval:vercel` (packages/vercel-runner), which
+# discovers the same experiment/eval pairs, runs each in its own Vercel
+# Sandbox microVM in parallel, collects results/ back, and runs the same
+# export step. The Docker work (agent container + Supabase sibling containers)
+# happens inside each microVM's own dockerd.
+#
+# Triggers: manual dispatch, or the run-evals-sandbox / run-evals-sandbox-changed
+# PR labels — the sandbox counterparts of eval-refresh.yml's run-evals /
+# run-evals-changed. To promote this to the primary workflow, move the
+# `schedule` trigger over from eval-refresh.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiments:
+        description: "Comma-separated experiment names to run (blank to auto-discover from experiment_suite)"
+        required: false
+        default: ""
+      eval:
+        description: "Optional comma-separated eval ids to run"
+        required: false
+        default: ""
+      suite:
+        description: "Comma-separated eval suites to run"
+        required: true
+        default: "benchmark"
+      experiment_suite:
+        description: "Comma-separated experiment suites to run"
+        required: true
+        default: "benchmark,no-skills"
+      runs:
+        description: "Attempts per experiment/eval pair"
+        required: true
+        default: "2"
+      timeout_sec:
+        description: "Timeout per attempt in seconds"
+        required: true
+        default: "720"
+      merge:
+        description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
+        type: boolean
+        required: false
+        default: false
+      commit_to_branch:
+        description: "Commit exported results to the dispatched branch instead of opening a PR"
+        type: boolean
+        required: false
+        default: false
+  pull_request:
+    # Run whenever a PR carrying the run-evals-sandbox label is opened, pushed
+    # to, or receives the label. The job-level `if` gates on those cases.
+    types: [opened, synchronize, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: eval-refresh-vercel-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  # Supersede an in-flight run when a new commit is pushed to the same PR, but
+  # never cancel a workflow_dispatch run (those open the refresh PR).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  run-evals:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'pull_request' &&
+        (contains(github.event.pull_request.labels.*.name, 'run-evals-sandbox') ||
+         contains(github.event.pull_request.labels.*.name, 'run-evals-sandbox-changed')) &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        (github.event.action != 'labeled' ||
+         github.event.label.name == 'run-evals-sandbox' ||
+         github.event.label.name == 'run-evals-sandbox-changed'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare inputs
+        id: inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            experiments="${{ inputs.experiments }}"
+            eval_ids="${{ inputs.eval }}"
+            suite="${{ inputs.suite }}"
+            experiment_suite="${{ inputs.experiment_suite }}"
+            runs="${{ inputs.runs }}"
+            timeout_sec="${{ inputs.timeout_sec }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            experiments=""
+            eval_ids=""
+            suite="regression"
+            experiment_suite="regression"
+            runs="2"
+            timeout_sec="720"
+          else
+            experiments=""
+            eval_ids=""
+            suite="benchmark,regression"
+            experiment_suite="benchmark,no-skills,regression"
+            runs="2"
+            timeout_sec="720"
+          fi
+
+          # run-evals-sandbox takes priority; run-evals-sandbox-changed only
+          # filters when it is absent. filter_changed drives the changed-eval
+          # filter (PR-only, needs a PR diff).
+          filter_changed="false"
+          if [ "${{ github.event_name }}" = "pull_request" ] && \
+             [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-sandbox-changed') }}" = "true" ] && \
+             [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-sandbox') }}" = "false" ]; then
+            filter_changed="true"
+          fi
+
+          # do_merge drives the export --merge (graft into existing results). It's
+          # always on for the changed path, and opt-in for manual dispatch.
+          do_merge="$filter_changed"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.merge }}" = "true" ]; then
+            do_merge="true"
+          fi
+
+          {
+            echo "experiments=$experiments"
+            echo "eval=$eval_ids"
+            echo "suite=$suite"
+            echo "experiment_suite=$experiment_suite"
+            echo "runs=$runs"
+            echo "timeout_sec=$timeout_sec"
+            echo "filter_changed=$filter_changed"
+            echo "do_merge=$do_merge"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App token
+        id: generate-token
+        # A GitHub App token is needed so the push below can trigger the
+        # gh-pages workflow: GITHUB_TOKEN pushes don't trigger other workflows.
+        # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow
+        if: >-
+          github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch)
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          submodules: recursive
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Determine changed evals
+        id: changed
+        if: steps.inputs.outputs.filter_changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          suites=",${{ steps.inputs.outputs.suite }},"
+          changed=()
+          while IFS= read -r id; do
+            # A deleted eval dir still shows in the diff but can't be run, and
+            # evals outside the requested suites (e.g. `other`) don't run in CI.
+            [ -f "evals/$id/PROMPT.md" ] || continue
+            suite_val=$(sed -n 's/^suite:[[:space:]]*//p' "evals/$id/PROMPT.md" | head -n 1)
+            case "$suites" in *",$suite_val,"*) changed+=("$id") ;; esac
+          done < <(gh pr diff ${{ github.event.pull_request.number }} --name-only \
+            | grep '^evals/' | cut -d/ -f2 | sort -u || true)
+
+          if [ "${#changed[@]}" -eq 0 ]; then
+            echo "No matching eval directories changed in this PR — nothing to run"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Changed eval dirs: ${changed[*]}"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "eval=$(IFS=,; echo "${changed[*]}")" >> "$GITHUB_OUTPUT"
+
+      - name: Run evals in Vercel Sandbox
+        if: steps.changed.outputs.skip != 'true'
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          # The sandboxes clone this (internal) repo over HTTPS.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            --revision "$(git rev-parse HEAD)"
+            --suite "${{ steps.inputs.outputs.suite }}"
+            --experiment-suite "${{ steps.inputs.outputs.experiment_suite }}"
+            --runs "${{ steps.inputs.outputs.runs }}"
+            --timeout-sec "${{ steps.inputs.outputs.timeout_sec }}"
+            --concurrency 8
+          )
+
+          experiments="${{ steps.inputs.outputs.experiments }}"
+          [ -n "$experiments" ] && args+=(--experiment "$experiments")
+
+          # The changed-eval filter (when active) narrows the eval list.
+          eval_ids="${{ steps.changed.outputs.eval || steps.inputs.outputs.eval }}"
+          [ -n "$eval_ids" ] && args+=(--eval "$eval_ids")
+
+          [ "${{ steps.inputs.outputs.do_merge }}" = "true" ] && args+=(--merge)
+
+          pnpm eval:vercel -- "${args[@]}"
+
+      - name: Upload raw results
+        if: steps.changed.outputs.skip != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: raw-results
+          path: results/
+          retention-days: 3
+
+      - name: Upload exported results
+        if: >-
+          steps.changed.outputs.skip != 'true' &&
+          (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eval-results-json
+          path: apps/web/src/data/*eval-results.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Commit exported results to branch
+        # PR runs commit to the PR head branch. Manual dispatch commits to the
+        # selected branch only when commit_to_branch is enabled. Scheduled runs
+        # go through a PR instead (see "Create results pull request" below):
+        # main's branch protection rejects a direct push.
+        if: >-
+          steps.changed.outputs.skip != 'true' &&
+          (github.event_name == 'pull_request' ||
+           (github.event_name == 'workflow_dispatch' && inputs.commit_to_branch))
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          # github-actions[bot]'s noreply email uses its public user ID: https://github.com/actions/checkout#push-a-commit-using-the-built-in-token
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for result_file in apps/web/src/data/*eval-results.json; do
+            [ -f "$result_file" ] && git add "$result_file"
+          done
+
+          if git diff --cached --quiet; then
+            echo "No eval result changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore: refresh eval results"
+          git push
+
+      - name: Create results pull request
+        if: >-
+          steps.changed.outputs.skip != 'true' &&
+          (github.event_name == 'schedule' ||
+           (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch))
+        id: cpr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          add-paths: apps/web/src/data/*eval-results.json
+          # Per-ref-and-event head branch so a branch refresh PR can't collide
+          # with another ref's, with the scheduled run's, or with
+          # eval-refresh.yml's.
+          branch: chore/refresh-eval-results-vercel-${{ github.ref_name }}-${{ github.event_name }}
+          base: ${{ github.ref_name }}
+          commit-message: "chore: refresh eval results"
+          title: "chore: refresh eval results"
+          body: |
+            Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
+          # Draft PRs can't be merged, and the scheduled path merges itself.
+          draft: ${{ github.event_name != 'schedule' }}
+          delete-branch: true
+
+      - name: Merge scheduled results pull request
+        # The app is on the ruleset's bypass list, so no review is required.
+        if: github.event_name == 'schedule' && steps.cpr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --squash --delete-branch
