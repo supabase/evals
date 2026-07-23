@@ -174,9 +174,9 @@ async function main() {
       let pair: EvalPair | undefined;
       while ((pair = queue.shift()) !== undefined) {
         const key = `${pair.experiment} x ${pair.evalId}`;
-        results.push(
-          await runPairInSandbox({
-            pair,
+        const dispatch = () =>
+          runPairInSandbox({
+            pair: pair!,
             onPhase: (phase) => inFlight.set(key, { phase, since: Date.now() }),
             repoUrl,
             revision,
@@ -187,8 +187,18 @@ async function main() {
             sandboxTimeoutMs,
             agentEnv,
             resultsDir: join(ROOT, "results"),
-          }),
-        );
+          });
+        let result = await dispatch();
+        // One fresh-sandbox retry for job errors (infra by definition —
+        // scored FAILs return ok and don't come through here). At matrix
+        // scale a fraction-of-a-percent transient rate would otherwise fail
+        // most full runs; the matrix equivalent was a manual re-run of the
+        // failed job.
+        if (!result.ok) {
+          console.log(`🔁 retrying ${key} in a fresh sandbox after: ${result.error}`);
+          result = await dispatch();
+        }
+        results.push(result);
         inFlight.delete(key);
       }
     },

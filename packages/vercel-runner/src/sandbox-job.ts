@@ -37,6 +37,32 @@ const DOCKERD_READY_TIMEOUT_SEC = 60;
  */
 const CREATE_RETRY_DELAYS_MS = [20_000, 60_000];
 
+/** Poll cadence for detached step commands (status + incremental log tail). */
+const STEP_POLL_INTERVAL_MS = 5_000;
+
+/**
+ * Minimum spacing between sandbox creations across the whole dispatch. Pro
+ * allocates at most 200 vCPUs/min; at 4 vCPUs per sandbox that's 50
+ * creations/min, so ~1.3s spacing (≈46/min) ramps a wide fan-out cleanly
+ * instead of bouncing off 429s. Concurrency (sandboxes in flight) is
+ * effectively unlimited by comparison (2,000 on Pro).
+ */
+const CREATE_SPACING_MS = 1_300;
+let nextCreateSlotAt = 0;
+
+async function waitForCreateSlot(): Promise<void> {
+  for (;;) {
+    const now = Date.now();
+    if (now >= nextCreateSlotAt) {
+      // Synchronous check-and-claim: no await between read and write, so
+      // concurrent jobs on the single event loop can't grab the same slot.
+      nextCreateSlotAt = now + CREATE_SPACING_MS;
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, nextCreateSlotAt - now));
+  }
+}
+
 /** Coarse lifecycle phase of a pair's sandbox, for fleet progress reporting. */
 export type SandboxJobPhase = "create" | "bootstrap" | "eval" | "collect";
 
@@ -124,6 +150,7 @@ export async function runPairInSandbox(
     options.onPhase?.("create");
     for (let attempt = 0; ; attempt++) {
       try {
+        await waitForCreateSlot();
         sandbox = await Sandbox.create({
           ...credentialsFromEnv(),
           runtime: "node22",
@@ -161,23 +188,75 @@ export async function runPairInSandbox(
     log(`sandbox ${sandbox.name} created`);
     options.onPhase?.("bootstrap");
 
+    // Every step runs decoupled from any live log stream: launch detached
+    // with output going to a file in the VM, then poll with short commands
+    // (status sentinel + incremental tail). A command held on one streaming
+    // connection dies with "Stream ended before command finished" when that
+    // connection drops even though the command and the VM are fine — at
+    // full-matrix scale (~1,000 step commands per run) that's a certainty,
+    // and it killed bootstrap steps in practice, not just the long eval.
+    let stepCounter = 0;
     const run = async (
       step: string,
       cmd: string,
-      opts: { sudo?: boolean; env?: Record<string, string> } = {},
+      opts: { sudo?: boolean } = {},
     ) => {
       log(`--- ${step}`);
-      const result = await sandbox!.runCommand({
+      const id = ++stepCounter;
+      const logPath = `/tmp/step-${id}.log`;
+      const exitPath = `/tmp/step-${id}.exit`;
+      await sandbox!.runCommand({
         cmd: "bash",
-        args: ["-c", `set -euo pipefail\n${cmd}`],
+        args: [
+          "-c",
+          `(set -euo pipefail\n${cmd}\n) >${logPath} 2>&1; echo $? >${exitPath}`,
+        ],
         cwd: SANDBOX_CWD,
         sudo: opts.sudo,
-        env: opts.env,
-        stdout,
-        stderr,
+        detached: true,
       });
-      if (result.exitCode !== 0) {
-        throw new Error(`step "${step}" exited with code ${result.exitCode}`);
+
+      let offset = 0;
+      let pollFailures = 0;
+      const emitNewOutput = async (limit?: number) => {
+        const chunk = await sandbox!.runCommand({
+          cmd: "bash",
+          args: [
+            "-c",
+            `tail -c +${offset + 1} ${logPath}${limit ? ` | head -c ${limit}` : ""}`,
+          ],
+        });
+        const data = await chunk.stdout();
+        if (data) {
+          offset += Buffer.byteLength(data);
+          stdout.write(data);
+        }
+      };
+      for (;;) {
+        await new Promise((resolve) => setTimeout(resolve, STEP_POLL_INTERVAL_MS));
+        try {
+          await emitNewOutput(262_144);
+          const status = await sandbox!.runCommand({
+            cmd: "bash",
+            args: ["-c", `[ -f ${exitPath} ] && cat ${exitPath} || echo RUNNING`],
+          });
+          const text = (await status.stdout()).trim();
+          pollFailures = 0;
+          if (text === "RUNNING") continue;
+          // Output written between the last chunk and completion is still in
+          // the file; drain it before reporting the outcome.
+          await emitNewOutput();
+          if (text === "0") return;
+          throw new Error(`step "${step}" exited with code ${text}`);
+        } catch (err) {
+          if (err instanceof Error && err.message.startsWith(`step "`)) throw err;
+          // Transient control-plane hiccups shouldn't kill a healthy run.
+          pollFailures += 1;
+          if (pollFailures >= 6) throw err;
+          stderr.write(
+            `poll failed (${pollFailures}/6), retrying: ${err instanceof Error ? err.message : err}\n`,
+          );
+        }
       }
     };
 
@@ -220,70 +299,6 @@ export async function runPairInSandbox(
       },
     ]);
 
-    // Long-running step, decoupled from any live log stream: launch detached
-    // with output going to a file in the VM, then poll with short commands
-    // (status sentinel + incremental tail). A multi-minute `pnpm eval` held on
-    // one streaming connection dies with "Stream ended before command
-    // finished" when that connection drops, even though the command and the
-    // VM are fine.
-    const runPolled = async (step: string, cmd: string) => {
-      log(`--- ${step}`);
-      const logPath = "/tmp/step.log";
-      const exitPath = "/tmp/step.exit";
-      await sandbox!.runCommand({
-        cmd: "bash",
-        args: [
-          "-c",
-          `rm -f ${logPath} ${exitPath}; (set -euo pipefail\n${cmd}\n) >${logPath} 2>&1; echo $? >${exitPath}`,
-        ],
-        cwd: SANDBOX_CWD,
-        detached: true,
-      });
-
-      let offset = 0;
-      let pollFailures = 0;
-      const emitNewOutput = async (limit?: number) => {
-        const chunk = await sandbox!.runCommand({
-          cmd: "bash",
-          args: [
-            "-c",
-            `tail -c +${offset + 1} ${logPath}${limit ? ` | head -c ${limit}` : ""}`,
-          ],
-        });
-        const data = await chunk.stdout();
-        if (data) {
-          offset += Buffer.byteLength(data);
-          stdout.write(data);
-        }
-      };
-      for (;;) {
-        await new Promise((resolve) => setTimeout(resolve, 10_000));
-        try {
-          await emitNewOutput(262_144);
-          const status = await sandbox!.runCommand({
-            cmd: "bash",
-            args: ["-c", `[ -f ${exitPath} ] && cat ${exitPath} || echo RUNNING`],
-          });
-          const text = (await status.stdout()).trim();
-          pollFailures = 0;
-          if (text === "RUNNING") continue;
-          // Output written between the last chunk and completion is still in
-          // the file; drain it before reporting the outcome.
-          await emitNewOutput();
-          if (text === "0") return;
-          throw new Error(`step "${step}" exited with code ${text}`);
-        } catch (err) {
-          if (err instanceof Error && err.message.startsWith(`step "`)) throw err;
-          // Transient control-plane hiccups shouldn't kill a healthy run.
-          pollFailures += 1;
-          if (pollFailures >= 6) throw err;
-          stderr.write(
-            `poll failed (${pollFailures}/6), retrying: ${err instanceof Error ? err.message : err}\n`,
-          );
-        }
-      }
-    };
-
     // -- The actual matrix job: same command line as eval-refresh.yml.
     const evalArgs = [
       `--experiment "${pair.experiment}"`,
@@ -295,7 +310,7 @@ export async function runPairInSandbox(
       .filter(Boolean)
       .join(" ");
     options.onPhase?.("eval");
-    await runPolled("run eval", `pnpm eval -- ${evalArgs}`);
+    await run("run eval", `pnpm eval -- ${evalArgs}`);
     options.onPhase?.("collect");
 
     // -- Collect: the artifact-upload equivalent. The results tree (scores,
