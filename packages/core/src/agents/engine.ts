@@ -24,7 +24,11 @@ import type { ModelProvider, ReasoningEffortLevel } from "../eval-metadata.js";
 import { adaptTranscript } from "../parsers/adapt.js";
 import type { AgentTranscriptParser } from "../parsers/types.js";
 import type { AgentRunner } from "./types.js";
-import { gatewayModelProvider, requireGatewayApiKey } from "./gateway.js";
+import {
+  gatewayModelProvider,
+  requireGatewayApiKey,
+  runThroughGateway,
+} from "./gateway.js";
 import {
   SCRATCH,
   SYSTEM_PROMPT_PATH,
@@ -53,12 +57,15 @@ export function createCliAgent<M extends string = string>(
     model: M;
     cliVersion?: string;
     reasoningEffort?: ReasoningEffortLevel;
-    /** Route through the Vercel AI Gateway (see `./gateway.ts`). */
+    /**
+     * Route through the Vercel AI Gateway (see `./gateway.ts`). Omitted, the
+     * RUN_THROUGH_GATEWAY env flag decides; an explicit value pins the path.
+     */
     gateway?: boolean;
   },
 ): AgentHarness {
   const version = options.cliVersion ?? runner.defaultCliVersion;
-  const useGateway = options.gateway ?? false;
+  const useGateway = options.gateway ?? runThroughGateway();
   return {
     id: runner.id,
     modelId: options.model,

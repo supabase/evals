@@ -15,6 +15,7 @@ import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp
 import { openai } from "@ai-sdk/openai";
 import {
   Output,
+  gateway,
   generateText,
   stepCountIs,
   type JSONValue,
@@ -44,7 +45,12 @@ import type {
 } from "./eval-metadata.js";
 import { reasoningEffortSchema } from "./eval-metadata.js";
 import type { AgentMetadata, AgentSandbox } from "./agents/types.js";
-import { AI_GATEWAY, gatewayModelProvider } from "./agents/gateway.js";
+import {
+  AI_GATEWAY,
+  gatewayModelProvider,
+  runThroughGateway,
+  toGatewaySlug,
+} from "./agents/gateway.js";
 import { isRecord } from "./json.js";
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
@@ -613,21 +619,33 @@ export function aiSdkAgent(options: {
   const configuredEffort = po?.anthropic?.effort ?? po?.openai?.reasoningEffort;
   const reasoningEffort =
     reasoningEffortSchema.safeParse(configuredEffort).data;
-  const modelId = options.model.modelId;
+  // RUN_THROUGH_GATEWAY reroutes direct-provider models through the AI
+  // Gateway by rebuilding them as gateway models under the equivalent slug.
+  // Models that are already gateway models pass through untouched.
+  const model =
+    runThroughGateway() && !options.model.provider.startsWith("gateway")
+      ? gateway(
+          toGatewaySlug(
+            getModelProvider(options.model.provider, options.model.modelId),
+            options.model.modelId,
+          ),
+        )
+      : options.model;
+  const modelId = model.modelId;
   return {
     id: "ai-sdk",
     modelId,
     metadata: {
       agent: "ai-sdk",
-      modelProvider: getModelProvider(options.model.provider, modelId),
+      modelProvider: getModelProvider(model.provider, modelId),
       modelId,
       ...(reasoningEffort ? { reasoningEffort } : {}),
     },
     assertReady() {
-      assertProviderReady(options.model.provider);
+      assertProviderReady(model.provider);
     },
     async run(args) {
-      assertProviderReady(options.model.provider);
+      assertProviderReady(model.provider);
       const mcpHandles = args.mcpServers
         ? await createAiSdkTools(args.mcpServers)
         : [];
@@ -643,7 +661,7 @@ export function aiSdkAgent(options: {
 
       try {
         const result = await generateText({
-          model: options.model,
+          model,
           system: args.systemPrompt,
           prompt: args.userPrompt,
           tools,
@@ -651,7 +669,7 @@ export function aiSdkAgent(options: {
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           timeout: { totalMs: args.timeoutSec * 1000 },
           providerOptions: withProviderDefaults(
-            options.model.provider,
+            model.provider,
             options.providerOptions,
           ),
           experimental_onToolCallFinish: (event) => {

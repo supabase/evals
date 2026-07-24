@@ -661,6 +661,10 @@ async function main() {
   const experiments = allExperiments.filter(({ name, config }) => {
     if (EXPERIMENT_FILTERS.length > 0 && !EXPERIMENT_FILTERS.includes(name))
       return false;
+    // Naming an experiment overrides the suite filter: suiteless experiments
+    // (e.g. the opt-in gateway ones) stay runnable even though the CI matrix
+    // always passes --experiment-suite.
+    if (EXPERIMENT_FILTERS.includes(name)) return true;
     if (
       EXPERIMENT_SUITE_FILTERS.length > 0 &&
       (config.suite === undefined ||

@@ -63,6 +63,11 @@ export const codexRunner: AgentRunner<CodexModel> = {
       );
     }
 
+    // The gateway's catalog is slug-addressed; a bare id (an env-flipped
+    // direct experiment, e.g. "gpt-5.4-mini") is an OpenAI id by construction.
+    const resolvedModel =
+      gateway && !model.includes("/") ? `openai/${model}` : model;
+
     const flags = [
       "exec",
       "--json",
@@ -70,7 +75,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
       "--skip-git-repo-check",
       // The sandbox is the isolation boundary — let Codex run commands freely.
       "--dangerously-bypass-approvals-and-sandbox",
-      `-m ${shellQuote(model)}`,
+      `-m ${shellQuote(resolvedModel)}`,
       // Reasoning effort via config override; omitted leaves Codex's default.
       // The value is parsed as TOML, so pass it as a quoted TOML string.
       ...(reasoningEffort

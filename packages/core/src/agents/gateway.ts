@@ -35,6 +35,30 @@ export const AI_GATEWAY = {
   openAiBaseUrl: "https://ai-gateway.vercel.sh/v1",
 } as const;
 
+/**
+ * Env flag mirroring the eval-refresh workflow's `run_through_gateway` input
+ * (and the `run-evals-through-gateway` PR label): when truthy, every harness
+ * defaults to gateway routing without touching experiment files. An explicit
+ * per-experiment `gateway:` option still wins, so `gateway: false` pins an
+ * experiment to the direct path even under the flag.
+ */
+export const RUN_THROUGH_GATEWAY_ENV = "RUN_THROUGH_GATEWAY";
+
+export function runThroughGateway(): boolean {
+  const value = process.env[RUN_THROUGH_GATEWAY_ENV]?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
+}
+
+/**
+ * Translate a direct vendor model id to its gateway slug: prefix the vendor
+ * and swap version dashes for dots (`claude-opus-4-8` → `anthropic/claude-opus-4.8`).
+ * Ids that are already slugs pass through unchanged.
+ */
+export function toGatewaySlug(vendor: ModelProvider, modelId: string): string {
+  if (modelId.includes("/")) return modelId;
+  return `${vendor}/${modelId.replace(/(\d)-(?=\d)/g, "$1.")}`;
+}
+
 export function requireGatewayApiKey(displayName: string): string {
   const apiKey = process.env[AI_GATEWAY.apiKeyEnvVar];
   if (!apiKey) {
