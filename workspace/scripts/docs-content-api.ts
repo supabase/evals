@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { GET, OPTIONS, POST } from '../supabase/apps/docs/app/api/graphql/route.ts'
+import { GET, OPTIONS, POST } from '../../supabase/apps/docs/app/api/graphql/route.ts'
 
 const handlers = { GET, OPTIONS, POST }
 const port = Number(process.env.PORT ?? 3001)

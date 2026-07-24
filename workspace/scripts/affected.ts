@@ -1,16 +1,11 @@
 #!/usr/bin/env tsx
-const {
-  existsSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-} = require("node:fs");
-const { createRequire } = require("node:module");
-const { basename, dirname, join } = require("node:path");
-const { pathToFileURL } = require("node:url");
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
+import { basename, dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
-const EVALS_ROOT = join(dirname(process.argv[1]), "..", "evals");
-const requireFromFramework = createRequire(join(EVALS_ROOT, "apps/framework/package.json"));
+const ROOT = join(dirname(process.argv[1]), "..", "..");
+const requireFromFramework = createRequire(join(ROOT, "apps/framework/package.json"));
 const ALIASES: Record<string, string> = {
   functions: "edge-functions",
   rest: "data-api",
@@ -26,7 +21,7 @@ type Eval = {
 };
 
 async function loadExperiments(): Promise<Experiment[]> {
-  const dir = join(EVALS_ROOT, "experiments");
+  const dir = join(ROOT, "experiments");
   const experiments: Experiment[] = [];
 
   for (const file of readdirSync(dir).filter((file) => file.endsWith(".ts")).sort()) {
@@ -43,10 +38,10 @@ async function loadExperiments(): Promise<Experiment[]> {
 }
 
 async function discoverEvals(): Promise<Eval[]> {
-  // Resolve from evals' workspace because this script intentionally lives outside that package.
+  // Resolve from the repo root because this script intentionally lives outside that package.
   const parserPath = requireFromFramework.resolve("@supabase-evals/core/eval-markdown");
   const { parseEvalMarkdown } = await import(pathToFileURL(parserPath).href);
-  const dir = join(EVALS_ROOT, "evals");
+  const dir = join(ROOT, "evals");
   if (!existsSync(dir)) return [];
 
   const evals: Eval[] = [];

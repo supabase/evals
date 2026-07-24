@@ -3,7 +3,7 @@
 # missing, and the exact command to fix each gap. `mise run ab` with no args
 # lands here. Read-only; never mutates anything.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 NEXT=""
 ok()   { printf '  [ok] %s\n' "$1"; }
@@ -13,16 +13,16 @@ have_key() { security find-generic-password -a "$USER" -s "eval-workspace:$1" >/
 echo "A/B readiness — mise run ab <eval-id> <edited-path> [experiment=claude-sonnet-5]"
 
 echo
-echo "skills loop (edit evals/submodules/agent-skills/skills/…):"
-if [ -e evals/submodules/agent-skills/.git ]; then ok "evals + agent-skills cloned"; else miss "evals/agent-skills not cloned" "mise run setup"; fi
+echo "skills loop (edit submodules/agent-skills/skills/…):"
+if [ -e submodules/agent-skills/.git ]; then ok "agent-skills submodule initialized"; else miss "agent-skills submodule not initialized" "mise run setup"; fi
 if have_key ANTHROPIC_API_KEY; then ok "ANTHROPIC_API_KEY present"; else miss "ANTHROPIC_API_KEY missing" "mise run store-key ANTHROPIC_API_KEY"; fi
 
 echo
-echo "mcp loop (edit mcp/packages/…):"
-if [ -e mcp/.git ] && [ -d mcp/packages/mcp-server-supabase/dist ]; then
-  ok "local mcp cloned + built"
+echo "mcp loop (edit submodules/mcp/packages/…):"
+if [ -e submodules/mcp/.git ] && [ -d submodules/mcp/packages/mcp-server-supabase/dist ]; then
+  ok "local mcp submodule initialized + built"
 else
-  miss "local mcp not cloned/built" "mise run mcp-build"
+  miss "local mcp submodule not initialized/built" "mise run mcp-build"
 fi
 
 echo
@@ -46,6 +46,6 @@ else
   echo "All loops ready."
 fi
 echo
-echo "Then: make ONE edit (tracked file, unstaged), pick an eval (ls evals/evals/), run:"
+echo "Then: make ONE edit (tracked file, unstaged), pick an eval (ls evals/), run:"
 echo "  mise run ab <eval-id> <edited-path>"
 echo "Wiring self-test (free): mise run ab-test · guided live demo: mise run ab-demo"

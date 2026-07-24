@@ -8,17 +8,17 @@
 # blocks any marker commit from being pushed by accident.
 #
 # Usage:
-#   scripts/publish.sh <repo> --list                         what's publishable
-#   scripts/publish.sh <repo> <topic-branch> [--with <patch-name>]...
-#   <repo>: evals | mcp | supabase | skills (the agent-skills submodule)
+#   workspace/scripts/publish.sh <repo> --list                         what's publishable
+#   workspace/scripts/publish.sh <repo> <topic-branch> [--with <patch-name>]...
+#   <repo>: mcp (submodule) | supabase (clone) — the only publishable repos
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 ROOT="$PWD"
-source scripts/patches-lib.sh
+source workspace/scripts/patches-lib.sh
 
 repo="${1:-}"; shift || true
 case " $PUBLISH_REPOS " in *" $repo "*) ;; *)
-  echo "usage: mise run publish <evals|mcp|supabase|skills> <topic-branch> [--with <patch-name>]... | --list" >&2; exit 2 ;;
+  echo "usage: mise run publish <mcp|supabase> <topic-branch> [--with <patch-name>]... | --list" >&2; exit 2 ;;
 esac
 dir=$(repo_dir "$repo")
 [ -e "$dir/.git" ] || { echo "$dir not cloned" >&2; exit 1; }

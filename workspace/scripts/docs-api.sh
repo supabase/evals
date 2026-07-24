@@ -2,9 +2,9 @@
 # Serve the docs content GraphQL API locally (standalone adapter) for search_docs.
 # Point evals at it: SUPABASE_CONTENT_API_URL=http://127.0.0.1:3001/docs/api/graphql
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
-source scripts/load-keys.sh
+source workspace/scripts/load-keys.sh
 set -a
 source supabase/apps/docs/.env.development
 set +a
@@ -17,4 +17,4 @@ OPENAI_API_KEY="$OPENAI_API_KEY" \
 exec pnpm --dir supabase/apps/docs exec tsx \
   --conditions=react-server \
   --tsconfig tsconfig.json \
-  ../../../scripts/docs-content-api.ts
+  ../../../workspace/scripts/docs-content-api.ts

@@ -7,8 +7,11 @@
 _MANIFEST_LIB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 _manifest() { node "$_MANIFEST_LIB_DIR/manifest.mjs" "$@"; }
 
-# PATCH_REPOS   = repos carrying enabler patches (manifest order)
-# PUBLISH_REPOS = every publishable editing surface (patch repos + submodules)
+# PATCH_REPOS   = repos carrying enabler patches (manifest order): mcp, supabase
+# PUBLISH_REPOS = same set here — skills has no patches and is neither a patch
+#                 nor a publish repo in this manifest (both derive from the
+#                 same "has patches" predicate; kept as separate names because
+#                 downstream scripts read them for different purposes)
 #
 # Fail-loud init: `for x in $(failing-cmd)` does NOT trip `set -e` in the
 # sourcing script — the substitution failure is swallowed and the lists come
@@ -20,13 +23,12 @@ if [ -z "$_MANIFEST_REPOS" ]; then
   exit 1
 fi
 PATCH_REPOS=""
-PUBLISH_REPOS=""
 for _r in $_MANIFEST_REPOS; do
-  PUBLISH_REPOS="${PUBLISH_REPOS:+$PUBLISH_REPOS }$_r"
   if [ -n "$(_manifest get "$_r" patches)" ]; then
     PATCH_REPOS="${PATCH_REPOS:+$PATCH_REPOS }$_r"
   fi
 done
+PUBLISH_REPOS="$PATCH_REPOS"
 unset _r _MANIFEST_REPOS
 
 repo_dir()    { local d; d=$(_manifest get "$1" dir); echo "${d:-$1}"; }
@@ -35,7 +37,7 @@ repo_remote() { _manifest get "$1" remote; }
 patches_for() {
   local out="" n
   for n in $(_manifest get "$1" patches); do
-    out="${out:+$out }patches/$n.patch"
+    out="${out:+$out }workspace/patches/$n.patch"
   done
   echo "$out"
 }

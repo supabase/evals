@@ -6,19 +6,19 @@
 #      `@supabase/pinniped` for the fictional "Nimbus" runtime (append-only edit)
 #   2. installs a matching throwaway eval (demo/canary-eval/) that PASSES only
 #      if the agent names that package
-#   3. runs the real head-to-head (scripts/ab.sh): treatment (fact embedded in
-#      the local index) vs baseline (fact removed + re-embedded)
+#   3. runs the real head-to-head (workspace/scripts/ab.sh): treatment (fact
+#      embedded in the local index) vs baseline (fact removed + re-embedded)
 #   4. expected result: baseline FAIL 0/1 -> treatment PASS 1/1 — proof that a
 #      local docs edit alone moves an eval through search_docs
 #   5. cleans up completely: guide reverted, canary de-embedded, eval removed
 #
 # Cost: 2 model runs (claude-sonnet-5) + a few embedding cents. Asks first.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 GUIDE=supabase/apps/docs/content/guides/auth/choosing-a-server-package.mdx
 EVAL_ID=investigate-workspace-canary-nimbus-package
-EVAL_DST=evals/evals/$EVAL_ID
+EVAL_DST=evals/$EVAL_ID
 
 fail() { echo "not ready: $1" >&2; echo "run \`mise run ab\` (no args) for the readiness probe + fix commands" >&2; exit 1; }
 
@@ -29,7 +29,6 @@ for k in ANTHROPIC_API_KEY OPENAI_API_KEY; do
 done
 
 # --- hard preflight (same gates the A/B itself needs) ---
-[ -e evals/.git ] || fail "evals not cloned"
 [ -e supabase/.git ] || fail "supabase not cloned"
 [ -n "${ANTHROPIC_API_KEY:-}" ] || fail "ANTHROPIC_API_KEY missing"
 [ -n "${OPENAI_API_KEY:-}" ] || fail "OPENAI_API_KEY missing"
@@ -49,7 +48,7 @@ cleanup() {
   echo "== demo cleanup: reverting canary, de-embedding, removing throwaway eval =="
   git -C supabase checkout -- "${GUIDE#supabase/}" 2>/dev/null || true
   rm -rf "$EVAL_DST"
-  scripts/docs-index.sh >/dev/null 2>&1 \
+  workspace/scripts/docs-index.sh >/dev/null 2>&1 \
     || echo "WARNING: cleanup re-embed failed — run \`mise run docs-index\` to de-embed the canary" >&2
 }
 trap cleanup EXIT
@@ -64,7 +63,7 @@ mkdir -p "$EVAL_DST"
 cp demo/canary-eval/PROMPT.md demo/canary-eval/EVAL.ts "$EVAL_DST/"
 
 echo "== canary planted in $GUIDE; running the head-to-head =="
-scripts/ab.sh "$EVAL_ID" claude-sonnet-5 "$GUIDE"
+workspace/scripts/ab.sh "$EVAL_ID" claude-sonnet-5 "$GUIDE"
 
 echo
 echo "What you just saw: the ONLY difference between the two runs was that one"

@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Workspace status: per-repo branch/SHA/dirty, env keys present, tooling.
+# Workspace status: host repo + submodule + clone state, env keys present, tooling.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
-# --json: machine-readable provenance receipt (repos, patches, docs stamp)
-if [ "${1:-}" = "--json" ]; then exec node scripts/provenance.mjs; fi
-source scripts/patches-lib.sh
+# --json: machine-readable provenance receipt (host, submodules, repos, patches, docs stamp)
+if [ "${1:-}" = "--json" ]; then exec node workspace/scripts/provenance.mjs; fi
+source workspace/scripts/patches-lib.sh
 
-# label, path. `.git` is a dir for clones and a file for submodules, so -e covers both.
+# label, dir, [missing-message]. `.git` is a dir for clones and a file for
+# submodules, so -e covers both.
 repo_status() {
-  local label="$1" dir="$2" branch sha dirty
+  local label="$1" dir="$2" missing="${3:-not cloned}" branch sha dirty
   if [ ! -e "$dir/.git" ]; then
-    printf '  %-22s not cloned\n' "$label"
+    printf '  %-22s %s\n' "$label" "$missing"
     return
   fi
   branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
@@ -23,33 +24,38 @@ repo_status() {
 
 NEXT=""
 echo "Repos:"
-# Rows come from the manifest (PUBLISH_REPOS order); agent-skills is the one
-# hand-nested row, shown under its host clone evals.
+# The host repo is this checkout itself (evals); agent-skills and mcp are its
+# two pinned submodules (hand-nested rows); supabase is the only opt-in clone.
+repo_status "evals (host)" "."
+repo_status "  - agent-skills" "$(repo_dir skills)" "not initialized"
+repo_status "  - mcp" "$(repo_dir mcp)" "not initialized"
 for _repo in $PUBLISH_REPOS; do
-  [ "$_repo" = skills ] && continue
+  case "$_repo" in skills|mcp) continue ;; esac
   repo_status "$_repo" "$(repo_dir "$_repo")"
-  if [ "$_repo" = evals ]; then
-    repo_status "  - agent-skills" "$(repo_dir skills)"
-  fi
 done
 unset _repo
-# setup.sh also repairs a missing agent-skills submodule, root .env, and the
-# evals/.env symlink — suggest it if ANY of those is missing (not just the clone).
-if [ ! -e evals/.git ] || [ ! -e evals/submodules/agent-skills/.git ] || [ ! -f .env ] || [ ! -e evals/.env ]; then
-  NEXT="${NEXT}  mise run setup                # clone/repair evals (+ agent-skills), install, wire .env\n"
+
+# Bootstrap order (mirrors mise run setup): deps, then submodules, then
+# enabler plumbing, then keys. The supabase clone is opt-in for the docs loop
+# only — its absence is informational (shown above) and never gates Ready.
+[ -d node_modules ] || NEXT="${NEXT}  pnpm install                                       # install workspace deps\n"
+if [ ! -e "$(repo_dir skills)/.git" ] || [ ! -e "$(repo_dir mcp)/.git" ]; then
+  NEXT="${NEXT}  git submodule update --init submodules/agent-skills submodules/mcp # init submodules\n"
 fi
-# enabler plumbing present? (marker commits; see apply-patches.sh)
+# enabler plumbing present? (marker commits; see apply-patches.sh) — only
+# checked for repos that are actually present (supabase clone, mcp submodule).
 for _r in $PATCH_REPOS; do
-  [ -e "$_r/.git" ] || continue
-  _subjects=$(git -C "$_r" log --format=%s HEAD --not --remotes 2>/dev/null || true)
+  _d=$(repo_dir "$_r")
+  [ -e "$_d/.git" ] || continue
+  _subjects=$(git -C "$_d" log --format=%s HEAD --not --remotes 2>/dev/null || true)
   for _p in $(patches_for "$_r"); do
     if ! printf '%s\n' "$_subjects" | grep -qxF "$(patch_subject "$_p")"; then
-      NEXT="${NEXT}  mise run apply-patches            # enabler plumbing commit(s) missing in $_r\n"
+      NEXT="${NEXT}  mise run apply-patches            # enabler plumbing commit(s) missing in $_d\n"
       break
     fi
   done
 done
-# pre-push guards active? (apply-patches installs them)
+# pre-push guards active? (apply-patches installs them, incl. in agent-skills)
 for _n in $PUBLISH_REPOS; do
   _d=$(repo_dir "$_n")
   [ -e "$_d/.git" ] || continue
@@ -58,12 +64,10 @@ for _n in $PUBLISH_REPOS; do
     NEXT="${NEXT}  mise run apply-patches            # pre-push guard missing in $_d\n"
   fi
 done
+unset _r _n _d _subjects _p _hooks
 
 echo
 echo "Credentials (source per key; ANTHROPIC + OPENAI required, GEMINI optional):"
-if [ ! -e evals/.env ]; then
-  echo "  ! evals/.env missing — node --env-file will fail; run: mise run setup"
-fi
 IS_DARWIN=""; [ "$(uname -s)" = Darwin ] && IS_DARWIN=1
 for key in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY; do
   src=""
@@ -96,5 +100,5 @@ else
   echo "Ready. Try:"
   echo "  mise run ab-test                                  # zero-cost self-check of the A/B runner"
   echo "  mise run ab                                       # A/B readiness probe (head-to-head evals)"
-  echo "  mise run eval -- --eval <id> --experiment <exp>   # run an eval (see evals/evals/)"
+  echo "  mise run eval -- --eval <id> --experiment <exp>   # run an eval (see evals/)"
 fi

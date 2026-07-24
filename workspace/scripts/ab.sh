@@ -2,12 +2,12 @@
 # Head-to-head eval: baseline (your edit reverted) vs treatment (edit applied).
 # Same eval, same experiment; the ONLY difference is your uncommitted edit.
 #
-# Usage: scripts/ab.sh <eval-id> <experiment> <edited-path> [more-paths...]
+# Usage: workspace/scripts/ab.sh <eval-id> <experiment> <edited-path> [more-paths...]
 #   <edited-path> is a file inside a clone; its clone selects the loop + how to
 #   re-sync between states:
-#     supabase/apps/docs/content/…      docs loop  (re-embed via docs-index; needs `mise run docs-api` up)
-#     mcp/…                             mcp loop   (rebuild the local server)
-#     evals/submodules/agent-skills/…   skills loop (no re-sync; read live via symlink)
+#     supabase/apps/docs/content/…   docs loop   (re-embed via docs-index; needs `mise run docs-api` up)
+#     submodules/mcp/…               mcp loop    (rebuild the local server)
+#     submodules/agent-skills/…      skills loop (no re-sync; read live via symlink)
 #
 # The enabler patches live as [eval-workspace-*] commits below your work (see
 # apply-patches.sh), so your unstaged edit is the ONLY working diff — stashing
@@ -20,9 +20,9 @@
 # AB_DRYRUN=1 prints the resolved plan and exits (no runs, no side effects).
 # AB_EVAL_CMD / AB_SYNC_CMD override the eval / sync step (testing; see ab.test.sh).
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
-[ $# -ge 3 ] || { echo "usage: scripts/ab.sh <eval-id> <experiment> <edited-path> [more-paths...]" >&2; exit 2; }
+[ $# -ge 3 ] || { echo "usage: workspace/scripts/ab.sh <eval-id> <experiment> <edited-path> [more-paths...]" >&2; exit 2; }
 EVAL="$1"; EXP="$2"; shift 2
 PATHS=("$@")
 
@@ -34,11 +34,11 @@ done
 
 # --- clone + loop from the first path ---
 case "${PATHS[0]}" in
-  supabase/apps/docs/content/*)    LOOP=docs;   CLONE=supabase;                      STRIP=supabase/; PREFIX=supabase/apps/docs/content/ ;;
-  supabase/apps/docs/*)            echo "docs A/B works on content pages (supabase/apps/docs/content/…) — other docs files aren't part of the embed loop: ${PATHS[0]}" >&2; exit 2 ;;
-  mcp/*)                           LOOP=mcp;    CLONE=mcp;                           STRIP=mcp/; PREFIX=mcp/ ;;
-  evals/submodules/agent-skills/*) LOOP=skills; CLONE=evals/submodules/agent-skills; STRIP=evals/submodules/agent-skills/; PREFIX=evals/submodules/agent-skills/ ;;
-  *) echo "path must be under supabase/apps/docs/content/, mcp/, or evals/submodules/agent-skills/: ${PATHS[0]}" >&2; exit 2 ;;
+  supabase/apps/docs/content/*) LOOP=docs;   CLONE=supabase;                STRIP=supabase/;                PREFIX=supabase/apps/docs/content/ ;;
+  supabase/apps/docs/*)         echo "docs A/B works on content pages (supabase/apps/docs/content/…) — other docs files aren't part of the embed loop: ${PATHS[0]}" >&2; exit 2 ;;
+  submodules/mcp/*)             LOOP=mcp;    CLONE=submodules/mcp;          STRIP=submodules/mcp/;          PREFIX=submodules/mcp/ ;;
+  submodules/agent-skills/*)    LOOP=skills; CLONE=submodules/agent-skills; STRIP=submodules/agent-skills/; PREFIX=submodules/agent-skills/ ;;
+  *) echo "path must be under supabase/apps/docs/content/, submodules/mcp/, or submodules/agent-skills/: ${PATHS[0]}" >&2; exit 2 ;;
 esac
 
 # every path must live in this loop's editable scope; build clone-relative paths
@@ -50,7 +50,7 @@ for p in "${PATHS[@]}"; do
   esac
 done
 
-MCP="$PWD/mcp/packages/mcp-server-supabase"
+MCP="$PWD/submodules/mcp/packages/mcp-server-supabase"
 CONTENT_URL="http://127.0.0.1:3001/docs/api/graphql"
 RUN_ENV=()
 case "$LOOP" in
@@ -61,8 +61,8 @@ esac
 sync() {
   if [ -n "${AB_SYNC_CMD:-}" ]; then bash -c "$AB_SYNC_CMD"; return; fi   # override/test hook
   case "$LOOP" in
-    docs)   scripts/docs-index.sh ;;
-    mcp)    ( cd mcp && pnpm build ) ;;
+    docs)   workspace/scripts/docs-index.sh ;;
+    mcp)    ( cd submodules/mcp && pnpm build ) ;;
     skills) : ;;
   esac
 }
@@ -92,10 +92,10 @@ done
 if [ "$LOOP" = docs ]; then
   : "${OPENAI_API_KEY:?OPENAI_API_KEY not in keychain — the docs re-embed needs it}"
   curl -sf -o /dev/null "$CONTENT_URL" || { echo "docs-api not reachable on :3001 — run \`mise run docs-api\` in another terminal first" >&2; exit 1; }
-  [ -d "$MCP/dist" ] || { echo "building local mcp (needed for search_docs routing)…"; ( cd mcp && pnpm install && pnpm build ); }
+  [ -d "$MCP/dist" ] || { echo "building local mcp (needed for search_docs routing)…"; ( cd submodules/mcp && pnpm install && pnpm build ); }
 fi
 
-RES="evals/results/$EXP/$EVAL.json"
+RES="results/$EXP/$EVAL.json"
 OUT="results-ab"; mkdir -p "$OUT"
 
 run_eval() { # $1 = label
@@ -103,13 +103,13 @@ run_eval() { # $1 = label
   if [ -n "${AB_EVAL_CMD:-}" ]; then
     RES="$RES" AB_LABEL="$1" bash -c "$AB_EVAL_CMD"          # override/test hook; must write $RES
   else
-    ( cd evals && env ${RUN_ENV[@]+"${RUN_ENV[@]}"} pnpm eval --eval "$EVAL" --experiment "$EXP" --runs 1 )
+    env ${RUN_ENV[@]+"${RUN_ENV[@]}"} pnpm eval --eval "$EVAL" --experiment "$EXP" --runs 1
   fi
   [ -f "$RES" ] || { echo "no result at $RES — check the eval/experiment ids" >&2; exit 1; }
   cp "$RES" "$OUT/$EVAL.$1.json"
   # per-arm receipt: capture provenance AFTER this arm's sync, so baseline and
   # treatment records differ by exactly the edit under test (report-only)
-  node scripts/provenance.mjs --embed "$OUT/$EVAL.$1.json"
+  node workspace/scripts/provenance.mjs --embed "$OUT/$EVAL.$1.json"
 }
 
 # Restoration is ONE idempotent path: pop the stash AND re-sync, so the index/
@@ -126,7 +126,7 @@ restore() {
     return 1
   fi
   if ! sync; then
-    echo "ERROR: post-restore re-sync failed — the index/build does not reflect your edit (docs: scripts/docs-index.sh; mcp: pnpm -C mcp build)" >&2
+    echo "ERROR: post-restore re-sync failed — the index/build does not reflect your edit (docs: workspace/scripts/docs-index.sh; mcp: pnpm -C submodules/mcp build)" >&2
     return 1
   fi
 }

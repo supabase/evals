@@ -23,7 +23,11 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadManifest } from "./manifest.mjs";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+// This is the evals repo root (workspace/scripts -> ../..): supabase/,
+// submodules/, and .docs-index-stamp.json all live here. The tracked-patches
+// directory is a level lower, under workspace/ (see workspaceRoot below).
+const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const workspaceRoot = join(root, "workspace");
 // The one manifest loader (read + schema validation) — imported, not spawned,
 // so this file and the manifest.mjs CLI structurally cannot diverge on how a
 // bad manifest fails.
@@ -101,22 +105,50 @@ const repoState = (dir) => {
   };
 };
 
+// The two pinned submodules, keyed the way ab.sh/status.sh --json expect
+// (basename of the submodules/ path). `git submodule status` prefixes an
+// uninitialized entry with "-" — its SHA there is only the pinned index
+// entry, not a real checkout, so that reads as null, not a fake SHA.
+const submoduleShas = () => {
+  const shas = { "agent-skills": null, mcp: null };
+  for (const line of (git(".", "submodule", "status") ?? "").split("\n")) {
+    if (!line) continue;
+    const initialized = line[0] !== "-";
+    const [sha, subPath] = line.slice(1).trim().split(/\s+/);
+    const name = subPath?.split("/").pop();
+    if (name && name in shas) shas[name] = initialized ? sha : null;
+  }
+  return shas;
+};
+
 // Receipt assembly is LAZY: only the paths that emit a receipt (print/--embed)
 // pay for it. --stamp-docs-index must not — repoState alone walks and hashes
 // every clone's untracked files.
 const buildProvenance = () => {
+  const hostState = repoState(".");
+  const host = {
+    checkout_sha: hostState.sha,
+    checkout_dirty: hostState.dirty,
+    dirty_diff_sha256: hostState.dirty_diff_sha256,
+    untracked: hostState.untracked,
+  };
+  const submodules = submoduleShas();
+
+  // Only non-submodule entries (today: supabase) get a full clone-shaped
+  // `repos.<name>` record — the two submodules are already covered above by
+  // exact pinned SHA, which is what a submodule actually promises.
   const repos = {};
   const patches = {};
   for (const [name, spec] of Object.entries(manifest.repos)) {
-    if (!existsSync(join(root, spec.dir, ".git"))) {
-      repos[name] = { dir: spec.dir, cloned: false };
-      continue;
+    const initialized = existsSync(join(root, spec.dir, ".git"));
+    if (spec.kind !== "submodule") {
+      repos[name] = initialized ? { dir: spec.dir, cloned: true, ...repoState(spec.dir) } : { dir: spec.dir, cloned: false };
     }
-    repos[name] = { dir: spec.dir, cloned: true, ...repoState(spec.dir) };
+    if (!spec.patches?.length || !initialized) continue;
 
     const localSubjects = (git(spec.dir, "log", "--format=%s", "HEAD", "--not", "--remotes") ?? "").split("\n");
-    for (const p of spec.patches ?? []) {
-      const file = join(root, "patches", `${p}.patch`);
+    for (const p of spec.patches) {
+      const file = join(workspaceRoot, "patches", `${p}.patch`);
       const kind = (spec.localPatches ?? []).includes(p) ? "local" : "upstream";
       patches[p] = {
         repo: name,
@@ -128,10 +160,10 @@ const buildProvenance = () => {
   }
 
   // SUPABASE_MCP_SERVER_PATH swaps the mcp server for an arbitrary local
-  // build, so a receipt that only records the mcp CLONE's SHA would mislabel
-  // the arm. Record the override target verbatim plus, when it lives inside a
-  // git checkout (the workspace clone, the evals submodule, anywhere), that
-  // checkout's exact HEAD and dirty state.
+  // build, so a receipt that only records the mcp submodule's pinned SHA
+  // would mislabel the arm. Record the override target verbatim plus, when
+  // it lives inside a git checkout (the mcp submodule, an out-of-tree build,
+  // anywhere), that checkout's exact HEAD and dirty state.
   let mcp_override = null;
   const overridePath = process.env.SUPABASE_MCP_SERVER_PATH;
   if (overridePath) {
@@ -159,7 +191,7 @@ const buildProvenance = () => {
     }
   }
 
-  return { generated_at: new Date().toISOString(), repos, patches, mcp_override, docs_index };
+  return { generated_at: new Date().toISOString(), host, submodules, repos, patches, mcp_override, docs_index };
 };
 
 // Combined fingerprint of the supabase enabler-patch set: part of the docs
@@ -168,7 +200,7 @@ const supabasePatchSetSha256 = () => {
   const names = manifest.repos.supabase?.patches ?? [];
   const h = createHash("sha256");
   for (const p of names) {
-    const file = join(root, "patches", `${p}.patch`);
+    const file = join(workspaceRoot, "patches", `${p}.patch`);
     if (!existsSync(file)) {
       throw new Error(`manifest lists supabase patch "${p}" but ${file} is missing — manifest/patches drift`);
     }

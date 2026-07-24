@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
-source scripts/patches-lib.sh
+cd "$(dirname "$0")/../.."
+source workspace/scripts/patches-lib.sh
 SUPABASE_REMOTE="${SUPABASE_REMOTE:-$(repo_remote supabase)}"
 
 if [ -e supabase/.git ]; then
