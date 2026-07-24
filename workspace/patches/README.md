@@ -26,7 +26,7 @@ derive from the kind).
 
 | Patch | Repo | Files | Kind | Tests | What |
 |---|---|---|---|---|---|
-| `mcp-content-api-url` | `submodules/mcp` | `transports/stdio.ts` | upstream | 3 stdio integration tests (in the PR) | `--content-api-url` flag + `SUPABASE_CONTENT_API_URL` — **PR open: [mcp#343](https://github.com/supabase/mcp/pull/343)**; the patch retires when it merges and the pin moves past it |
+| `mcp-content-api-url` | `submodules/mcp` | `transports/stdio.ts` | upstream | 3 stdio integration tests (upstream) | `--content-api-url` flag + `SUPABASE_CONTENT_API_URL` — **merged upstream ([mcp#343](https://github.com/supabase/mcp/pull/343), 2026-07-23), not yet in a release**; the patch retires when a release ships the flag and the pin moves past it |
 | `supabase-content-local-ports` | supabase/supabase | `config.toml` | **LOCAL-ONLY** | n/a | dev ports 55321+ (avoid evals' 54321-9) |
 | `supabase-docs-index-fail-closed` | supabase/supabase | `generate-embeddings.ts` | upstream | none | fail-closed `purgeOldPages` + token/cost report |
 | `supabase-docs-guide-checksum` | supabase/supabase | `guideModelLoader.ts` | upstream | none | guide checksum + `tryCatch` `onError` fix (docs-index edit detection) |
@@ -50,7 +50,7 @@ verifies both directions and fails loudly on drift.
 
 ## Upstreaming order
 
-`mcp-content-api-url` — PR open ([mcp#343](https://github.com/supabase/mcp/pull/343)).
+`mcp-content-api-url` — merged upstream ([mcp#343](https://github.com/supabase/mcp/pull/343)); retires at the next mcp release + pin bump.
 Then the three upstream supabase fixes (independent; `guide-checksum` and
 `index-fail-closed` still need regression tests; `reference-dup-sources` is
 test-covered and PR-ready). The two former evals patches are done: the
