@@ -18,10 +18,14 @@ export function requireEnv(name: string, hint?: string): string {
   const isSet = name in process.env;
   const value = process.env[name];
   if (!isSet || value === undefined) {
-    throw new Error(`Environment variable ${name} is not set.${hint ? ` ${hint}` : ""}`);
+    throw new Error(
+      `Environment variable ${name} is not set.${hint ? ` ${hint}` : ''}`
+    );
   }
-  if (value.trim() === "") {
-    throw new Error(`Environment variable ${name} is set but empty.${hint ? ` ${hint}` : ""}`);
+  if (value.trim() === '') {
+    throw new Error(
+      `Environment variable ${name} is set but empty.${hint ? ` ${hint}` : ''}`
+    );
   }
   return value;
 }
