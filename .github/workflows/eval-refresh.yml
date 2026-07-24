@@ -27,6 +27,11 @@ on:
         description: "Timeout per attempt in seconds"
         required: true
         default: "720"
+      run_through_gateway:
+        description: "Route model traffic through the Vercel AI Gateway instead of per-vendor API keys"
+        type: boolean
+        required: false
+        default: false
       merge:
         description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
         type: boolean
@@ -62,11 +67,13 @@ jobs:
       github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
         (contains(github.event.pull_request.labels.*.name, 'run-evals') ||
-         contains(github.event.pull_request.labels.*.name, 'run-evals-changed')) &&
+         contains(github.event.pull_request.labels.*.name, 'run-evals-changed') ||
+         contains(github.event.pull_request.labels.*.name, 'run-evals-through-gateway')) &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         (github.event.action != 'labeled' ||
          github.event.label.name == 'run-evals' ||
-         github.event.label.name == 'run-evals-changed'))
+         github.event.label.name == 'run-evals-changed' ||
+         github.event.label.name == 'run-evals-through-gateway'))
     runs-on: ubuntu-latest
     outputs:
       pairs: ${{ steps.discover.outputs.pairs }}
@@ -74,6 +81,7 @@ jobs:
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
       do_merge: ${{ steps.inputs.outputs.do_merge }}
+      run_through_gateway: ${{ steps.inputs.outputs.run_through_gateway }}
     steps:
       - name: Prepare inputs
         id: inputs
@@ -123,6 +131,17 @@ jobs:
             do_merge="true"
           fi
 
+          # Route model traffic through the Vercel AI Gateway instead of the
+          # per-vendor keys: the run_through_gateway dispatch input, or the
+          # run-evals-through-gateway PR label.
+          run_through_gateway="false"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.run_through_gateway }}" = "true" ]; then
+            run_through_gateway="true"
+          elif [ "${{ github.event_name }}" = "pull_request" ] && \
+               [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-through-gateway') }}" = "true" ]; then
+            run_through_gateway="true"
+          fi
+
           {
             echo "experiments_override=$experiments_override"
             echo "eval=$eval_id"
@@ -132,6 +151,7 @@ jobs:
             echo "timeout_sec=$timeout_sec"
             echo "filter_changed=$filter_changed"
             echo "do_merge=$do_merge"
+            echo "run_through_gateway=$run_through_gateway"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
@@ -259,6 +279,7 @@ jobs:
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -283,9 +304,18 @@ jobs:
         run: |
           set -euo pipefail
 
+          # In gateway mode the vendor keys are withheld from the eval run —
+          # agent traffic authenticates with AI_GATEWAY_API_KEY alone, so a
+          # passing run is proof the gateway carried it. OPENAI_API_KEY stays:
+          # the judge intentionally runs direct in both modes so scores remain
+          # comparable across routing paths.
           {
-            echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+            if [ "${{ needs.prepare.outputs.run_through_gateway }}" != "true" ]; then
+              echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+            fi
             echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+            echo "AI_GATEWAY_API_KEY=${AI_GATEWAY_API_KEY}"
+            echo "RUN_THROUGH_GATEWAY=${{ needs.prepare.outputs.run_through_gateway }}"
           } > .env
 
       - name: Run evals
