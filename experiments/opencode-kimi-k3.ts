@@ -12,6 +12,7 @@ import { localStackRuntime } from '@supabase-evals/sandbox';
 // needs AI_GATEWAY_API_KEY rather than a direct MOONSHOT_API_KEY. Runs in both
 // modes like the other opencode experiments (see opencode-claude-sonnet-5.ts).
 export default defineExperiment({
+  suite: ['benchmark'],
   agent: opencodeAgent({
     model: 'moonshotai/kimi-k3',
     gateway: true,
