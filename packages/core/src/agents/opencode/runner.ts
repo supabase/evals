@@ -19,6 +19,14 @@
 import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messages';
 import type { ChatModel as OpenAIModel } from 'openai/resources/shared';
 import type { GoogleGenerativeAIProvider } from '@ai-sdk/google';
+// opencode's own config schema (type-only; pinned to the installed CLI version
+// via the catalog). Model ids stay `string` — opencode's catalog is dynamic
+// (models.dev), so there is no model-name union to import, unlike the vendor
+// SDKs above. The transcript stream is deliberately NOT typed from this SDK:
+// `run --format json` emits a reduced, differently-shaped record than the SDK's
+// server-API `Part`/`Event` entities (no id/sessionID/messageID; different
+// discriminants), so the parser stays schema-defensive — see ./parser.ts.
+import type { Config, McpLocalConfig, ProviderConfig } from '@opencode-ai/sdk';
 import type { McpServerConfig } from '../../index.js';
 import type { ModelProvider } from '../../eval-metadata.js';
 import { isRecord, parseJsonlRecords } from '../../json.js';
@@ -227,7 +235,7 @@ export function buildOpencodeConfig(
   servers: Record<string, McpServerConfig>,
   gateway?: { model: string; apiKey: string }
 ): string {
-  const mcp: Record<string, unknown> = {};
+  const mcp: Record<string, McpLocalConfig> = {};
   for (const [name, server] of Object.entries(servers)) {
     mcp[name] = {
       type: 'local',
@@ -236,22 +244,25 @@ export function buildOpencodeConfig(
       ...(server.env ? { environment: server.env } : {}),
     };
   }
-  const config: Record<string, unknown> = {
+  // Typed against opencode's own `Config` schema, so a config-shape change on a
+  // CLI bump (mcp/provider layout) fails to compile instead of silently at runtime.
+  const config: Config = {
     $schema: 'https://opencode.ai/config.json',
     mcp,
   };
   if (gateway) {
-    config.provider = {
-      [GATEWAY_PROVIDER_ID]: {
-        npm: '@ai-sdk/openai-compatible',
-        name: 'Vercel AI Gateway',
-        options: {
-          baseURL: AI_GATEWAY.openAiBaseUrl,
-          apiKey: gateway.apiKey,
-        },
-        models: { [gateway.model]: {} },
+    // A custom OpenAI-compatible provider pointed at the gateway's /v1 surface;
+    // the one gateway `vendor/model` slug is the model id under it.
+    const gatewayProvider: ProviderConfig = {
+      npm: '@ai-sdk/openai-compatible',
+      name: 'Vercel AI Gateway',
+      options: {
+        baseURL: AI_GATEWAY.openAiBaseUrl,
+        apiKey: gateway.apiKey,
       },
+      models: { [gateway.model]: {} },
     };
+    config.provider = { [GATEWAY_PROVIDER_ID]: gatewayProvider };
   }
   return JSON.stringify(config, null, 2);
 }
