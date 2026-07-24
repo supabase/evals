@@ -1,10 +1,10 @@
-import matter from "gray-matter";
-import { z } from "zod";
+import matter from 'gray-matter';
+import { z } from 'zod';
 
 import {
   evalFrontmatterSchema,
   type ParsedEvalMarkdown,
-} from "./eval-metadata.js";
+} from './eval-metadata.js';
 
 // Node-only: gray-matter pulls in js-yaml and Buffer, so it lives apart from
 // the browser-safe schemas in eval-metadata.ts. Only the eval runner and
@@ -13,7 +13,7 @@ import {
 // normalization, and validation of the parsed data.
 export function parseEvalMarkdown(
   source: string,
-  sourceName = "eval markdown",
+  sourceName = 'eval markdown'
 ): ParsedEvalMarkdown {
   // matter.test() inspects the raw source for a frontmatter delimiter without
   // parsing. We must check it here rather than reading parsed.matter below:
@@ -37,7 +37,7 @@ export function parseEvalMarkdown(
   const result = evalFrontmatterSchema.safeParse(parsed.data);
   if (!result.success) {
     throw new Error(
-      `${sourceName} has invalid eval metadata: ${formatZodIssues(result.error.issues)}`,
+      `${sourceName} has invalid eval metadata: ${formatZodIssues(result.error.issues)}`
     );
   }
 
@@ -50,8 +50,8 @@ export function parseEvalMarkdown(
 function formatZodIssues(issues: z.core.$ZodIssue[]): string {
   return issues
     .map((issue) => {
-      const path = issue.path.join(".");
+      const path = issue.path.join('.');
       return path ? `${path}: ${issue.message}` : issue.message;
     })
-    .join("; ");
+    .join('; ');
 }

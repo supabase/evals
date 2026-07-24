@@ -5,11 +5,11 @@ import {
   type SupabaseClient,
   type ToolEvalContext,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const BUCKET = "user-files";
-const PASSWORD = "secret123";
+const BUCKET = 'user-files';
+const PASSWORD = 'secret123';
 
 const scorer: ToolScorer = async (ctx) => {
   try {
@@ -28,7 +28,7 @@ const scorer: ToolScorer = async (ctx) => {
     }
 
     const setup = await setupTestUsers(ctx);
-    if ("failure" in setup) {
+    if ('failure' in setup) {
       return { passed: false, checks: [setup.failure] };
     }
     const users = setup.users;
@@ -60,7 +60,7 @@ const scorer: ToolScorer = async (ctx) => {
       passed: false,
       checks: [
         {
-          name: "scorer evaluated private storage access",
+          name: 'scorer evaluated private storage access',
           passed: false,
           notes: msg,
         },
@@ -83,14 +83,14 @@ const fileA2 = (users: TestUsers) => `${users.userAId}/receipt-beta.pdf`;
 const fileB = (users: TestUsers) => `${users.userBId}/receipt-gamma.pdf`;
 
 function storageObjects(client: SupabaseClient) {
-  return client.schema("storage").from("objects");
+  return client.schema('storage').from('objects');
 }
 
 async function findBucket(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<{ id: string; public: boolean | null } | undefined> {
   const { rows } = await ctx.query(
-    `SELECT id, public FROM storage.buckets WHERE id = '${BUCKET}' OR name = '${BUCKET}' LIMIT 1;`,
+    `SELECT id, public FROM storage.buckets WHERE id = '${BUCKET}' OR name = '${BUCKET}' LIMIT 1;`
   );
   const row = rows[0];
   if (!row) return undefined;
@@ -98,7 +98,7 @@ async function findBucket(
 }
 
 async function setupTestUsers(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<{ users: TestUsers } | { failure: CheckResult }> {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
@@ -122,9 +122,9 @@ async function setupTestUsers(
   ) {
     return {
       failure: {
-        name: "created auth sessions",
+        name: 'created auth sessions',
         passed: false,
-        notes: authAError?.message ?? authBError?.message ?? "missing session",
+        notes: authAError?.message ?? authBError?.message ?? 'missing session',
       },
     };
   }
@@ -137,7 +137,7 @@ async function setupTestUsers(
 async function seedObjects(
   ctx: ToolEvalContext,
   bucketId: string,
-  users: TestUsers,
+  users: TestUsers
 ): Promise<void> {
   await ctx.query(`
 INSERT INTO storage.objects (bucket_id, name, owner, owner_id) VALUES
@@ -147,7 +147,9 @@ INSERT INTO storage.objects (bucket_id, name, owner, owner_id) VALUES
   `);
 }
 
-async function checkRlsStillEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkRlsStillEnabled(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const { rows } = await ctx.query(`
 SELECT c.relrowsecurity
 FROM pg_class c
@@ -156,42 +158,44 @@ WHERE n.nspname = 'storage' AND c.relname = 'objects';
   `);
 
   return {
-    name: "RLS still enabled on storage.objects",
+    name: 'RLS still enabled on storage.objects',
     passed: rows[0]?.relrowsecurity === true,
   };
 }
 
 async function checkUserAListsOnlyOwnFiles(
   users: TestUsers,
-  bucketId: string,
+  bucketId: string
 ): Promise<CheckResult> {
   const { data, error } = await storageObjects(users.clientA)
-    .select("name")
-    .eq("bucket_id", bucketId)
-    .order("name");
+    .select('name')
+    .eq('bucket_id', bucketId)
+    .order('name');
 
   return {
-    name: "user A lists only own files",
+    name: 'user A lists only own files',
     passed:
       !error &&
       data?.length === 2 &&
       data[0]?.name === fileA1(users) &&
       data[1]?.name === fileA2(users),
-    notes: error?.message ?? `saw: ${data?.map((row) => row.name).join(", ") || "(none)"}`,
+    notes:
+      error?.message ??
+      `saw: ${data?.map((row) => row.name).join(', ') || '(none)'}`,
   };
 }
 
 async function checkUserBCannotReadUserAFiles(
   users: TestUsers,
-  bucketId: string,
+  bucketId: string
 ): Promise<CheckResult> {
   const { data, error } = await storageObjects(users.clientB)
-    .select("id")
-    .eq("bucket_id", bucketId)
-    .eq("name", fileA1(users));
+    .select('id')
+    .eq('bucket_id', bucketId)
+    .eq('name', fileA1(users));
 
   return {
-    name: "user B cannot read user A files",
+    name: 'user B cannot read user A files',
     passed: !error && Array.isArray(data) && data.length === 0,
     notes: error?.message,
   };
@@ -199,21 +203,21 @@ async function checkUserBCannotReadUserAFiles(
 
 async function checkAnonReadsNoFiles(
   ctx: ToolEvalContext,
-  bucketId: string,
+  bucketId: string
 ): Promise<CheckResult> {
   const { data, error } = await storageObjects(ctx.getClient())
-    .select("id")
-    .eq("bucket_id", bucketId);
+    .select('id')
+    .eq('bucket_id', bucketId);
 
   return {
-    name: "anon reads no files",
+    name: 'anon reads no files',
     passed: error !== null || data?.length === 0,
   };
 }
 
 async function checkUserACanUploadToOwnFolder(
   users: TestUsers,
-  bucketId: string,
+  bucketId: string
 ): Promise<CheckResult> {
   const { data, error } = await storageObjects(users.clientA)
     .insert({
@@ -222,10 +226,10 @@ async function checkUserACanUploadToOwnFolder(
       owner: users.userAId,
       owner_id: users.userAId,
     })
-    .select("name");
+    .select('name');
 
   return {
-    name: "user A can upload into own folder",
+    name: 'user A can upload into own folder',
     passed: !error && data?.length === 1,
     notes: error?.message,
   };
@@ -234,7 +238,7 @@ async function checkUserACanUploadToOwnFolder(
 async function checkUserBCannotUploadIntoUserAFolder(
   ctx: ToolEvalContext,
   users: TestUsers,
-  bucketId: string,
+  bucketId: string
 ): Promise<CheckResult> {
   await storageObjects(users.clientB)
     .insert({
@@ -243,19 +247,19 @@ async function checkUserBCannotUploadIntoUserAFolder(
       owner: users.userAId,
       owner_id: users.userAId,
     })
-    .select("id");
+    .select('id');
   const { rows } = await ctx.query(
-    `SELECT count(*)::int AS count FROM storage.objects WHERE name = '${users.userAId}/planted.pdf';`,
+    `SELECT count(*)::int AS count FROM storage.objects WHERE name = '${users.userAId}/planted.pdf';`
   );
 
   return {
-    name: "user B cannot upload into user A folder",
+    name: 'user B cannot upload into user A folder',
     passed: rows[0]?.count === 0,
   };
 }
 
 async function checkPrivateAccessConfiguration(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<CheckResult> {
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, {
@@ -276,7 +280,7 @@ async function checkPrivateAccessConfiguration(
   });
 
   return {
-    name: "configured private per-user storage access",
+    name: 'configured private per-user storage access',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };

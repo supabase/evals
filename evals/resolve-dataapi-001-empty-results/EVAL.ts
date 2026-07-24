@@ -5,18 +5,18 @@ import {
   type SupabaseClient,
   type ToolEvalContext,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const PASSWORD = "secret123";
-const BOOKMARK_A1 = "a bookmark alpha";
-const BOOKMARK_A2 = "a bookmark beta";
-const BOOKMARK_B = "b bookmark gamma";
+const PASSWORD = 'secret123';
+const BOOKMARK_A1 = 'a bookmark alpha';
+const BOOKMARK_A2 = 'a bookmark beta';
+const BOOKMARK_B = 'b bookmark gamma';
 
 const scorer: ToolScorer = async (ctx) => {
   try {
     const setup = await setupTestUsers(ctx);
-    if ("failure" in setup) {
+    if ('failure' in setup) {
       return { passed: false, checks: [setup.failure] };
     }
     const users = setup.users;
@@ -41,7 +41,7 @@ const scorer: ToolScorer = async (ctx) => {
       passed: false,
       checks: [
         {
-          name: "scorer evaluated Data API fix",
+          name: 'scorer evaluated Data API fix',
           passed: false,
           notes: msg,
         },
@@ -60,7 +60,7 @@ type TestUsers = {
 };
 
 async function setupTestUsers(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<{ users: TestUsers } | { failure: CheckResult }> {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
@@ -84,9 +84,9 @@ async function setupTestUsers(
   ) {
     return {
       failure: {
-        name: "created auth sessions",
+        name: 'created auth sessions',
         passed: false,
-        notes: authAError?.message ?? authBError?.message ?? "missing session",
+        notes: authAError?.message ?? authBError?.message ?? 'missing session',
       },
     };
   }
@@ -104,25 +104,29 @@ INSERT INTO bookmarks (user_id, title, url) VALUES
   return { users: { clientA, clientB, userAId, userBId } };
 }
 
-async function checkRlsStillEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkRlsStillEnabled(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const { rows } = await ctx.query(
-    `SELECT relrowsecurity FROM pg_class WHERE relname = 'bookmarks';`,
+    `SELECT relrowsecurity FROM pg_class WHERE relname = 'bookmarks';`
   );
 
   return {
-    name: "RLS still enabled on bookmarks",
+    name: 'RLS still enabled on bookmarks',
     passed: rows[0]?.relrowsecurity === true,
   };
 }
 
-async function checkUserAReadsOwnBookmarks(users: TestUsers): Promise<CheckResult> {
+async function checkUserAReadsOwnBookmarks(
+  users: TestUsers
+): Promise<CheckResult> {
   const { data, error } = await users.clientA
-    .from("bookmarks")
-    .select("title,user_id")
-    .order("title");
+    .from('bookmarks')
+    .select('title,user_id')
+    .order('title');
 
   return {
-    name: "user A reads own bookmarks",
+    name: 'user A reads own bookmarks',
     passed:
       !error &&
       data?.length === 2 &&
@@ -134,40 +138,44 @@ async function checkUserAReadsOwnBookmarks(users: TestUsers): Promise<CheckResul
 }
 
 async function checkUserBCannotReadUserABookmarks(
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { data, error } = await users.clientB
-    .from("bookmarks")
-    .select("id")
-    .eq("title", BOOKMARK_A1);
+    .from('bookmarks')
+    .select('id')
+    .eq('title', BOOKMARK_A1);
 
   return {
-    name: "user B cannot read user A bookmarks",
+    name: 'user B cannot read user A bookmarks',
     passed: !error && Array.isArray(data) && data.length === 0,
   };
 }
 
-async function checkAnonReadsNoBookmarks(ctx: ToolEvalContext): Promise<CheckResult> {
-  const { data, error } = await ctx.getClient().from("bookmarks").select("id");
+async function checkAnonReadsNoBookmarks(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
+  const { data, error } = await ctx.getClient().from('bookmarks').select('id');
 
   return {
-    name: "anon reads no bookmarks",
+    name: 'anon reads no bookmarks',
     passed: error !== null || data?.length === 0,
   };
 }
 
-async function checkUserACanSaveNewBookmark(users: TestUsers): Promise<CheckResult> {
+async function checkUserACanSaveNewBookmark(
+  users: TestUsers
+): Promise<CheckResult> {
   const { data, error } = await users.clientA
-    .from("bookmarks")
-    .insert({ title: "a bookmark delta", url: "https://example.com/a3" })
-    .select("title,user_id");
+    .from('bookmarks')
+    .insert({ title: 'a bookmark delta', url: 'https://example.com/a3' })
+    .select('title,user_id');
 
   return {
-    name: "user A can save a new bookmark",
+    name: 'user A can save a new bookmark',
     passed:
       !error &&
       data?.length === 1 &&
-      data[0]?.title === "a bookmark delta" &&
+      data[0]?.title === 'a bookmark delta' &&
       data[0]?.user_id === users.userAId,
     notes: error?.message,
   };
@@ -175,28 +183,28 @@ async function checkUserACanSaveNewBookmark(users: TestUsers): Promise<CheckResu
 
 async function checkUserBCannotInsertAsUserA(
   ctx: ToolEvalContext,
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   await users.clientB
-    .from("bookmarks")
+    .from('bookmarks')
     .insert({
       user_id: users.userAId,
-      title: "planted by user B",
-      url: "https://example.com/planted",
+      title: 'planted by user B',
+      url: 'https://example.com/planted',
     })
-    .select("id");
+    .select('id');
   const { rows } = await ctx.query(
-    `SELECT count(*)::int AS count FROM bookmarks WHERE title = 'planted by user B';`,
+    `SELECT count(*)::int AS count FROM bookmarks WHERE title = 'planted by user B';`
   );
 
   return {
-    name: "user B cannot insert a bookmark as user A",
+    name: 'user B cannot insert a bookmark as user A',
     passed: rows[0]?.count === 0,
   };
 }
 
 async function checkRlsDiagnosisAndOwnerPolicies(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<CheckResult> {
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, {
@@ -216,7 +224,7 @@ async function checkRlsDiagnosisAndOwnerPolicies(
   });
 
   return {
-    name: "diagnosed RLS and added owner-scoped policies",
+    name: 'diagnosed RLS and added owner-scoped policies',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };

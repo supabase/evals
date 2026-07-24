@@ -1,5 +1,11 @@
-import { judge, serializeTranscript, type CheckResult, type LocalStackEvalContext, type LocalStackScorer } from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+import {
+  judge,
+  serializeTranscript,
+  type CheckResult,
+  type LocalStackEvalContext,
+  type LocalStackScorer,
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -13,27 +19,36 @@ const scorer: LocalStackScorer = async (ctx) => {
     const msg = error instanceof Error ? error.message : String(error);
     return {
       passed: false,
-      checks: [{ name: "scorer evaluated pgTAP tests", passed: false, notes: msg }],
+      checks: [
+        { name: 'scorer evaluated pgTAP tests', passed: false, notes: msg },
+      ],
     };
   }
 };
 
 export default scorer;
 
-async function checkTestFilesExist(ctx: LocalStackEvalContext): Promise<CheckResult> {
-  const name = "pgTAP test file(s) written under supabase/tests/";
-  const result = await ctx.exec("find supabase/tests -name '*.sql' 2>/dev/null");
-  const files = result.stdout.trim().split("\n").filter(Boolean);
+async function checkTestFilesExist(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
+  const name = 'pgTAP test file(s) written under supabase/tests/';
+  const result = await ctx.exec(
+    "find supabase/tests -name '*.sql' 2>/dev/null"
+  );
+  const files = result.stdout.trim().split('\n').filter(Boolean);
   return {
     name,
     passed: files.length > 0,
-    notes: files.length > 0
-      ? `${files.length} file(s): ${files.join(", ")}`
-      : "no .sql files found under supabase/tests/",
+    notes:
+      files.length > 0
+        ? `${files.length} file(s): ${files.join(', ')}`
+        : 'no .sql files found under supabase/tests/',
   };
 }
 
-async function checkAgentDiagnosis(ctx: LocalStackEvalContext): Promise<CheckResult> {
+async function checkAgentDiagnosis(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, { includeToolCallInputs: true }),
     rubric: stripIndent`
@@ -52,16 +67,18 @@ async function checkAgentDiagnosis(ctx: LocalStackEvalContext): Promise<CheckRes
     `,
   });
   return {
-    name: "agent correctly identifies the posts isolation bug from test results",
+    name: 'agent correctly identifies the posts isolation bug from test results',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };
 }
 
 async function checkTestResults(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult[]> {
-  const result = await ctx.exec("supabase test db 2>&1", { timeoutMs: 120_000 });
+  const result = await ctx.exec('supabase test db 2>&1', {
+    timeoutMs: 120_000,
+  });
   const output = result.stdout + result.stderr;
 
   // pg_prove summary line: "Files=1, Tests=4, 1 failed." or "Files=1, Tests=4, 0 failed."
@@ -84,7 +101,7 @@ async function checkTestResults(
   // signal that the agent caught the posts bug from the results.
   return [
     {
-      name: "pgTAP isolation tests ran and pass",
+      name: 'pgTAP isolation tests ran and pass',
       passed: ranTests && passedTests > 0,
       notes: summary,
     },

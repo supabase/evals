@@ -3,18 +3,18 @@ import {
   defineExperiment,
   platformLiteRuntime,
   supabaseMcpServer,
-} from "@supabase-evals/core";
-import { localStackRuntime } from "@supabase-evals/sandbox";
+} from '@supabase-evals/core';
+import { localStackRuntime } from '@supabase-evals/sandbox';
 
 export default defineExperiment({
-  suite: ["benchmark"],
+  suite: ['benchmark'],
   agent: codexAgent({
-    model: "gpt-5.6-sol",
-    reasoningEffort: "low",
+    model: 'gpt-5.6-sol',
+    reasoningEffort: 'low',
   }),
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],
   }),
   localStack: localStackRuntime(),
-  skills: ["supabase", "supabase-postgres-best-practices"],
+  skills: ['supabase', 'supabase-postgres-best-practices'],
 });

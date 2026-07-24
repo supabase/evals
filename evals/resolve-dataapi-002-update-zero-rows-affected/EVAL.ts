@@ -5,16 +5,16 @@ import {
   type SupabaseClient,
   type ToolEvalContext,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const PASSWORD = "secret123";
-const TASK_TITLE = "write the quarterly report";
+const PASSWORD = 'secret123';
+const TASK_TITLE = 'write the quarterly report';
 
 const scorer: ToolScorer = async (ctx) => {
   try {
     const setup = await setupTestUsers(ctx);
-    if ("failure" in setup) {
+    if ('failure' in setup) {
       return { passed: false, checks: [setup.failure] };
     }
     const users = setup.users;
@@ -37,7 +37,7 @@ const scorer: ToolScorer = async (ctx) => {
       passed: false,
       checks: [
         {
-          name: "scorer evaluated the zero-rows-updated fix",
+          name: 'scorer evaluated the zero-rows-updated fix',
           passed: false,
           notes: msg,
         },
@@ -56,7 +56,7 @@ type TestUsers = {
 };
 
 async function setupTestUsers(
-  ctx: ToolEvalContext,
+  ctx: ToolEvalContext
 ): Promise<{ users: TestUsers } | { failure: CheckResult }> {
   const clientA = ctx.client;
   const clientB = ctx.getClient();
@@ -80,9 +80,9 @@ async function setupTestUsers(
   ) {
     return {
       failure: {
-        name: "created auth sessions",
+        name: 'created auth sessions',
         passed: false,
-        notes: authAError?.message ?? authBError?.message ?? "missing session",
+        notes: authAError?.message ?? authBError?.message ?? 'missing session',
       },
     };
   }
@@ -92,7 +92,10 @@ async function setupTestUsers(
   };
 }
 
-async function seedTask(ctx: ToolEvalContext, users: TestUsers): Promise<string> {
+async function seedTask(
+  ctx: ToolEvalContext,
+  users: TestUsers
+): Promise<string> {
   const { rows } = await ctx.query(`
 INSERT INTO tasks (user_id, title, is_done) VALUES ('${users.userAId}', '${TASK_TITLE}', false)
 RETURNING id;
@@ -100,26 +103,28 @@ RETURNING id;
   return String(rows[0]?.id);
 }
 
-async function checkRlsStillEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkRlsStillEnabled(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const { rows } = await ctx.query(
-    `SELECT relrowsecurity FROM pg_class WHERE relname = 'tasks';`,
+    `SELECT relrowsecurity FROM pg_class WHERE relname = 'tasks';`
   );
 
   return {
-    name: "RLS still enabled on tasks",
+    name: 'RLS still enabled on tasks',
     passed: rows[0]?.relrowsecurity === true,
   };
 }
 
 async function checkUserACanCheckOffOwnTask(
   users: TestUsers,
-  taskId: string,
+  taskId: string
 ): Promise<CheckResult> {
   const { data, error } = await users.clientA
-    .from("tasks")
+    .from('tasks')
     .update({ is_done: true })
-    .eq("id", taskId)
-    .select("id,is_done");
+    .eq('id', taskId)
+    .select('id,is_done');
 
   return {
     name: "user A's update actually checks off their own task",
@@ -131,24 +136,26 @@ async function checkUserACanCheckOffOwnTask(
 async function checkUserBCannotUpdateUserATask(
   ctx: ToolEvalContext,
   users: TestUsers,
-  taskId: string,
+  taskId: string
 ): Promise<CheckResult> {
   await users.clientB
-    .from("tasks")
-    .update({ title: "hijacked by user B" })
-    .eq("id", taskId)
-    .select("id");
+    .from('tasks')
+    .update({ title: 'hijacked by user B' })
+    .eq('id', taskId)
+    .select('id');
   const { rows } = await ctx.query(
-    `SELECT title FROM tasks WHERE id = '${taskId}';`,
+    `SELECT title FROM tasks WHERE id = '${taskId}';`
   );
 
   return {
     name: "user B cannot update user A's task",
-    passed: rows[0]?.title !== "hijacked by user B",
+    passed: rows[0]?.title !== 'hijacked by user B',
   };
 }
 
-async function checkFixedUpdatePolicy(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkFixedUpdatePolicy(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, {
       includeToolCallInputs: true,
@@ -166,7 +173,7 @@ async function checkFixedUpdatePolicy(ctx: ToolEvalContext): Promise<CheckResult
   });
 
   return {
-    name: "diagnosed the missing USING clause and added it",
+    name: 'diagnosed the missing USING clause and added it',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };

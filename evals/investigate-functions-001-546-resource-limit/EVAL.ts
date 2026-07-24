@@ -3,8 +3,8 @@ import {
   serializeTranscript,
   type CheckResult,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
 const scorer: ToolScorer = async (ctx) => {
   const input = serializeTranscript(ctx.transcript);
@@ -38,17 +38,17 @@ const scorer: ToolScorer = async (ctx) => {
 
   const checks: CheckResult[] = [
     {
-      name: "identified video-thumbnails and the 546 resource-limit pattern",
+      name: 'identified video-thumbnails and the 546 resource-limit pattern',
       passed: signalFound.passed,
       judgeNotes: signalFound.notes,
     },
     {
-      name: "attributed the 546s to CPU time exhaustion",
+      name: 'attributed the 546s to CPU time exhaustion',
       passed: causeAttributed.passed,
       judgeNotes: causeAttributed.notes,
     },
     {
-      name: "recommended reducing/offloading CPU work as the fix",
+      name: 'recommended reducing/offloading CPU work as the fix',
       passed: remedyGiven.passed,
       judgeNotes: remedyGiven.notes,
     },

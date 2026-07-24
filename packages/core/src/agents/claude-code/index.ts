@@ -5,13 +5,13 @@
  * to parse Claude Code transcripts.
  */
 
-import type { Model as AnthropicModel } from "@anthropic-ai/sdk/resources/messages";
-import type { AgentHarness } from "../../index.js";
-import type { ReasoningEffortLevel } from "../../eval-metadata.js";
-import { createCliAgent } from "../engine.js";
-import type { AgentDefinition } from "../types.js";
-import { claudeCodeRunner } from "./runner.js";
-import { claudeCodeParser } from "./parser.js";
+import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messages';
+import type { AgentHarness } from '../../index.js';
+import type { ReasoningEffortLevel } from '../../eval-metadata.js';
+import { createCliAgent } from '../engine.js';
+import type { AgentDefinition } from '../types.js';
+import { claudeCodeRunner } from './runner.js';
+import { claudeCodeParser } from './parser.js';
 
 /** Claude Code as an `AgentHarness`. */
 export function claudeCodeAgent(
@@ -22,7 +22,7 @@ export function claudeCodeAgent(
     reasoningEffort?: ReasoningEffortLevel;
     /** Override the pinned CLI version. */
     cliVersion?: string;
-  } = {},
+  } = {}
 ): AgentHarness {
   return createCliAgent(claudeCodeRunner, claudeCodeParser, {
     model: options.model ?? claudeCodeRunner.defaultModel,
