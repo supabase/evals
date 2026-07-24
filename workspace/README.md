@@ -31,7 +31,7 @@ put keys in the repo-root `.env` (the fallback `status` will route you to).
 |---|---|---|
 | Skills | `submodules/agent-skills` (a working tree: edit in place) | none |
 | MCP server | `submodules/mcp` | `mise run mcp-build` |
-| Docs | `supabase/` (opt-in sparse clone: `mise run clone-docs`) | `mise run docs-index` (cents) |
+| Docs | `submodules/supabase` (opt-in sparse+partial submodule: `mise run clone-docs`) | `mise run docs-index` (cents) |
 
 - **MCP loop**: `mise run mcp-eval -- <args>` builds the submodule (with the
   enabler patches) and runs evals against it via `SUPABASE_MCP_SERVER_PATH`.
@@ -44,7 +44,10 @@ put keys in the repo-root `.env` (the fallback `status` will route you to).
   (or just use `mise run ab`, which wires this automatically). Content DB
   ports are 55321+ to avoid the eval local-stack range (54321-9). Measuring
   docs impact needs a tools-mode (`interface: mcp`) eval whose answer lives
-  only in the docs.
+  only in the docs. The submodule is pinned by evals (`ignore = all`,
+  `update = none`: recursive inits skip it — the seed script owns the sparse
+  checkout); bump the pin with `mise run update`, then `git add
+  submodules/supabase` deliberately.
 
 ## Head-to-head A/B
 
@@ -62,8 +65,8 @@ self-cleaning live proof on the docs loop (spend-gated, asks first).
 
 ## Patches & publishing
 
-Local changes to the patched repos (the `supabase/` clone and the
-`submodules/mcp` working tree) are tracked as `.patch` files in
+Local changes to the patched repos (the `submodules/supabase` and
+`submodules/mcp` working trees) are tracked as `.patch` files in
 `workspace/patches/` and applied as marker commits — see
 [patches/README.md](./patches/README.md) for the manifest and the
 publish flow (`mise run publish <repo> <topic>`). A pre-push guard in each
@@ -73,7 +76,7 @@ never gets hooks or marker commits.
 ## Provenance
 
 `mise run status -- --json` prints a receipt: host repo SHA + dirty state,
-submodule pins, supabase clone state, patch fingerprints, and the docs-index
+submodule pins, docs submodule state, patch fingerprints, and the docs-index
 stamp (`.docs-index-stamp.json`, scoped to repo docs content only). `ab.sh`
 embeds a per-arm copy into every A/B result, so a wrong-baseline run is
 immediately obvious.

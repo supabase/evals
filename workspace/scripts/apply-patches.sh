@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Materialize the enabler patches as identifiable LOCAL COMMITS in the
-# supabase clone and the mcp submodule working tree:
+# supabase and mcp submodule working trees:
 #   [eval-workspace-local] <name>      dev shim — must never leave this machine
 #   [eval-workspace-upstream] <name>   upstream candidate — leaves ONLY via
 #                                 `mise run publish … --with <name>` (reworded)
@@ -9,7 +9,7 @@
 #
 # Idempotent: a patch whose marker commit already exists is skipped; patch
 # content found uncommitted in the working tree (the old model) is migrated
-# into a commit. Also installs a pre-push guard in the supabase clone and
+# into a commit. Also installs a pre-push guard in the supabase submodule and
 # the mcp submodule (the two publishable repos) that blocks marker commits
 # from being pushed anywhere. A repo whose dir is absent (supabase not
 # cloned) or whose submodule is uninitialized (empty working tree, no .git)

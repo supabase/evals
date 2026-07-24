@@ -14,5 +14,5 @@ if [ "$confirmation" != seed ]; then
   exit 1
 fi
 
-pnpm --dir supabase/apps/docs run embeddings:refresh
+(cd submodules/supabase/apps/docs && COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm run embeddings:refresh)
 node workspace/scripts/provenance.mjs --stamp-docs-index

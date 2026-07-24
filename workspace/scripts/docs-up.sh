@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
-supabase start --workdir supabase \
+supabase start --workdir submodules/supabase \
   -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
 # Upstream page migrations grant service_role only Dxt (no CRUD). The new secret

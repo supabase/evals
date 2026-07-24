@@ -44,7 +44,7 @@ const DOCS_CONTENT_DIR = "apps/docs/content";
 // The embed pipeline's model/dims are read FROM the pipeline source at stamp
 // time (no duplicated literals that can silently drift); extraction failure
 // fails the stamp closed.
-const EMBED_PIPELINE_FILE = "supabase/apps/docs/scripts/search/generate-embeddings.ts";
+const EMBED_PIPELINE_FILE = "submodules/supabase/apps/docs/scripts/search/generate-embeddings.ts";
 const embedPipelineConfig = () => {
   const src = readFileSync(join(root, EMBED_PIPELINE_FILE), "utf8");
   const model = src.match(/EMBEDDING_MODEL:\s*'([^']+)'/)?.[1];
@@ -222,13 +222,13 @@ if (cmd === "--stamp-docs-index") {
   // Fail closed on CONTENT (write no stamp, remove any stale one so nothing
   // misdescribes the new embed) but exit 0 with a loud warning.
   try {
-    if (!existsSync(join(root, "supabase", ".git"))) {
+    if (!existsSync(join(root, "submodules/supabase", ".git"))) {
       throw new Error("--stamp-docs-index needs the supabase clone");
     }
-    const dirtyDiff = gitRaw("supabase", "diff", "HEAD", "--binary", "--", DOCS_CONTENT_DIR);
+    const dirtyDiff = gitRaw("submodules/supabase", "diff", "HEAD", "--binary", "--", DOCS_CONTENT_DIR);
     // Untracked corpus files (a brand-new guide) are part of the embedded state
     // but invisible to `git diff HEAD` — scoped to the docs content slice.
-    const contentUntracked = hashUntracked("supabase", "--", DOCS_CONTENT_DIR);
+    const contentUntracked = hashUntracked("submodules/supabase", "--", DOCS_CONTENT_DIR);
     const pipeline = embedPipelineConfig();
     const stamp = {
       generated_at: new Date().toISOString(),
@@ -241,9 +241,9 @@ if (cmd === "--stamp-docs-index") {
       // needs pipeline-side per-page checksum provenance (upstream fix first).
       scope: "repo-docs-content-only",
       external_sources_not_captured: true,
-      supabase_sha: git("supabase", "rev-parse", "HEAD"),
+      supabase_sha: git("submodules/supabase", "rev-parse", "HEAD"),
       repo_docs_content_state: {
-        content_tree: git("supabase", "rev-parse", `HEAD:${DOCS_CONTENT_DIR}`),
+        content_tree: git("submodules/supabase", "rev-parse", `HEAD:${DOCS_CONTENT_DIR}`),
         content_dirty_diff_sha256: dirtyDiff && dirtyDiff.length > 0 ? sha256(dirtyDiff) : null,
         content_untracked: contentUntracked,
       },

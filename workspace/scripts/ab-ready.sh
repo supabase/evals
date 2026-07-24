@@ -26,8 +26,8 @@ else
 fi
 
 echo
-echo "docs loop (edit supabase/apps/docs/content/… pages):"
-if [ -e supabase/.git ]; then ok "supabase (apps/docs) cloned"; else miss "supabase not cloned" "mise run clone-docs"; fi
+echo "docs loop (edit submodules/supabase/apps/docs/content/… pages):"
+if [ -e submodules/supabase/.git ]; then ok "supabase (apps/docs) cloned"; else miss "supabase not cloned" "mise run clone-docs"; fi
 if docker exec supabase_db_eval-workspace-content true 2>/dev/null; then
   ok "content DB running"
   pages=$(docker exec supabase_db_eval-workspace-content psql -U postgres -d postgres -tAc 'select count(*) from public.page' 2>/dev/null || echo 0)

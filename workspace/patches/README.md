@@ -1,6 +1,6 @@
 # Enabler patches
 
-Local changes to the patched repos (the `supabase/` clone and the
+Local changes to the patched repos (the `submodules/supabase` and the
 `submodules/mcp` working tree), materialized by
 `workspace/scripts/apply-patches.sh` as identifiable **local commits** at the
 bottom of each repo's branch:

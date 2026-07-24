@@ -10,7 +10,7 @@
 # Usage:
 #   workspace/scripts/publish.sh <repo> --list                         what's publishable
 #   workspace/scripts/publish.sh <repo> <topic-branch> [--with <patch-name>]...
-#   <repo>: mcp (submodule) | supabase (clone) — the only publishable repos
+#   <repo>: mcp (submodule) | supabase (docs submodule) — the only publishable repos
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT="$PWD"

@@ -5,7 +5,7 @@
 # Usage: workspace/scripts/ab.sh <eval-id> <experiment> <edited-path> [more-paths...]
 #   <edited-path> is a file inside a clone; its clone selects the loop + how to
 #   re-sync between states:
-#     supabase/apps/docs/content/…   docs loop   (re-embed via docs-index; needs `mise run docs-api` up)
+#     submodules/supabase/apps/docs/content/…   docs loop   (re-embed via docs-index; needs `mise run docs-api` up)
 #     submodules/mcp/…               mcp loop    (rebuild the local server)
 #     submodules/agent-skills/…      skills loop (no re-sync; read live via symlink)
 #
@@ -34,11 +34,11 @@ done
 
 # --- clone + loop from the first path ---
 case "${PATHS[0]}" in
-  supabase/apps/docs/content/*) LOOP=docs;   CLONE=supabase;                STRIP=supabase/;                PREFIX=supabase/apps/docs/content/ ;;
-  supabase/apps/docs/*)         echo "docs A/B works on content pages (supabase/apps/docs/content/…) — other docs files aren't part of the embed loop: ${PATHS[0]}" >&2; exit 2 ;;
+  submodules/supabase/apps/docs/content/*) LOOP=docs;   CLONE=submodules/supabase;                STRIP=submodules/supabase/;                PREFIX=submodules/supabase/apps/docs/content/ ;;
+  submodules/supabase/apps/docs/*)         echo "docs A/B works on content pages (submodules/supabase/apps/docs/content/…) — other docs files aren't part of the embed loop: ${PATHS[0]}" >&2; exit 2 ;;
   submodules/mcp/*)             LOOP=mcp;    CLONE=submodules/mcp;          STRIP=submodules/mcp/;          PREFIX=submodules/mcp/ ;;
   submodules/agent-skills/*)    LOOP=skills; CLONE=submodules/agent-skills; STRIP=submodules/agent-skills/; PREFIX=submodules/agent-skills/ ;;
-  *) echo "path must be under supabase/apps/docs/content/, submodules/mcp/, or submodules/agent-skills/: ${PATHS[0]}" >&2; exit 2 ;;
+  *) echo "path must be under submodules/supabase/apps/docs/content/, submodules/mcp/, or submodules/agent-skills/: ${PATHS[0]}" >&2; exit 2 ;;
 esac
 
 # every path must live in this loop's editable scope; build clone-relative paths

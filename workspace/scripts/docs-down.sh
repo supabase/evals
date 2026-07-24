@@ -2,4 +2,4 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
-supabase stop --workdir supabase
+supabase stop --workdir submodules/supabase

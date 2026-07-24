@@ -24,26 +24,24 @@ repo_status() {
 
 NEXT=""
 echo "Repos:"
-# The host repo is this checkout itself (evals); agent-skills and mcp are its
-# two pinned submodules (hand-nested rows); supabase is the only opt-in clone.
+# The host repo is this checkout itself (evals); agent-skills, mcp, and
+# supabase (docs) are its pinned submodules (hand-nested rows). supabase is
+# opt-in: `update = none` keeps recursive inits away from the monorepo tree,
+# so it only exists after `mise run clone-docs` seeds it (sparse+partial).
 repo_status "evals (host)" "."
 repo_status "  - agent-skills" "$(repo_dir skills)" "not initialized"
 repo_status "  - mcp" "$(repo_dir mcp)" "not initialized"
-for _repo in $PATCH_REPOS; do
-  case "$_repo" in skills|mcp) continue ;; esac
-  repo_status "$_repo" "$(repo_dir "$_repo")"
-done
-unset _repo
+repo_status "  - supabase (docs)" "$(repo_dir supabase)" "not seeded"
 
 # Bootstrap order (mirrors mise run setup): deps, then submodules, then
-# enabler plumbing, then keys. The supabase clone is opt-in for the docs loop
-# only — its absence is informational (shown above) and never gates Ready.
+# enabler plumbing, then keys. The supabase docs submodule is opt-in for the
+# docs loop only — its absence is informational (shown above) and never gates Ready.
 [ -d node_modules ] || NEXT="${NEXT}  pnpm install                                       # install workspace deps\n"
 if [ ! -e "$(repo_dir skills)/.git" ] || [ ! -e "$(repo_dir mcp)/.git" ]; then
   NEXT="${NEXT}  git submodule update --init submodules/agent-skills submodules/mcp # init submodules\n"
 fi
 # enabler plumbing present? (marker commits; see apply-patches.sh) — only
-# checked for repos that are actually present (supabase clone, mcp submodule).
+# checked for repos that are actually present (supabase and mcp submodules).
 for _r in $PATCH_REPOS; do
   _d=$(repo_dir "$_r")
   [ -e "$_d/.git" ] || continue
@@ -85,9 +83,16 @@ done
 
 echo
 echo "Tooling:"
-for bin in mise pnpm docker node; do
+for bin in mise pnpm docker node git; do
   if command -v "$bin" >/dev/null; then printf '  %-7s %s\n' "$bin" "$(command -v "$bin")"; else printf '  %-7s missing\n' "$bin"; fi
 done
+# The docs-submodule seed needs partial clone + cone sparse-checkout
+# (git >= 2.26); the OS owns git (not mise), so floor-check it here.
+_gitv=$(git --version 2>/dev/null | sed 's/[^0-9]*\([0-9]*\.[0-9]*\).*/\1/')
+case "$_gitv" in
+  1.*|2.[0-9]|2.1[0-9]|2.2[0-5]) echo "  git     WARNING: $_gitv < 2.26 — too old for the sparse docs-submodule seed (clone-docs)" ;;
+esac
+unset _gitv
 if command -v docker >/dev/null; then
   if docker info >/dev/null 2>&1; then echo "  docker  (running)"; else echo "  docker  (not running)"; fi
 fi
