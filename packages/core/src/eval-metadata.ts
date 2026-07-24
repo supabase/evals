@@ -55,7 +55,8 @@ export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
 export const agentHarnessIdSchema = z.enum(["ai-sdk", "claude-code", "codex"]);
 export type AgentHarnessId = z.infer<typeof agentHarnessIdSchema>;
 
-export const modelProviderSchema = z.enum(["anthropic", "openai"]);
+// "google" is reachable only via the AI Gateway (no direct Google harness).
+export const modelProviderSchema = z.enum(["anthropic", "openai", "google"]);
 export type ModelProvider = z.infer<typeof modelProviderSchema>;
 
 export const reasoningEffortSchema = z.enum([

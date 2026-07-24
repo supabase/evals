@@ -44,6 +44,7 @@ import type {
 } from "./eval-metadata.js";
 import { reasoningEffortSchema } from "./eval-metadata.js";
 import type { AgentMetadata, AgentSandbox } from "./agents/types.js";
+import { AI_GATEWAY, gatewayModelProvider } from "./agents/gateway.js";
 import { isRecord } from "./json.js";
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
@@ -100,6 +101,8 @@ export type { DocsResultSandbox } from "./docs-results.js";
 export { createCliAgent } from "./agents/engine.js";
 export { claudeCodeAgent } from "./agents/claude-code/index.js";
 export { codexAgent } from "./agents/codex/index.js";
+// Vercel AI Gateway (opt-in alternative to per-vendor keys; see agents/gateway.ts).
+export { AI_GATEWAY, type GatewayModelId } from "./agents/gateway.js";
 export type {
   AgentMetadata,
   AgentSandbox,
@@ -586,6 +589,11 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
 }
 
 function getModelProvider(provider: string, modelId: string): ModelProvider {
+  // AI Gateway models (`gateway("vendor/model")`) carry the vendor in the id.
+  if (provider.startsWith("gateway")) {
+    return gatewayModelProvider(modelId);
+  }
+
   if (provider.startsWith("anthropic") || modelId.startsWith("claude-")) {
     return "anthropic";
   }
@@ -1192,6 +1200,11 @@ const MAX_OUTPUT_TOKENS = 4096;
 const RUNTIME_URL = "http://supabase-evals.local";
 
 function assertProviderReady(provider: string): void {
+  if (provider.startsWith("gateway") && !process.env[AI_GATEWAY.apiKeyEnvVar]) {
+    throw new Error(
+      `Missing AI Gateway credentials. Set ${AI_GATEWAY.apiKeyEnvVar} before running gateway evals.`,
+    );
+  }
   if (provider.startsWith("openai") && !process.env.OPENAI_API_KEY) {
     throw new Error(
       "Missing OpenAI credentials. Set OPENAI_API_KEY before running OpenAI evals.",
