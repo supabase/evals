@@ -954,10 +954,20 @@ export function supabaseMcpServer(
  * can test an unpublished server change without publishing to npm. Relative
  * paths resolve against the evals checkout root (not the process CWD), so
  * `submodules/mcp/packages/mcp-server-supabase` works from any directory.
+ *
+ * Memoized per env value: createConfig and the sandbox mounts both resolve,
+ * and each resolution spawns git (anchor + mount root) — cache so repeat
+ * calls within a run cost nothing. Keyed on the raw env string because tests
+ * (and in principle callers) change it between calls; the not-found error
+ * path is deliberately uncached so a fixed build is picked up on retry.
  */
-function resolveLocalMcpServer(): { entry: string; baseDir: string } | null {
+type LocalMcpServer = { entry: string; baseDir: string; mountRoot: string };
+let localMcpServerCache: { key: string; value: LocalMcpServer } | null = null;
+
+function resolveLocalMcpServer(): LocalMcpServer | null {
   const localServerPath = process.env.SUPABASE_MCP_SERVER_PATH;
   if (!localServerPath) return null;
+  if (localMcpServerCache?.key === localServerPath) return localMcpServerCache.value;
 
   const anchor =
     gitToplevel(dirname(fileURLToPath(import.meta.url))) ?? process.cwd();
@@ -979,10 +989,16 @@ function resolveLocalMcpServer(): { entry: string; baseDir: string } | null {
   // it (never realpath the entry separately: a symlinked dist/ target could
   // resolve outside the mounted baseDir).
   const realBase = realpathSync(base);
-  return {
+  const baseDir = isEntryFile ? dirname(realBase) : realBase;
+  const value: LocalMcpServer = {
     entry: isEntryFile ? realBase : join(realBase, "dist", "transports", "stdio.js"),
-    baseDir: isEntryFile ? dirname(realBase) : realBase,
+    baseDir,
+    // The whole git toplevel (not just dist/) because the build is unbundled:
+    // it requires its node_modules at runtime.
+    mountRoot: gitToplevel(baseDir) ?? baseDir,
   };
+  localMcpServerCache = { key: localServerPath, value };
+  return value;
 }
 
 function gitToplevel(dir: string): string | null {
@@ -1001,19 +1017,13 @@ function gitToplevel(dir: string): string | null {
  * Sandbox mounts required to launch the SUPABASE_MCP_SERVER_PATH build inside
  * a containerized agent sandbox. A CLI agent's MCP command runs INSIDE the
  * container, where the host build is invisible — so the build's checkout is
- * bind-mounted read-only at its identical path, letting the same config work
- * on both sides, with host rebuilds visible immediately (no re-copy). The
- * whole git toplevel is mounted (not just dist/) because the build is
- * unbundled: it requires its node_modules at runtime. Empty when unset.
+ * bind-mounted read-only at its identical (real) path, letting the same
+ * config work on both sides, with host rebuilds visible immediately (no
+ * re-copy). Empty when unset.
  */
 export function supabaseMcpServerMounts(): SandboxMount[] {
   const local = resolveLocalMcpServer();
-  if (!local) return [];
-  // baseDir is already realpath'd (resolveLocalMcpServer): Docker resolves
-  // bind-mount sources against the daemon's filesystem view, where e.g.
-  // macOS /var symlinks miss.
-  const root = gitToplevel(local.baseDir) ?? local.baseDir;
-  return [{ hostPath: root, readonly: true }];
+  return local ? [{ hostPath: local.mountRoot, readonly: true }] : [];
 }
 
 export function executorMcpServer(): McpServerDefinition {
