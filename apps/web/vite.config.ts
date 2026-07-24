@@ -5,8 +5,7 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
-  // Serve under /evals so the app works behind the supabase.com/evals
-  // rewrite (AI-826). The dev server redirects / to /evals/.
+  // The app is served at supabase.com/evals
   base: "/evals/",
   plugins: [react(), tailwindcss()],
   resolve: {
