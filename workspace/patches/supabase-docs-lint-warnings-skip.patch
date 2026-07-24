@@ -1,12 +1,12 @@
 diff --git a/apps/docs/scripts/search/generate-embeddings.ts b/apps/docs/scripts/search/generate-embeddings.ts
-index 4dfe6e6ba6..cb9166c1f2 100644
+index 4dfe6e6ba6..cf6d80b683 100644
 --- a/apps/docs/scripts/search/generate-embeddings.ts
 +++ b/apps/docs/scripts/search/generate-embeddings.ts
 @@ -18,6 +18,7 @@ import {
    logFailedSections,
  } from './embeddings/utils.js'
  import { fetchAllSources } from './sources/index.js'
-+import { skippedSourcePathScopes } from './sources/lint-warnings-guide.js'
++import { skippedSourcePathScopes } from './sources/base.js'
  
  const CONFIG = {
    // OpenAI settings
@@ -47,24 +47,34 @@ index 4dfe6e6ba6..cb9166c1f2 100644
    if (deletePageError) throw deletePageError
  }
  
-diff --git a/apps/docs/scripts/search/sources/lint-warnings-guide.ts b/apps/docs/scripts/search/sources/lint-warnings-guide.ts
-index d28a57a27f..03986df4ca 100644
---- a/apps/docs/scripts/search/sources/lint-warnings-guide.ts
-+++ b/apps/docs/scripts/search/sources/lint-warnings-guide.ts
-@@ -13,6 +13,12 @@ const privateKey = process.env.DOCS_GITHUB_APP_PRIVATE_KEY
+diff --git a/apps/docs/scripts/search/sources/base.ts b/apps/docs/scripts/search/sources/base.ts
+index a7835ccd92..c0bb41ead7 100644
+--- a/apps/docs/scripts/search/sources/base.ts
++++ b/apps/docs/scripts/search/sources/base.ts
+@@ -31,3 +31,9 @@ export abstract class BaseSource {
  
- const getBasename = (path: string) => path.split('/').at(-1)!.replace(/\.md$/, '')
- 
+   abstract extractIndexedContent(): string
+ }
++
 +// Path scopes (SQL LIKE patterns) of sources skipped under
 +// DOCS_EMBED_ALLOW_MISSING_SOURCES. generate-embeddings excludes these from
 +// the old-pages purge: a skipped source never enters preparation, so its
 +// still-valid rows carry an old version and would otherwise be deleted.
 +export const skippedSourcePathScopes: string[] = []
-+
- export class LintWarningsGuideLoader extends BaseLoader {
-   type = 'markdown' as const
+diff --git a/apps/docs/scripts/search/sources/lint-warnings-guide.ts b/apps/docs/scripts/search/sources/lint-warnings-guide.ts
+index d28a57a27f..0a16468494 100644
+--- a/apps/docs/scripts/search/sources/lint-warnings-guide.ts
++++ b/apps/docs/scripts/search/sources/lint-warnings-guide.ts
+@@ -3,7 +3,7 @@ import { Octokit } from '@octokit/core'
+ import { retry } from '@octokit/plugin-retry'
+ import crypto, { createHash } from 'node:crypto'
+ import { OCTOKIT_RETRY_OPTIONS } from '../../../lib/octokit.constants.js'
+-import { BaseLoader, BaseSource } from './base.js'
++import { BaseLoader, BaseSource, skippedSourcePathScopes } from './base.js'
  
-@@ -29,6 +35,13 @@ export class LintWarningsGuideLoader extends BaseLoader {
+ const RetryOctokit = Octokit.plugin(retry)
+ 
+@@ -29,6 +29,13 @@ export class LintWarningsGuideLoader extends BaseLoader {
  
    async load() {
      if (!appId || !installationId || !privateKey) {
@@ -78,3 +88,30 @@ index d28a57a27f..03986df4ca 100644
        throw new Error('Missing DOCS_GITHUB_APP_* environment variables')
      }
  
+diff --git a/apps/docs/scripts/search/sources/partner-integrations.ts b/apps/docs/scripts/search/sources/partner-integrations.ts
+index b268a3c51c..2f9e970cb1 100644
+--- a/apps/docs/scripts/search/sources/partner-integrations.ts
++++ b/apps/docs/scripts/search/sources/partner-integrations.ts
+@@ -1,7 +1,7 @@
+ import { type SupabaseClient, createClient } from '@supabase/supabase-js'
+ import { upperFirst } from 'lodash-es'
+ import { processMdx } from '../../helpers.mdx.js'
+-import { BaseLoader, BaseSource } from './base.js'
++import { BaseLoader, BaseSource, skippedSourcePathScopes } from './base.js'
+ 
+ type PartnerData = {
+   slug: string // The partner slug corresponding to the last part of the URL
+@@ -31,6 +31,13 @@ export async function fetchPartners() {
+   // "zero partners", and the post-index purge then deletes every existing
+   // /partners/integrations/* row as stale.
+   if (error) {
++    if (process.env.DOCS_EMBED_ALLOW_MISSING_SOURCES) {
++      console.warn(
++        `Skipping partner integrations source: ${error.message} (DOCS_EMBED_ALLOW_MISSING_SOURCES)`
++      )
++      skippedSourcePathScopes.push('/partners/integrations/%')
++      return []
++    }
+     throw new Error(`Failed to fetch partners for indexing: ${error.message}`)
+   }
+   return partners ?? []
