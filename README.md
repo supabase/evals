@@ -177,6 +177,16 @@ Both runtimes load skills lazily ([progressive disclosure](https://ai-sdk.dev/co
 - **Local-stack (sandbox) mode:** skills are installed into the workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network) under `.claude/skills/`. When a task matches, the agent reads `.claude/skills/<name>/SKILL.md` (and any files it references) with its file tools.
 - **Tools mode:** no filesystem, so a `load_skill` tool returns a skill's full instructions when the agent calls it with the skill's name.
 
+## Eval-source workspace (docs / skills / MCP loops)
+
+The glue for testing changes to the agent's *inputs* — docs pages, skills,
+and MCP server source — lives in [`workspace/`](workspace/README.md): edit a
+source, run the affected evals against the local change, or run a head-to-head
+A/B (`mise run ab`) with per-arm provenance receipts. Tasks are driven by
+`mise` from the repo root (`mise run status` is the bootstrap probe). The
+docs monorepo stays an opt-in sparse clone; the MCP server is the pinned
+`submodules/mcp` (see "Running against an exact MCP server revision" above).
+
 ## Framework Checks
 
 ```bash

@@ -1,0 +1,31 @@
+name: workspace-selftest
+
+# Free self-tests of the eval-source workspace glue (workspace/README.md):
+# shell + node stdlib only — no API keys, no model spend, no docker, no
+# pnpm install. Submodules are fetched so the hooks/ab tests exercise the
+# real repos instead of skipping.
+on:
+  pull_request:
+    paths:
+      - "workspace/**"
+      - "mise.toml"
+      - ".github/workflows/workspace-selftest.yml"
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: status self-test
+        run: bash workspace/scripts/status.test.sh
+      - name: hooks self-test
+        run: bash workspace/scripts/hooks.test.sh
+      - name: ab self-test
+        run: bash workspace/scripts/ab.test.sh
