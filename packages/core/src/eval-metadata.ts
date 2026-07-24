@@ -60,7 +60,12 @@ export const agentHarnessIdSchema = z.enum([
 ]);
 export type AgentHarnessId = z.infer<typeof agentHarnessIdSchema>;
 
-export const modelProviderSchema = z.enum(['anthropic', 'openai', 'google']);
+export const modelProviderSchema = z.enum([
+  'anthropic',
+  'openai',
+  'google',
+  'moonshotai',
+]);
 export type ModelProvider = z.infer<typeof modelProviderSchema>;
 
 export const reasoningEffortSchema = z.enum([

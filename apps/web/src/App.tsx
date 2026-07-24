@@ -323,6 +323,7 @@ function formatModel(display: ExperimentDisplay) {
     case "openai":
       return formatOpenAiModel(modelId)
     case "google":
+    case "moonshotai":
       return modelId
   }
 }

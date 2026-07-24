@@ -18,11 +18,12 @@ describe("opencode runner", () => {
     expect(providerApiKeyEnv("openai/gpt-5.4")).toBe("OPENAI_API_KEY");
     // opencode's google provider reads GOOGLE_GENERATIVE_AI_API_KEY, not GEMINI_API_KEY.
     expect(providerApiKeyEnv("google/gemini-flash-latest")).toBe("GOOGLE_GENERATIVE_AI_API_KEY");
+    expect(providerApiKeyEnv("moonshotai/kimi-k3")).toBe("MOONSHOT_API_KEY");
   });
 
   it("throws a clear error for an unsupported provider", () => {
     expect(() => providerApiKeyEnv("openrouter/some-model")).toThrowError(
-      /Unsupported opencode provider "openrouter".*Supported: anthropic, openai, google/,
+      /Unsupported opencode provider "openrouter".*Supported: anthropic, openai, google, moonshotai/,
     );
   });
 

@@ -53,12 +53,14 @@ export const DEFAULT_OPENCODE_MODEL: OpenCodeModel = "anthropic/claude-sonnet-5"
 /**
  * Provider prefix (`provider/model`) → the env var holding its key. opencode and
  * the harness both use this name; Google's is `GOOGLE_GENERATIVE_AI_API_KEY`
- * (opencode's google provider reads exactly that — not `GEMINI_API_KEY`).
+ * (opencode's google provider reads exactly that — not `GEMINI_API_KEY`), and
+ * Moonshot's (`moonshotai/` ids, e.g. Kimi) is `MOONSHOT_API_KEY`.
  */
 const PROVIDER_API_KEY_ENV: Record<ModelProvider, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
   google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  moonshotai: "MOONSHOT_API_KEY",
 };
 
 /** The provider prefix of a `provider/model` id; throws if unsupported. */
