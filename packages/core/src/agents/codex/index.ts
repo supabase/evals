@@ -5,12 +5,12 @@
  * transcripts. Runs in both modes, like Claude Code.
  */
 
-import type { AgentHarness } from "../../index.js";
-import type { ReasoningEffortLevel } from "../../eval-metadata.js";
-import { createCliAgent } from "../engine.js";
-import type { AgentDefinition } from "../types.js";
-import { codexRunner, type CodexModel } from "./runner.js";
-import { codexParser } from "./parser.js";
+import type { AgentHarness } from '../../index.js';
+import type { ReasoningEffortLevel } from '../../eval-metadata.js';
+import { createCliAgent } from '../engine.js';
+import type { AgentDefinition } from '../types.js';
+import { codexRunner, type CodexModel } from './runner.js';
+import { codexParser } from './parser.js';
 
 /** OpenAI Codex as an `AgentHarness`. */
 export function codexAgent(
@@ -21,7 +21,7 @@ export function codexAgent(
     reasoningEffort?: ReasoningEffortLevel;
     /** Override the pinned CLI version. */
     cliVersion?: string;
-  } = {},
+  } = {}
 ): AgentHarness {
   return createCliAgent(codexRunner, codexParser, {
     model: options.model ?? codexRunner.defaultModel,

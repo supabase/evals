@@ -15,27 +15,27 @@
  * tools; `unknown` is for anything unrecognized.
  */
 export type ToolName =
-  | "file_read"
-  | "file_write"
-  | "file_edit"
-  | "shell"
-  | "web_fetch"
-  | "web_search"
-  | "glob"
-  | "grep"
-  | "list_dir"
-  | "agent_task"
-  | "tool_use"
-  | "unknown";
+  | 'file_read'
+  | 'file_write'
+  | 'file_edit'
+  | 'shell'
+  | 'web_fetch'
+  | 'web_search'
+  | 'glob'
+  | 'grep'
+  | 'list_dir'
+  | 'agent_task'
+  | 'tool_use'
+  | 'unknown';
 
 /** A single normalized event in an agent transcript. */
 export interface TranscriptEvent {
   /** ISO timestamp of the event, when the agent records one. */
   timestamp?: string;
   /** Event kind. */
-  type: "message" | "tool_call" | "tool_result" | "thinking" | "error";
+  type: 'message' | 'tool_call' | 'tool_result' | 'thinking' | 'error';
   /** For `message` events: the speaker. */
-  role?: "user" | "assistant" | "system";
+  role?: 'user' | 'assistant' | 'system';
   /** Text content (for `message`, `thinking`, `error`). */
   content?: string;
   /** For `tool_call` / `tool_result` events. */

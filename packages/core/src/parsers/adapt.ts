@@ -8,8 +8,8 @@
  * arrive as separate events; this pairs them by `tool.id`.
  */
 
-import type { ToolCallRecord, TranscriptPart } from "../index.js";
-import type { TranscriptEvent } from "../transcript/types.js";
+import type { ToolCallRecord, TranscriptPart } from '../index.js';
+import type { TranscriptEvent } from '../transcript/types.js';
 
 export interface AdaptedTranscript {
   transcript: TranscriptPart[];
@@ -30,29 +30,34 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
   // output that arrives on a later line.
   const resultsById = new Map<string, ResolvedResult>();
   for (const event of events) {
-    if (event.type !== "tool_result" || !event.tool?.id) continue;
-    resultsById.set(event.tool.id, toResolved(event.tool.result, event.tool.success));
+    if (event.type !== 'tool_result' || !event.tool?.id) continue;
+    resultsById.set(
+      event.tool.id,
+      toResolved(event.tool.result, event.tool.success)
+    );
   }
 
   const transcript: TranscriptPart[] = [];
   const toolCalls: ToolCallRecord[] = [];
-  let agentReport = "";
+  let agentReport = '';
   let steps = 0;
 
   for (const event of events) {
-    if (event.type === "message" && event.role && event.content) {
+    if (event.type === 'message' && event.role && event.content) {
       const content = event.content.trim();
       if (!content) continue;
-      transcript.push({ type: "message", role: event.role, content });
-      if (event.role === "assistant") {
+      transcript.push({ type: 'message', role: event.role, content });
+      if (event.role === 'assistant') {
         agentReport = content;
         steps += 1;
       }
-    } else if (event.type === "tool_call" && event.tool) {
+    } else if (event.type === 'tool_call' && event.tool) {
       const body = event.tool.args ?? {};
-      const resolved = event.tool.id ? resultsById.get(event.tool.id) : undefined;
+      const resolved = event.tool.id
+        ? resultsById.get(event.tool.id)
+        : undefined;
       transcript.push({
-        type: "tool_call",
+        type: 'tool_call',
         name: event.tool.originalName,
         input: body,
         output: resolved?.error === undefined ? resolved?.result : undefined,
@@ -77,9 +82,14 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
   return { transcript, toolCalls, agentReport, steps };
 }
 
-function toResolved(result: unknown, success: boolean | undefined): ResolvedResult {
+function toResolved(
+  result: unknown,
+  success: boolean | undefined
+): ResolvedResult {
   if (success === false) {
-    return { error: typeof result === "string" ? result : JSON.stringify(result) };
+    return {
+      error: typeof result === 'string' ? result : JSON.stringify(result),
+    };
   }
   return { result };
 }

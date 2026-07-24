@@ -1,36 +1,39 @@
-import type { ProjectStore } from '../project-store.js'
-import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
-import { extractRows } from './utils.js'
-import { z } from 'zod'
+import type { ProjectStore } from '../project-store.js';
+import {
+  createManagementApiRoutes,
+  type ManagementApiRoutes,
+} from './routes.js';
+import { extractRows } from './utils.js';
+import { z } from 'zod';
 
 const runQueryBodySchema = z.object({
   query: z.string().min(1),
   parameters: z.array(z.unknown()).optional(),
   read_only: z.boolean().optional(),
-})
+});
 
 export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
-  const routes = createManagementApiRoutes()
+  const routes = createManagementApiRoutes();
 
   routes.post('/v1/projects/:ref/database/query', async (c) => {
-    const { ref } = c.req.param()
-    const project = store.get(ref)
-    if (!project) return c.json({ message: 'Project not found' }, 404)
+    const { ref } = c.req.param();
+    const project = store.get(ref);
+    if (!project) return c.json({ message: 'Project not found' }, 404);
 
-    const parsed = await parseRunQueryBody(c.req.raw)
-    if (!parsed.ok) return c.json({ message: parsed.error }, 400)
-    const { query, parameters } = parsed.body
+    const parsed = await parseRunQueryBody(c.req.raw);
+    if (!parsed.ok) return c.json({ message: parsed.error }, 400);
+    const { query, parameters } = parsed.body;
 
     try {
       const result = parameters?.length
         ? await project.pglite.query(query, parameters)
-        : await project.pglite.exec(query)
-      return c.json(extractRows(result))
+        : await project.pglite.exec(query);
+      return c.json(extractRows(result));
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return c.json({ message }, 400)
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ message }, 400);
     }
-  })
+  });
 
   // NOTE: these endpoints track migrations in an in-memory array
   // (`project.migrations`), which is independent of the real
@@ -40,56 +43,56 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
   // Anything reconciling the two (e.g. an eval scorer) should read the table
   // via `/database/query`, not this endpoint.
   routes.get('/v1/projects/:ref/database/migrations', (c) => {
-    const { ref } = c.req.param()
-    const project = store.get(ref)
-    if (!project) return c.json({ message: 'Project not found' }, 404)
-    return c.json(project.migrations)
-  })
+    const { ref } = c.req.param();
+    const project = store.get(ref);
+    if (!project) return c.json({ message: 'Project not found' }, 404);
+    return c.json(project.migrations);
+  });
 
   routes.post('/v1/projects/:ref/database/migrations', async (c) => {
-    const { ref } = c.req.param()
-    const project = store.get(ref)
-    if (!project) return c.json({ message: 'Project not found' }, 404)
+    const { ref } = c.req.param();
+    const project = store.get(ref);
+    if (!project) return c.json({ message: 'Project not found' }, 404);
 
-    const body = await c.req.json<{ name: string; query: string }>()
-    const { name, query } = body
+    const body = await c.req.json<{ name: string; query: string }>();
+    const { name, query } = body;
 
     try {
-      await project.app.connection.exec(query)
+      await project.app.connection.exec(query);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return c.json({ message }, 400)
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ message }, 400);
     }
 
-    const version = new Date().toISOString().replace(/\D/g, '').slice(0, 14)
-    project.migrations.push({ version, name })
-    return c.json({ version, name }, 201)
-  })
+    const version = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+    project.migrations.push({ version, name });
+    return c.json({ version, name }, 201);
+  });
 
-  return routes
+  return routes;
 }
 
 async function parseRunQueryBody(req: Request): Promise<
   | {
-      ok: true
-      body: z.infer<typeof runQueryBodySchema>
+      ok: true;
+      body: z.infer<typeof runQueryBodySchema>;
     }
   | {
-      ok: false
-      error: string
+      ok: false;
+      error: string;
     }
 > {
-  let body: unknown
+  let body: unknown;
   try {
-    body = await req.json()
+    body = await req.json();
   } catch {
-    return { ok: false, error: 'Invalid JSON body' }
+    return { ok: false, error: 'Invalid JSON body' };
   }
 
-  const parsed = runQueryBodySchema.safeParse(body)
+  const parsed = runQueryBodySchema.safeParse(body);
   if (!parsed.success) {
-    return { ok: false, error: z.prettifyError(parsed.error) }
+    return { ok: false, error: z.prettifyError(parsed.error) };
   }
 
-  return { ok: true, body: parsed.data }
+  return { ok: true, body: parsed.data };
 }

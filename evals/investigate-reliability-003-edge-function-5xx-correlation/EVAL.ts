@@ -3,8 +3,8 @@ import {
   serializeTranscript,
   type CheckResult,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
 const scorer: ToolScorer = async (ctx) => {
   const input = serializeTranscript(ctx.transcript);
@@ -42,17 +42,17 @@ const scorer: ToolScorer = async (ctx) => {
 
   const checks: CheckResult[] = [
     {
-      name: "identified image-transform and the recurring 503 pattern",
+      name: 'identified image-transform and the recurring 503 pattern',
       passed: signalFound.passed,
       judgeNotes: signalFound.notes,
     },
     {
-      name: "attributed recurring 503s to gateway/platform layer, not function code",
+      name: 'attributed recurring 503s to gateway/platform layer, not function code',
       passed: correlationMade.passed,
       judgeNotes: correlationMade.notes,
     },
     {
-      name: "recommended a concrete next step",
+      name: 'recommended a concrete next step',
       passed: nextStepGiven.passed,
       judgeNotes: nextStepGiven.notes,
     },

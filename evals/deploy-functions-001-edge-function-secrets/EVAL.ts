@@ -4,18 +4,18 @@ import {
   type CheckResult,
   type LocalStackEvalContext,
   type LocalStackScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const SECRET_NAME = "WEATHER_API_KEY";
-const FUNCTION_SLUG = "weather";
+const SECRET_NAME = 'WEATHER_API_KEY';
+const FUNCTION_SLUG = 'weather';
 // Single source of truth: the mock value the scenario seeds in local/.env (the
 // same file copied into the agent's workspace). Reading it from the fixture —
 // rather than duplicating the literal — guarantees the leak check hunts for
 // exactly the value that was seeded, even if the fixture is rotated.
 const SECRET_VALUE = readEnvVariable(
-  new URL("./local/.env", import.meta.url),
-  SECRET_NAME,
+  new URL('./local/.env', import.meta.url),
+  SECRET_NAME
 );
 
 /**
@@ -35,10 +35,10 @@ const scorer: LocalStackScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            name: "linked to a hosted project",
+            name: 'linked to a hosted project',
             passed: false,
             notes:
-              "no hosted platform on the scoring context — the eval needs `hostedProject: true`",
+              'no hosted platform on the scoring context — the eval needs `hostedProject: true`',
           },
         ],
       };
@@ -57,7 +57,11 @@ const scorer: LocalStackScorer = async (ctx) => {
     return {
       passed: false,
       checks: [
-        { name: "scorer evaluated deployed function secrets", passed: false, notes: msg },
+        {
+          name: 'scorer evaluated deployed function secrets',
+          passed: false,
+          notes: msg,
+        },
       ],
     };
   }
@@ -67,33 +71,54 @@ export default scorer;
 
 // The secret was set on the hosted project. Read it from the management API,
 // which never returns plaintext — its presence by name is the assertion.
-async function checkSecretSet(ctx: LocalStackEvalContext): Promise<CheckResult> {
+async function checkSecretSet(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
   const name = `${SECRET_NAME} is set as a Function secret on the project`;
-  const res = await ctx.hostedMgmt!.GET("/v1/projects/{ref}/secrets", {
+  const res = await ctx.hostedMgmt!.GET('/v1/projects/{ref}/secrets', {
     params: { path: { ref: ctx.hostedRef! } },
   });
   if (res.error || !res.data) {
-    return { name, passed: false, notes: `could not list secrets: ${JSON.stringify(res.error)}` };
+    return {
+      name,
+      passed: false,
+      notes: `could not list secrets: ${JSON.stringify(res.error)}`,
+    };
   }
   const names = res.data.map((s) => s.name);
   return {
     name,
     passed: names.includes(SECRET_NAME),
-    notes: names.includes(SECRET_NAME) ? undefined : `secrets present: ${JSON.stringify(names)}`,
+    notes: names.includes(SECRET_NAME)
+      ? undefined
+      : `secrets present: ${JSON.stringify(names)}`,
   };
 }
 
 // The function was deployed to the hosted project (the CLI's `functions deploy`
 // reached platform-lite).
-async function checkFunctionDeployed(ctx: LocalStackEvalContext): Promise<CheckResult> {
+async function checkFunctionDeployed(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
   const name = `the ${FUNCTION_SLUG} function is deployed to the project`;
-  const res = await ctx.hostedMgmt!.GET("/v1/projects/{ref}/functions/{function_slug}", {
-    params: { path: { ref: ctx.hostedRef!, function_slug: FUNCTION_SLUG } },
-  });
+  const res = await ctx.hostedMgmt!.GET(
+    '/v1/projects/{ref}/functions/{function_slug}',
+    {
+      params: { path: { ref: ctx.hostedRef!, function_slug: FUNCTION_SLUG } },
+    }
+  );
   if (res.error || !res.data) {
-    return { name, passed: false, notes: `function not found on the project (status ${res.response.status})` };
+    return {
+      name,
+      passed: false,
+      notes: `function not found on the project (status ${res.response.status})`,
+    };
   }
-  return { name, passed: res.data.status === "ACTIVE", notes: `status ${res.data.status}` };
+  return {
+    name,
+    passed: res.data.status === 'ACTIVE',
+    notes: `status ${res.data.status}`,
+  };
 }
 
 // The deployed function must obtain the secret from the runtime environment,
@@ -107,11 +132,17 @@ async function checkFunctionDeployed(ctx: LocalStackEvalContext): Promise<CheckR
 // std/dotenv, a helper that wraps any of these), and we can't observe the value
 // the deployed function actually uses (it proxies an external API unreachable
 // from the sandbox). So we hand the source to a judge to assess intent.
-async function checkFunctionReadsSecret(ctx: LocalStackEvalContext): Promise<CheckResult> {
+async function checkFunctionReadsSecret(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
   const name = `the ${FUNCTION_SLUG} function reads ${SECRET_NAME} from the environment`;
   const source = await readFunctionSource(ctx);
   if (source === undefined) {
-    return { name, passed: false, notes: `could not read supabase/functions/${FUNCTION_SLUG}/*` };
+    return {
+      name,
+      passed: false,
+      notes: `could not read supabase/functions/${FUNCTION_SLUG}/*`,
+    };
   }
   const verdict = await judge({
     input: source,
@@ -140,7 +171,9 @@ async function checkFunctionReadsSecret(ctx: LocalStackEvalContext): Promise<Che
 // (e.g. `fetch(url + "wapi_...")`). The value legitimately lives only in
 // `.env` files, the gitignored home a `--env-file` push reads from, so those
 // are the sole allowed location; the value showing up anywhere else is a leak.
-async function checkSecretNotInRepo(ctx: LocalStackEvalContext): Promise<CheckResult> {
+async function checkSecretNotInRepo(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
   const name = `${SECRET_NAME} value is not committed to the repo`;
 
   // Search every file for the raw secret value, excluding only `.env` files
@@ -149,17 +182,17 @@ async function checkSecretNotInRepo(ctx: LocalStackEvalContext): Promise<CheckRe
   const found = await ctx.exec(
     `grep -rIlF '${SECRET_VALUE}' . ` +
       `--exclude-dir=.git --exclude-dir=node_modules ` +
-      `--exclude='.env' --exclude='.env.*' 2>/dev/null || true`,
+      `--exclude='.env' --exclude='.env.*' 2>/dev/null || true`
   );
   const offenders = found.stdout
-    .split("\n")
+    .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
   if (offenders.length > 0) {
     return {
       name,
       passed: false,
-      notes: `secret value found in non-env file(s): ${offenders.join(", ")}`,
+      notes: `secret value found in non-env file(s): ${offenders.join(', ')}`,
     };
   }
 
@@ -167,28 +200,30 @@ async function checkSecretNotInRepo(ctx: LocalStackEvalContext): Promise<CheckRe
   // value must be gitignored — a tracked file containing it (e.g. a committed
   // `.env`) is a leak even though the value-grep above excludes `.env` by name.
   const tracked = await ctx.exec(
-    `git ls-files -z 2>/dev/null | xargs -0 grep -lIF '${SECRET_VALUE}' 2>/dev/null || true`,
+    `git ls-files -z 2>/dev/null | xargs -0 grep -lIF '${SECRET_VALUE}' 2>/dev/null || true`
   );
   const trackedOffenders = tracked.stdout
-    .split("\n")
+    .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
   if (trackedOffenders.length > 0) {
     return {
       name,
       passed: false,
-      notes: `secret value committed in tracked file(s): ${trackedOffenders.join(", ")}`,
+      notes: `secret value committed in tracked file(s): ${trackedOffenders.join(', ')}`,
     };
   }
 
   return { name, passed: true };
 }
 
-async function readFunctionSource(ctx: LocalStackEvalContext): Promise<string | undefined> {
+async function readFunctionSource(
+  ctx: LocalStackEvalContext
+): Promise<string | undefined> {
   // find + cat tolerates missing extensions (a bare `cat a.ts *.js` exits
   // non-zero when one glob has no match, even though the .ts was read).
   const result = await ctx.exec(
-    `find supabase/functions/${FUNCTION_SLUG} -type f \\( -name '*.ts' -o -name '*.js' -o -name '*.tsx' \\) -exec cat {} + 2>/dev/null`,
+    `find supabase/functions/${FUNCTION_SLUG} -type f \\( -name '*.ts' -o -name '*.js' -o -name '*.tsx' \\) -exec cat {} + 2>/dev/null`
   );
   if (!result.stdout.trim()) return undefined;
   return result.stdout;

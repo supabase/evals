@@ -4,8 +4,8 @@ import {
   type CheckResult,
   type ToolEvalContext,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
 const scorer: ToolScorer = async (ctx) => {
   const checks: CheckResult[] = [
@@ -21,7 +21,9 @@ const scorer: ToolScorer = async (ctx) => {
 
 export default scorer;
 
-async function checkMessagesRealtimePublication(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkMessagesRealtimePublication(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   // Realtime Postgres Changes needs subscribed tables in this publication.
   const { rows } = await ctx.query(stripIndent`
     SELECT 1
@@ -32,12 +34,14 @@ async function checkMessagesRealtimePublication(ctx: ToolEvalContext): Promise<C
   `);
 
   return {
-    name: "messages table added to supabase_realtime publication",
+    name: 'messages table added to supabase_realtime publication',
     passed: rows.length > 0,
   };
 }
 
-async function checkNoReadReplicaGuidance(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkNoReadReplicaGuidance(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   // AI-795 regression guard: live updates should not require read replicas.
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, {
@@ -56,7 +60,7 @@ async function checkNoReadReplicaGuidance(ctx: ToolEvalContext): Promise<CheckRe
   });
 
   return {
-    name: "did not recommend read replicas for Realtime",
+    name: 'did not recommend read replicas for Realtime',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };

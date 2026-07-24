@@ -29,9 +29,8 @@ const BASE_COLS = 48
 const DEFAULT_ROWS = 7
 const INTRO_VARIATIONS = 10
 const INTRO_INTERVAL_MS = 200
-const INTRO_SEEDS = Array.from(
-  { length: INTRO_VARIATIONS },
-  () => Math.floor(Math.random() * 0xffffffff)
+const INTRO_SEEDS = Array.from({ length: INTRO_VARIATIONS }, () =>
+  Math.floor(Math.random() * 0xffffffff)
 )
 
 export function HeroGridPattern({
@@ -83,8 +82,7 @@ export function HeroGridPattern({
     const seed = INTRO_SEEDS[activeIndex]
 
     const paint = () => {
-      const fillStyle =
-        getComputedStyle(wrapper).color || "var(--foreground)"
+      const fillStyle = getComputedStyle(wrapper).color || "var(--foreground)"
       const width = canvas.clientWidth
       if (!width) return
 
