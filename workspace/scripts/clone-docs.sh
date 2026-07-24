@@ -17,14 +17,12 @@ cd "$(dirname "$0")/../.."
 SUB=submodules/supabase
 URL=${SUPABASE_REMOTE:-$(git config -f .gitmodules "submodule.$SUB.url")}
 
-FRESH=0
-if [ -e "$SUB/.git" ]; then
-  echo "$SUB already seeded; refreshing sparse checkout"
-else
-  FRESH=1
+if [ ! -e "$SUB/.git" ]; then
   # the gitlink placeholder is an empty dir on fresh checkouts; clone into it
   git clone --filter=blob:none --no-checkout "$URL" "$SUB"
   git -C "$SUB" sparse-checkout init --cone
+else
+  echo "$SUB already cloned; refreshing sparse checkout"
 fi
 
 git -C "$SUB" sparse-checkout set \
@@ -36,10 +34,21 @@ git -C "$SUB" sparse-checkout set \
   packages/tsconfig packages/ui packages/ui-patterns \
   patches supabase
 
-if [ "$FRESH" = 1 ]; then
-  # check out exactly the pinned SHA (blob filter fetches content on demand)
+# Materialize the pin whenever the worktree isn't checked out yet — covers
+# fresh seeds AND recovery from an aborted one (clone done, checkout not).
+# Never moves HEAD on a checked-out tree: marker commits and your work stay
+# put (pin bumps go through `mise run update`).
+if [ ! -e "$SUB/apps/docs" ]; then
   WANT=$(git rev-parse "HEAD:$SUB")
-  git -C "$SUB" cat-file -e "$WANT^{commit}" 2>/dev/null || git -C "$SUB" fetch -q origin "$WANT"
+  if ! git -C "$SUB" cat-file -e "$WANT^{commit}" 2>/dev/null; then
+    git -C "$SUB" fetch -q origin "$WANT" || {
+      echo "ERROR: the pinned docs SHA $WANT is not fetchable from upstream." >&2
+      echo "       If its subject is an [eval-workspace-*] marker, the evals gitlink was" >&2
+      echo "       committed at a local plumbing commit instead of the upstream base —" >&2
+      echo "       fix the pin (git update-index --cacheinfo 160000,<upstream-sha>,$SUB)." >&2
+      exit 1
+    }
+  fi
   git -C "$SUB" checkout -q "$WANT"
   echo "seeded $SUB at $(git -C "$SUB" rev-parse --short HEAD) (the evals pin)"
 fi

@@ -55,6 +55,24 @@ for r in $PATCH_REPOS; do
   test_guard_in "$r"
 done
 
+# The docs gitlink must record an UPSTREAM sha, never a local [eval-workspace-*]
+# plumbing commit: markers can't be pushed (guard above), so a marker gitlink
+# makes every cold seed unfetchable ("upload-pack: not our ref"). `ignore = all`
+# hides gitlink changes from status but not from an explicit `git add` — this
+# is the check that catches that accident. Skipped when the submodule isn't
+# seeded (the sha can't be inspected without a clone).
+DOCS_SUB=submodules/supabase
+if [ -e "$DOCS_SUB/.git" ]; then
+  _pin=$(git rev-parse "HEAD:$DOCS_SUB" 2>/dev/null || echo "")
+  if [ -n "$_pin" ] && git -C "$DOCS_SUB" cat-file -e "$_pin^{commit}" 2>/dev/null; then
+    _subj=$(git -C "$DOCS_SUB" log -1 --format=%s "$_pin")
+    case "$_subj" in
+      "[eval-workspace-"*) ck "docs gitlink: pinned at upstream (not a marker)" "marker: $_subj" "upstream" ;;
+      *)                   ck "docs gitlink: pinned at upstream (not a marker)" "upstream" "upstream" ;;
+    esac
+  fi
+fi
+
 echo "hooks.test: $pass passed, $fail failed"
 if [ "$pass" -eq 0 ] && [ "$fail" -eq 0 ]; then
   echo "hooks.test: 0 checks ran (no patched repo present — run: mise run setup)" >&2
