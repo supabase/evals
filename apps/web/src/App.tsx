@@ -313,11 +313,13 @@ function formatOpenAiModel(modelId: string) {
 }
 
 function formatModel(display: ExperimentDisplay) {
+  // AI Gateway model ids are `vendor/model` slugs; format just the model part.
+  const modelId = display.modelId.replace(/^[a-z-]+\//, "")
   switch (display.modelProvider) {
     case "anthropic":
-      return formatAnthropicModel(display.modelId)
+      return formatAnthropicModel(modelId)
     case "openai":
-      return formatOpenAiModel(display.modelId)
+      return formatOpenAiModel(modelId)
   }
 }
 
