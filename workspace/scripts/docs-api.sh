@@ -10,20 +10,20 @@ source submodules/supabase/apps/docs/.env.development
 set +a
 eval "$(supabase status --workdir submodules/supabase -o env)"
 : "${OPENAI_API_KEY:?OPENAI_API_KEY is required}"
-# corepack, cwd inside the submodule: the docs monorepo pins its OWN pnpm
-# (packageManager, 11.x) which differs from evals' mise-pinned pnpm — corepack
-# resolves the nearest packageManager upward from cwd. Entry path is relative
-# to apps/docs (4 levels up to the evals root). The Sentry stub hook no-ops
-# the route handler's telemetry calls (see sentry-stub.mjs).
+# Runs the locally installed tsx binary directly (no `pnpm exec`: NODE_OPTIONS
+# must reach only the server process — pnpm's own node chokes on the loader
+# hook during pnpmfile probing). Entry path is relative to apps/docs (4 levels
+# up to the evals root). The Sentry stub hook no-ops the route handler's
+# telemetry calls (see sentry-stub.mjs).
 STUB_REGISTER=$PWD/workspace/scripts/sentry-stub-register.mjs
 cd submodules/supabase/apps/docs
+[ -x node_modules/.bin/tsx ] || { echo "tsx not installed — run: mise run clone-docs" >&2; exit 1; }
 NODE_ENV=development \
 NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
 NEXT_PUBLIC_SUPABASE_ANON_KEY="$PUBLISHABLE_KEY" \
 OPENAI_API_KEY="$OPENAI_API_KEY" \
-COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
 NODE_OPTIONS="--import $STUB_REGISTER${NODE_OPTIONS:+ $NODE_OPTIONS}" \
-exec corepack pnpm exec tsx \
+exec node_modules/.bin/tsx \
   --conditions=react-server \
   --tsconfig tsconfig.json \
   ../../../../workspace/scripts/docs-content-api.ts
