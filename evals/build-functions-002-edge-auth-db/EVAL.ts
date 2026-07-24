@@ -2,10 +2,10 @@ import {
   unwrapEdgeFunctionResponse,
   type CheckResult,
   type ToolScorer,
-} from "@supabase-evals/core";
+} from '@supabase-evals/core';
 
-const FUNCTION_NAME = "todo-create";
-const TODO_BODY = "verify edge auth database integration";
+const FUNCTION_NAME = 'todo-create';
+const TODO_BODY = 'verify edge auth database integration';
 
 interface InvokeResult {
   status: number;
@@ -27,16 +27,16 @@ const scorer: ToolScorer = async (ctx) => {
   try {
     const { data: signup, error: signupError } = await ctx.client.auth.signUp({
       email: `todo-create-${Date.now()}@example.com`,
-      password: "secret123",
+      password: 'secret123',
     });
     if (signupError || !signup.user || !signup.session?.access_token) {
       return {
         passed: false,
         checks: [
           {
-            name: "created auth session",
+            name: 'created auth session',
             passed: false,
-            notes: signupError?.message ?? "missing session",
+            notes: signupError?.message ?? 'missing session',
           },
         ],
       };
@@ -45,19 +45,19 @@ const scorer: ToolScorer = async (ctx) => {
     const missingAuth = unwrapEdgeFunctionResponse(
       await ctx.invokeFunction({
         name: FUNCTION_NAME,
-        method: "POST",
+        method: 'POST',
         body: { body: TODO_BODY },
       })
     );
     checks.push({
-      name: "rejects missing auth",
+      name: 'rejects missing auth',
       passed: missingAuth.status >= 400,
     });
 
     const inserted = unwrapEdgeFunctionResponse(
       await ctx.invokeFunction({
         name: FUNCTION_NAME,
-        method: "POST",
+        method: 'POST',
         headers: {
           authorization: `Bearer ${signup.session.access_token}`,
         },
@@ -66,20 +66,22 @@ const scorer: ToolScorer = async (ctx) => {
     );
     const insertedJson = parseJson(inserted);
     checks.push({
-      name: "authenticated request succeeds",
+      name: 'authenticated request succeeds',
       passed: inserted.status === 201 || inserted.status === 200,
     });
     checks.push({
-      name: "returns inserted todo body",
-      passed: insertedJson?.body === TODO_BODY || (insertedJson?.todo as any)?.body === TODO_BODY,
+      name: 'returns inserted todo body',
+      passed:
+        insertedJson?.body === TODO_BODY ||
+        (insertedJson?.todo as any)?.body === TODO_BODY,
     });
 
     const { data: todos, error: selectError } = await ctx.client
-      .from("todos")
-      .select("body,user_id")
-      .eq("body", TODO_BODY);
+      .from('todos')
+      .select('body,user_id')
+      .eq('body', TODO_BODY);
     checks.push({
-      name: "row exists through supabase-js",
+      name: 'row exists through supabase-js',
       passed:
         !selectError &&
         Array.isArray(todos) &&

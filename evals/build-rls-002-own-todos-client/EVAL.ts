@@ -1,8 +1,8 @@
-import type { CheckResult, ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from '@supabase-evals/core';
 
-const USER_A_EMAIL = "todo-user-a@example.com";
-const USER_B_EMAIL = "todo-user-b@example.com";
-const PASSWORD = "secret123";
+const USER_A_EMAIL = 'todo-user-a@example.com';
+const USER_B_EMAIL = 'todo-user-b@example.com';
+const PASSWORD = 'secret123';
 
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
@@ -32,9 +32,10 @@ const scorer: ToolScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            name: "created auth sessions",
+            name: 'created auth sessions',
             passed: false,
-            notes: authAError?.message ?? authBError?.message ?? "missing session",
+            notes:
+              authAError?.message ?? authBError?.message ?? 'missing session',
           },
         ],
       };
@@ -52,95 +53,105 @@ INSERT INTO todos (user_id, body, done) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'todos';`
     );
-    checks.push({ name: "RLS enabled on todos", passed: rls[0]?.relrowsecurity === true });
+    checks.push({
+      name: 'RLS enabled on todos',
+      passed: rls[0]?.relrowsecurity === true,
+    });
 
     const { data: aTodos, error: aTodosError } = await clientA
-      .from("todos")
-      .select("body,user_id")
-      .order("body");
+      .from('todos')
+      .select('body,user_id')
+      .order('body');
     checks.push({
-      name: "user A sees only own todos",
+      name: 'user A sees only own todos',
       passed:
         !aTodosError &&
         aTodos?.length === 2 &&
         aTodos.every((todo) => todo.user_id === userAId) &&
-        aTodos.map((todo) => todo.body).join(",") === "a done todo,a private todo",
+        aTodos.map((todo) => todo.body).join(',') ===
+          'a done todo,a private todo',
     });
 
     const { data: bReadsA, error: bReadsAError } = await clientB
-      .from("todos")
-      .select("id")
-      .eq("body", "a private todo");
+      .from('todos')
+      .select('id')
+      .eq('body', 'a private todo');
     checks.push({
-      name: "user B cannot read user A todos",
+      name: 'user B cannot read user A todos',
       passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
     });
 
     const { data: ownInsert, error: ownInsertError } = await clientA
-      .from("todos")
-      .insert({ body: "a client insert" })
-      .select("body,user_id")
+      .from('todos')
+      .insert({ body: 'a client insert' })
+      .select('body,user_id')
       .single();
     checks.push({
-      name: "user A can insert own todo through supabase-js",
+      name: 'user A can insert own todo through supabase-js',
       passed:
         !ownInsertError &&
-        ownInsert?.body === "a client insert" &&
+        ownInsert?.body === 'a client insert' &&
         ownInsert.user_id === userAId,
     });
 
     const { data: spoofInsert, error: spoofInsertError } = await clientB
-      .from("todos")
-      .insert({ user_id: userAId, body: "b spoofed as a" })
-      .select("id");
+      .from('todos')
+      .insert({ user_id: userAId, body: 'b spoofed as a' })
+      .select('id');
     checks.push({
-      name: "user B cannot insert todo for user A",
-      passed: Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
+      name: 'user B cannot insert todo for user A',
+      passed:
+        Boolean(spoofInsertError) || !spoofInsert || spoofInsert.length === 0,
     });
 
     const { data: ownUpdate, error: ownUpdateError } = await clientA
-      .from("todos")
+      .from('todos')
       .update({ done: true })
-      .eq("body", "a private todo")
-      .select("body,done");
+      .eq('body', 'a private todo')
+      .select('body,done');
     checks.push({
-      name: "user A can update own todo",
-      passed: !ownUpdateError && ownUpdate?.length === 1 && ownUpdate[0]?.done === true,
+      name: 'user A can update own todo',
+      passed:
+        !ownUpdateError &&
+        ownUpdate?.length === 1 &&
+        ownUpdate[0]?.done === true,
     });
 
     const { data: crossUpdate, error: crossUpdateError } = await clientB
-      .from("todos")
-      .update({ body: "b changed a todo" })
-      .eq("body", "a done todo")
-      .select("id");
+      .from('todos')
+      .update({ body: 'b changed a todo' })
+      .eq('body', 'a done todo')
+      .select('id');
     checks.push({
-      name: "user B cannot update user A todo",
-      passed: Boolean(crossUpdateError) || !crossUpdate || crossUpdate.length === 0,
+      name: 'user B cannot update user A todo',
+      passed:
+        Boolean(crossUpdateError) || !crossUpdate || crossUpdate.length === 0,
     });
 
     const { data: ownDelete, error: ownDeleteError } = await clientB
-      .from("todos")
+      .from('todos')
       .delete()
-      .eq("body", "b private todo")
-      .select("id");
+      .eq('body', 'b private todo')
+      .select('id');
     checks.push({
-      name: "user B can delete own todo",
+      name: 'user B can delete own todo',
       passed: !ownDeleteError && ownDelete?.length === 1,
     });
 
     const { data: crossDelete, error: crossDeleteError } = await clientB
-      .from("todos")
+      .from('todos')
       .delete()
-      .eq("body", "a done todo")
-      .select("id");
+      .eq('body', 'a done todo')
+      .select('id');
     checks.push({
-      name: "user B cannot delete user A todo",
-      passed: Boolean(crossDeleteError) || !crossDelete || crossDelete.length === 0,
+      name: 'user B cannot delete user A todo',
+      passed:
+        Boolean(crossDeleteError) || !crossDelete || crossDelete.length === 0,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      name: "scorer evaluated client RLS behavior",
+      name: 'scorer evaluated client RLS behavior',
       passed: false,
       notes: msg,
     });
@@ -158,4 +169,3 @@ INSERT INTO todos (user_id, body, done) VALUES
 };
 
 export default scorer;
-

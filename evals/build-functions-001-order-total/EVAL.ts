@@ -3,9 +3,9 @@ import {
   type CheckResult,
   type ToolEvalContext,
   type ToolScorer,
-} from "@supabase-evals/core";
+} from '@supabase-evals/core';
 
-const FUNCTION_NAME = "order-total";
+const FUNCTION_NAME = 'order-total';
 
 interface InvokeResult {
   status: number;
@@ -16,7 +16,7 @@ interface InvokeResult {
 const invoke = async (
   ctx: ToolEvalContext,
   body: Record<string, unknown> | string | undefined,
-  method = "POST"
+  method = 'POST'
 ) =>
   unwrapEdgeFunctionResponse(
     await ctx.invokeFunction({
@@ -38,37 +38,37 @@ const scorer: ToolScorer = async (ctx) => {
   const checks: CheckResult[] = [];
 
   try {
-    const methodCheck = await invoke(ctx, undefined, "GET");
+    const methodCheck = await invoke(ctx, undefined, 'GET');
     checks.push({
-      name: "rejects non-POST requests",
+      name: 'rejects non-POST requests',
       passed: methodCheck.status === 405,
     });
 
-    const invalidJson = await invoke(ctx, "{");
+    const invalidJson = await invoke(ctx, '{');
     checks.push({
-      name: "rejects invalid JSON",
+      name: 'rejects invalid JSON',
       passed: invalidJson.status === 400,
     });
 
     const invalidItem = await invoke(ctx, {
-      items: [{ sku: "bad", unit_price_cents: 0, quantity: 1 }],
+      items: [{ sku: 'bad', unit_price_cents: 0, quantity: 1 }],
     });
     checks.push({
-      name: "rejects invalid item values",
+      name: 'rejects invalid item values',
       passed: invalidItem.status === 400,
     });
 
     const welcome = await invoke(ctx, {
       items: [
-        { sku: "basic-plan", unit_price_cents: 1200, quantity: 2 },
-        { sku: "addon", unit_price_cents: 350, quantity: 3 },
+        { sku: 'basic-plan', unit_price_cents: 1200, quantity: 2 },
+        { sku: 'addon', unit_price_cents: 350, quantity: 3 },
       ],
-      customer_tier: "standard",
-      coupon: "WELCOME10",
+      customer_tier: 'standard',
+      coupon: 'WELCOME10',
     });
     const welcomeJson = parseJson(welcome);
     checks.push({
-      name: "calculates WELCOME10 totals",
+      name: 'calculates WELCOME10 totals',
       passed:
         welcome.status === 200 &&
         welcomeJson?.subtotal_cents === 3450 &&
@@ -78,13 +78,13 @@ const scorer: ToolScorer = async (ctx) => {
     });
 
     const enterprise = await invoke(ctx, {
-      items: [{ sku: "enterprise-seat", unit_price_cents: 5000, quantity: 5 }],
-      customer_tier: "enterprise",
-      coupon: "WELCOME10",
+      items: [{ sku: 'enterprise-seat', unit_price_cents: 5000, quantity: 5 }],
+      customer_tier: 'enterprise',
+      coupon: 'WELCOME10',
     });
     const enterpriseJson = parseJson(enterprise);
     checks.push({
-      name: "chooses enterprise discount over capped coupon",
+      name: 'chooses enterprise discount over capped coupon',
       passed:
         enterprise.status === 200 &&
         enterpriseJson?.subtotal_cents === 25000 &&
@@ -94,13 +94,13 @@ const scorer: ToolScorer = async (ctx) => {
     });
 
     const cappedCoupon = await invoke(ctx, {
-      items: [{ sku: "annual-plan", unit_price_cents: 50000, quantity: 1 }],
-      customer_tier: "standard",
-      coupon: "WELCOME10",
+      items: [{ sku: 'annual-plan', unit_price_cents: 50000, quantity: 1 }],
+      customer_tier: 'standard',
+      coupon: 'WELCOME10',
     });
     const cappedCouponJson = parseJson(cappedCoupon);
     checks.push({
-      name: "caps WELCOME10 discount at 2000 cents",
+      name: 'caps WELCOME10 discount at 2000 cents',
       passed:
         cappedCoupon.status === 200 &&
         cappedCouponJson?.subtotal_cents === 50000 &&

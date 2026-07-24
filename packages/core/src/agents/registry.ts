@@ -8,11 +8,11 @@
  * `codexAgent`) are exported directly from those modules for use in experiments.
  */
 
-import type { AgentDefinition } from "./types.js";
-import type { AgentHarnessId } from "../eval-metadata.js";
-import type { AgentTranscriptParser } from "../parsers/types.js";
-import { claudeCodeDefinition } from "./claude-code/index.js";
-import { codexDefinition } from "./codex/index.js";
+import type { AgentDefinition } from './types.js';
+import type { AgentHarnessId } from '../eval-metadata.js';
+import type { AgentTranscriptParser } from '../parsers/types.js';
+import { claudeCodeDefinition } from './claude-code/index.js';
+import { codexDefinition } from './codex/index.js';
 
 const AGENTS: AgentDefinition[] = [claudeCodeDefinition, codexDefinition];
 
@@ -28,7 +28,7 @@ export function createParser(agent: AgentHarnessId): AgentTranscriptParser {
   const definition = byId.get(agent);
   if (!definition) {
     throw new Error(
-      `Unknown agent parser: "${agent}". Supported: ${supportedParsers().join(", ")}`,
+      `Unknown agent parser: "${agent}". Supported: ${supportedParsers().join(', ')}`
     );
   }
   return definition.parser;

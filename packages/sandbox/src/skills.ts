@@ -18,11 +18,11 @@
  * file tools can reach the SKILL.md and the files it references.
  */
 
-import type { SkillSource } from "@supabase-evals/core";
-import type { DockerSandbox } from "./docker-sandbox.js";
+import type { SkillSource } from '@supabase-evals/core';
+import type { DockerSandbox } from './docker-sandbox.js';
 
 /** Version of Vercel's `skills` CLI baked into the sandbox image (pinned). */
-export const SKILLS_CLI_VERSION = "1.5.11";
+export const SKILLS_CLI_VERSION = '1.5.11';
 
 /**
  * Where installed project-scoped skills are read from, relative to the
@@ -30,10 +30,10 @@ export const SKILLS_CLI_VERSION = "1.5.11";
  * (see installSkills), and `.claude/skills` is claude-code's project scope —
  * the discovery listing points the agent here.
  */
-export const SKILLS_INSTALL_DIR = ".claude/skills";
+export const SKILLS_INSTALL_DIR = '.claude/skills';
 
 /** Staging path (outside the workspace) host skill sources are copied to before install. */
-const SKILLS_STAGING_DIR = "/tmp/skills-src";
+const SKILLS_STAGING_DIR = '/tmp/skills-src';
 
 /** A skill discovered in the sandbox: enough to advertise it for progressive disclosure. */
 export interface SkillEntry {
@@ -57,7 +57,7 @@ const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
  * (the agent has no filesystem to read SKILL.md itself).
  */
 export function stripFrontmatter(markdown: string): string {
-  return markdown.replace(FRONTMATTER_RE, "").trim();
+  return markdown.replace(FRONTMATTER_RE, '').trim();
 }
 
 /**
@@ -68,10 +68,10 @@ export function stripFrontmatter(markdown: string): string {
  */
 export function frontmatterDescription(markdown: string): string {
   const block = FRONTMATTER_RE.exec(markdown)?.[1];
-  if (!block) return "";
+  if (!block) return '';
   const line = block.match(/^description:[ \t]*(.*)$/m)?.[1]?.trim();
-  if (!line) return "";
-  return line.replace(/^(['"])(.*)\1$/, "$2");
+  if (!line) return '';
+  return line.replace(/^(['"])(.*)\1$/, '$2');
 }
 
 /**
@@ -81,17 +81,17 @@ export function frontmatterDescription(markdown: string): string {
  * Empty when no skills are installed.
  */
 export function buildSkillsPrompt(skills: readonly SkillEntry[]): string {
-  if (skills.length === 0) return "";
+  if (skills.length === 0) return '';
   return [
-    "## Available skills",
-    "",
+    '## Available skills',
+    '',
     `The following agent skills are installed in this workspace under \`${SKILLS_INSTALL_DIR}/\`. ` +
-      "Only their names and descriptions are shown — the full instructions are not loaded yet. " +
+      'Only their names and descriptions are shown — the full instructions are not loaded yet. ' +
       `When a task matches a skill, read \`${SKILLS_INSTALL_DIR}/<name>/SKILL.md\` with the \`files_read\` tool ` +
-      "for its full instructions, then read any files it references in that directory with `files_read` or `bash`.",
-    "",
+      'for its full instructions, then read any files it references in that directory with `files_read` or `bash`.',
+    '',
     ...skills.map((s) => `- ${s.name}: ${s.description}`),
-  ].join("\n");
+  ].join('\n');
 }
 
 /**
@@ -104,19 +104,19 @@ export function buildSkillsPrompt(skills: readonly SkillEntry[]): string {
  */
 export async function installSkills(
   sandbox: DockerSandbox,
-  sources: readonly SkillSource[],
+  sources: readonly SkillSource[]
 ): Promise<SkillEntry[]> {
   if (sources.length === 0) return [];
 
   // Stage every requested skill under <staging>/skills/<name>, mirroring the
   // collection layout `skills add <dir>` expects from a local source.
   await sandbox.runShellAsRoot(
-    `rm -rf ${SKILLS_STAGING_DIR} && mkdir -p ${SKILLS_STAGING_DIR}/skills`,
+    `rm -rf ${SKILLS_STAGING_DIR} && mkdir -p ${SKILLS_STAGING_DIR}/skills`
   );
   for (const source of sources) {
     await sandbox.copyToContainer(
       source.dir,
-      `${SKILLS_STAGING_DIR}/skills/${source.name}`,
+      `${SKILLS_STAGING_DIR}/skills/${source.name}`
     );
   }
 
@@ -130,11 +130,11 @@ export async function installSkills(
   // the AI SDK today, so for now we install for all agents and read claude-code's
   // .claude/skills scope (SKILLS_INSTALL_DIR).
   const install = await sandbox.runShell(
-    `skills add ${SKILLS_STAGING_DIR} --skill '*' --copy --yes`,
+    `skills add ${SKILLS_STAGING_DIR} --skill '*' --copy --yes`
   );
   if (!install.ok) {
     throw new Error(
-      `failed to install skills with the skills CLI: ${install.stderr || install.stdout}`,
+      `failed to install skills with the skills CLI: ${install.stderr || install.stdout}`
     );
   }
 
@@ -146,7 +146,7 @@ export async function installSkills(
     const skillPath = `${dir}/SKILL.md`;
     if (!(await sandbox.fileExists(skillPath))) {
       throw new Error(
-        `skills CLI did not install "${source.name}" (no ${skillPath} in the sandbox)`,
+        `skills CLI did not install "${source.name}" (no ${skillPath} in the sandbox)`
       );
     }
     entries.push({

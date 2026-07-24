@@ -1,49 +1,57 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
-import type { CommandResult, VitestResult } from "@supabase-evals/core";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import type { CommandResult, VitestResult } from '@supabase-evals/core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, "..", "..", "..");
+const ROOT = join(__dirname, '..', '..', '..');
 
 export async function viteBuild(workspace: string): Promise<CommandResult> {
   return runNodeBin(
-    join(ROOT, "node_modules", "vite", "bin", "vite.js"),
-    ["build"],
+    join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'),
+    ['build'],
     workspace
   );
 }
 
 export async function vitestRun(workspace: string): Promise<VitestResult> {
-  const reportPath = join(workspace, "vitest-report.json");
-  const configPath = join(workspace, "vitest.evals.config.ts");
-  const setupDir = join(workspace, ".evals");
-  const setupFile = join(setupDir, "vitest-supalite-setup.ts");
+  const reportPath = join(workspace, 'vitest-report.json');
+  const configPath = join(workspace, 'vitest.evals.config.ts');
+  const setupDir = join(workspace, '.evals');
+  const setupFile = join(setupDir, 'vitest-supalite-setup.ts');
   mkdirSync(setupDir, { recursive: true });
   writeFileSync(setupFile, setupSource());
   writeFileSync(
     configPath,
     [
       'import { defineConfig } from "vitest/config";',
-      "",
-      "export default defineConfig({",
-      "  test: {",
+      '',
+      'export default defineConfig({',
+      '  test: {',
       '    environment: "happy-dom",',
-      `    setupFiles: [${JSON.stringify("./.evals/vitest-supalite-setup.ts")}],`,
+      `    setupFiles: [${JSON.stringify('./.evals/vitest-supalite-setup.ts')}],`,
       '    include: ["tests/**/*.test.{ts,tsx}"],',
-      "  },",
-      "});",
-      "",
-    ].join("\n")
+      '  },',
+      '});',
+      '',
+    ].join('\n')
   );
   const result = await runNodeBin(
-    join(ROOT, "node_modules", "vitest", "vitest.mjs"),
-    ["run", "--config", configPath, "--reporter=json", `--outputFile=${reportPath}`],
+    join(ROOT, 'node_modules', 'vitest', 'vitest.mjs'),
+    [
+      'run',
+      '--config',
+      configPath,
+      '--reporter=json',
+      `--outputFile=${reportPath}`,
+    ],
     workspace,
     { SUPABASE_EVALS_WORKSPACE: workspace }
   );
-  const parsed = existsSync(reportPath) ? parseVitestReport(reportPath) : undefined;
+  const parsed = existsSync(reportPath)
+    ? parseVitestReport(reportPath)
+    : undefined;
   return { ...result, ...parsed, ok: parsed?.ok ?? result.ok };
 }
 
@@ -134,36 +142,38 @@ async function runNodeBin(
     const child = spawn(process.execPath, [bin, ...args], {
       cwd,
       env: { ...process.env, ...env },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
     });
-    child.stderr.on("data", (chunk) => {
+    child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
     });
-    child.on("close", (exitCode) => {
+    child.on('close', (exitCode) => {
       resolve({ ok: exitCode === 0, exitCode, stdout, stderr });
     });
   });
 }
 
-function parseVitestReport(path: string):
-  | Pick<VitestResult, "ok" | "passed" | "failed" | "failures">
-  | undefined {
+function parseVitestReport(
+  path: string
+): Pick<VitestResult, 'ok' | 'passed' | 'failed' | 'failures'> | undefined {
   try {
-    const report = JSON.parse(readFileSync(path, "utf8")) as any;
+    const report = JSON.parse(readFileSync(path, 'utf8')) as any;
     const results = Array.isArray(report.testResults) ? report.testResults : [];
     const assertions = results.flatMap((file: any) =>
       Array.isArray(file.assertionResults) ? file.assertionResults : []
     );
-    const passed = assertions.filter((a: any) => a.status === "passed").length;
-    const failed = assertions.filter((a: any) => a.status === "failed").length;
+    const passed = assertions.filter((a: any) => a.status === 'passed').length;
+    const failed = assertions.filter((a: any) => a.status === 'failed').length;
     const failures = assertions
-      .filter((a: any) => a.status === "failed")
-      .flatMap((a: any) => a.failureMessages ?? [`${a.fullName ?? a.title} failed`]);
+      .filter((a: any) => a.status === 'failed')
+      .flatMap(
+        (a: any) => a.failureMessages ?? [`${a.fullName ?? a.title} failed`]
+      );
     return { ok: report.success === true, passed, failed, failures };
   } catch {
     return undefined;
