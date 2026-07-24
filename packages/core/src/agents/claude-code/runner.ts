@@ -8,6 +8,7 @@ import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messag
 import type { McpServerConfig } from '../../index.js';
 import { parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
+import { AI_GATEWAY, type GatewayModelId } from '../gateway.js';
 import {
   npmGlobalBin,
   npmInstallGlobal,
@@ -18,7 +19,10 @@ import {
 
 const MCP_CONFIG_PATH = '"$HOME/.eval/mcp.json"';
 
-export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
+/** Anthropic ids for the direct path; typed gateway slugs for gateway mode. */
+export type ClaudeCodeModel = AnthropicModel | GatewayModelId;
+
+export const claudeCodeRunner: AgentRunner<ClaudeCodeModel> = {
   id: 'claude-code',
   displayName: 'Claude Code',
   apiKeyEnvVar: 'ANTHROPIC_API_KEY',
@@ -40,6 +44,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     sandbox,
     model,
     apiKey,
+    gateway,
     systemPromptPath,
     userPromptPath,
     mcpServers,
@@ -78,11 +83,21 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     ].join(' ');
 
     // Prompt on stdin: `claude -p` with no positional reads it from stdin.
+    // Gateway mode swaps the endpoint + auth env only (Vercel's documented
+    // recipe: the key goes in ANTHROPIC_AUTH_TOKEN, and ANTHROPIC_API_KEY must
+    // be the empty string or Claude Code prefers it over the auth token).
+    const env: Record<string, string> = gateway
+      ? {
+          ANTHROPIC_BASE_URL: AI_GATEWAY.baseUrl,
+          ANTHROPIC_AUTH_TOKEN: apiKey,
+          ANTHROPIC_API_KEY: '',
+        }
+      : { ANTHROPIC_API_KEY: apiKey };
     const command = await sandbox.exec(
       `cat ${userPromptPath} | ${claude} ${flags}`,
       {
         timeoutMs: timeoutSec * 1000,
-        env: { ANTHROPIC_API_KEY: apiKey },
+        env,
       }
     );
     return { command, raw: command.stdout };

@@ -11,6 +11,7 @@ import type { ChatModel } from 'openai/resources/shared';
 import type { McpServerConfig } from '../../index.js';
 import { parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
+import { AI_GATEWAY, type GatewayModelId } from '../gateway.js';
 import {
   npmGlobalBin,
   npmInstallGlobal,
@@ -19,8 +20,9 @@ import {
   writeSandboxFile,
 } from '../shared.js';
 
-// ChatModel is a closed union; widen so newer/codex-specific ids still type.
-export type CodexModel = ChatModel | (string & {});
+// ChatModel is a closed union; widen with the typed gateway slugs (which carry
+// their own `(string & {})` fallback, so newer/codex-specific ids still type).
+export type CodexModel = ChatModel | GatewayModelId;
 
 const CODEX_CONFIG_PATH = '"$HOME/.codex/config.toml"';
 
@@ -34,12 +36,15 @@ export const codexRunner: AgentRunner<CodexModel> = {
   defaultCliVersion: '0.138.0',
   defaultModel: 'gpt-5.4',
 
-  async install(sandbox, version, apiKey) {
+  async install(sandbox, version, apiKey, gateway) {
     await npmInstallGlobal(
       sandbox,
       `${this.cliPackage}@${version}`,
       this.displayName
     );
+    // Gateway mode authenticates via the custom provider's `env_key` at exec
+    // time; there is no OpenAI account to log in to.
+    if (gateway) return;
     // Persist API-key auth to ~/.codex/auth.json (read the key from stdin so it
     // never lands in argv or the process table).
     const codex = npmGlobalBin('codex');
@@ -58,6 +63,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
     sandbox,
     model,
     apiKey,
+    gateway,
     systemPromptPath,
     userPromptPath,
     mcpServers,
@@ -65,14 +71,19 @@ export const codexRunner: AgentRunner<CodexModel> = {
     timeoutSec,
   }) {
     const codex = npmGlobalBin('codex');
-    if (Object.keys(mcpServers).length > 0) {
+    if (gateway || Object.keys(mcpServers).length > 0) {
       await sandbox.exec(`mkdir -p "$HOME/.codex"`);
       await writeSandboxFile(
         sandbox,
         CODEX_CONFIG_PATH,
-        buildCodexConfig(mcpServers)
+        buildCodexConfig(mcpServers, { gateway })
       );
     }
+
+    // The gateway's catalog is slug-addressed; a bare id (an env-flipped
+    // direct experiment, e.g. "gpt-5.4-mini") is an OpenAI id by construction.
+    const resolvedModel =
+      gateway && !model.includes('/') ? `openai/${model}` : model;
 
     const flags = [
       'exec',
@@ -81,7 +92,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
       '--skip-git-repo-check',
       // The sandbox is the isolation boundary — let Codex run commands freely.
       '--dangerously-bypass-approvals-and-sandbox',
-      `-m ${shellQuote(model)}`,
+      `-m ${shellQuote(resolvedModel)}`,
       // Reasoning effort via config override; omitted leaves Codex's default.
       // The value is parsed as TOML, so pass it as a quoted TOML string.
       ...(reasoningEffort
@@ -95,7 +106,14 @@ export const codexRunner: AgentRunner<CodexModel> = {
     // both staged as files, fed on stdin.
     const command = await sandbox.exec(
       `{ cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath}; } | ${codex} ${flags}`,
-      { timeoutMs: timeoutSec * 1000, env: { OPENAI_API_KEY: apiKey } }
+      {
+        timeoutMs: timeoutSec * 1000,
+        // Gateway mode: the config.toml provider block reads the gateway key
+        // from AI_GATEWAY_API_KEY (its `env_key`).
+        env: gateway
+          ? { [AI_GATEWAY.apiKeyEnvVar]: apiKey }
+          : { OPENAI_API_KEY: apiKey },
+      }
     );
     return { command, raw: command.stdout };
   },
@@ -132,14 +150,33 @@ function terminalOutcome(
 }
 
 /**
- * Codex's `~/.codex/config.toml` MCP schema:
+ * Codex's `~/.codex/config.toml`. Gateway mode prepends a custom model
+ * provider pointing at the AI Gateway's OpenAI-compatible endpoint (Vercel's
+ * documented recipe — Responses API wire format, key via `env_key`). MCP
+ * servers follow, in Codex's schema:
  *   [mcp_servers.<name>]
  *   command = "npx"
  *   args = ["…"]
  *   env = { KEY = "val" }
  */
-function buildCodexConfig(servers: Record<string, McpServerConfig>): string {
+function buildCodexConfig(
+  servers: Record<string, McpServerConfig>,
+  options: { gateway?: boolean } = {}
+): string {
   const blocks: string[] = [];
+  if (options.gateway) {
+    blocks.push(
+      [
+        `model_provider = "vercel"`,
+        ``,
+        `[model_providers.vercel]`,
+        `name = "Vercel AI Gateway"`,
+        `base_url = ${tomlString(AI_GATEWAY.openAiBaseUrl)}`,
+        `env_key = ${tomlString(AI_GATEWAY.apiKeyEnvVar)}`,
+        `wire_api = "responses"`,
+      ].join('\n')
+    );
+  }
   for (const [name, server] of Object.entries(servers)) {
     const lines = [
       `[mcp_servers.${tomlKey(name)}]`,

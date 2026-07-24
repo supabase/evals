@@ -36,6 +36,43 @@ function streamJson(subtype: string, isError = false): string {
   ].join('\n');
 }
 
+describe('claudeCodeRunner.exec env', () => {
+  async function execEnv(gateway: boolean): Promise<Record<string, string>> {
+    let env: Record<string, string> = {};
+    await claudeCodeRunner.exec({
+      sandbox: {
+        workspace: '/w',
+        exec: async (_cmd, options) => {
+          if (options?.env) env = options.env;
+          return { ...ok, stdout: streamJson('success') };
+        },
+        readFile: async () => '',
+      },
+      model: 'anthropic/claude-sonnet-5',
+      apiKey: 'test-key',
+      gateway,
+      systemPromptPath: '/s',
+      userPromptPath: '/u',
+      mcpServers: {},
+      timeoutSec: 1,
+    });
+    return env;
+  }
+
+  it('routes through the AI Gateway when gateway is set', async () => {
+    expect(await execEnv(true)).toEqual({
+      ANTHROPIC_BASE_URL: 'https://ai-gateway.vercel.sh',
+      ANTHROPIC_AUTH_TOKEN: 'test-key',
+      // Must be empty: Claude Code prefers ANTHROPIC_API_KEY when non-empty.
+      ANTHROPIC_API_KEY: '',
+    });
+  });
+
+  it('keeps the direct Anthropic env otherwise', async () => {
+    expect(await execEnv(false)).toEqual({ ANTHROPIC_API_KEY: 'test-key' });
+  });
+});
+
 describe('claudeCodeRunner.deriveStopReason', () => {
   const derive = claudeCodeRunner.deriveStopReason!;
 

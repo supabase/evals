@@ -21,12 +21,15 @@ export function codexAgent(
     reasoningEffort?: ReasoningEffortLevel;
     /** Override the pinned CLI version. */
     cliVersion?: string;
+    /** Route through the Vercel AI Gateway instead of the OpenAI API. */
+    gateway?: boolean;
   } = {}
 ): AgentHarness {
   return createCliAgent(codexRunner, codexParser, {
     model: options.model ?? codexRunner.defaultModel,
     reasoningEffort: options.reasoningEffort,
     cliVersion: options.cliVersion,
+    gateway: options.gateway,
   });
 }
 

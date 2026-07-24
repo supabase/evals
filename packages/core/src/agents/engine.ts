@@ -25,6 +25,11 @@ import { adaptTranscript } from '../parsers/adapt.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
 import type { AgentRunner } from './types.js';
 import {
+  gatewayModelProvider,
+  requireGatewayApiKey,
+  runThroughGateway,
+} from './gateway.js';
+import {
   SCRATCH,
   SYSTEM_PROMPT_PATH,
   USER_PROMPT_PATH,
@@ -52,15 +57,25 @@ export function createCliAgent<M extends string = string>(
     model: M;
     cliVersion?: string;
     reasoningEffort?: ReasoningEffortLevel;
+    /**
+     * Route through the Vercel AI Gateway (see `./gateway.ts`). Omitted, the
+     * RUN_THROUGH_GATEWAY env flag decides; an explicit value pins the path.
+     */
+    gateway?: boolean;
   }
 ): AgentHarness {
   const version = options.cliVersion ?? runner.defaultCliVersion;
+  const useGateway = options.gateway ?? runThroughGateway();
   return {
     id: runner.id,
     modelId: options.model,
     metadata: {
       agent: runner.id,
-      modelProvider: modelProviderForAgent(runner.id),
+      // Through the gateway the model may be any vendor's; derive the vendor
+      // from the model slug instead of from the agent.
+      modelProvider: useGateway
+        ? gatewayModelProvider(options.model)
+        : modelProviderForAgent(runner.id),
       modelId: options.model,
       ...(options.reasoningEffort
         ? { reasoningEffort: options.reasoningEffort }
@@ -68,10 +83,10 @@ export function createCliAgent<M extends string = string>(
     },
     runsInSandbox: true,
     assertReady() {
-      requireApiKey(runner);
+      requireApiKey(runner, useGateway);
     },
     async run(args): Promise<AgentRunResult> {
-      const apiKey = requireApiKey(runner);
+      const apiKey = requireApiKey(runner, useGateway);
       const sandbox = args.sandbox;
       if (!sandbox) {
         throw new Error(
@@ -79,7 +94,7 @@ export function createCliAgent<M extends string = string>(
         );
       }
 
-      await runner.install(sandbox, version, apiKey);
+      await runner.install(sandbox, version, apiKey, useGateway);
 
       // Stage the prompts into the sandbox scratch dir (outside the workspace).
       await sandbox.exec(`mkdir -p ${SCRATCH}`);
@@ -90,6 +105,7 @@ export function createCliAgent<M extends string = string>(
         sandbox,
         model: options.model,
         apiKey,
+        gateway: useGateway,
         systemPromptPath: SYSTEM_PROMPT_PATH,
         userPromptPath: USER_PROMPT_PATH,
         // Rewrite loopback hosts so in-container MCP servers can reach host-side
@@ -116,7 +132,8 @@ export function createCliAgent<M extends string = string>(
   };
 }
 
-function requireApiKey(runner: AgentRunner): string {
+function requireApiKey(runner: AgentRunner, gateway = false): string {
+  if (gateway) return requireGatewayApiKey(runner.displayName);
   const apiKey = process.env[runner.apiKeyEnvVar];
   if (!apiKey) {
     throw new Error(

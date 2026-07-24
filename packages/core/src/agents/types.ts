@@ -54,6 +54,12 @@ export interface RunnerExecArgs<M extends string = string> {
   sandbox: AgentSandbox;
   model: M;
   apiKey: string;
+  /**
+   * Route through the Vercel AI Gateway instead of the vendor API. When set,
+   * `apiKey` is the gateway key (see `../gateway.ts`) and `model` may be a
+   * gateway `vendor/model` slug. Off = the unchanged per-vendor path.
+   */
+  gateway?: boolean;
   /** Shell path to a file holding the system prompt (skills + task framing). */
   systemPromptPath: string;
   /** Shell path to a file holding the user prompt (the task). */
@@ -92,7 +98,8 @@ export interface AgentRunner<M extends string = string> {
   install(
     sandbox: AgentSandbox,
     version: string,
-    apiKey: string
+    apiKey: string,
+    gateway?: boolean
   ): Promise<void>;
   /** Run the CLI to completion and return the process result + raw transcript. */
   exec(args: RunnerExecArgs<M>): Promise<RunnerExecResult>;
