@@ -28,9 +28,9 @@ derive from the kind).
 |---|---|---|---|---|---|
 | `mcp-content-api-url` | `submodules/mcp` | `transports/stdio.ts` | upstream | 3 stdio integration tests (upstream) | `--content-api-url` flag + `SUPABASE_CONTENT_API_URL` — **merged upstream ([mcp#343](https://github.com/supabase/mcp/pull/343), 2026-07-23), not yet in a release**; the patch retires when a release ships the flag and the pin moves past it |
 | `supabase-content-local-ports` | supabase/supabase | `config.toml` | **LOCAL-ONLY** | n/a | dev ports 55321+ (avoid evals' 54321-9) |
-| `supabase-docs-index-fail-closed` | supabase/supabase | `generate-embeddings.ts` | upstream | none | fail-closed `purgeOldPages` + token/cost report |
+| `supabase-docs-index-fail-closed` | supabase/supabase | `generate-embeddings.ts`, `partner-integrations.ts` | upstream | none | fail-closed `purgeOldPages` + token/cost report; partner fetch errors fail loud (a swallowed error looked like zero partners and purged their rows) |
 | `supabase-docs-guide-checksum` | supabase/supabase | `guideModelLoader.ts` | upstream | none | guide checksum + `tryCatch` `onError` fix (docs-index edit detection) |
-| `supabase-docs-lint-warnings-skip` | supabase/supabase | `lint-warnings-guide.ts` | **LOCAL-ONLY** | n/a | `DOCS_EMBED_ALLOW_MISSING_SOURCES` skip |
+| `supabase-docs-lint-warnings-skip` | supabase/supabase | `lint-warnings-guide.ts`, `generate-embeddings.ts` | **LOCAL-ONLY** | n/a | `DOCS_EMBED_ALLOW_MISSING_SOURCES` skip; the skipped source registers its path scope and the purge excludes it (skip→purge hole) |
 | `supabase-docs-reference-dup-sources` | supabase/supabase | `sources/reference-doc.ts` + test | upstream | **unit + real-output tests** | dedupe duplicate reference source paths (the 18-page `inserted 2/1` fix) |
 
 ## Changing or regenerating a patch

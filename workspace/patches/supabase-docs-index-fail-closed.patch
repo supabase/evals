@@ -94,3 +94,27 @@ index d7519d2b15..4dfe6e6ba6 100644
    await purgeOldPages(supabaseClient, pageTable, refreshVersion)
  
    console.log('Embedding generation complete')
+diff --git a/apps/docs/scripts/search/sources/partner-integrations.ts b/apps/docs/scripts/search/sources/partner-integrations.ts
+index ad9964722e..b268a3c51c 100644
+--- a/apps/docs/scripts/search/sources/partner-integrations.ts
++++ b/apps/docs/scripts/search/sources/partner-integrations.ts
+@@ -21,12 +21,18 @@ function getSupabaseClient() {
+ 
+ export async function fetchPartners() {
+   const supabase = getSupabaseClient()
+-  const { data: partners } = await supabase
++  const { data: partners, error } = await supabase
+     .from('partners')
+     .select('slug,overview')
+     .eq('approved', true)
+     // We want to show technology integrations, not agencies, in search
+     .neq('type', 'expert')
++  // Fail loud: swallowing the error makes a transient API failure look like
++  // "zero partners", and the post-index purge then deletes every existing
++  // /partners/integrations/* row as stale.
++  if (error) {
++    throw new Error(`Failed to fetch partners for indexing: ${error.message}`)
++  }
+   return partners ?? []
+ }
+ 

@@ -1,13 +1,78 @@
+diff --git a/apps/docs/scripts/search/generate-embeddings.ts b/apps/docs/scripts/search/generate-embeddings.ts
+index 4dfe6e6ba6..cb9166c1f2 100644
+--- a/apps/docs/scripts/search/generate-embeddings.ts
++++ b/apps/docs/scripts/search/generate-embeddings.ts
+@@ -18,6 +18,7 @@ import {
+   logFailedSections,
+ } from './embeddings/utils.js'
+ import { fetchAllSources } from './sources/index.js'
++import { skippedSourcePathScopes } from './sources/lint-warnings-guide.js'
+ 
+ const CONFIG = {
+   // OpenAI settings
+@@ -532,7 +533,7 @@ async function generateEmbeddings() {
+     )
+   }
+ 
+-  await purgeOldPages(supabaseClient, pageTable, refreshVersion)
++  await purgeOldPages(supabaseClient, pageTable, refreshVersion, skippedSourcePathScopes)
+ 
+   console.log('Embedding generation complete')
+ }
+@@ -591,13 +592,22 @@ function logFailedPages(pageInfoMap: Map<number, PageInfo>, processingResult: Pr
+ async function purgeOldPages(
+   supabaseClient: SupabaseClient,
+   pageTable: string,
+-  refreshVersion: string
++  refreshVersion: string,
++  protectPathScopes: string[] = []
+ ) {
+   console.log(`Removing old pages and their sections`)
+-  const { error: deletePageError } = await supabaseClient
+-    .from(pageTable)
+-    .delete()
+-    .filter('version', 'neq', refreshVersion)
++  // A source skipped under DOCS_EMBED_ALLOW_MISSING_SOURCES never entered
++  // preparation, so its still-valid rows carry an old version — exclude its
++  // path scope from the purge instead of deleting them. Everything else
++  // (removed/renamed pages) purges as usual, keeping A/B baselines clean.
++  if (protectPathScopes.length > 0) {
++    console.warn(`Purge excluding skipped source path scope(s): ${protectPathScopes.join(', ')}`)
++  }
++  let query = supabaseClient.from(pageTable).delete().filter('version', 'neq', refreshVersion)
++  for (const scope of protectPathScopes) {
++    query = query.not('path', 'like', scope)
++  }
++  const { error: deletePageError } = await query
+   if (deletePageError) throw deletePageError
+ }
+ 
 diff --git a/apps/docs/scripts/search/sources/lint-warnings-guide.ts b/apps/docs/scripts/search/sources/lint-warnings-guide.ts
-index d28a57a27f..0207f87504 100644
+index d28a57a27f..03986df4ca 100644
 --- a/apps/docs/scripts/search/sources/lint-warnings-guide.ts
 +++ b/apps/docs/scripts/search/sources/lint-warnings-guide.ts
-@@ -29,6 +29,10 @@ export class LintWarningsGuideLoader extends BaseLoader {
+@@ -13,6 +13,12 @@ const privateKey = process.env.DOCS_GITHUB_APP_PRIVATE_KEY
+ 
+ const getBasename = (path: string) => path.split('/').at(-1)!.replace(/\.md$/, '')
+ 
++// Path scopes (SQL LIKE patterns) of sources skipped under
++// DOCS_EMBED_ALLOW_MISSING_SOURCES. generate-embeddings excludes these from
++// the old-pages purge: a skipped source never enters preparation, so its
++// still-valid rows carry an old version and would otherwise be deleted.
++export const skippedSourcePathScopes: string[] = []
++
+ export class LintWarningsGuideLoader extends BaseLoader {
+   type = 'markdown' as const
+ 
+@@ -29,6 +35,13 @@ export class LintWarningsGuideLoader extends BaseLoader {
  
    async load() {
      if (!appId || !installationId || !privateKey) {
 +      if (process.env.DOCS_EMBED_ALLOW_MISSING_SOURCES) {
 +        console.warn('Skipping lint-warnings guide source: DOCS_GITHUB_APP_* not set (DOCS_EMBED_ALLOW_MISSING_SOURCES)')
++        // Protect this loader's pages (`<path>?queryGroups=lint&lint=<name>`)
++        // from the purge; the `?` keeps the base guide page purgeable.
++        skippedSourcePathScopes.push(`${this.path}?%`)
 +        return []
 +      }
        throw new Error('Missing DOCS_GITHUB_APP_* environment variables')
