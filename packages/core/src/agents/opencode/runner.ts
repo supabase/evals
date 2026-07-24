@@ -16,13 +16,14 @@
  * an OPENCODE_CONFIG file outside the scored workspace).
  */
 
-import type { Model as AnthropicModel } from "@anthropic-ai/sdk/resources/messages";
-import type { ChatModel as OpenAIModel } from "openai/resources/shared";
-import type { GoogleGenerativeAIProvider } from "@ai-sdk/google";
-import type { McpServerConfig } from "../../index.js";
-import type { ModelProvider } from "../../eval-metadata.js";
-import { isRecord, parseJsonlRecords } from "../../json.js";
-import type { AgentRunner } from "../types.js";
+import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messages';
+import type { ChatModel as OpenAIModel } from 'openai/resources/shared';
+import type { GoogleGenerativeAIProvider } from '@ai-sdk/google';
+import type { McpServerConfig } from '../../index.js';
+import type { ModelProvider } from '../../eval-metadata.js';
+import { isRecord, parseJsonlRecords } from '../../json.js';
+import type { AgentRunner } from '../types.js';
+import { AI_GATEWAY } from '../gateway.js';
 import {
   SCRATCH,
   npmGlobalBin,
@@ -30,7 +31,7 @@ import {
   processStopReason,
   shellQuote,
   writeSandboxFile,
-} from "../shared.js";
+} from '../shared.js';
 
 /** Gemini model ids, extracted from the exported (callable) provider type. */
 type GeminiModel = Parameters<GoogleGenerativeAIProvider>[0];
@@ -48,7 +49,8 @@ export type OpenCodeModel =
   | (string & {});
 
 /** Model used when the caller doesn't pick one. */
-export const DEFAULT_OPENCODE_MODEL: OpenCodeModel = "anthropic/claude-sonnet-5";
+export const DEFAULT_OPENCODE_MODEL: OpenCodeModel =
+  'anthropic/claude-sonnet-5';
 
 /**
  * Provider prefix (`provider/model`) → the env var holding its key. opencode and
@@ -57,19 +59,19 @@ export const DEFAULT_OPENCODE_MODEL: OpenCodeModel = "anthropic/claude-sonnet-5"
  * Moonshot's (`moonshotai/` ids, e.g. Kimi) is `MOONSHOT_API_KEY`.
  */
 const PROVIDER_API_KEY_ENV: Record<ModelProvider, string> = {
-  anthropic: "ANTHROPIC_API_KEY",
-  openai: "OPENAI_API_KEY",
-  google: "GOOGLE_GENERATIVE_AI_API_KEY",
-  moonshotai: "MOONSHOT_API_KEY",
+  anthropic: 'ANTHROPIC_API_KEY',
+  openai: 'OPENAI_API_KEY',
+  google: 'GOOGLE_GENERATIVE_AI_API_KEY',
+  moonshotai: 'MOONSHOT_API_KEY',
 };
 
 /** The provider prefix of a `provider/model` id; throws if unsupported. */
 export function providerForModel(model: string): ModelProvider {
-  const provider = model.split("/")[0];
+  const provider = model.split('/')[0];
   if (!(provider in PROVIDER_API_KEY_ENV)) {
     throw new Error(
       `Unsupported opencode provider "${provider}" in model "${model}". ` +
-        `Supported: ${Object.keys(PROVIDER_API_KEY_ENV).join(", ")}.`,
+        `Supported: ${Object.keys(PROVIDER_API_KEY_ENV).join(', ')}.`
     );
   }
   return provider as ModelProvider;
@@ -81,11 +83,20 @@ export function providerApiKeyEnv(model: string): string {
 }
 
 /**
- * Shell path to the MCP config, staged in scratch (outside the workspace). Used
- * both as the write target and as the `OPENCODE_CONFIG` env value — the shell
- * expands `$HOME` in either position.
+ * Shell path to the config, staged in scratch (outside the workspace). Used both
+ * as the write target and as the `OPENCODE_CONFIG` env value — the shell expands
+ * `$HOME` in either position. Holds the MCP servers and, in gateway mode, the
+ * custom AI Gateway provider block.
  */
 const OPENCODE_CONFIG_PATH = '"$HOME/.eval/opencode.json"';
+
+/**
+ * Config provider id for the Vercel AI Gateway route (see `buildOpencodeConfig`).
+ * opencode addresses a model as `provider/model`, splitting on the first `/`, so
+ * a gateway run's `--model` is `${GATEWAY_PROVIDER_ID}/<vendor>/<model>` and the
+ * gateway `vendor/model` slug stays intact as the model id.
+ */
+const GATEWAY_PROVIDER_ID = 'vercel-ai-gateway';
 
 /**
  * Build an opencode runner bound to one model's provider. opencode is
@@ -93,54 +104,88 @@ const OPENCODE_CONFIG_PATH = '"$HOME/.eval/opencode.json"';
  * `apiKeyEnvVar` and `modelProvider` from the model id (the generic layer's
  * `requireApiKey` reads `apiKeyEnvVar`, and `exec` injects that same key).
  */
-export function createOpencodeRunner(model: OpenCodeModel): AgentRunner<OpenCodeModel> {
+export function createOpencodeRunner(
+  model: OpenCodeModel
+): AgentRunner<OpenCodeModel> {
   const modelProvider = providerForModel(model);
   return {
-    id: "opencode",
-    displayName: "OpenCode",
+    id: 'opencode',
+    displayName: 'OpenCode',
     apiKeyEnvVar: providerApiKeyEnv(model),
     modelProvider,
-    cliPackage: "opencode-ai",
+    cliPackage: 'opencode-ai',
     // Pinned: opencode's --format json event schema evolves; bump deliberately
     // and re-check the parser. See ./parser.ts.
-    defaultCliVersion: "1.15.7",
+    defaultCliVersion: '1.15.7',
     defaultModel: DEFAULT_OPENCODE_MODEL,
 
     async install(sandbox, version) {
-      await npmInstallGlobal(sandbox, `${this.cliPackage}@${version}`, this.displayName);
+      await npmInstallGlobal(
+        sandbox,
+        `${this.cliPackage}@${version}`,
+        this.displayName
+      );
     },
 
-    async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpServers, timeoutSec }) {
-      const opencode = npmGlobalBin("opencode");
+    async exec({
+      sandbox,
+      model,
+      apiKey,
+      gateway,
+      systemPromptPath,
+      userPromptPath,
+      mcpServers,
+      timeoutSec,
+    }) {
+      const opencode = npmGlobalBin('opencode');
 
       // opencode has no system-prompt flag, so prepend the system prompt to the
       // task; both are staged files, joined via command substitution into the
       // single message argument.
       const message = `"$(cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath})"`;
 
-      let configPrefix = "";
-      if (Object.keys(mcpServers).length > 0) {
+      // A config file is needed for MCP servers (both modes) and for the gateway
+      // provider block (gateway mode) — write it whenever either applies.
+      let configPrefix = '';
+      if (Object.keys(mcpServers).length > 0 || gateway) {
         await sandbox.exec(`mkdir -p ${SCRATCH}`);
-        await writeSandboxFile(sandbox, OPENCODE_CONFIG_PATH, buildOpencodeConfig(mcpServers));
+        await writeSandboxFile(
+          sandbox,
+          OPENCODE_CONFIG_PATH,
+          buildOpencodeConfig(
+            mcpServers,
+            gateway ? { model, apiKey } : undefined
+          )
+        );
         configPrefix = `OPENCODE_CONFIG=${OPENCODE_CONFIG_PATH} `;
       }
 
+      // Gateway mode routes the model through the custom provider defined in the
+      // config; the gateway slug (e.g. `moonshotai/kimi-k3`) becomes the model id
+      // under it. Direct mode passes the `provider/model` id through unchanged.
+      const runModel = gateway ? `${GATEWAY_PROVIDER_ID}/${model}` : model;
+
       const flags = [
-        "run",
+        'run',
         message,
-        `--model ${shellQuote(model)}`,
+        `--model ${shellQuote(runModel)}`,
         // Newline-delimited JSON event records on stdout.
-        "--format json",
+        '--format json',
         // The sandbox is the isolation boundary, so let opencode act freely.
-        "--dangerously-skip-permissions",
-      ].join(" ");
+        '--dangerously-skip-permissions',
+      ].join(' ');
 
       // `< /dev/null`: opencode run blocks on stdin otherwise, even with the
       // message passed as an argument.
-      const command = await sandbox.exec(`${configPrefix}${opencode} ${flags} < /dev/null`, {
-        timeoutMs: timeoutSec * 1000,
-        env: { [this.apiKeyEnvVar]: apiKey },
-      });
+      const command = await sandbox.exec(
+        `${configPrefix}${opencode} ${flags} < /dev/null`,
+        {
+          timeoutMs: timeoutSec * 1000,
+          // Direct: the vendor's own key env var. Gateway: the key is embedded
+          // in the provider config, so no key env var is set.
+          env: gateway ? {} : { [this.apiKeyEnvVar]: apiKey },
+        }
+      );
       return { command, raw: command.stdout };
     },
 
@@ -148,14 +193,17 @@ export function createOpencodeRunner(model: OpenCodeModel): AgentRunner<OpenCode
       if (!raw) return processStopReason(command);
       const { records } = parseJsonlRecords(raw);
       // An error event means the run failed regardless of exit code.
-      if (records.some((r) => r.type === "error")) return "error";
+      if (records.some((r) => r.type === 'error')) return 'error';
       // The terminal `step_finish` carries the model's finish reason.
       for (let i = records.length - 1; i >= 0; i -= 1) {
-        if (records[i].type !== "step_finish") continue;
+        if (records[i].type !== 'step_finish') continue;
         const part = records[i].part;
-        const reason = isRecord(part) && typeof part.reason === "string" ? part.reason : undefined;
-        if (reason === "stop") return "stop";
-        if (reason && reason !== "tool-calls") return reason; // e.g. length — surface verbatim
+        const reason =
+          isRecord(part) && typeof part.reason === 'string'
+            ? part.reason
+            : undefined;
+        if (reason === 'stop') return 'stop';
+        if (reason && reason !== 'tool-calls') return reason; // e.g. length — surface verbatim
         break;
       }
       return processStopReason(command);
@@ -164,19 +212,46 @@ export function createOpencodeRunner(model: OpenCodeModel): AgentRunner<OpenCode
 }
 
 /**
- * opencode's `OPENCODE_CONFIG` MCP schema: `{ mcp: { name: { type: "local",
- * command: [...], environment } } }`. The harness's `{command,args,env}` maps
- * onto a single `command` array plus `environment`.
+ * opencode's `OPENCODE_CONFIG`. MCP servers map onto `{ mcp: { name: { type:
+ * "local", command: [...], environment } } }` (the harness's `{command,args,env}`
+ * → a single `command` array plus `environment`).
+ *
+ * When `gateway` is set, a custom `provider` block routes the run through the
+ * Vercel AI Gateway: an OpenAI-compatible provider pointed at the gateway's
+ * `/v1` surface, exposing the one gateway `vendor/model` slug. opencode
+ * auto-installs the `npm` provider package on first use. The gateway key is
+ * embedded in the provider `options` (the sandbox config is ephemeral and
+ * scoped to the run), mirroring how MCP secrets ride along in `environment`.
  */
-export function buildOpencodeConfig(servers: Record<string, McpServerConfig>): string {
+export function buildOpencodeConfig(
+  servers: Record<string, McpServerConfig>,
+  gateway?: { model: string; apiKey: string }
+): string {
   const mcp: Record<string, unknown> = {};
   for (const [name, server] of Object.entries(servers)) {
     mcp[name] = {
-      type: "local",
+      type: 'local',
       command: [server.command, ...(server.args ?? [])],
       enabled: true,
       ...(server.env ? { environment: server.env } : {}),
     };
   }
-  return JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp }, null, 2);
+  const config: Record<string, unknown> = {
+    $schema: 'https://opencode.ai/config.json',
+    mcp,
+  };
+  if (gateway) {
+    config.provider = {
+      [GATEWAY_PROVIDER_ID]: {
+        npm: '@ai-sdk/openai-compatible',
+        name: 'Vercel AI Gateway',
+        options: {
+          baseURL: AI_GATEWAY.openAiBaseUrl,
+          apiKey: gateway.apiKey,
+        },
+        models: { [gateway.model]: {} },
+      },
+    };
+  }
+  return JSON.stringify(config, null, 2);
 }
