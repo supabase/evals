@@ -51,13 +51,18 @@ edited=$(git -C "$SK" hash-object "$REL")
 index0=$(git -C "$SK" diff --cached -- "$REL")   # empty (was clean)
 
 # --- a stranded baseline stash (SIGKILL mid-run) must be detected pre-spend
-# with the recovery command, BEFORE the no-unstaged-edit check muddies it ---
+# with the EXACT stash ref — a user's own newer stash sits above it, and a
+# plain `stash pop` would take that instead ---
 git -C "$SK" stash push -q -m "eval-workspace ab baseline stash" -- "$REL"
+printf '\n<!-- decoy -->\n' >> "$FILE"
+git -C "$SK" stash push -q -m "user's own unrelated stash" -- "$REL"   # newer: stash@{0}; stranded: stash@{1}
 out0=$(ANTHROPIC_API_KEY=dummy bash workspace/scripts/ab.sh "$EVAL" "$EXP" "$FILE" 2>&1; echo "rc=$?")
 ck "stranded stash refused"          "$(printf '%s' "$out0" | grep -c 'interrupted mid-baseline')" "1"
-ck "stranded stash names recovery"   "$(printf '%s' "$out0" | grep -c "git -C $SK stash pop")" "1"
+ck "recovery names the exact ref"    "$(printf '%s' "$out0" | grep -cF "git -C $SK stash pop 'stash@{1}'")" "1"
+ck "recovery ignores the decoy"      "$(printf '%s' "$out0" | grep -cF "stash@{0}")" "0"
 ck "stranded stash exits nonzero"    "$(printf '%s' "$out0" | grep -c 'rc=1')" "1"
-git -C "$SK" stash pop -q   # put the edit back for the tests below
+git -C "$SK" stash drop -q 'stash@{0}'   # discard the decoy
+git -C "$SK" stash pop -q                # put the edit back for the tests below
 
 # observable sync hook: every sync appends a line (treatment, baseline, restore = 3)
 CNT=/tmp/ab_selftest_sync.cnt

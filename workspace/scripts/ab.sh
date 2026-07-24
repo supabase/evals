@@ -77,14 +77,33 @@ fi
 : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY not in keychain — see README}"
 # A previous run killed mid-baseline (SIGKILL beats any trap) leaves the edit
 # in a stash marked with AB_STASH_MSG. Detect it BEFORE the no-unstaged-edit
-# check below turns that into a cryptic "nothing to A/B".
+# check below turns that into a cryptic "nothing to A/B". Print the EXACT
+# stash ref: a plain `stash pop` takes the newest stash, which may be the
+# user's own unrelated work sitting above the stranded one.
 AB_STASH_MSG="eval-workspace ab baseline stash"
-if git -C "$CLONE" stash list | grep -F "$AB_STASH_MSG" >/dev/null; then
+# `|| :` guards set -e/pipefail: no match (the normal case) exits grep nonzero
+_stranded=$(git -C "$CLONE" stash list --format='%gd %gs' | grep -F "$AB_STASH_MSG" | awk '{print $1}' | sort -t'{' -k2 -rn) || _stranded=""
+if [ -n "$_stranded" ]; then
   echo "a previous A/B was interrupted mid-baseline — your edit is stranded in a stash." >&2
-  echo "recover it, then re-run:" >&2
-  echo "  git -C $CLONE stash pop" >&2
+  echo "recover it (exact ref; highest index first so the others keep their refs), then re-run:" >&2
+  for _ref in $_stranded; do
+    echo "  git -C $CLONE stash pop '$_ref'" >&2
+  done
   echo "  mise run ab $EVAL ${PATHS[0]}   # (docs edits: the pop leaves the index at baseline until the next run re-embeds)" >&2
   exit 1
+fi
+unset _stranded
+
+# Zero-cost eval validation BEFORE any paid sync: a schema/typo error used to
+# surface only at harness discovery — after the treatment re-embed had spent.
+# Skipped under the AB_EVAL_CMD test hook (no real eval dir exists there).
+if [ -z "${AB_EVAL_CMD:-}" ]; then
+  [ -f "evals/$EVAL/PROMPT.md" ] || { echo "no eval at evals/$EVAL (PROMPT.md missing)" >&2; exit 1; }
+  ( cd apps/framework && exec pnpm exec tsx -e "
+    import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
+    import { readFileSync } from 'node:fs';
+    parseEvalMarkdown(readFileSync('../../evals/' + process.argv[1] + '/PROMPT.md', 'utf8'), 'evals/' + process.argv[1] + '/PROMPT.md');
+  " "$EVAL" ) || { echo "eval metadata invalid — fix evals/$EVAL/PROMPT.md before spending on runs" >&2; exit 1; }
 fi
 # A/B reverts tracked, unstaged working-tree edits only, via a scoped git stash.
 # `stash push -- <path>` merges whole-index state, so ANY staged entry in the
