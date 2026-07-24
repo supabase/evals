@@ -87,23 +87,19 @@ function gitShortSha(): string | undefined {
   }
 }
 
-function ciRunUrl(): string | undefined {
-  const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID } = process.env;
-  if (!GITHUB_SERVER_URL || !GITHUB_REPOSITORY || !GITHUB_RUN_ID) {
-    return undefined;
-  }
-  return `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
-}
-
 /**
- * Which branch (and PR, if any) produced this upload, stored as experiment
- * metadata. `branch` gates whether --set-baseline may stamp `latestMain`
- * (the marker PR runs compare against); `prNumber` powers the "results for
- * this PR" filter link.
+ * How this upload was produced, stored as experiment metadata. `branch` gates
+ * whether --set-baseline may stamp `latestMain` (the marker PR runs compare
+ * against); `prNumber` powers the "results for this PR" filter link;
+ * `trigger` is which of the three workflow entry points ran (`schedule` /
+ * `pull_request` / `workflow_dispatch`); `runId` is the GitHub Actions run ID,
+ * kept so a human can jump from a Braintrust row back to the CI run.
  */
 interface RunContext {
   branch?: string;
   prNumber?: string;
+  trigger?: string;
+  runId?: string;
 }
 
 function runContext(): RunContext {
@@ -123,6 +119,10 @@ function runContext(): RunContext {
   const prMatch = /^(\d+)\/merge$/.exec(process.env.GITHUB_REF_NAME ?? "");
   return {
     branch: process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME,
+    trigger: process.env.GITHUB_EVENT_NAME,
+    ...(process.env.GITHUB_RUN_ID
+      ? { runId: process.env.GITHUB_RUN_ID }
+      : {}),
     ...(process.env.GITHUB_EVENT_NAME === "pull_request" && prMatch
       ? { prNumber: prMatch[1] }
       : {}),
@@ -153,7 +153,9 @@ function experimentsFilterUrl(
  * across refreshes — decomposed so each is independently filterable/groupable
  * in the Braintrust UI, rather than one opaque repo experiment name. `skills`
  * is joined into a stable, order-independent string for exact-match
- * filtering (the config's own array order is otherwise arbitrary).
+ * filtering (the config's own array order is otherwise arbitrary). Stored
+ * verbatim as experiment metadata AND used as the `latestMain` lookup filter,
+ * so the query matches the stored shape by construction.
  */
 function identityKey(display: ExperimentDisplayMetadata | undefined) {
   return {
@@ -429,7 +431,6 @@ async function upload(
   const projectId = process.env.BRAINTRUST_PROJECT_ID;
   const sha = gitShortSha();
   const suffix = NAME_SUFFIX ? `-${NAME_SUFFIX}` : "";
-  const runUrl = ciRunUrl();
   const context = runContext();
   const summaryRows: SummaryRow[] = [];
 
@@ -459,16 +460,19 @@ async function upload(
       experiment: name,
       update: UPDATE,
       ...(baseline ? { baseExperiment: baseline } : {}),
+      // Exactly the experiment-metadata fields from the design doc's table
+      // (plus `latestMain`, stamped separately by setLatestMain after a
+      // successful main refresh): the decomposed config identity, then the
+      // run-scoped context.
       metadata: {
-        source: "supabase-evals",
+        ...identityKey(meta?.display),
         ...(meta?.experimentSuite
           ? { experimentSuite: meta.experimentSuite }
           : {}),
-        ...(meta?.display ?? {}),
-        ...(sha ? { gitShortSha: sha } : {}),
-        ...(runUrl ? { ciRunUrl: runUrl } : {}),
         ...(context.branch ? { branch: context.branch } : {}),
         ...(context.prNumber ? { prNumber: context.prNumber } : {}),
+        ...(context.trigger ? { trigger: context.trigger } : {}),
+        ...(context.runId ? { runId: context.runId } : {}),
       },
     });
 
