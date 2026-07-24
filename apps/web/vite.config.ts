@@ -5,6 +5,8 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
+  // The app is served at supabase.com/evals
+  base: "/evals/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
