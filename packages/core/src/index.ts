@@ -897,6 +897,7 @@ export function supabaseMcpServer(
   options: {
     features?: string[];
     version?: string;
+    contentApiUrl?: string;
   } = {},
 ): McpServerDefinition {
   const features = options.features ?? [
@@ -927,6 +928,12 @@ export function supabaseMcpServer(
       // platform-independent (it queries the public docs GraphQL API), so a
       // docs-only server runs standalone with no `--api-url`.
       if (apiUrl) serverArgs.push("--api-url", apiUrl);
+      // Alternative docs Content API endpoint (e.g. a locally built docs
+      // index). Requires a server that understands --content-api-url — the
+      // SUPABASE_MCP_SERVER_PATH build; only set the env var alongside it.
+      const contentApiUrl =
+        options.contentApiUrl ?? process.env.SUPABASE_CONTENT_API_URL;
+      if (contentApiUrl) serverArgs.push("--content-api-url", contentApiUrl);
 
       const local = resolveLocalMcpServer();
       if (local) {

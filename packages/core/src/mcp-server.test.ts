@@ -12,6 +12,7 @@ import {
 // Stub (not mutate) env so pre-existing SUPABASE_* values are restored per test.
 function clearEnv() {
   vi.stubEnv("SUPABASE_MCP_SERVER_PATH", undefined);
+  vi.stubEnv("SUPABASE_CONTENT_API_URL", undefined);
 }
 
 // A real on-disk build layout: the override path is existence-checked, so the
@@ -42,6 +43,26 @@ describe("supabaseMcpServer().createConfig", () => {
       `@supabase/mcp-server-supabase@${MCP_SERVER_VERSION}`,
     );
     expect(config.args).toContain("--api-url");
+    expect(config.args).not.toContain("--content-api-url");
+  });
+
+  it("threads --content-api-url from the env var", async () => {
+    clearEnv();
+    vi.stubEnv("SUPABASE_CONTENT_API_URL", "https://env.test/gql");
+    const { config } = await supabaseMcpServer().createConfig({});
+    const i = config.args.indexOf("--content-api-url");
+    expect(i).toBeGreaterThan(-1);
+    expect(config.args[i + 1]).toBe("https://env.test/gql");
+  });
+
+  it("prefers the explicit contentApiUrl option over the env var", async () => {
+    clearEnv();
+    vi.stubEnv("SUPABASE_CONTENT_API_URL", "https://env.test/gql");
+    const { config } = await supabaseMcpServer({
+      contentApiUrl: "https://opt.test/gql",
+    }).createConfig({});
+    const i = config.args.indexOf("--content-api-url");
+    expect(config.args[i + 1]).toBe("https://opt.test/gql");
   });
 
   it("launches a local build dir with node when SUPABASE_MCP_SERVER_PATH is set", async () => {
