@@ -17824,5 +17824,70 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.6-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "investigate-realtime-001-subscribed-no-events",
+    "stage": "investigate",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "orders table added to supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "courier_locations still in supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "publication still publishes INSERT events",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on orders",
+        "passed": true
+      },
+      {
+        "name": "staff can still read orders through RLS",
+        "passed": true,
+        "notes": "authenticated sees 2 of 2 orders"
+      },
+      {
+        "name": "diagnosed missing publication membership",
+        "passed": true,
+        "judgeNotes": "The assistant inspected the publication, diagnosed/fixed the issue by running `alter publication supabase_realtime add table public.orders;`, and verified the publication contents afterward. It did not disable RLS or weaken policies, nor recreate/drop the publication. Extra attempted E2E verification does not change that the required fix was applied."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
+    "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3/investigate-realtime-001-subscribed-no-events.json"
   }
 ]
