@@ -58,10 +58,15 @@ loop's scope, then
 mise run ab <eval-id> <edited-path>   # treatment (edit applied) vs baseline (edit reverted)
 ```
 
-The edit is always restored (a failed restore fails the run loudly); per-arm
-provenance receipts land in `results-ab/*.json`. Cost: two model runs. No
-args = readiness probe. First time? `mise run ab-demo` is a guided,
-self-cleaning live proof on the docs loop (spend-gated, asks first).
+The edit is restored on every exit path, including Ctrl-C/TERM (a failed
+restore fails the run loudly). The one uncatchable case is SIGKILL mid-run:
+the edit lands in a marked stash, and the next `ab` invocation detects it and
+prints the recovery command. Per-arm provenance receipts land in
+`results-ab/*.json`. Cost: two model runs. No args = readiness probe. First
+time? `mise run ab-demo` is a guided, self-cleaning live proof on the docs
+loop (spend-gated, asks first). Writing your own discriminator eval? Ask for
+one precise, docs-only fact ("name the exact package for X") — vague
+questions make both arms search for minutes before converging.
 
 ## Patches & publishing
 

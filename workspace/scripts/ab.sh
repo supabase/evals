@@ -75,6 +75,17 @@ if [ -n "${AB_DRYRUN:-}" ]; then
 fi
 
 : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY not in keychain — see README}"
+# A previous run killed mid-baseline (SIGKILL beats any trap) leaves the edit
+# in a stash marked with AB_STASH_MSG. Detect it BEFORE the no-unstaged-edit
+# check below turns that into a cryptic "nothing to A/B".
+AB_STASH_MSG="eval-workspace ab baseline stash"
+if git -C "$CLONE" stash list | grep -F "$AB_STASH_MSG" >/dev/null; then
+  echo "a previous A/B was interrupted mid-baseline — your edit is stranded in a stash." >&2
+  echo "recover it, then re-run:" >&2
+  echo "  git -C $CLONE stash pop" >&2
+  echo "  mise run ab $EVAL ${PATHS[0]}   # (docs edits: the pop leaves the index at baseline until the next run re-embeds)" >&2
+  exit 1
+fi
 # A/B reverts tracked, unstaged working-tree edits only, via a scoped git stash.
 # `stash push -- <path>` merges whole-index state, so ANY staged entry in the
 # clone (even an unrelated intent-to-add) breaks it. Require a clean index.
@@ -92,6 +103,10 @@ done
 if [ "$LOOP" = docs ]; then
   : "${OPENAI_API_KEY:?OPENAI_API_KEY not in keychain — the docs re-embed needs it}"
   curl -sf -o /dev/null "$CONTENT_URL" || { echo "docs-api not reachable on :3001 — run \`mise run docs-api\` in another terminal first" >&2; exit 1; }
+  # Refuse BEFORE spending: an empty-but-running DB would otherwise turn the
+  # treatment sync into a full paid seed instead of an incremental re-embed.
+  pages=$(docker exec supabase_db_eval-workspace-content psql -U postgres -d postgres -tAc 'select count(*) from public.page' 2>/dev/null || echo 0)
+  [ "${pages:-0}" -gt 0 ] 2>/dev/null || { echo "docs index is not seeded (page count: ${pages:-0}) — run \`mise run docs-seed\` once first (mise run ab with no args = full readiness probe)" >&2; exit 1; }
   [ -d "$MCP/dist" ] || { echo "building local mcp (needed for search_docs routing)…"; ( cd submodules/mcp && pnpm install && pnpm build ); }
 fi
 
@@ -134,12 +149,19 @@ restore() {
 }
 # Preserve the run's own failure status; a clean run that fails cleanup exits nonzero.
 trap 'rc=$?; if ! restore && [ "$rc" -eq 0 ]; then rc=1; fi; exit $rc' EXIT
+# Catchable signals route through `exit`, so the EXIT trap restores exactly
+# once (never attach restore to the signals directly: signal + EXIT would
+# double-pop). SIGKILL is uncatchable — that case is covered by the marked
+# stash + the preflight detection above.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 echo "== treatment: edit applied (${PATHS[*]}) =="
 run_eval treatment
 
 echo "== reverting edit for baseline =="
-git -C "$CLONE" stash push -q -- "${REL[@]}"
+git -C "$CLONE" stash push -q -m "$AB_STASH_MSG" -- "${REL[@]}"
 STASHED=1
 
 echo "== baseline: edit reverted =="
