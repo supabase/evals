@@ -19,6 +19,21 @@ cd "$(dirname "$0")/../.."
 ROOT="$PWD"
 source workspace/scripts/patches-lib.sh
 
+# Tree OID of "<parent-tree> + <patch>", built in a throwaway index. This is
+# the ONE verification mechanism for "state matches the canonical patch":
+# byte-exact tree identity, immune to the classic payload-diff blind spot
+# (an identical +/- line reattributed to a different file).
+patch_tree() {
+  local dir="$1" parent="$2" patch="$3" tmpidx out=""
+  tmpidx=$(mktemp /tmp/eval-workspace-idx-XXXXXX); rm -f "$tmpidx"   # keep only the name: git must create the index itself
+  if GIT_INDEX_FILE="$tmpidx" git -C "$dir" read-tree "$parent" 2>/dev/null \
+     && GIT_INDEX_FILE="$tmpidx" git -C "$dir" apply --cached "$ROOT/$patch" 2>/dev/null; then
+    out=$(GIT_INDEX_FILE="$tmpidx" git -C "$dir" write-tree 2>/dev/null || echo "")
+  fi
+  rm -f "$tmpidx"
+  echo "$out"
+}
+
 apply_one() {
   local dir="$1" patch="$2" subject sha h s
   subject=$(patch_subject "$patch")
@@ -31,16 +46,10 @@ $(git -C "$dir" log --format='%H %s' HEAD --not --remotes 2>/dev/null)
 EOF
   if [ -n "$sha" ]; then
     # the .patch file is canonical — the commit must still match it EXACTLY:
-    # rebuild parent-tree + patch in a temp index and compare tree OIDs
-    local tmpidx want got
-    tmpidx=$(mktemp /tmp/eval-workspace-idx-XXXXXX); rm -f "$tmpidx"   # keep only the name: git must create the index itself
+    # rebuild parent-tree + patch and compare tree OIDs
+    local want got
     want=$(git -C "$dir" rev-parse "$sha^{tree}")
-    got=""
-    if GIT_INDEX_FILE="$tmpidx" git -C "$dir" read-tree "$sha^" 2>/dev/null \
-       && GIT_INDEX_FILE="$tmpidx" git -C "$dir" apply --cached "$ROOT/$patch" 2>/dev/null; then
-      got=$(GIT_INDEX_FILE="$tmpidx" git -C "$dir" write-tree 2>/dev/null || echo "")
-    fi
-    rm -f "$tmpidx"
+    got=$(patch_tree "$dir" "$sha^" "$patch")
     if [ "$got" = "$want" ]; then
       echo "  $(basename "$patch") already committed in $dir"
     else
@@ -61,11 +70,10 @@ EOF
     echo "  ERROR: $(basename "$patch") does not apply cleanly to $dir — regenerate it (workspace/patches/README.md)" >&2
     exit 1
   fi
-  # the staged diff must be exactly the canonical patch (payload comparison)
-  if ! diff -q <(git -C "$dir" diff --cached | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)') \
-              <(grep -E '^[+-]' "$ROOT/$patch" | grep -vE '^(\+\+\+|---)') >/dev/null 2>&1; then
+  # the staged state must be exactly parent-tree + canonical patch (tree identity)
+  if [ "$(git -C "$dir" write-tree)" != "$(patch_tree "$dir" HEAD "$patch")" ]; then
     git -C "$dir" reset -q
-    echo "  ERROR: staged diff for $(basename "$patch") differs from the canonical patch — aborted (index reset)" >&2
+    echo "  ERROR: staged state for $(basename "$patch") differs from the canonical patch — aborted (index reset)" >&2
     exit 1
   fi
   GIT_AUTHOR_NAME=eval-workspace GIT_AUTHOR_EMAIL=eval-workspace@local \
