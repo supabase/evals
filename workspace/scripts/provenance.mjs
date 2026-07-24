@@ -23,8 +23,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { loadManifest } from "./manifest.mjs";
 
-// This is the evals repo root (workspace/scripts -> ../..): supabase/,
-// submodules/, and .docs-index-stamp.json all live here. The tracked-patches
+// This is the evals repo root (workspace/scripts -> ../..): submodules/
+// and .docs-index-stamp.json live here. The tracked-patches
 // directory is a level lower, under workspace/ (see workspaceRoot below).
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const workspaceRoot = join(root, "workspace");
@@ -110,18 +110,19 @@ const repoState = (dir) => {
   };
 };
 
-// The two pinned submodules, keyed the way ab.sh/status.sh --json expect
-// (basename of the submodules/ path). `git submodule status` prefixes an
-// uninitialized entry with "-" — its SHA there is only the pinned index
-// entry, not a real checkout, so that reads as null, not a fake SHA.
+// Every configured submodule, keyed the way ab.sh/status.sh --json expect
+// (basename of the submodules/ path). `--cached` reports the gitlink sha
+// recorded in the superproject — what this checkout PROMISES — enumerated
+// straight from git so a new submodule can never silently drop out of
+// receipts. Patch-carrying trees deliberately float above the pin (markers
+// + your uncommitted edit); repos.<name> records that working-tree reality.
 const submoduleShas = () => {
-  const shas = { "agent-skills": null, mcp: null };
-  for (const line of (git(".", "submodule", "status") ?? "").split("\n")) {
+  const shas = {};
+  for (const line of (git(".", "submodule", "status", "--cached") ?? "").split("\n")) {
     if (!line) continue;
-    const initialized = line[0] !== "-";
     const [sha, subPath] = line.slice(1).trim().split(/\s+/);
     const name = subPath?.split("/").pop();
-    if (name && name in shas) shas[name] = initialized ? sha : null;
+    if (name) shas[name] = sha;
   }
   return shas;
 };
@@ -139,15 +140,17 @@ const buildProvenance = () => {
   };
   const submodules = submoduleShas();
 
-  // Only non-submodule entries (today: supabase) get a full clone-shaped
-  // `repos.<name>` record — the two submodules are already covered above by
-  // exact pinned SHA, which is what a submodule actually promises.
+  // A pinned-sha record is what a plain submodule promises (skills). But a
+  // PATCH-CARRYING repo (mcp, supabase) deliberately floats its working tree
+  // above the pin — marker commits plus your uncommitted A/B edit — so those
+  // get a full working-tree record too: per-arm receipts must differ by
+  // exactly the edit under test, and the pin sha alone can't show that.
   const repos = {};
   const patches = {};
   for (const [name, spec] of Object.entries(manifest.repos)) {
     const initialized = existsSync(join(root, spec.dir, ".git"));
-    if (spec.kind !== "submodule") {
-      repos[name] = initialized ? { dir: spec.dir, cloned: true, ...repoState(spec.dir) } : { dir: spec.dir, cloned: false };
+    if (spec.patches?.length) {
+      repos[name] = initialized ? { dir: spec.dir, initialized: true, ...repoState(spec.dir) } : { dir: spec.dir, initialized: false };
     }
     if (!spec.patches?.length || !initialized) continue;
 

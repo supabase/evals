@@ -83,8 +83,12 @@ ck "edit intact after restore-sync failure" "$(git -C "$SK" hash-object "$REL")"
 ck "reports re-sync error"                 "$(grep -c 'post-restore re-sync failed' /tmp/ab_selftest3.out)" "1"
 ck "no A/B report on failed restore"       "$(grep -c '=== A/B' /tmp/ab_selftest3.out)" "0"
 
-# --- docs loop must reject a second path outside the content scope ---
-rc4=$(AB_DRYRUN=1 bash workspace/scripts/ab.sh e x supabase/apps/docs/content/a.mdx supabase/apps/studio/foo.ts >/dev/null 2>&1; echo $?)
+# --- docs loop: path mapping resolves, and a second path outside the content
+# scope is rejected AT THE SCOPE CHECK (paths must be current — a stale prefix
+# here once turned this into a vacuous always-exit-2 test) ---
+out4=$(AB_DRYRUN=1 bash workspace/scripts/ab.sh e x submodules/supabase/apps/docs/content/a.mdx 2>&1 || true)
+ck "docs path maps to the docs loop"       "$(printf '%s' "$out4" | grep -c 'loop=docs clone=submodules/supabase')" "1"
+rc4=$(AB_DRYRUN=1 bash workspace/scripts/ab.sh e x submodules/supabase/apps/docs/content/a.mdx submodules/supabase/apps/studio/foo.ts >/dev/null 2>&1; echo $?)
 ck "rejects non-content path in docs loop" "$rc4" "2"
 
 # --- dirty clone index (e.g. intent-to-add residue) must be refused before stashing ---

@@ -1,9 +1,9 @@
 # Bash facade over manifest.json — the single source of truth for repos,
-# remotes, and enabler patches (order and kind; marker subjects derive from
-# the kind). All data queries go through scripts/manifest.mjs, which validates
-# the schema and fails loud. Sourced by apply-patches.sh, update.sh,
-# publish.sh, status.sh, setup.sh, clone-docs.sh. Requires bash (BASH_SOURCE)
-# and node (pinned via mise).
+# checkout dirs, and enabler patches (order and kind; marker subjects derive
+# from the kind). All data queries go through scripts/manifest.mjs, which
+# validates the schema and fails loud. Sourced by apply-patches.sh, update.sh,
+# publish.sh, status.sh, setup.sh, docs-embed-env.sh, hooks.test.sh. Requires
+# bash (BASH_SOURCE) and node (pinned via mise).
 _MANIFEST_LIB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 _manifest() { node "$_MANIFEST_LIB_DIR/manifest.mjs" "$@"; }
 
@@ -29,7 +29,6 @@ done
 unset _r _MANIFEST_REPOS
 
 repo_dir()    { local d; d=$(_manifest get "$1" dir); echo "${d:-$1}"; }
-repo_remote() { _manifest get "$1" remote; }
 
 patches_for() {
   local out="" n

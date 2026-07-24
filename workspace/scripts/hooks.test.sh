@@ -61,7 +61,7 @@ done
 # hides gitlink changes from status but not from an explicit `git add` — this
 # is the check that catches that accident. Skipped when the submodule isn't
 # seeded (the sha can't be inspected without a clone).
-DOCS_SUB=submodules/supabase
+DOCS_SUB=$(repo_dir supabase)
 if [ -e "$DOCS_SUB/.git" ]; then
   _pin=$(git rev-parse "HEAD:$DOCS_SUB" 2>/dev/null || echo "")
   if [ -n "$_pin" ] && git -C "$DOCS_SUB" cat-file -e "$_pin^{commit}" 2>/dev/null; then
@@ -72,6 +72,16 @@ if [ -e "$DOCS_SUB/.git" ]; then
     esac
   fi
 fi
+
+# Receipt coverage: every configured submodule's pin must appear (derived
+# from git, so a new submodule can't silently drop out), and patch-carrying
+# repos must carry working-tree records — per-arm A/B receipts differ by
+# exactly the edit under test only if the working tree is recorded.
+_receipt=$(node workspace/scripts/provenance.mjs 2>/dev/null || echo '{}')
+ck "receipt: docs submodule pin recorded" \
+   "$(printf '%s' "$_receipt" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const r=JSON.parse(d);console.log(/^[0-9a-f]{40}$/.test(r.submodules?.supabase||"")?"y":"n")})')" "y"
+ck "receipt: patch repos carry tree records" \
+   "$(printf '%s' "$_receipt" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const r=JSON.parse(d);console.log(("supabase" in (r.repos||{}))&&("mcp" in (r.repos||{}))?"y":"n")})')" "y"
 
 echo "hooks.test: $pass passed, $fail failed"
 if [ "$pass" -eq 0 ] && [ "$fail" -eq 0 ]; then

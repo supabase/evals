@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 // Loader + CLI for manifest.json (lives at workspace/manifest.json, beside
 // scripts/) — the single source of truth for the repos this workspace wires
-// together: repo-root-relative checkout dirs, upstream remotes (clone
-// entries only), and the ordered enabler-patch set per repo (patch names
-// without the patches/ prefix or .patch suffix; "localPatches" marks the dev
-// shims that must never reach an upstream PR — see patches/README.md).
-// `kind: "submodule"` repos (mcp, skills) have no remote — .gitmodules owns
-// that — and are never cloned by our scripts; a repo without `kind` is a
-// plain clone and MUST have a remote. Every `dir` is repo-root-relative;
-// resolving it is the caller's job (bash scripts `cd` to the repo root,
-// two levels up from workspace/scripts, before using it).
+// together: repo-root-relative checkout dirs and the ordered enabler-patch
+// set per repo (patch names without the patches/ prefix or .patch suffix;
+// "localPatches" marks the dev shims that must never reach an upstream PR —
+// see patches/README.md). Every repo is a pinned submodule (.gitmodules owns
+// remotes; nothing here is cloned by our scripts — the docs submodule is
+// seeded by clone-docs.sh from the .gitmodules url). Every `dir` is
+// repo-root-relative; resolving it is the caller's job (bash scripts `cd` to
+// the repo root, two levels up from workspace/scripts, before using it).
 //
 // loadManifest() is THE loader: every consumer (the CLI below, the bash
 // facade scripts/patches-lib.sh through it, and provenance.mjs via import)
@@ -44,13 +43,11 @@ export function loadManifest() {
   }
   for (const [name, repo] of Object.entries(manifest.repos)) {
     if (!isStr(repo?.dir)) throw new Error(`repos.${name}.dir must be a non-empty string`);
-    if (repo.kind !== undefined && repo.kind !== "submodule") {
-      throw new Error(`repos.${name}.kind must be "submodule" when present`);
+    if (repo.kind !== "submodule") {
+      throw new Error(`repos.${name}.kind must be "submodule" (every repo is a pinned submodule; the clone kind is gone)`);
     }
-    if (repo.kind === "submodule") {
-      if (repo.remote !== undefined) throw new Error(`repos.${name}.remote must be absent for kind:"submodule" (.gitmodules owns the remote)`);
-    } else if (!isStr(repo.remote)) {
-      throw new Error(`repos.${name}.remote must be a non-empty string (required for clone entries)`);
+    if (repo.remote !== undefined) {
+      throw new Error(`repos.${name}.remote must be absent (.gitmodules owns the remote)`);
     }
     if (repo.patches !== undefined && !isStrArr(repo.patches)) throw new Error(`repos.${name}.patches must be a non-empty array of strings`);
     if (repo.localPatches !== undefined) {
@@ -106,7 +103,7 @@ if (isMain) {
       const [name, key] = args;
       const repo = manifest.repos[name ?? ""];
       if (!repo) die(`unknown repo "${name ?? ""}"`);
-      if (!["dir", "remote", "patches", "localPatches"].includes(key ?? "")) die(`unknown key "${key ?? ""}"`);
+      if (!["dir", "patches", "localPatches"].includes(key ?? "")) die(`unknown key "${key ?? ""}"`);
       const v = repo[key];
       if (v !== undefined) console.log(Array.isArray(v) ? v.join("\n") : v);
       break;
