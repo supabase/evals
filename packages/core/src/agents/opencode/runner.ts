@@ -125,15 +125,17 @@ export function createOpencodeRunner(
       // single message argument.
       const message = `"$(cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath})"`;
 
-      // The config declares the model (see `buildOpencodeConfig`) and any MCP
-      // servers, so it's written for every run.
-      await sandbox.exec(`mkdir -p ${SCRATCH}`);
-      await writeSandboxFile(
-        sandbox,
-        OPENCODE_CONFIG_PATH,
-        buildOpencodeConfig(model, mcpServers)
-      );
-      const configPrefix = `OPENCODE_CONFIG=${OPENCODE_CONFIG_PATH} `;
+      // A config file is only needed for MCP servers.
+      let configPrefix = '';
+      if (Object.keys(mcpServers).length > 0) {
+        await sandbox.exec(`mkdir -p ${SCRATCH}`);
+        await writeSandboxFile(
+          sandbox,
+          OPENCODE_CONFIG_PATH,
+          buildOpencodeConfig(mcpServers)
+        );
+        configPrefix = `OPENCODE_CONFIG=${OPENCODE_CONFIG_PATH} `;
+      }
 
       const flags = [
         'run',
@@ -181,21 +183,11 @@ export function createOpencodeRunner(
 }
 
 /**
- * opencode's `OPENCODE_CONFIG`.
- *
- * The model is declared under the native `vercel` provider because opencode
- * otherwise resolves models against its models.dev catalog, fetched at run
- * time: when that fetch fails it silently falls back to the CLI's bundled
- * snapshot, and a model newer than the pinned CLI (e.g. Kimi K3 on 1.15.7)
- * intermittently dies with "Model not found". Declaring it makes resolution
- * deterministic.
- *
- * MCP servers map onto `{ mcp: { name: { type: "local", command: [...],
- * environment } } }` (the harness's `{command,args,env}` → a single `command`
- * array plus `environment`).
+ * opencode's `OPENCODE_CONFIG`. MCP servers map onto `{ mcp: { name: { type:
+ * "local", command: [...], environment } } }` (the harness's `{command,args,env}`
+ * → a single `command` array plus `environment`).
  */
 export function buildOpencodeConfig(
-  model: string,
   servers: Record<string, McpServerConfig>
 ): string {
   const mcp: Record<string, McpLocalConfig> = {};
@@ -208,12 +200,9 @@ export function buildOpencodeConfig(
     };
   }
   // Typed against opencode's own `Config` schema, so a config-shape change on a
-  // CLI bump (mcp/provider layout) fails to compile instead of silently at runtime.
+  // CLI bump (mcp layout) fails to compile instead of silently at runtime.
   const config: Config = {
     $schema: 'https://opencode.ai/config.json',
-    provider: {
-      [GATEWAY_PROVIDER_ID]: { models: { [model]: {} } },
-    },
     mcp,
   };
   return JSON.stringify(config, null, 2);

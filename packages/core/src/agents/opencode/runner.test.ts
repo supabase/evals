@@ -59,7 +59,7 @@ describe('opencode runner', () => {
 
   it("builds opencode's MCP config shape from harness server configs", () => {
     const config = JSON.parse(
-      buildOpencodeConfig('moonshotai/kimi-k3', {
+      buildOpencodeConfig({
         supabase: { command: 'npx', args: ['-y', 'srv'], env: { TOKEN: 't' } },
         docs: { command: 'docs-server' },
       })
@@ -73,13 +73,6 @@ describe('opencode runner', () => {
       },
       // No env → no `environment` key.
       docs: { type: 'local', command: ['docs-server'], enabled: true },
-    });
-  });
-
-  it('declares the model under the vercel provider so resolution skips the models.dev catalog', () => {
-    const config = JSON.parse(buildOpencodeConfig('moonshotai/kimi-k3', {}));
-    expect(config.provider).toEqual({
-      vercel: { models: { 'moonshotai/kimi-k3': {} } },
     });
   });
 });
@@ -134,11 +127,9 @@ describe('opencode runner exec routing', () => {
     expect(config?.mcp).toHaveProperty('supabase');
   });
 
-  it('writes the model-declaring config even without MCP servers', async () => {
+  it('skips the config file when there are no MCP servers', async () => {
     const { runCommand, config } = await captureExec('moonshotai/kimi-k3');
-    expect(config?.provider).toEqual({
-      vercel: { models: { 'moonshotai/kimi-k3': {} } },
-    });
-    expect(runCommand).toContain('OPENCODE_CONFIG=');
+    expect(config).toBeUndefined();
+    expect(runCommand).not.toContain('OPENCODE_CONFIG=');
   });
 });
