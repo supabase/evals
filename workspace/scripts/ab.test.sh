@@ -28,9 +28,12 @@ RES="results/$EXP/$EVAL.json"
 # only now (after selecting a clean file) arm cleanup: revert our own edit, drop fixtures
 MCP=submodules/mcp
 MCPREL=packages/mcp-server-supabase/src/transports/stdio.ts
+MCP_MUTATED=0   # cleanup may only revert $MCPREL if THIS test wrote to it — a
+                # user's own unstaged edit there skips the fixture block below,
+                # and must survive the run untouched.
 cleanup() {
   git -C "$SK" checkout -q -- "$REL" 2>/dev/null || true
-  [ -e "$MCP/.git" ] && git -C "$MCP" checkout -q -- "$MCPREL" 2>/dev/null || true
+  [ "$MCP_MUTATED" = 1 ] && git -C "$MCP" checkout -q -- "$MCPREL" 2>/dev/null || true
   rm -f "$RES" "results-ab/$EVAL".*.json
 }
 trap cleanup EXIT
@@ -96,6 +99,7 @@ ck "explains staged-index refusal"   "$(grep -c 'staged changes' /tmp/ab_selftes
 # commit must be untouched on both success and mid-run failure ---
 if [ -e "$MCP/.git" ] && git -C "$MCP" diff --quiet -- "$MCPREL" && git -C "$MCP" diff --cached --quiet --ita-visible-in-index; then
   marker0=$(git -C "$MCP" rev-parse HEAD)
+  MCP_MUTATED=1
   printf '\n// ab-selftest edit\n' >> "$MCP/$MCPREL"
   edited2=$(git -C "$MCP" hash-object "$MCPREL")
   ANTHROPIC_API_KEY=dummy AB_EVAL_CMD="$FAKE" AB_SYNC_CMD="$SYNC" bash workspace/scripts/ab.sh "$EVAL" "$EXP" "$MCP/$MCPREL" >/tmp/ab_selftest6.out 2>&1 \

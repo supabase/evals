@@ -38,11 +38,13 @@ put keys in the repo-root `.env` (the fallback `status` will route you to).
 - **Docs loop** (heavy: Docker + supabase CLI): `docs-up` → `docs-seed` (spends
   OpenAI money once, ~$0.12; always confirm with the user first) → `docs-api`
   serves the content GraphQL API for `search_docs`; `docs-index` re-embeds
-  changed pages incrementally. Content DB ports are 55321+ to avoid the eval
-  local-stack range (54321-9). Measuring docs impact needs a tools-mode
-  (`interface: mcp`) eval whose answer lives only in the docs.
-- `mise run affected -- <paths…>` maps changed source paths to a ready
-  `mise run eval …` line.
+  changed pages incrementally. To measure a docs edit, point an eval run at
+  the local index through the local server build:
+  `SUPABASE_CONTENT_API_URL=http://127.0.0.1:3001/docs/api/graphql mise run mcp-eval -- --eval <id>`
+  (or just use `mise run ab`, which wires this automatically). Content DB
+  ports are 55321+ to avoid the eval local-stack range (54321-9). Measuring
+  docs impact needs a tools-mode (`interface: mcp`) eval whose answer lives
+  only in the docs.
 
 ## Head-to-head A/B
 

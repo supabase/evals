@@ -77,15 +77,12 @@ const gitRaw = (dir, ...args) => {
 };
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 
-const repoState = (dir) => {
-  const dirty = (git(dir, "status", "--porcelain") ?? "").length > 0;
-  // Hash the TRACKED diff only when there is one: an untracked-only dirty
-  // tree keeps dirty:true but dirty_diff_sha256:null (the untracked list
-  // below carries that state) — a hash-of-empty-diff here would mislead.
-  const trackedDiff = dirty ? gitRaw(dir, "diff", "HEAD", "--binary") : null;
-  // Untracked files are invisible to `git diff HEAD` but are real workspace
-  // state (e.g. a brand-new guide page) — record path + content hash, sorted.
-  const untracked = (git(dir, "ls-files", "--others", "--exclude-standard") ?? "")
+// Untracked files are invisible to `git diff HEAD` but are real workspace
+// state (e.g. a brand-new guide page) — record path + content hash, sorted.
+// One implementation for both the whole-repo receipt and the docs-scoped
+// stamp, so the two can never fingerprint untracked state differently.
+const hashUntracked = (dir, ...pathspec) =>
+  (git(dir, "ls-files", "--others", "--exclude-standard", ...pathspec) ?? "")
     .split("\n")
     .filter(Boolean)
     .sort()
@@ -96,6 +93,14 @@ const repoState = (dir) => {
         return { path: p, sha256: null };
       }
     });
+
+const repoState = (dir) => {
+  const dirty = (git(dir, "status", "--porcelain") ?? "").length > 0;
+  // Hash the TRACKED diff only when there is one: an untracked-only dirty
+  // tree keeps dirty:true but dirty_diff_sha256:null (the untracked list
+  // below carries that state) — a hash-of-empty-diff here would mislead.
+  const trackedDiff = dirty ? gitRaw(dir, "diff", "HEAD", "--binary") : null;
+  const untracked = hashUntracked(dir);
   return {
     branch: git(dir, "rev-parse", "--abbrev-ref", "HEAD"),
     sha: git(dir, "rev-parse", "HEAD"),
@@ -222,18 +227,8 @@ if (cmd === "--stamp-docs-index") {
     }
     const dirtyDiff = gitRaw("supabase", "diff", "HEAD", "--binary", "--", DOCS_CONTENT_DIR);
     // Untracked corpus files (a brand-new guide) are part of the embedded state
-    // but invisible to `git diff HEAD` — record them path + content hash, sorted.
-    const contentUntracked = (git("supabase", "ls-files", "--others", "--exclude-standard", "--", DOCS_CONTENT_DIR) ?? "")
-      .split("\n")
-      .filter(Boolean)
-      .sort()
-      .map((p) => {
-        try {
-          return { path: p, sha256: sha256(readFileSync(join(root, "supabase", p))) };
-        } catch {
-          return { path: p, sha256: null };
-        }
-      });
+    // but invisible to `git diff HEAD` — scoped to the docs content slice.
+    const contentUntracked = hashUntracked("supabase", "--", DOCS_CONTENT_DIR);
     const pipeline = embedPipelineConfig();
     const stamp = {
       generated_at: new Date().toISOString(),

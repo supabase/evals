@@ -162,7 +162,12 @@ async function main(): Promise<void> {
   if (docsTokens.size > 0) {
     const ids = matchingEvalIds(evals, docsTokens);
     if (ids.length > 0) {
-      console.log(`mise run eval -- ${ids.map((id) => `--eval ${id}`).join(" ")}`);
+      // Docs impact is only measurable against the LOCAL index: the local mcp
+      // build (mcp-eval) pointed at the local content API. A bare `mise run
+      // eval` would query the production docs API and never see the edit.
+      console.log(
+        `SUPABASE_CONTENT_API_URL=http://127.0.0.1:3001/docs/api/graphql mise run mcp-eval -- ${ids.map((id) => `--eval ${id}`).join(" ")}   # needs: mise run docs-index && mise run docs-api`,
+      );
       commandCount++;
     }
   }
@@ -175,13 +180,15 @@ async function main(): Promise<void> {
       }
     }
     if (ids.size > 0) {
-      console.log(`mise run eval -- ${[...ids].sort().map((id) => `--eval ${id}`).join(" ")}`);
+      // mcp-eval builds submodules/mcp and selects it via SUPABASE_MCP_SERVER_PATH;
+      // a bare `mise run eval` would run the published npx server instead.
+      console.log(`mise run mcp-eval -- ${[...ids].sort().map((id) => `--eval ${id}`).join(" ")}`);
       commandCount++;
     }
   }
 
   if (serverWide) {
-    console.log("mise run eval -- --smoke");
+    console.log("mise run mcp-eval -- --smoke");
     commandCount++;
   }
 
