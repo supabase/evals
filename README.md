@@ -63,24 +63,25 @@ pnpm eval -- \
 Evals launch `@supabase/mcp-server-supabase` via npx, pinned to the version in
 `MCP_SERVER_VERSION` (`packages/core/src/index.ts`). To eval an exact source
 revision instead — an unpublished branch, a PR, or the pinned submodule —
-build it and point the harness at the build:
+build it and run against the build:
 
 ```bash
-# submodules/mcp is pinned at the release tag for the npx version above
-git submodule update --init submodules/mcp
-(cd submodules/mcp && pnpm install && pnpm build)
-
-SUPABASE_MCP_SERVER_PATH="$PWD/submodules/mcp/packages/mcp-server-supabase" \
-  pnpm eval -- --eval <id> --experiment <exp>
+pnpm mcp:build   # init submodules/mcp + pnpm install + build (rerun after source edits)
+pnpm eval:local-mcp -- --eval <id> --experiment <exp>
 ```
 
-`SUPABASE_MCP_SERVER_PATH` accepts a package dir (launches
-`dist/transports/stdio.js`) or a direct `.js`/`.mjs`/`.cjs` entrypoint path;
-prefer absolute paths (relative ones resolve against the eval process CWD).
-The path is existence-checked at config time, so an unbuilt checkout fails
-fast with a pointer back here. To test a different revision, check out any
-commit inside `submodules/mcp` and rebuild — the gitlink pin only moves when
-a bump is committed here.
+`eval:local-mcp` is `pnpm eval` with `SUPABASE_MCP_SERVER_PATH` prefilled to
+the submodule's server package. To test a different revision, check out any
+commit inside `submodules/mcp` and `pnpm mcp:build` again — the gitlink pin
+only moves when a bump is committed here. Containerized agents (Claude Code,
+Codex) see the build through a read-only bind mount of the checkout, so a
+host-side rebuild is picked up by the next run with no extra copying.
+
+For a build outside the submodule, set `SUPABASE_MCP_SERVER_PATH` yourself: it
+accepts a package dir (launches `dist/transports/stdio.js`) or a direct
+`.js`/`.mjs`/`.cjs` entrypoint path; relative paths resolve against this
+repo's root. The path is existence-checked at config time, so an unbuilt
+checkout fails fast with a pointer back here.
 
 Note the pin tracks the published npm package's source (via its release tag),
 not the hosted production deployment — the prod deploy commit is separate

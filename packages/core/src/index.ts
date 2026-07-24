@@ -1,10 +1,10 @@
 import vm from "node:vm";
 import { createRequire } from "node:module";
 import { createHash, createHmac } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { createServer } from "node:net";
 import { promisify } from "node:util";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -399,6 +399,20 @@ export type AgentHarness = {
  */
 export type SkillSource = { name: string; dir: string };
 
+/**
+ * A host directory bind-mounted into the agent sandbox. Read-only by default;
+ * mounted at the identical container path unless `containerPath` overrides it
+ * (identical paths let one command config work on both host and container).
+ */
+export type SandboxMount = {
+  /** Host directory to mount. */
+  hostPath: string;
+  /** Mount point inside the container; defaults to `hostPath`. */
+  containerPath?: string;
+  /** Mount read-only (default true). */
+  readonly?: boolean;
+};
+
 export type LocalStackSessionArgs = {
   /** Supabase CLI version this scenario requires, overriding the runtime default. */
   cliVersion?: string;
@@ -434,6 +448,12 @@ export type LocalStackSessionArgs = {
    * instead, so they ignore this.
    */
   skills?: readonly SkillSource[];
+  /**
+   * Extra host directories to bind-mount into the sandbox (read-only by
+   * default) — e.g. a local MCP server build the in-container agent must be
+   * able to launch. See `supabaseMcpServerMounts`.
+   */
+  mounts?: readonly SandboxMount[];
 };
 
 /** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */
@@ -892,8 +912,6 @@ export function supabaseMcpServer(
   return {
     name: "supabase-mcp",
     async createConfig({ apiUrl, accessToken } = {}) {
-      const localServerPath = process.env.SUPABASE_MCP_SERVER_PATH;
-
       // Server flags are identical whether we launch the published package via
       // npx or a local build directly with node.
       const serverArgs = [
@@ -910,26 +928,13 @@ export function supabaseMcpServer(
       // docs-only server runs standalone with no `--api-url`.
       if (apiUrl) serverArgs.push("--api-url", apiUrl);
 
-      // SUPABASE_MCP_SERVER_PATH swaps the published npx package for a local
-      // build (a repo/package dir or a direct .js/.mjs/.cjs entrypoint), so a
-      // workspace can test an unpublished server change without publishing to
-      // npm. Relative paths resolve against the eval process CWD — prefer
-      // absolute paths.
-      if (localServerPath) {
-        const entry = resolve(
-          /\.[cm]?js$/.test(localServerPath)
-            ? localServerPath
-            : join(localServerPath, "dist", "transports", "stdio.js"),
-        );
-        if (!existsSync(entry)) {
-          throw new Error(
-            `SUPABASE_MCP_SERVER_PATH resolved to ${entry}, which does not exist — ` +
-              `build the server first (pnpm install && pnpm build in the mcp checkout); ` +
-              `see README "Running against an exact MCP server revision".`,
-          );
-        }
+      const local = resolveLocalMcpServer();
+      if (local) {
+        // `node`, not process.execPath: CLI agents run this command INSIDE the
+        // sandbox container, where the host's node binary path does not exist.
+        // Both container and host resolve `node` via PATH.
         return {
-          config: { command: process.execPath, args: [entry, ...serverArgs] },
+          config: { command: "node", args: [local.entry, ...serverArgs] },
         };
       }
 
@@ -941,6 +946,62 @@ export function supabaseMcpServer(
       };
     },
   };
+}
+
+/**
+ * SUPABASE_MCP_SERVER_PATH swaps the published npx package for a local build
+ * (a repo/package dir or a direct .js/.mjs/.cjs entrypoint), so a workspace
+ * can test an unpublished server change without publishing to npm. Relative
+ * paths resolve against the evals checkout root (not the process CWD), so
+ * `submodules/mcp/packages/mcp-server-supabase` works from any directory.
+ */
+function resolveLocalMcpServer(): { entry: string; baseDir: string } | null {
+  const localServerPath = process.env.SUPABASE_MCP_SERVER_PATH;
+  if (!localServerPath) return null;
+
+  const anchor =
+    gitToplevel(dirname(fileURLToPath(import.meta.url))) ?? process.cwd();
+  const isEntryFile = /\.[cm]?js$/.test(localServerPath);
+  const base = resolve(anchor, localServerPath);
+  const entry = isEntryFile ? base : join(base, "dist", "transports", "stdio.js");
+  if (!existsSync(entry)) {
+    throw new Error(
+      `SUPABASE_MCP_SERVER_PATH resolved to ${entry}, which does not exist — ` +
+        `build the server first (pnpm install && pnpm build in the mcp checkout); ` +
+        `see README "Running against an exact MCP server revision".`,
+    );
+  }
+  return { entry, baseDir: isEntryFile ? dirname(base) : base };
+}
+
+function gitToplevel(dir: string): string | null {
+  try {
+    return execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: dir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sandbox mounts required to launch the SUPABASE_MCP_SERVER_PATH build inside
+ * a containerized agent sandbox. A CLI agent's MCP command runs INSIDE the
+ * container, where the host build is invisible — so the build's checkout is
+ * bind-mounted read-only at its identical path, letting the same config work
+ * on both sides, with host rebuilds visible immediately (no re-copy). The
+ * whole git toplevel is mounted (not just dist/) because the build is
+ * unbundled: it requires its node_modules at runtime. Empty when unset.
+ */
+export function supabaseMcpServerMounts(): SandboxMount[] {
+  const local = resolveLocalMcpServer();
+  if (!local) return [];
+  // Real path (git already reports one): Docker resolves bind-mount sources
+  // against the daemon's filesystem view, where e.g. macOS /var symlinks miss.
+  const root = gitToplevel(local.baseDir) ?? realpathSync(local.baseDir);
+  return [{ hostPath: root, readonly: true }];
 }
 
 export function executorMcpServer(): McpServerDefinition {

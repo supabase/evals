@@ -1,8 +1,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
-import { MCP_SERVER_VERSION, supabaseMcpServer } from "./index.js";
+import {
+  MCP_SERVER_VERSION,
+  supabaseMcpServer,
+  supabaseMcpServerMounts,
+} from "./index.js";
 
 // Stub (not mutate) env so pre-existing SUPABASE_* values are restored per test.
 function clearEnv() {
@@ -40,7 +45,7 @@ describe("supabaseMcpServer().createConfig", () => {
     clearEnv();
     vi.stubEnv("SUPABASE_MCP_SERVER_PATH", fixtureDir);
     const { config } = await supabaseMcpServer().createConfig({});
-    expect(config.command).toBe(process.execPath);
+    expect(config.command).toBe("node");
     expect(config.args[0]).toBe(fixtureEntry);
   });
 
@@ -68,5 +73,50 @@ describe("supabaseMcpServer().createConfig", () => {
     await expect(supabaseMcpServer().createConfig({})).rejects.toThrow(
       /does not exist.*build the server first/s,
     );
+  });
+  it("resolves a relative override path against the evals checkout root", async () => {
+    clearEnv();
+    const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    }).trim();
+    vi.stubEnv("SUPABASE_MCP_SERVER_PATH", relative(repoRoot, fixtureEntry));
+    const { config } = await supabaseMcpServer().createConfig({});
+    expect(config.args[0]).toBe(fixtureEntry);
+  });
+});
+
+describe("supabaseMcpServerMounts", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("is empty when no override is set", () => {
+    clearEnv();
+    expect(supabaseMcpServerMounts()).toEqual([]);
+  });
+  it("mounts the override checkout root read-only (a CLI agent's MCP command runs in-container)", () => {
+    clearEnv();
+    // A git checkout wrapping the package dir: the mount must cover the whole
+    // checkout (the unbundled build needs its node_modules), not just dist/.
+    const checkout = realpathSync(mkdtempSync(join(tmpdir(), "mcp-mount-")));
+    try {
+      execFileSync("git", ["init", "-q"], { cwd: checkout });
+      const pkgDir = join(checkout, "packages", "server");
+      mkdirSync(join(pkgDir, "dist", "transports"), { recursive: true });
+      writeFileSync(join(pkgDir, "dist", "transports", "stdio.js"), "");
+      vi.stubEnv("SUPABASE_MCP_SERVER_PATH", pkgDir);
+      expect(supabaseMcpServerMounts()).toEqual([
+        { hostPath: checkout, readonly: true },
+      ]);
+    } finally {
+      rmSync(checkout, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to the package dir when the override is not inside a git checkout", () => {
+    clearEnv();
+    vi.stubEnv("SUPABASE_MCP_SERVER_PATH", fixtureDir);
+    expect(supabaseMcpServerMounts()).toEqual([
+      { hostPath: realpathSync(fixtureDir), readonly: true },
+    ]);
   });
 });

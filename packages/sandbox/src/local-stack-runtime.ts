@@ -79,6 +79,7 @@ export function localStackRuntime(
       projectRunning,
       hosted,
       skills,
+      mounts,
     }) {
       // Local-stack mode = the shared agent environment with the Supabase local
       // stack started. Everything else (image, tooling, skills) is identical to
@@ -87,6 +88,7 @@ export function localStackRuntime(
         cliVersion: cliVersion ?? options.cliVersion,
         localDir,
         skills,
+        mounts,
         localStack: {
           includeServices,
           projectRunning,
