@@ -2,7 +2,12 @@
 # fail-closed patch check, key loading, docs env, local-stack credentials, and
 # the OpenAI preflight. Source from the repo root (the callers cd there first);
 # not executable on its own.
-if ! git -C submodules/supabase apply --reverse --check "$PWD/workspace/patches/supabase-docs-index-fail-closed.patch" 2>/dev/null; then
+# Marker-commit check (same invariant apply-patches verifies with tree
+# identity). NOT a textual reverse-apply: stacked patches legitimately touch
+# the same lines (lint-warnings-skip extends fail-closed's purge), which
+# breaks reverse-apply against the final tree while the plumbing is fine.
+if ! git -C submodules/supabase log --format=%s HEAD --not --remotes 2>/dev/null \
+    | grep -qxF '[eval-workspace-upstream] supabase-docs-index-fail-closed'; then
   echo 'ERROR: fail-closed index patch is not applied; run workspace/scripts/apply-patches.sh' >&2
   exit 1
 fi
