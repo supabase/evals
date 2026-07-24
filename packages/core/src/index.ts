@@ -963,15 +963,26 @@ function resolveLocalMcpServer(): { entry: string; baseDir: string } | null {
     gitToplevel(dirname(fileURLToPath(import.meta.url))) ?? process.cwd();
   const isEntryFile = /\.[cm]?js$/.test(localServerPath);
   const base = resolve(anchor, localServerPath);
-  const entry = isEntryFile ? base : join(base, "dist", "transports", "stdio.js");
-  if (!existsSync(entry)) {
+  const probe = isEntryFile ? base : join(base, "dist", "transports", "stdio.js");
+  if (!existsSync(probe)) {
     throw new Error(
-      `SUPABASE_MCP_SERVER_PATH resolved to ${entry}, which does not exist — ` +
+      `SUPABASE_MCP_SERVER_PATH resolved to ${probe}, which does not exist — ` +
         `build the server first (pnpm install && pnpm build in the mcp checkout); ` +
         `see README "Running against an exact MCP server revision".`,
     );
   }
-  return { entry, baseDir: isEntryFile ? dirname(base) : base };
+  // One filesystem view for command AND mount: the sandbox bind-mounts the
+  // realpath (Docker resolves sources against the daemon's view), so the
+  // command must reference the same view — an override under a symlinked dir
+  // (macOS /tmp -> /private/tmp) would otherwise exec a path that does not
+  // exist in-container. Canonicalize the BASE once and derive the entry from
+  // it (never realpath the entry separately: a symlinked dist/ target could
+  // resolve outside the mounted baseDir).
+  const realBase = realpathSync(base);
+  return {
+    entry: isEntryFile ? realBase : join(realBase, "dist", "transports", "stdio.js"),
+    baseDir: isEntryFile ? dirname(realBase) : realBase,
+  };
 }
 
 function gitToplevel(dir: string): string | null {
@@ -998,9 +1009,10 @@ function gitToplevel(dir: string): string | null {
 export function supabaseMcpServerMounts(): SandboxMount[] {
   const local = resolveLocalMcpServer();
   if (!local) return [];
-  // Real path (git already reports one): Docker resolves bind-mount sources
-  // against the daemon's filesystem view, where e.g. macOS /var symlinks miss.
-  const root = gitToplevel(local.baseDir) ?? realpathSync(local.baseDir);
+  // baseDir is already realpath'd (resolveLocalMcpServer): Docker resolves
+  // bind-mount sources against the daemon's filesystem view, where e.g.
+  // macOS /var symlinks miss.
+  const root = gitToplevel(local.baseDir) ?? local.baseDir;
   return [{ hostPath: root, readonly: true }];
 }
 

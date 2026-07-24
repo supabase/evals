@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -19,7 +19,10 @@ function clearEnv() {
 let fixtureDir: string;
 let fixtureEntry: string;
 beforeAll(() => {
-  fixtureDir = mkdtempSync(join(tmpdir(), "mcp-override-"));
+  // realpath'd: the resolver realpaths the override (command must match the
+  // container mount view), so unresolved tmpdir paths (macOS /var symlink)
+  // would fail every exact-path assertion below.
+  fixtureDir = realpathSync(mkdtempSync(join(tmpdir(), "mcp-override-")));
   fixtureEntry = join(fixtureDir, "dist", "transports", "stdio.js");
   mkdirSync(join(fixtureDir, "dist", "transports"), { recursive: true });
   writeFileSync(fixtureEntry, "");
@@ -83,6 +86,23 @@ describe("supabaseMcpServer().createConfig", () => {
     vi.stubEnv("SUPABASE_MCP_SERVER_PATH", relative(repoRoot, fixtureEntry));
     const { config } = await supabaseMcpServer().createConfig({});
     expect(config.args[0]).toBe(fixtureEntry);
+  });
+
+  it("realpaths a symlinked override so the command matches the container mount", async () => {
+    clearEnv();
+    const linkDir = mkdtempSync(join(tmpdir(), "mcp-link-"));
+    const link = join(linkDir, "pkg");
+    symlinkSync(fixtureDir, link);
+    try {
+      vi.stubEnv("SUPABASE_MCP_SERVER_PATH", link);
+      const { config } = await supabaseMcpServer().createConfig({});
+      expect(config.args[0]).toBe(fixtureEntry); // the real path, not the symlink
+      expect(supabaseMcpServerMounts()).toEqual([
+        { hostPath: realpathSync(fixtureDir), readonly: true },
+      ]);
+    } finally {
+      rmSync(linkDir, { recursive: true, force: true });
+    }
   });
 });
 
