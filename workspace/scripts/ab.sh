@@ -108,8 +108,10 @@ run_eval() { # $1 = label
   [ -f "$RES" ] || { echo "no result at $RES — check the eval/experiment ids" >&2; exit 1; }
   cp "$RES" "$OUT/$EVAL.$1.json"
   # per-arm receipt: capture provenance AFTER this arm's sync, so baseline and
-  # treatment records differ by exactly the edit under test (report-only)
-  node workspace/scripts/provenance.mjs --embed "$OUT/$EVAL.$1.json"
+  # treatment records differ by exactly the edit under test (report-only).
+  # Same env as the run itself, or the receipt would claim mcp_override: null
+  # while the eval actually ran against the local build.
+  env ${RUN_ENV[@]+"${RUN_ENV[@]}"} node workspace/scripts/provenance.mjs --embed "$OUT/$EVAL.$1.json"
 }
 
 # Restoration is ONE idempotent path: pop the stash AND re-sync, so the index/

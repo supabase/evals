@@ -64,7 +64,12 @@ run = "workspace/scripts/apply-patches.sh"
 
 [tasks.mcp-build]
 description = "Build the mcp submodule with the enabler patches applied"
-run = "git submodule update --init submodules/mcp && workspace/scripts/apply-patches.sh && pnpm mcp:build"
+# Order matters: `git submodule update` on an initialized submodule re-checks
+# out the pin, ORPHANING the patch marker commit (and any user commits) — so
+# init strictly BEFORE apply-patches, and never again after (which is why this
+# does not delegate to the root `pnpm mcp:build`, whose first step is another
+# submodule update; that script is the evals-native unpatched flow).
+run = "git submodule update --init submodules/mcp && pnpm --dir submodules/mcp install && workspace/scripts/apply-patches.sh && pnpm --dir submodules/mcp build"
 
 [tasks.mcp-eval]
 description = "Run evals against the local mcp build (auto init+patch+build)"

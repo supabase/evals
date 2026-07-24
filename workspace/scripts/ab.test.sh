@@ -107,6 +107,10 @@ if [ -e "$MCP/.git" ] && git -C "$MCP" diff --quiet -- "$MCPREL" && git -C "$MCP
     || { echo "FAIL: patch-owned A/B exited nonzero"; sed 's/^/  /' /tmp/ab_selftest6.out; fail=$((fail+1)); }
   ck "patch-owned: edit preserved"              "$(git -C "$MCP" hash-object "$MCPREL")" "$edited2"
   ck "patch-owned: marker commit intact"        "$(git -C "$MCP" rev-parse HEAD)" "$marker0"
+  # the arm receipt must record the override the run actually used (mcp loop
+  # sets SUPABASE_MCP_SERVER_PATH); a null here mislabels the arm
+  ck "patch-owned: receipt records mcp override" \
+     "$(node -p 'try{require("./results-ab/ab-selftest.treatment.json").provenance.mcp_override.path?"y":"n"}catch{"n"}')" "y"
   AB_FAIL_BASELINE=1 ANTHROPIC_API_KEY=dummy AB_EVAL_CMD="$FAKE" AB_SYNC_CMD="$SYNC" bash workspace/scripts/ab.sh "$EVAL" "$EXP" "$MCP/$MCPREL" >/dev/null 2>&1 || true
   ck "patch-owned: edit restored after failure" "$(git -C "$MCP" hash-object "$MCPREL")" "$edited2"
   ck "patch-owned: marker intact after failure" "$(git -C "$MCP" rev-parse HEAD)" "$marker0"
