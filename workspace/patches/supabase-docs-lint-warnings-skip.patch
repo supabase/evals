@@ -1,0 +1,15 @@
+diff --git a/apps/docs/scripts/search/sources/lint-warnings-guide.ts b/apps/docs/scripts/search/sources/lint-warnings-guide.ts
+index d28a57a27f..0207f87504 100644
+--- a/apps/docs/scripts/search/sources/lint-warnings-guide.ts
++++ b/apps/docs/scripts/search/sources/lint-warnings-guide.ts
+@@ -29,6 +29,10 @@ export class LintWarningsGuideLoader extends BaseLoader {
+ 
+   async load() {
+     if (!appId || !installationId || !privateKey) {
++      if (process.env.DOCS_EMBED_ALLOW_MISSING_SOURCES) {
++        console.warn('Skipping lint-warnings guide source: DOCS_GITHUB_APP_* not set (DOCS_EMBED_ALLOW_MISSING_SOURCES)')
++        return []
++      }
+       throw new Error('Missing DOCS_GITHUB_APP_* environment variables')
+     }
+ 

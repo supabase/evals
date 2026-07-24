@@ -1,0 +1,135 @@
+diff --git a/apps/docs/scripts/search/sources/reference-doc.test.ts b/apps/docs/scripts/search/sources/reference-doc.test.ts
+new file mode 100644
+index 0000000000..38f5cc9c0b
+--- /dev/null
++++ b/apps/docs/scripts/search/sources/reference-doc.test.ts
+@@ -0,0 +1,100 @@
++import { mkdtemp, rm, writeFile } from 'node:fs/promises'
++import { existsSync } from 'node:fs'
++import { tmpdir } from 'node:os'
++import { join } from 'node:path'
++import { afterAll, describe, expect, it } from 'vitest'
++
++import { loadClientLibReferenceFromNewPipeline } from './reference-doc'
++
++/**
++ * Regression tests for duplicate entries in the new reference pipeline's
++ * sections.json: some trees repeat an entry (a category node and its overview
++ * child share id + slug), which used to emit two sources for one page path.
++ * Both sections then inserted under one page while the page's expected count
++ * came from the last source only, so the embed script flagged the page failed
++ * on every run (inserted 2/1) and the index could never complete.
++ */
++
++const tmpDirs: string[] = []
++afterAll(async () => {
++  await Promise.all(tmpDirs.map((dir) => rm(dir, { recursive: true, force: true })))
++})
++
++async function fixture(sections: unknown, functions: unknown): Promise<string> {
++  const dir = await mkdtemp(join(tmpdir(), 'reference-doc-test-'))
++  tmpDirs.push(dir)
++  await writeFile(join(dir, 'sections.json'), JSON.stringify(sections))
++  await writeFile(join(dir, 'functions.json'), JSON.stringify(functions))
++  await writeFile(join(dir, 'typeSpec.json'), JSON.stringify({ methods: {} }))
++  return dir
++}
++
++describe('loadClientLibReferenceFromNewPipeline', () => {
++  it('emits one source when a category node and its child repeat id + slug', async () => {
++    const contentDir = await fixture(
++      [
++        {
++          id: 'auth-admin',
++          slug: 'auth-admin',
++          title: 'Auth Admin',
++          type: 'function',
++          items: [{ id: 'auth-admin', slug: 'auth-admin', title: 'Overview', type: 'function' }],
++        },
++      ],
++      [{ id: 'auth-admin', title: 'Auth Admin', description: 'admin methods' }]
++    )
++
++    const sources = await loadClientLibReferenceFromNewPipeline({
++      source: 'js-lib',
++      path: '/reference/javascript',
++      meta: { title: 'JavaScript Reference' },
++      contentDir,
++    })
++
++    expect(sources.map((s) => s.path)).toEqual(['/reference/javascript/auth-admin'])
++  })
++
++  it('keeps the first flattened section when different ids share a slug', async () => {
++    const contentDir = await fixture(
++      [
++        { id: 'first-id', slug: 'dup-slug', title: 'First', type: 'function' },
++        { id: 'second-id', slug: 'dup-slug', title: 'Second', type: 'function' },
++      ],
++      [
++        { id: 'first-id', title: 'First fn', description: 'a' },
++        { id: 'second-id', title: 'Second fn', description: 'b' },
++      ]
++    )
++
++    const sources = await loadClientLibReferenceFromNewPipeline({
++      source: 'js-lib',
++      path: '/reference/javascript',
++      meta: { title: 'JavaScript Reference' },
++      contentDir,
++    })
++
++    expect(sources).toHaveLength(1)
++    expect(sources[0].path).toBe('/reference/javascript/dup-slug')
++    // deterministic winner: the first flattened section (matches the renderer's
++    // getFlattenedSections(...).find(...) lookup, which also takes the first)
++    expect(sources[0].extractTitle()).toBe('First fn')
++  })
++
++  // The real generated outputs are what production embeds; assert the invariant
++  // the page upsert depends on (path uniqueness) holds for them.
++  it.each(['javascript', 'dart'])('emits unique page paths for %s/v2', async (lib) => {
++    const contentDir = `content/reference/${lib}/v2`
++    if (!existsSync(join(contentDir, 'sections.json'))) return // sparse checkout without generated content
++
++    const sources = await loadClientLibReferenceFromNewPipeline({
++      source: `${lib}-lib`,
++      path: `/reference/${lib}`,
++      meta: { title: `${lib} Reference` },
++      contentDir,
++    })
++
++    const paths = sources.map((s) => s.path)
++    expect(new Set(paths).size).toBe(paths.length)
++    expect(paths.length).toBeGreaterThan(0)
++  })
++})
+diff --git a/apps/docs/scripts/search/sources/reference-doc.ts b/apps/docs/scripts/search/sources/reference-doc.ts
+index 2e433746fe..eb81c75bcf 100644
+--- a/apps/docs/scripts/search/sources/reference-doc.ts
++++ b/apps/docs/scripts/search/sources/reference-doc.ts
+@@ -332,14 +332,23 @@ export async function loadClientLibReferenceFromNewPipeline({
+ 
+   const flattened = flattenSections(refSections)
+ 
++  // sections.json repeats some entries (a category node and its overview child
++  // share id + slug), and both resolve to the same spec entry, so keeping the
++  // duplicate would create two sources for one page path: sections double-insert
++  // and the page's inserted/expected bookkeeping fails. Keep the first.
++  const seenPaths = new Set<string>()
++
+   return flattened
+     .map((refSection) => {
+       const specSection = enriched.find((e) => e.id === refSection.id)
+       if (!specSection) return undefined
++      const pagePath = `${path}/${refSection.slug}`
++      if (seenPaths.has(pagePath)) return undefined
++      seenPaths.add(pagePath)
+       const titleForMeta = specSection.title || refSection.title
+       return new ClientLibReferenceSource(
+         source,
+-        `${path}/${refSection.slug}`,
++        pagePath,
+         refSection,
+         specSection,
+         { ...meta, slug: specSection.id, methodName: titleForMeta }

@@ -1,0 +1,44 @@
+diff --git a/apps/docs/resources/guide/guideModelLoader.ts b/apps/docs/resources/guide/guideModelLoader.ts
+index 551bd98abf..219b2450a1 100644
+--- a/apps/docs/resources/guide/guideModelLoader.ts
++++ b/apps/docs/resources/guide/guideModelLoader.ts
+@@ -1,6 +1,7 @@
+ import matter from 'gray-matter'
+ import { promises as fs } from 'node:fs'
+ import { join, relative, resolve } from 'node:path'
++import { createHash } from 'node:crypto'
+ 
+ import { extractMessageFromAnyError, FileNotFoundError, MultiError } from '~/app/api/utils'
+ import { preprocessMdxWithDefaults } from '~/features/directives/utils'
+@@ -117,6 +118,11 @@ export class GuideModelLoader {
+         // Process MDX to get chunked sections for embedding
+         const { sections } = await processMdx(processedContent)
+ 
++        // Content checksum so docs-index can detect guide edits (without this,
++        // GuideModel had no checksum -> normalized to '' -> every guide compared
++        // equal forever and incremental re-embed never fired for guides).
++        const checksum = createHash('sha256').update(processedContent).digest('base64')
++
+         // Create subsections from the chunked sections
+         const subsections = sections.map((section) => ({
+           title: section.heading,
+@@ -133,6 +139,7 @@ export class GuideModelLoader {
+         return new GuideModel({
+           title,
+           href,
++          checksum,
+           content: processedContent,
+           metadata,
+           subsections,
+@@ -140,9 +147,9 @@ export class GuideModelLoader {
+       },
+       (error) => {
+         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+-          throw new FileNotFoundError('', error)
++          return new FileNotFoundError('', error)
+         }
+-        throw new Error(
++        return new Error(
+           `Failed to load guide from ${relPath}: ${extractMessageFromAnyError(error)}`,
+           {
+             cause: error,

@@ -1,0 +1,40 @@
+diff --git a/packages/mcp-server-supabase/src/transports/stdio.ts b/packages/mcp-server-supabase/src/transports/stdio.ts
+index e974296..991c46f 100644
+--- a/packages/mcp-server-supabase/src/transports/stdio.ts
++++ b/packages/mcp-server-supabase/src/transports/stdio.ts
+@@ -16,6 +16,7 @@ async function main() {
+       ['project-ref']: projectId,
+       ['read-only']: readOnly,
+       ['api-url']: apiUrl,
++      ['content-api-url']: cliContentApiUrl,
+       ['version']: showVersion,
+       ['features']: cliFeatures,
+     },
+@@ -34,6 +35,9 @@ async function main() {
+       ['api-url']: {
+         type: 'string',
+       },
++      ['content-api-url']: {
++        type: 'string',
++      },
+       ['version']: {
+         type: 'boolean',
+       },
+@@ -59,6 +63,9 @@ async function main() {
+ 
+   const features = cliFeatures ? parseList(cliFeatures) : undefined;
+ 
++  const contentApiUrl =
++    cliContentApiUrl ?? process.env.SUPABASE_CONTENT_API_URL;
++
+   const platform = createSupabaseApiPlatform({
+     accessToken,
+     apiUrl,
+@@ -69,6 +76,7 @@ async function main() {
+     projectId,
+     readOnly,
+     features,
++    contentApiUrl,
+   });
+ 
+   const transport = new StdioServerTransport();

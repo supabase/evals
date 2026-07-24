@@ -1,0 +1,96 @@
+diff --git a/apps/docs/scripts/search/generate-embeddings.ts b/apps/docs/scripts/search/generate-embeddings.ts
+index d7519d2b15..4dfe6e6ba6 100644
+--- a/apps/docs/scripts/search/generate-embeddings.ts
++++ b/apps/docs/scripts/search/generate-embeddings.ts
+@@ -118,6 +118,7 @@ function initSupabase(): SupabaseClient {
+ type PreparedSections = {
+   allSectionsToProcess: PageSectionForEmbedding[]
+   pageInfoMap: Map<number, PageInfo>
++  preparationFailureCount: number
+ }
+ 
+ async function prepareSections(
+@@ -135,6 +136,7 @@ async function prepareSections(
+ 
+   const allSectionsToProcess: PageSectionForEmbedding[] = []
+   const pageInfoMap = new Map<number, PageInfo>()
++  let preparationFailureCount = 0
+ 
+   for (const sourceBatch of createBatches(embeddingSources, CONFIG.SOURCE_CONCURRENCY)) {
+     await Promise.all(
+@@ -238,6 +240,7 @@ async function prepareSections(
+         } catch (err) {
+           console.error(`Error preparing path '${path}' for processing.`)
+           console.error(err)
++          preparationFailureCount++
+         }
+       })
+     )
+@@ -246,7 +249,7 @@ async function prepareSections(
+   console.log(
+     `Prepared ${allSectionsToProcess.length} sections for processing from ${pageInfoMap.size} pages`
+   )
+-  return { allSectionsToProcess, pageInfoMap }
++  return { allSectionsToProcess, pageInfoMap, preparationFailureCount }
+ }
+ 
+ async function processAndInsertEmbeddings(
+@@ -321,6 +324,9 @@ type BatchEmbeddingResult = {
+   processedCount: number
+ }
+ 
++// Running total of embedding tokens billed across all batches, for a cost report.
++let embeddingTokenTotal = 0
++
+ async function processEmbeddingBatch(
+   openai: OpenAI,
+   batch: PageSectionForEmbedding[],
+@@ -376,6 +382,7 @@ async function processEmbeddingBatch(
+     // Replace inputs with truncated inputs for downstream bookkeeping
+     for (let i = 0; i < inputs.length; i++) inputs[i] = truncatedInputs[i]
+   }
++  embeddingTokenTotal += embeddingResponse.usage?.total_tokens ?? 0
+ 
+   const { sectionsWithEmbeddings, failedSectionIndexes } = mapEmbeddingsToSections(
+     batch,
+@@ -467,7 +474,7 @@ async function generateEmbeddings() {
+       : 'Checking which pages are new or have changed'
+   )
+ 
+-  const { allSectionsToProcess, pageInfoMap } = await prepareSections(
++  const { allSectionsToProcess, pageInfoMap, preparationFailureCount } = await prepareSections(
+     supabaseClient,
+     pageTable,
+     pageSectionTable,
+@@ -493,10 +500,13 @@ async function generateEmbeddings() {
+     console.log(
+       `Page summary: ${processingResult.successfulPages.size} successful, ${processingResult.failedPages.size} failed`
+     )
++    console.log(
++      `Embedding tokens billed: ${embeddingTokenTotal} (~$${((embeddingTokenTotal / 1_000_000) * 0.1).toFixed(4)} at $0.10/M for ${CONFIG.EMBEDDING_MODEL})`
++    )
+   } catch (error) {
+     console.error('Critical error during embedding processing:', error)
+     console.log('Exiting due to complete processing failure')
+-    return
++    throw error
+   }
+ 
+   console.log(`\nUpdating checksums for ${processingResult.successfulPages.size} successful pages`)
+@@ -512,6 +522,16 @@ async function generateEmbeddings() {
+ 
+   logFailedPages(pageInfoMap, processingResult)
+ 
++  if (
++    preparationFailureCount > 0 ||
++    processingResult.failedPages.size > 0 ||
++    successfulChecksumUpdates !== processingResult.successfulPages.size
++  ) {
++    throw new Error(
++      `Index incomplete: ${preparationFailureCount} source preparation failure(s), ${processingResult.failedPages.size} page failure(s), and ${processingResult.successfulPages.size - successfulChecksumUpdates} checksum update failure(s); refusing to purge old pages`
++    )
++  }
++
+   await purgeOldPages(supabaseClient, pageTable, refreshVersion)
+ 
+   console.log('Embedding generation complete')

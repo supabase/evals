@@ -1,0 +1,102 @@
+# supabase/evals — mise tasks (Supabase uses mise throughout; never a justfile).
+# The eval-source workspace glue lives in workspace/ (see workspace/README.md):
+# it wires docs, skills, and MCP-server sources into this harness for
+# edit -> eval loops. Tasks run from the repo root. Flag-style args need `--`:
+#   mise run eval -- --eval <id> --experiment <exp>
+
+[tools]
+node = "22"
+pnpm = "10"
+
+[tasks.setup]
+description = "Install deps, init submodules (agent-skills + mcp), apply patches, wire .env, print status"
+run = "workspace/scripts/setup.sh"
+
+[tasks.status]
+description = "Host repo + submodule + clone state, env keys present, tooling"
+run = "workspace/scripts/status.sh"
+
+[tasks.eval]
+description = "Run evals with the workspace env applied (args pass to `pnpm eval`)"
+run = "workspace/scripts/eval.sh"
+
+[tasks.update]
+description = "Fetch + fast-forward the supabase clone, re-applying patches (-- --check = report only)"
+run = "workspace/scripts/update.sh"
+
+[tasks.publish]
+description = "Clean PR branch from patched-repo work: publish <repo> <topic> [--with <patch>] (or <repo> --list)"
+run = "workspace/scripts/publish.sh"
+
+[tasks.hooks-test]
+description = "Self-test of the pre-push guard lifecycle (install/chain/reinstall; fixtures only, self-cleaning)"
+run = "workspace/scripts/hooks.test.sh"
+
+[tasks.affected]
+description = "Map changed skill/docs/mcp paths to a ready-to-run eval command"
+run = "workspace/scripts/affected-task.sh"
+
+[tasks.ab]
+description = "Head-to-head: <eval> <edited-path> [experiment] — edit applied vs reverted. No args = readiness probe"
+run = "workspace/scripts/ab-task.sh"
+
+[tasks.ab-demo]
+description = "Guided LIVE demo of the docs A/B loop (plants a canary doc, runs the real A/B, cleans up; asks before spending)"
+run = "workspace/scripts/ab-demo.sh"
+
+[tasks.ab-test]
+description = "Zero-cost self-test of the A/B runner (fakes the eval; only touches a clean skill file)"
+run = "workspace/scripts/ab.test.sh"
+
+[tasks.status-test]
+description = "Self-test of status.sh's Next/Ready diagnosis against synthetic workspace states"
+run = "workspace/scripts/status.test.sh"
+
+[tasks.store-key]
+description = "Store an API key in the keychain: store-key <ANTHROPIC_API_KEY|OPENAI_API_KEY|GEMINI_API_KEY>"
+run = "workspace/scripts/store-key.sh"
+
+[tasks.apply-patches]
+description = "(Re)apply the tracked enabler patches into the patched repos; idempotent"
+run = "workspace/scripts/apply-patches.sh"
+
+# --- MCP-server loop (optional; not part of setup) ---
+
+[tasks.mcp-build]
+description = "Build the mcp submodule with the enabler patches applied"
+run = "git submodule update --init submodules/mcp && workspace/scripts/apply-patches.sh && pnpm mcp:build"
+
+[tasks.mcp-eval]
+description = "Run evals against the local mcp build (auto init+patch+build)"
+depends = ["mcp-build"]
+run = "workspace/scripts/mcp-eval.sh"
+
+# --- Docs loop (optional, heavy — needs Docker + the supabase CLI) ---
+
+[tasks.clone-docs]
+description = "Sparse-clone supabase/supabase (apps/docs + deps) and install. Run once"
+run = "workspace/scripts/clone-docs.sh"
+
+[tasks.docs-up]
+description = "Start the local content DB (ports 55321+) with docs migrations"
+depends = ["clone-docs"]
+run = "workspace/scripts/apply-patches.sh && workspace/scripts/docs-up.sh"
+
+[tasks.docs-down]
+description = "Stop the local content DB"
+run = "workspace/scripts/docs-down.sh"
+
+[tasks.docs-api]
+description = "Serve the docs content GraphQL API at :3001 for search_docs"
+depends = ["docs-up"]
+run = "workspace/scripts/docs-api.sh"
+
+[tasks.docs-seed]
+description = "Full docs embed — spends OpenAI credits; asks to confirm. Run once"
+depends = ["docs-up"]
+run = "workspace/scripts/docs-seed.sh"
+
+[tasks.docs-index]
+description = "Incremental re-embed of changed docs pages (checksum-based, fail-closed)"
+depends = ["docs-up"]
+run = "workspace/scripts/docs-index.sh"

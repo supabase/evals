@@ -1,0 +1,199 @@
+#!/usr/bin/env tsx
+const {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} = require("node:fs");
+const { createRequire } = require("node:module");
+const { basename, dirname, join } = require("node:path");
+const { pathToFileURL } = require("node:url");
+
+const EVALS_ROOT = join(dirname(process.argv[1]), "..", "evals");
+const requireFromFramework = createRequire(join(EVALS_ROOT, "apps/framework/package.json"));
+const ALIASES: Record<string, string> = {
+  functions: "edge-functions",
+  rest: "data-api",
+  api: "data-api",
+};
+
+type Experiment = { name: string; skills: string[] };
+type Eval = {
+  id: string;
+  product: string[];
+  topic: string[];
+  interface?: string;
+};
+
+async function loadExperiments(): Promise<Experiment[]> {
+  const dir = join(EVALS_ROOT, "experiments");
+  const experiments: Experiment[] = [];
+
+  for (const file of readdirSync(dir).filter((file) => file.endsWith(".ts")).sort()) {
+    // Experiment files are runtime-selected plugins, matching run-eval.ts discovery.
+    const module = await import(pathToFileURL(join(dir, file)).href);
+    const config = module.default as { skills?: string[] };
+    experiments.push({
+      name: file.replace(/\.ts$/, ""),
+      skills: config.skills ?? [],
+    });
+  }
+
+  return experiments;
+}
+
+async function discoverEvals(): Promise<Eval[]> {
+  // Resolve from evals' workspace because this script intentionally lives outside that package.
+  const parserPath = requireFromFramework.resolve("@supabase-evals/core/eval-markdown");
+  const { parseEvalMarkdown } = await import(pathToFileURL(parserPath).href);
+  const dir = join(EVALS_ROOT, "evals");
+  if (!existsSync(dir)) return [];
+
+  const evals: Eval[] = [];
+  for (const id of readdirSync(dir).sort()) {
+    const evalDir = join(dir, id);
+    if (!statSync(evalDir).isDirectory()) continue;
+
+    const promptPath = join(evalDir, "PROMPT.md");
+    const metadata = parseEvalMarkdown(
+      readFileSync(promptPath, "utf8"),
+      `evals/${id}/PROMPT.md`,
+    ).metadata;
+    evals.push({
+      id,
+      product: metadata.product,
+      topic: metadata.topic,
+      interface: metadata.interface,
+    });
+  }
+
+  return evals;
+}
+
+function addPathTokens(
+  segments: string[],
+  vocabulary: Set<string>,
+  destination: Set<string>,
+): void {
+  for (const rawSegment of segments) {
+    const segment = rawSegment.replace(/\.[^.]+$/, "");
+    const token = ALIASES[segment] ?? segment;
+    if (vocabulary.has(token)) destination.add(token);
+  }
+}
+
+function matchingEvalIds(evals: Eval[], tokens: Set<string>): string[] {
+  return evals
+    .filter((entry) => [...entry.product, ...entry.topic].some((token) => tokens.has(token)))
+    .map((entry) => entry.id);
+}
+
+async function main(): Promise<void> {
+  const paths = [...new Set(process.argv.slice(2))];
+  if (paths.length === 0) {
+    console.log("Usage: affected.ts <changed-path>...");
+    return;
+  }
+
+  const [experiments, evals] = await Promise.all([
+    loadExperiments(),
+    discoverEvals(),
+  ]);
+  const vocabulary = new Set(evals.flatMap((entry) => [...entry.product, ...entry.topic]));
+  const skills = new Set<string>();
+  const docsTokens = new Set<string>();
+  const mcpTokens = new Set<string>();
+  const unknownPaths: string[] = [];
+  let allMcpEvals = false;
+  let serverWide = false;
+
+  for (const rawPath of paths) {
+    const path = rawPath.replaceAll("\\", "/");
+    let recognized = false;
+
+    const skillMatch = path.match(/(?:^|\/)skills\/([^/]+)(?:\/|$)/);
+    if (skillMatch) {
+      skills.add(skillMatch[1]);
+      recognized = true;
+    }
+
+    const docsMarker = "apps/docs/content/";
+    const docsIndex = path.indexOf(docsMarker);
+    if (docsIndex !== -1) {
+      addPathTokens(path.slice(docsIndex + docsMarker.length).split("/"), vocabulary, docsTokens);
+      recognized = true;
+    }
+
+    const isMcp =
+      path.includes("mcp-server-supabase/src/") ||
+      path.includes("/tools/") ||
+      path.startsWith("tools/") ||
+      /^src\/(?:server\.ts|index\.ts|transports\/)/.test(path);
+    if (isMcp) {
+      recognized = true;
+      const file = basename(path);
+      const stem = file.replace(/\.ts$/, "");
+
+      if (file === "server.ts" || file === "index.ts" || /(?:^|\/)transports\//.test(path)) {
+        serverWide = true;
+      } else if (stem === "docs-tools") {
+        allMcpEvals = true;
+      } else {
+        addPathTokens(stem.split("-"), vocabulary, mcpTokens);
+      }
+    }
+
+    if (!recognized) unknownPaths.push(rawPath);
+  }
+
+  if (unknownPaths.length > 0) {
+    console.log(`Ignored unknown paths: ${unknownPaths.join(", ")}`);
+  }
+
+  let commandCount = 0;
+
+  if (skills.size > 0) {
+    const names = experiments
+      .filter((experiment) => experiment.skills.some((skill) => skills.has(skill)))
+      .map((experiment) => experiment.name);
+    if (names.length > 0) {
+      console.log(`mise run eval -- ${names.map((name) => `--experiment ${name}`).join(" ")} --suite regression`);
+      commandCount++;
+    } else {
+      console.log(`No experiments use changed skills: ${[...skills].sort().join(", ")}`);
+    }
+  }
+
+  if (docsTokens.size > 0) {
+    const ids = matchingEvalIds(evals, docsTokens);
+    if (ids.length > 0) {
+      console.log(`mise run eval -- ${ids.map((id) => `--eval ${id}`).join(" ")}`);
+      commandCount++;
+    }
+  }
+
+  if (mcpTokens.size > 0 || allMcpEvals) {
+    const ids = new Set(matchingEvalIds(evals, mcpTokens));
+    if (allMcpEvals) {
+      for (const entry of evals) {
+        if (entry.interface === "mcp") ids.add(entry.id);
+      }
+    }
+    if (ids.size > 0) {
+      console.log(`mise run eval -- ${[...ids].sort().map((id) => `--eval ${id}`).join(" ")}`);
+      commandCount++;
+    }
+  }
+
+  if (serverWide) {
+    console.log("mise run eval -- --smoke");
+    commandCount++;
+  }
+
+  if (commandCount === 0) console.log("No affected evals.");
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
