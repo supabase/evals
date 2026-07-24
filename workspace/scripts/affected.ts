@@ -50,6 +50,7 @@ async function discoverEvals(): Promise<Eval[]> {
     if (!statSync(evalDir).isDirectory()) continue;
 
     const promptPath = join(evalDir, "PROMPT.md");
+    if (!existsSync(promptPath)) continue; // stray/partial dir: skip, don't abort the mapper
     const metadata = parseEvalMarkdown(
       readFileSync(promptPath, "utf8"),
       `evals/${id}/PROMPT.md`,
@@ -165,8 +166,10 @@ async function main(): Promise<void> {
       // Docs impact is only measurable against the LOCAL index: the local mcp
       // build (mcp-eval) pointed at the local content API. A bare `mise run
       // eval` would query the production docs API and never see the edit.
+      // URL also lives in ab.sh / docs-api.sh / workspace README — keep in sync.
+      console.log("# needs: mise run docs-index && mise run docs-api");
       console.log(
-        `SUPABASE_CONTENT_API_URL=http://127.0.0.1:3001/docs/api/graphql mise run mcp-eval -- ${ids.map((id) => `--eval ${id}`).join(" ")}   # needs: mise run docs-index && mise run docs-api`,
+        `SUPABASE_CONTENT_API_URL=http://127.0.0.1:3001/docs/api/graphql mise run mcp-eval -- ${ids.map((id) => `--eval ${id}`).join(" ")}`,
       );
       commandCount++;
     }

@@ -32,14 +32,14 @@ run_case fresh state_fresh
 ck "fresh: suggests pnpm install"   "$(has 'pnpm install')" y
 ck "fresh: suggests submodule init" "$(has 'submodule update --init')" y
 ck "fresh: suggests required keys"  "$(has 'mise run store-key OPENAI_API_KEY')" y
-ck "fresh: not Ready"               "$(has 'Ready.')" n
+ck "fresh: not Ready"               "$(has 'Ready. Try:')" n
 
 # --- deps installed, submodules not yet initialized ---
 state_deps_only() { mkdir -p node_modules; cp .env.example .env; }
 run_case deps-only state_deps_only
 ck "deps-only: no pnpm-install suggestion" "$(has 'pnpm install')" n
 ck "deps-only: suggests submodule init"    "$(has 'submodule update --init')" y
-ck "deps-only: not Ready"                  "$(has 'Ready.')" n
+ck "deps-only: not Ready"                  "$(has 'Ready. Try:')" n
 
 # --- submodules initialized (markers/hooks still missing), env missing ---
 state_submodules_init() { mkdir -p node_modules submodules/agent-skills/.git submodules/mcp/.git; }
@@ -47,7 +47,7 @@ run_case submodules-init state_submodules_init
 ck "submodules-init: no pnpm-install suggestion"    "$(has 'pnpm install')" n
 ck "submodules-init: no submodule-init suggestion"  "$(has 'submodule update --init')" n
 ck "submodules-init: suggests required keys"        "$(has 'mise run store-key ANTHROPIC_API_KEY')" y
-ck "submodules-init: not Ready"                     "$(has 'Ready.')" n
+ck "submodules-init: not Ready"                     "$(has 'Ready. Try:')" n
 # supabase was never cloned in this state — its absence must stay informational,
 # never surfacing an action item (there is no clone-docs step in the bootstrap order).
 ck "submodules-init: supabase absence isn't an action item" "$(has 'clone-docs')" n
@@ -58,14 +58,14 @@ run_case keys-only state_keys_only
 ck "keys-only: no pnpm-install suggestion"   "$(has 'pnpm install')" n
 ck "keys-only: no submodule-init suggestion" "$(has 'submodule update --init')" n
 ck "keys-only: suggests keys"                "$(has 'mise run store-key ANTHROPIC_API_KEY')" y
-ck "keys-only: not Ready"                    "$(has 'Ready.')" n
+ck "keys-only: not Ready"                    "$(has 'Ready. Try:')" n
 
 # --- non-Darwin: same complete-but-keyless state; keys must route to .env, never store-key ---
 state_linux_keys() { state_keys_only; printf '#!/bin/sh\necho Linux\n' > bin/uname; }
 run_case linux-keys state_linux_keys
 ck "linux: no store-key suggestion" "$(has 'mise run store-key')" n
 ck "linux: routes keys to .env"     "$(has 'add ANTHROPIC_API_KEY=')" y
-ck "linux: not Ready"               "$(has 'Ready.')" n
+ck "linux: not Ready"               "$(has 'Ready. Try:')" n
 
 echo "status.test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

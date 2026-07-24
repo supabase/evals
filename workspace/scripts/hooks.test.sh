@@ -51,9 +51,13 @@ test_guard_in() {
   ck "$repo: guard active again" "$(grep -c 'eval-workspace pre-push guard' "$hook")" "1"
 }
 
-for r in $PUBLISH_REPOS; do
+for r in $PATCH_REPOS; do
   test_guard_in "$r"
 done
 
 echo "hooks.test: $pass passed, $fail failed"
+if [ "$pass" -eq 0 ] && [ "$fail" -eq 0 ]; then
+  echo "hooks.test: 0 checks ran (no patched repo present — run: mise run setup)" >&2
+  exit 1
+fi
 [ "$fail" -eq 0 ]

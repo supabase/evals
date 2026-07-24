@@ -51,7 +51,7 @@ for p in "${PATHS[@]}"; do
 done
 
 MCP="$PWD/submodules/mcp/packages/mcp-server-supabase"
-CONTENT_URL="http://127.0.0.1:3001/docs/api/graphql"
+CONTENT_URL="http://127.0.0.1:3001/docs/api/graphql"  # also in affected.ts / docs-api.sh / workspace README — keep in sync
 RUN_ENV=()
 case "$LOOP" in
   docs) RUN_ENV=( "SUPABASE_MCP_SERVER_PATH=$MCP" "SUPABASE_CONTENT_API_URL=$CONTENT_URL" ) ;;
@@ -70,7 +70,7 @@ sync() {
 if [ -n "${AB_DRYRUN:-}" ]; then
   echo "eval=$EVAL experiment=$EXP loop=$LOOP clone=$CLONE"
   echo "revert paths: ${REL[*]}"
-  echo "run env: ${RUN_ENV[*]:-（none）}"
+  echo "run env: ${RUN_ENV[*]:-(none)}"
   exit 0
 fi
 

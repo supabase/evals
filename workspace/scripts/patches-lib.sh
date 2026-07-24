@@ -7,11 +7,9 @@
 _MANIFEST_LIB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 _manifest() { node "$_MANIFEST_LIB_DIR/manifest.mjs" "$@"; }
 
-# PATCH_REPOS   = repos carrying enabler patches (manifest order): mcp, supabase
-# PUBLISH_REPOS = same set here — skills has no patches and is neither a patch
-#                 nor a publish repo in this manifest (both derive from the
-#                 same "has patches" predicate; kept as separate names because
-#                 downstream scripts read them for different purposes)
+# PATCH_REPOS = repos carrying enabler patches (manifest order): mcp, supabase.
+# Patched repos are exactly the publishable ones today, so this is the one
+# name; skills has no patches and is neither. Split only if the sets diverge.
 #
 # Fail-loud init: `for x in $(failing-cmd)` does NOT trip `set -e` in the
 # sourcing script — the substitution failure is swallowed and the lists come
@@ -28,7 +26,6 @@ for _r in $_MANIFEST_REPOS; do
     PATCH_REPOS="${PATCH_REPOS:+$PATCH_REPOS }$_r"
   fi
 done
-PUBLISH_REPOS="$PATCH_REPOS"
 unset _r _MANIFEST_REPOS
 
 repo_dir()    { local d; d=$(_manifest get "$1" dir); echo "${d:-$1}"; }

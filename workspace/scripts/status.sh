@@ -29,7 +29,7 @@ echo "Repos:"
 repo_status "evals (host)" "."
 repo_status "  - agent-skills" "$(repo_dir skills)" "not initialized"
 repo_status "  - mcp" "$(repo_dir mcp)" "not initialized"
-for _repo in $PUBLISH_REPOS; do
+for _repo in $PATCH_REPOS; do
   case "$_repo" in skills|mcp) continue ;; esac
   repo_status "$_repo" "$(repo_dir "$_repo")"
 done
@@ -55,8 +55,8 @@ for _r in $PATCH_REPOS; do
     fi
   done
 done
-# pre-push guards active? (apply-patches installs them, incl. in agent-skills)
-for _n in $PUBLISH_REPOS; do
+# pre-push guards active? (apply-patches installs them)
+for _n in $PATCH_REPOS; do
   _d=$(repo_dir "$_n")
   [ -e "$_d/.git" ] || continue
   _hooks=$(git -C "$_d" rev-parse --path-format=absolute --git-path hooks 2>/dev/null || true)

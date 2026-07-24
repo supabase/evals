@@ -46,13 +46,22 @@ describe("supabaseMcpServer().createConfig", () => {
     expect(config.args).not.toContain("--content-api-url");
   });
 
-  it("threads --content-api-url from the env var", async () => {
+  it("threads --content-api-url from the env var on the local override path", async () => {
     clearEnv();
+    vi.stubEnv("SUPABASE_MCP_SERVER_PATH", fixtureDir);
     vi.stubEnv("SUPABASE_CONTENT_API_URL", "https://env.test/gql");
     const { config } = await supabaseMcpServer().createConfig({});
     const i = config.args.indexOf("--content-api-url");
     expect(i).toBeGreaterThan(-1);
     expect(config.args[i + 1]).toBe("https://env.test/gql");
+  });
+
+  it("ignores a stray env var on the npx path (0.8.1 rejects unknown flags)", async () => {
+    clearEnv();
+    vi.stubEnv("SUPABASE_CONTENT_API_URL", "https://env.test/gql");
+    const { config } = await supabaseMcpServer().createConfig({});
+    expect(config.command).toBe("npx");
+    expect(config.args).not.toContain("--content-api-url");
   });
 
   it("prefers the explicit contentApiUrl option over the env var", async () => {

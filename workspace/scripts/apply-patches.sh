@@ -142,7 +142,7 @@ for repo in $PATCH_REPOS; do
     || { echo "  ERROR: $dir index has staged changes — unstage first (git -C $dir status)" >&2; exit 1; }
   for p in $(patches_for "$repo"); do apply_one "$dir" "$p"; done
 done
-for name in $PUBLISH_REPOS; do
+for name in $PATCH_REPOS; do
   dir=$(repo_dir "$name")
   [ -e "$dir/.git" ] && install_pre_push_guard "$dir"
 done

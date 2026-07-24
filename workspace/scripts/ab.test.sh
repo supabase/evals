@@ -7,20 +7,21 @@
 #
 # SAFETY: only ever touches a tracked skill file that is currently CLEAN (no
 # working-tree or staged changes); it never checks out a file with your edits.
-# If no clean skill file exists it SKIPS. Skills loop → sync is a no-op, so
+# If no clean skill file exists it fails with an actionable message rather
+# than passing vacuously. Skills loop → sync is a no-op, so
 # nothing else in the workspace is affected. Run: bash workspace/scripts/ab.test.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 SK=submodules/agent-skills
-[ -e "$SK/.git" ] || { echo "SKIP: agent-skills submodule not initialized (run: mise run setup)"; exit 0; }
+[ -e "$SK/.git" ] || { echo "ab.test: 0 checks ran — agent-skills submodule not initialized (run: mise run setup)" >&2; exit 1; }
 
 # pick a tracked SKILL.md with NO local changes, so restoring it can't lose work
 REL=""
 for c in $(git -C "$SK" ls-files 'skills/*/SKILL.md'); do
   if git -C "$SK" diff --quiet -- "$c" && git -C "$SK" diff --cached --quiet -- "$c"; then REL="$c"; break; fi
 done
-[ -n "$REL" ] || { echo "SKIP: no CLEAN tracked skill file to test with"; exit 0; }
+[ -n "$REL" ] || { echo "ab.test: 0 checks ran — no CLEAN tracked skill file to test with" >&2; exit 1; }
 FILE="$SK/$REL"
 EVAL=ab-selftest; EXP=claude-sonnet-5
 RES="results/$EXP/$EVAL.json"

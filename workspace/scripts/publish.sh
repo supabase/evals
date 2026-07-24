@@ -17,7 +17,7 @@ ROOT="$PWD"
 source workspace/scripts/patches-lib.sh
 
 repo="${1:-}"; shift || true
-case " $PUBLISH_REPOS " in *" $repo "*) ;; *)
+case " $PATCH_REPOS " in *" $repo "*) ;; *)
   echo "usage: mise run publish <mcp|supabase> <topic-branch> [--with <patch-name>]... | --list" >&2; exit 2 ;;
 esac
 dir=$(repo_dir "$repo")

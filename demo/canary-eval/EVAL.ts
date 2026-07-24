@@ -1,4 +1,4 @@
-import { type CheckResult, type ToolScorer } from '@supabase/evals/core'
+import { type CheckResult, type ToolScorer } from '@supabase-evals/core'
 
 // eval-workspace docs-discriminator demo: '@supabase/pinniped' is a fictional package
 // planted ONLY in the local docs by scripts/ab-demo.sh. It cannot come from model

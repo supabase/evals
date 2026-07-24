@@ -928,14 +928,19 @@ export function supabaseMcpServer(
       // platform-independent (it queries the public docs GraphQL API), so a
       // docs-only server runs standalone with no `--api-url`.
       if (apiUrl) serverArgs.push("--api-url", apiUrl);
-      // Alternative docs Content API endpoint (e.g. a locally built docs
-      // index). Requires a server that understands --content-api-url — the
-      // SUPABASE_MCP_SERVER_PATH build; only set the env var alongside it.
-      const contentApiUrl =
-        options.contentApiUrl ?? process.env.SUPABASE_CONTENT_API_URL;
-      if (contentApiUrl) serverArgs.push("--content-api-url", contentApiUrl);
 
       const local = resolveLocalMcpServer();
+      // Alternative docs Content API endpoint (e.g. a locally built docs
+      // index). Only a server that understands --content-api-url can accept
+      // it (the SUPABASE_MCP_SERVER_PATH build; the published 0.8.1 npx
+      // package rejects unknown flags), so the ENV fallback applies only
+      // alongside the local override — a stray env var can't break a plain
+      // npx run. The explicit option is intentional and always honored.
+      const contentApiUrl =
+        options.contentApiUrl ??
+        (local ? process.env.SUPABASE_CONTENT_API_URL : undefined);
+      if (contentApiUrl) serverArgs.push("--content-api-url", contentApiUrl);
+
       if (local) {
         // `node`, not process.execPath: CLI agents run this command INSIDE the
         // sandbox container, where the host's node binary path does not exist.
