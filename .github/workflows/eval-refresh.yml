@@ -403,10 +403,11 @@ jobs:
 
       - name: Commit exported results to branch
         # PR runs commit to the PR head branch. Manual dispatch commits to the
-        # selected branch only when commit_to_branch is enabled.
+        # selected branch only when commit_to_branch is enabled. Scheduled runs
+        # go through a PR instead (see "Create results pull request" below):
+        # main's branch protection rejects a direct push.
         if: >-
           github.event_name == 'pull_request' ||
-          github.event_name == 'schedule' ||
           (github.event_name == 'workflow_dispatch' && inputs.commit_to_branch)
         shell: bash
         run: |
@@ -429,17 +430,29 @@ jobs:
           git push
 
       - name: Create results pull request
-        if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
+        if: >-
+          github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch)
+        id: cpr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.generate-token.outputs.token }}
           add-paths: apps/web/src/data/*eval-results.json
-          # Per-base head branch so a branch refresh PR can't collide with main's.
-          branch: chore/refresh-eval-results-${{ github.ref_name }}
+          # Per-ref-and-event head branch so a branch refresh PR can't collide
+          # with another ref's, or with the scheduled run's.
+          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name }}
           base: ${{ github.ref_name }}
           commit-message: "chore: refresh eval results"
           title: "chore: refresh eval results"
           body: |
             Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
-          draft: true
+          # Draft PRs can't be merged, and the scheduled path merges itself.
+          draft: ${{ github.event_name != 'schedule' }}
           delete-branch: true
+
+      - name: Merge scheduled results pull request
+        # The app is on the ruleset's bypass list, so no review is required.
+        if: github.event_name == 'schedule' && steps.cpr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --squash --delete-branch

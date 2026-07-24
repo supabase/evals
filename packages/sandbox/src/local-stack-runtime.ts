@@ -1,6 +1,6 @@
-import { posix } from "node:path";
-import { jsonSchema, tool, type ToolSet } from "ai";
-import { createClient } from "@supabase/supabase-js";
+import { posix } from 'node:path';
+import { jsonSchema, tool, type ToolSet } from 'ai';
+import { createClient } from '@supabase/supabase-js';
 import {
   supabaseMcpServer,
   type AgentSandbox,
@@ -8,11 +8,11 @@ import {
   type LocalStackRuntime,
   type LocalStackScoringContext,
   type McpServerConfig,
-} from "@supabase-evals/core";
-import { DockerSandbox } from "./docker-sandbox.js";
-import { createAgentEnvironment } from "./agent-environment.js";
-import { teardownSupabaseProject } from "./supabase.js";
-import { buildSkillsPrompt } from "./skills.js";
+} from '@supabase-evals/core';
+import { DockerSandbox } from './docker-sandbox.js';
+import { createAgentEnvironment } from './agent-environment.js';
+import { teardownSupabaseProject } from './supabase.js';
+import { buildSkillsPrompt } from './skills.js';
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
 const MAX_BASH_TIMEOUT_SEC = 600;
@@ -65,13 +65,13 @@ export interface LocalStackRuntimeOptions {
  * genuinely want the agent to drive the platform through MCP; the
  * platform-dependent groups then require a hosted project to point at.
  */
-const DEFAULT_MCP_FEATURES = ["docs"];
+const DEFAULT_MCP_FEATURES = ['docs'];
 
 export function localStackRuntime(
-  options: LocalStackRuntimeOptions = {},
+  options: LocalStackRuntimeOptions = {}
 ): LocalStackRuntime {
   return {
-    id: "local-stack",
+    id: 'local-stack',
     async startSession({
       cliVersion,
       localDir,
@@ -107,10 +107,10 @@ export function localStackRuntime(
       const mcpServers = await resolveMcpServers(options, hosted);
 
       const baseAddendum =
-        "The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. " +
-        "Use the bash tool to run commands (the working directory is always the workspace root) " +
-        "and the files tools to inspect and modify files. " +
-        "Services started with `supabase start` are reachable on their default 127.0.0.1 ports.";
+        'The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. ' +
+        'Use the bash tool to run commands (the working directory is always the workspace root) ' +
+        'and the files tools to inspect and modify files. ' +
+        'Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
 
       return {
         tools: buildLocalStackTools(sandbox),
@@ -118,7 +118,7 @@ export function localStackRuntime(
         mcpServers,
         promptAddendum: [baseAddendum, buildSkillsPrompt(env.skills)]
           .filter(Boolean)
-          .join("\n\n"),
+          .join('\n\n'),
         scoringContext: buildLocalStackScoringContext(sandbox, hosted),
         exportWorkspace: (hostDir: string) =>
           sandbox.copyToHost(sandbox.workdir, hostDir),
@@ -142,7 +142,7 @@ export function localStackRuntime(
  */
 async function resolveMcpServers(
   options: LocalStackRuntimeOptions,
-  hosted?: HostedLink,
+  hosted?: HostedLink
 ): Promise<Record<string, McpServerConfig>> {
   if (options.mcpServers) return options.mcpServers;
 
@@ -151,11 +151,14 @@ async function resolveMcpServers(
   // at — the mocked hosted one (platform-lite), reached host-side on the
   // loopback port it's published on. `docs` alone runs standalone, with no
   // context (supabaseMcpServer omits --api-url and supplies a throwaway token).
-  const platformDependent = features.some((feature) => feature !== "docs");
+  const platformDependent = features.some((feature) => feature !== 'docs');
   const { config } = await supabaseMcpServer({ features }).createConfig(
     platformDependent && hosted
-      ? { apiUrl: `http://127.0.0.1:${hosted.port}`, accessToken: hosted.accessToken }
-      : undefined,
+      ? {
+          apiUrl: `http://127.0.0.1:${hosted.port}`,
+          accessToken: hosted.accessToken,
+        }
+      : undefined
   );
   return { supabase: config };
 }
@@ -177,22 +180,22 @@ export function buildLocalStackTools(sandbox: DockerSandbox): ToolSet {
   return {
     bash: tool({
       description:
-        "Run a bash command in the eval workspace (Linux). The working directory " +
-        "is always the workspace root; `cd` does not persist between calls. The " +
-        "Supabase CLI (`supabase`), docker, psql, git, and curl are installed.",
+        'Run a bash command in the eval workspace (Linux). The working directory ' +
+        'is always the workspace root; `cd` does not persist between calls. The ' +
+        'Supabase CLI (`supabase`), docker, psql, git, and curl are installed.',
       inputSchema: jsonSchema({
-        type: "object",
+        type: 'object',
         properties: {
-          command: { type: "string", description: "Bash command to run." },
+          command: { type: 'string', description: 'Bash command to run.' },
           timeout_sec: {
-            type: "number",
+            type: 'number',
             description: `Optional timeout in seconds (default ${DEFAULT_BASH_TIMEOUT_SEC}, max ${MAX_BASH_TIMEOUT_SEC}). Increase for slow commands like \`supabase start\`.`,
           },
         },
-        required: ["command"],
+        required: ['command'],
       }),
       execute: async (input) => {
-        const command = String((input as any)?.command ?? "");
+        const command = String((input as any)?.command ?? '');
         const requested = Number((input as any)?.timeout_sec);
         const timeoutSec = Number.isFinite(requested)
           ? Math.min(Math.max(requested, 1), MAX_BASH_TIMEOUT_SEC)
@@ -209,84 +212,87 @@ export function buildLocalStackTools(sandbox: DockerSandbox): ToolSet {
     }),
     files_list: tool({
       description:
-        "List files in the workspace. Paths are relative to the workspace root.",
+        'List files in the workspace. Paths are relative to the workspace root.',
       inputSchema: jsonSchema({
-        type: "object",
+        type: 'object',
         properties: {
-          path: { type: "string", description: "Optional relative directory path." },
+          path: {
+            type: 'string',
+            description: 'Optional relative directory path.',
+          },
         },
       }),
       execute: async (input) => {
-        const path = resolveSandboxPath(String((input as any)?.path ?? "."));
+        const path = resolveSandboxPath(String((input as any)?.path ?? '.'));
         const result = await sandbox.runShell(
-          `[ -d ${shellQuote(path)} ] || exit 0; find ${shellQuote(path)} -mindepth 1 -maxdepth 1 -printf '%y\\t%p\\n' | sort -k2`,
+          `[ -d ${shellQuote(path)} ] || exit 0; find ${shellQuote(path)} -mindepth 1 -maxdepth 1 -printf '%y\\t%p\\n' | sort -k2`
         );
-        if (!result.ok) throw new Error(result.stderr || "files_list failed");
+        if (!result.ok) throw new Error(result.stderr || 'files_list failed');
         const entries = result.stdout
-          .split("\n")
+          .split('\n')
           .filter(Boolean)
           .map((line) => {
-            const [kind, ...rest] = line.split("\t");
-            const entryPath = rest.join("\t").replace(/^\.\//, "");
-            return { path: entryPath, type: kind === "d" ? "dir" : "file" };
+            const [kind, ...rest] = line.split('\t');
+            const entryPath = rest.join('\t').replace(/^\.\//, '');
+            return { path: entryPath, type: kind === 'd' ? 'dir' : 'file' };
           });
         return { entries };
       },
     }),
     files_read: tool({
-      description: "Read a UTF-8 text file from the workspace.",
+      description: 'Read a UTF-8 text file from the workspace.',
       inputSchema: jsonSchema({
-        type: "object",
+        type: 'object',
         properties: {
-          path: { type: "string", description: "Relative file path to read." },
+          path: { type: 'string', description: 'Relative file path to read.' },
         },
-        required: ["path"],
+        required: ['path'],
       }),
       execute: async (input) => {
-        const path = resolveSandboxPath(String((input as any)?.path ?? ""));
+        const path = resolveSandboxPath(String((input as any)?.path ?? ''));
         return { contents: await sandbox.readFile(path) };
       },
     }),
     files_write: tool({
       description:
-        "Write a UTF-8 text file in the workspace, creating parent directories if needed.",
+        'Write a UTF-8 text file in the workspace, creating parent directories if needed.',
       inputSchema: jsonSchema({
-        type: "object",
+        type: 'object',
         properties: {
-          path: { type: "string", description: "Relative file path to write." },
-          contents: { type: "string", description: "Full file contents." },
+          path: { type: 'string', description: 'Relative file path to write.' },
+          contents: { type: 'string', description: 'Full file contents.' },
         },
-        required: ["path", "contents"],
+        required: ['path', 'contents'],
       }),
       execute: async (input) => {
-        const path = resolveSandboxPath(String((input as any)?.path ?? ""));
+        const path = resolveSandboxPath(String((input as any)?.path ?? ''));
         await sandbox.writeFiles({
-          [path]: String((input as any)?.contents ?? ""),
+          [path]: String((input as any)?.contents ?? ''),
         });
         return { ok: true };
       },
     }),
     files_edit: tool({
       description:
-        "Replace exactly one string occurrence in a UTF-8 text file in the workspace.",
+        'Replace exactly one string occurrence in a UTF-8 text file in the workspace.',
       inputSchema: jsonSchema({
-        type: "object",
+        type: 'object',
         properties: {
-          path: { type: "string", description: "Relative file path to edit." },
-          old_string: { type: "string", description: "Exact text to replace." },
-          new_string: { type: "string", description: "Replacement text." },
+          path: { type: 'string', description: 'Relative file path to edit.' },
+          old_string: { type: 'string', description: 'Exact text to replace.' },
+          new_string: { type: 'string', description: 'Replacement text.' },
         },
-        required: ["path", "old_string", "new_string"],
+        required: ['path', 'old_string', 'new_string'],
       }),
       execute: async (input) => {
-        const path = resolveSandboxPath(String((input as any)?.path ?? ""));
-        const oldString = String((input as any)?.old_string ?? "");
-        const newString = String((input as any)?.new_string ?? "");
+        const path = resolveSandboxPath(String((input as any)?.path ?? ''));
+        const oldString = String((input as any)?.old_string ?? '');
+        const newString = String((input as any)?.new_string ?? '');
         const contents = await sandbox.readFile(path);
         const first = contents.indexOf(oldString);
-        if (first === -1) throw new Error("old_string was not found");
+        if (first === -1) throw new Error('old_string was not found');
         if (contents.indexOf(oldString, first + oldString.length) !== -1) {
-          throw new Error("old_string must be unique in the file");
+          throw new Error('old_string must be unique in the file');
         }
         await sandbox.writeFiles({
           [path]: contents.replace(oldString, newString),
@@ -299,7 +305,7 @@ export function buildLocalStackTools(sandbox: DockerSandbox): ToolSet {
 
 export function buildLocalStackScoringContext(
   sandbox: DockerSandbox,
-  hosted?: HostedLink,
+  hosted?: HostedLink
 ): LocalStackScoringContext {
   let stackConfig: { apiUrl: string; publishableKey: string } | undefined;
   let dbUrl: string | undefined;
@@ -313,23 +319,25 @@ export function buildLocalStackScoringContext(
   // is coupled to auth readiness.
   const discoverDbUrl = async () => {
     if (dbUrl) return dbUrl;
-    let lastStatus = "";
+    let lastStatus = '';
     for (let attempt = 0; attempt < STACK_CONFIG_RETRIES; attempt += 1) {
-      const status = await sandbox.runShell("supabase status -o json");
+      const status = await sandbox.runShell('supabase status -o json');
       const url = extractJson(status.stdout)?.DB_URL;
-      if (status.ok && typeof url === "string") {
+      if (status.ok && typeof url === 'string') {
         dbUrl = url;
         return dbUrl;
       }
       lastStatus = status.stdout || status.stderr;
       if (attempt < STACK_CONFIG_RETRIES - 1) {
-        await new Promise((resolve) => setTimeout(resolve, STACK_CONFIG_RETRY_MS));
+        await new Promise((resolve) =>
+          setTimeout(resolve, STACK_CONFIG_RETRY_MS)
+        );
       }
     }
     throw new Error(
-      "could not read DB_URL from `supabase status -o json` after " +
+      'could not read DB_URL from `supabase status -o json` after ' +
         `${STACK_CONFIG_RETRIES} attempts — the local stack must be running. ` +
-        `Last status: ${lastStatus.slice(0, 300)}`,
+        `Last status: ${lastStatus.slice(0, 300)}`
     );
   };
 
@@ -338,14 +346,14 @@ export function buildLocalStackScoringContext(
     // `supabase status` only reports the API keys once gotrue is fully up, which
     // can lag a moment after `supabase start` returns. Retry briefly so a scorer
     // that calls getClient() right away doesn't false-fail on a transient miss.
-    let lastStatus = "";
+    let lastStatus = '';
     for (let attempt = 0; attempt < STACK_CONFIG_RETRIES; attempt += 1) {
-      const status = await sandbox.runShell("supabase status -o json");
+      const status = await sandbox.runShell('supabase status -o json');
       const config = extractJson(status.stdout);
       const apiUrl =
-        typeof config?.API_URL === "string" ? config.API_URL : undefined;
+        typeof config?.API_URL === 'string' ? config.API_URL : undefined;
       const publishableKey =
-        typeof config?.PUBLISHABLE_KEY === "string"
+        typeof config?.PUBLISHABLE_KEY === 'string'
           ? config.PUBLISHABLE_KEY
           : undefined;
       if (status.ok && apiUrl && publishableKey) {
@@ -354,14 +362,16 @@ export function buildLocalStackScoringContext(
       }
       lastStatus = status.stdout || status.stderr;
       if (attempt < STACK_CONFIG_RETRIES - 1) {
-        await new Promise((resolve) => setTimeout(resolve, STACK_CONFIG_RETRY_MS));
+        await new Promise((resolve) =>
+          setTimeout(resolve, STACK_CONFIG_RETRY_MS)
+        );
       }
     }
     throw new Error(
-      "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after " +
+      'could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after ' +
         `${STACK_CONFIG_RETRIES} attempts — the local stack must be running and include the auth ` +
         "service (status only reports API keys while gotrue is up; add `gotrue` to the eval's " +
-        `services). Last status: ${lastStatus.slice(0, 300)}`,
+        `services). Last status: ${lastStatus.slice(0, 300)}`
     );
   };
 
@@ -374,11 +384,11 @@ export function buildLocalStackScoringContext(
     query: async (sql) => {
       const url = await discoverDbUrl();
       // base64 transport sidesteps shell quoting entirely.
-      const encoded = Buffer.from(wrapSelectAsJson(sql), "utf-8").toString(
-        "base64",
+      const encoded = Buffer.from(wrapSelectAsJson(sql), 'utf-8').toString(
+        'base64'
       );
       const result = await sandbox.runShell(
-        `echo ${encoded} | base64 -d | psql "${url}" -v ON_ERROR_STOP=1 -tA`,
+        `echo ${encoded} | base64 -d | psql "${url}" -v ON_ERROR_STOP=1 -tA`
       );
       if (!result.ok) {
         throw new Error(`query failed: ${result.stderr || result.stdout}`);
@@ -400,12 +410,12 @@ export function buildLocalStackScoringContext(
 }
 
 function extractJson(stdout: string): Record<string, unknown> | undefined {
-  const start = stdout.indexOf("{");
-  const end = stdout.lastIndexOf("}");
+  const start = stdout.indexOf('{');
+  const end = stdout.lastIndexOf('}');
   if (start === -1 || end <= start) return undefined;
   try {
     const parsed = JSON.parse(stdout.slice(start, end + 1));
-    return typeof parsed === "object" && parsed !== null
+    return typeof parsed === 'object' && parsed !== null
       ? (parsed as Record<string, unknown>)
       : undefined;
   } catch {
@@ -418,16 +428,16 @@ function extractJson(stdout: string): Record<string, unknown> | undefined {
  * of table-formatted text.
  */
 export function wrapSelectAsJson(sql: string): string {
-  return `select coalesce(json_agg(t), '[]'::json) from (${sql.replace(/;\s*$/, "")}) t;`;
+  return `select coalesce(json_agg(t), '[]'::json) from (${sql.replace(/;\s*$/, '')}) t;`;
 }
 
 export function resolveSandboxPath(userPath: string): string {
-  if (!userPath || userPath.startsWith("/") || userPath.includes("\0")) {
-    throw new Error("path must be relative to the workspace");
+  if (!userPath || userPath.startsWith('/') || userPath.includes('\0')) {
+    throw new Error('path must be relative to the workspace');
   }
   const normalized = posix.normalize(userPath);
-  if (normalized === ".." || normalized.startsWith("../")) {
-    throw new Error("path escapes workspace");
+  if (normalized === '..' || normalized.startsWith('../')) {
+    throw new Error('path escapes workspace');
   }
   return normalized;
 }

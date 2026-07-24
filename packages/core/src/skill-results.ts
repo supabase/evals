@@ -1,10 +1,10 @@
-import type { SkillResult } from "./eval-metadata.js";
-import type { ToolCallRecord } from "./index.js";
+import type { SkillResult } from './eval-metadata.js';
+import type { ToolCallRecord } from './index.js';
 
 /** Builds the persisted skill activation summary for one eval run. */
 export function buildSkillResult(
   available: string[],
-  toolCalls: ToolCallRecord[],
+  toolCalls: ToolCallRecord[]
 ): SkillResult {
   const loadedSkills = new Set<string>();
   for (const { loadedSkill } of toolCalls) {

@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { parseEnv } from "node:util";
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 
 /**
  * Read a single variable's value from a `.env`-style file, resolved with Node's
@@ -15,7 +15,7 @@ import { parseEnv } from "node:util";
 export function readEnvVariable(filePath: string | URL, name: string): string {
   let contents: string;
   try {
-    contents = readFileSync(filePath, "utf8");
+    contents = readFileSync(filePath, 'utf8');
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     throw new Error(`could not read env file ${String(filePath)}: ${msg}`);

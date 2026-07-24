@@ -7,17 +7,17 @@
  * sandbox` — the eval sandbox is the isolation boundary.
  */
 
-import type { ChatModel } from "openai/resources/shared";
-import type { McpServerConfig } from "../../index.js";
-import { parseJsonlRecords } from "../../json.js";
-import type { AgentRunner } from "../types.js";
+import type { ChatModel } from 'openai/resources/shared';
+import type { McpServerConfig } from '../../index.js';
+import { parseJsonlRecords } from '../../json.js';
+import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
   npmInstallGlobal,
   processStopReason,
   shellQuote,
   writeSandboxFile,
-} from "../shared.js";
+} from '../shared.js';
 
 // ChatModel is a closed union; widen so newer/codex-specific ids still type.
 export type CodexModel = ChatModel | (string & {});
@@ -25,42 +25,62 @@ export type CodexModel = ChatModel | (string & {});
 const CODEX_CONFIG_PATH = '"$HOME/.codex/config.toml"';
 
 export const codexRunner: AgentRunner<CodexModel> = {
-  id: "codex",
-  displayName: "OpenAI Codex",
-  apiKeyEnvVar: "OPENAI_API_KEY",
-  cliPackage: "@openai/codex",
+  id: 'codex',
+  displayName: 'OpenAI Codex',
+  apiKeyEnvVar: 'OPENAI_API_KEY',
+  cliPackage: '@openai/codex',
   // Pinned: Codex's --json event schema evolves; bump deliberately and re-check
   // the parser. See ./parser.ts.
-  defaultCliVersion: "0.138.0",
-  defaultModel: "gpt-5.4",
+  defaultCliVersion: '0.138.0',
+  defaultModel: 'gpt-5.4',
 
   async install(sandbox, version, apiKey) {
-    await npmInstallGlobal(sandbox, `${this.cliPackage}@${version}`, this.displayName);
+    await npmInstallGlobal(
+      sandbox,
+      `${this.cliPackage}@${version}`,
+      this.displayName
+    );
     // Persist API-key auth to ~/.codex/auth.json (read the key from stdin so it
     // never lands in argv or the process table).
-    const codex = npmGlobalBin("codex");
-    const login = await sandbox.exec(`printenv OPENAI_API_KEY | ${codex} login --with-api-key`, {
-      env: { OPENAI_API_KEY: apiKey },
-    });
+    const codex = npmGlobalBin('codex');
+    const login = await sandbox.exec(
+      `printenv OPENAI_API_KEY | ${codex} login --with-api-key`,
+      {
+        env: { OPENAI_API_KEY: apiKey },
+      }
+    );
     if (!login.ok) {
       throw new Error(`Codex login failed: ${login.stderr || login.stdout}`);
     }
   },
 
-  async exec({ sandbox, model, apiKey, systemPromptPath, userPromptPath, mcpServers, reasoningEffort, timeoutSec }) {
-    const codex = npmGlobalBin("codex");
+  async exec({
+    sandbox,
+    model,
+    apiKey,
+    systemPromptPath,
+    userPromptPath,
+    mcpServers,
+    reasoningEffort,
+    timeoutSec,
+  }) {
+    const codex = npmGlobalBin('codex');
     if (Object.keys(mcpServers).length > 0) {
       await sandbox.exec(`mkdir -p "$HOME/.codex"`);
-      await writeSandboxFile(sandbox, CODEX_CONFIG_PATH, buildCodexConfig(mcpServers));
+      await writeSandboxFile(
+        sandbox,
+        CODEX_CONFIG_PATH,
+        buildCodexConfig(mcpServers)
+      );
     }
 
     const flags = [
-      "exec",
-      "--json",
+      'exec',
+      '--json',
       // The workspace may not be a git repo; don't refuse to run.
-      "--skip-git-repo-check",
+      '--skip-git-repo-check',
       // The sandbox is the isolation boundary — let Codex run commands freely.
-      "--dangerously-bypass-approvals-and-sandbox",
+      '--dangerously-bypass-approvals-and-sandbox',
       `-m ${shellQuote(model)}`,
       // Reasoning effort via config override; omitted leaves Codex's default.
       // The value is parsed as TOML, so pass it as a quoted TOML string.
@@ -68,14 +88,14 @@ export const codexRunner: AgentRunner<CodexModel> = {
         ? [`-c ${shellQuote(`model_reasoning_effort="${reasoningEffort}"`)}`]
         : []),
       // Read the prompt from stdin.
-      "-",
-    ].join(" ");
+      '-',
+    ].join(' ');
 
     // Codex has no system-prompt flag; prepend the system prompt to the task,
     // both staged as files, fed on stdin.
     const command = await sandbox.exec(
       `{ cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath}; } | ${codex} ${flags}`,
-      { timeoutMs: timeoutSec * 1000, env: { OPENAI_API_KEY: apiKey } },
+      { timeoutMs: timeoutSec * 1000, env: { OPENAI_API_KEY: apiKey } }
     );
     return { command, raw: command.stdout };
   },
@@ -87,10 +107,10 @@ export const codexRunner: AgentRunner<CodexModel> = {
     // failure. Only when there's no terminal event (crash / kill / timeout) do
     // we fall back to the process-exit heuristic.
     switch (terminalOutcome(raw)) {
-      case "completed":
-        return "stop";
-      case "failed":
-        return "error";
+      case 'completed':
+        return 'stop';
+      case 'failed':
+        return 'error';
       default:
         return processStopReason(command);
     }
@@ -98,13 +118,15 @@ export const codexRunner: AgentRunner<CodexModel> = {
 };
 
 /** The last turn-level outcome in a `codex exec --json` stream, if any. */
-function terminalOutcome(raw: string | undefined): "completed" | "failed" | undefined {
+function terminalOutcome(
+  raw: string | undefined
+): 'completed' | 'failed' | undefined {
   if (!raw) return undefined;
   const { records } = parseJsonlRecords(raw);
   for (let i = records.length - 1; i >= 0; i -= 1) {
     const type = records[i].type;
-    if (type === "turn.completed") return "completed";
-    if (type === "turn.failed" || type === "error") return "failed";
+    if (type === 'turn.completed') return 'completed';
+    if (type === 'turn.failed' || type === 'error') return 'failed';
   }
   return undefined;
 }
@@ -119,19 +141,22 @@ function terminalOutcome(raw: string | undefined): "completed" | "failed" | unde
 function buildCodexConfig(servers: Record<string, McpServerConfig>): string {
   const blocks: string[] = [];
   for (const [name, server] of Object.entries(servers)) {
-    const lines = [`[mcp_servers.${tomlKey(name)}]`, `command = ${tomlString(server.command)}`];
+    const lines = [
+      `[mcp_servers.${tomlKey(name)}]`,
+      `command = ${tomlString(server.command)}`,
+    ];
     if (server.args?.length) {
-      lines.push(`args = [${server.args.map(tomlString).join(", ")}]`);
+      lines.push(`args = [${server.args.map(tomlString).join(', ')}]`);
     }
     if (server.env && Object.keys(server.env).length > 0) {
       const entries = Object.entries(server.env)
         .map(([k, v]) => `${tomlKey(k)} = ${tomlString(v)}`)
-        .join(", ");
+        .join(', ');
       lines.push(`env = { ${entries} }`);
     }
-    blocks.push(lines.join("\n"));
+    blocks.push(lines.join('\n'));
   }
-  return blocks.join("\n\n") + "\n";
+  return blocks.join('\n\n') + '\n';
 }
 
 /** TOML basic string — JSON string escaping is a valid subset. */

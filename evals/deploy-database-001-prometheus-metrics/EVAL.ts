@@ -1,15 +1,15 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   judge,
   type CheckResult,
   type LocalStackScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const PROMETHEUS_PATH = "observability/prometheus.yml";
-const COMPOSE_PATH = "observability/docker-compose.yml";
-const README_PATH = "observability/README.md";
+const PROMETHEUS_PATH = 'observability/prometheus.yml';
+const COMPOSE_PATH = 'observability/docker-compose.yml';
+const README_PATH = 'observability/README.md';
 
 const scorer: LocalStackScorer = async (ctx) => {
   const prometheus = readWorkspaceFile(ctx.hostWorkspace, PROMETHEUS_PATH);
@@ -54,18 +54,18 @@ const scorer: LocalStackScorer = async (ctx) => {
 
   const checks: CheckResult[] = [
     {
-      name: "preserved existing app scrape job",
+      name: 'preserved existing app scrape job',
       passed:
         /job_name:\s*["']?app["']?/i.test(prometheus) &&
         /app:8080/i.test(prometheus),
     },
     {
-      name: "configured the Supabase Metrics API scrape correctly",
+      name: 'configured the Supabase Metrics API scrape correctly',
       passed: prometheusConfig.passed,
       judgeNotes: prometheusConfig.notes,
     },
     {
-      name: "documented live deployment and verification steps",
+      name: 'documented live deployment and verification steps',
       passed: deploymentDocs.passed,
       judgeNotes: deploymentDocs.notes,
     },
@@ -79,7 +79,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
 function readWorkspaceFile(workspace: string, path: string): string {
   const fullPath = join(workspace, path);
-  return existsSync(fullPath) ? readFileSync(fullPath, "utf8") : "";
+  return existsSync(fullPath) ? readFileSync(fullPath, 'utf8') : '';
 }
 
 export default scorer;

@@ -21,42 +21,65 @@
 //   manifest.mjs get <repo> <key>  value; arrays print one item per line;
 //                                  absent optional keys print nothing (exit 0)
 //   manifest.mjs kind <patch>      "local" | "upstream" for a patch name
-import { readFileSync, realpathSync } from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { dirname, join } from "node:path";
+import { readFileSync, realpathSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const manifestPath = join(dirname(fileURLToPath(import.meta.url)), "..", "manifest.json");
+const manifestPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'manifest.json'
+);
 
 /** Read + validate manifest.json. Throws with an actionable message. */
 export function loadManifest() {
   let manifest;
   try {
-    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   } catch (e) {
     throw new Error(`cannot read ${manifestPath}: ${e.message}`);
   }
 
   // --- schema validation: fail loud before answering any query ---
-  const isStr = (v) => typeof v === "string" && v.length > 0;
+  const isStr = (v) => typeof v === 'string' && v.length > 0;
   const isStrArr = (v) => Array.isArray(v) && v.length > 0 && v.every(isStr);
-  if (typeof manifest?.repos !== "object" || manifest.repos === null || Array.isArray(manifest.repos)) {
+  if (
+    typeof manifest?.repos !== 'object' ||
+    manifest.repos === null ||
+    Array.isArray(manifest.repos)
+  ) {
     throw new Error('top-level "repos" object missing');
   }
   for (const [name, repo] of Object.entries(manifest.repos)) {
-    if (!isStr(repo?.dir)) throw new Error(`repos.${name}.dir must be a non-empty string`);
-    if (repo.kind !== undefined && repo.kind !== "submodule") {
+    if (!isStr(repo?.dir))
+      throw new Error(`repos.${name}.dir must be a non-empty string`);
+    if (repo.kind !== undefined && repo.kind !== 'submodule') {
       throw new Error(`repos.${name}.kind must be "submodule" when present`);
     }
-    if (repo.kind === "submodule") {
-      if (repo.remote !== undefined) throw new Error(`repos.${name}.remote must be absent for kind:"submodule" (.gitmodules owns the remote)`);
+    if (repo.kind === 'submodule') {
+      if (repo.remote !== undefined)
+        throw new Error(
+          `repos.${name}.remote must be absent for kind:"submodule" (.gitmodules owns the remote)`
+        );
     } else if (!isStr(repo.remote)) {
-      throw new Error(`repos.${name}.remote must be a non-empty string (required for clone entries)`);
+      throw new Error(
+        `repos.${name}.remote must be a non-empty string (required for clone entries)`
+      );
     }
-    if (repo.patches !== undefined && !isStrArr(repo.patches)) throw new Error(`repos.${name}.patches must be a non-empty array of strings`);
+    if (repo.patches !== undefined && !isStrArr(repo.patches))
+      throw new Error(
+        `repos.${name}.patches must be a non-empty array of strings`
+      );
     if (repo.localPatches !== undefined) {
-      if (!isStrArr(repo.localPatches)) throw new Error(`repos.${name}.localPatches must be a non-empty array of strings`);
+      if (!isStrArr(repo.localPatches))
+        throw new Error(
+          `repos.${name}.localPatches must be a non-empty array of strings`
+        );
       for (const p of repo.localPatches) {
-        if (!(repo.patches ?? []).includes(p)) throw new Error(`repos.${name}.localPatches has "${p}" which is not in patches`);
+        if (!(repo.patches ?? []).includes(p))
+          throw new Error(
+            `repos.${name}.localPatches has "${p}" which is not in patches`
+          );
       }
     }
   }
@@ -67,7 +90,10 @@ export function loadManifest() {
   const seen = new Set();
   for (const [name, repo] of Object.entries(manifest.repos)) {
     for (const p of repo.patches ?? []) {
-      if (seen.has(p)) throw new Error(`patch name "${p}" appears under more than one repo (repos.${name}) — names must be globally unique`);
+      if (seen.has(p))
+        throw new Error(
+          `patch name "${p}" appears under more than one repo (repos.${name}) — names must be globally unique`
+        );
       seen.add(p);
     }
   }
@@ -79,7 +105,10 @@ export function loadManifest() {
 // (macOS /tmp -> /private/tmp), so a naive pathToFileURL(argv[1]) mismatches.
 const isMain = (() => {
   try {
-    return import.meta.url === pathToFileURL(realpathSync(process.argv[1] ?? "")).href;
+    return (
+      import.meta.url ===
+      pathToFileURL(realpathSync(process.argv[1] ?? '')).href
+    );
   } catch {
     return false;
   }
@@ -99,26 +128,30 @@ if (isMain) {
 
   const [cmd, ...args] = process.argv.slice(2);
   switch (cmd) {
-    case "repos":
-      console.log(Object.keys(manifest.repos).join("\n"));
+    case 'repos':
+      console.log(Object.keys(manifest.repos).join('\n'));
       break;
-    case "get": {
+    case 'get': {
       const [name, key] = args;
-      const repo = manifest.repos[name ?? ""];
-      if (!repo) die(`unknown repo "${name ?? ""}"`);
-      if (!["dir", "remote", "patches", "localPatches"].includes(key ?? "")) die(`unknown key "${key ?? ""}"`);
+      const repo = manifest.repos[name ?? ''];
+      if (!repo) die(`unknown repo "${name ?? ''}"`);
+      if (!['dir', 'remote', 'patches', 'localPatches'].includes(key ?? ''))
+        die(`unknown key "${key ?? ''}"`);
       const v = repo[key];
-      if (v !== undefined) console.log(Array.isArray(v) ? v.join("\n") : v);
+      if (v !== undefined) console.log(Array.isArray(v) ? v.join('\n') : v);
       break;
     }
-    case "kind": {
+    case 'kind': {
       const [patch] = args;
-      if (typeof patch !== "string" || patch.length === 0) die("kind: patch name required");
-      const local = Object.values(manifest.repos).some((r) => (r.localPatches ?? []).includes(patch));
-      console.log(local ? "local" : "upstream");
+      if (typeof patch !== 'string' || patch.length === 0)
+        die('kind: patch name required');
+      const local = Object.values(manifest.repos).some((r) =>
+        (r.localPatches ?? []).includes(patch)
+      );
+      console.log(local ? 'local' : 'upstream');
       break;
     }
     default:
-      die(`unknown command "${cmd ?? ""}" (expected: repos | get | kind)`);
+      die(`unknown command "${cmd ?? ''}" (expected: repos | get | kind)`);
   }
 }

@@ -3,8 +3,8 @@ import {
   serializeTranscript,
   type CheckResult,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
 const scorer: ToolScorer = async (ctx) => {
   const verdict = await judge({
@@ -23,7 +23,7 @@ const scorer: ToolScorer = async (ctx) => {
 
   const checks: CheckResult[] = [
     {
-      name: "answered unhealthy project recovery question safely",
+      name: 'answered unhealthy project recovery question safely',
       passed: verdict.passed,
       judgeNotes: verdict.notes,
     },

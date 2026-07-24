@@ -9,31 +9,31 @@ import {
   rmSync,
   statSync,
   writeFileSync,
-} from "node:fs";
-import { join, dirname, relative } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { jsonSchema, tool, type ToolSet } from "ai";
-import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
+} from 'node:fs';
+import { join, dirname, relative } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { jsonSchema, tool, type ToolSet } from 'ai';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import {
   createBareSandbox,
   frontmatterDescription,
   stripFrontmatter,
-} from "@supabase-evals/sandbox";
+} from '@supabase-evals/sandbox';
 import {
   normalizeExperimentName,
   readExperimentSuiteFilters,
   readRepeatedFlag,
   readSuiteFilters,
-} from "../lib/cli-args.js";
-import { bootPlatformBackend } from "./platform-backend.js";
-import { viteBuild, vitestRun } from "./project-runner.js";
+} from '../lib/cli-args.js';
+import { bootPlatformBackend } from './platform-backend.js';
+import { viteBuild, vitestRun } from './project-runner.js';
 import {
   buildDocsResult,
   buildSkillResult,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
   supabaseMcpServerMounts,
-} from "@supabase-evals/core";
+} from '@supabase-evals/core';
 import type {
   ExperimentConfig,
   EvalInterface,
@@ -47,45 +47,45 @@ import type {
   DocsResult,
   ToolCallRecord,
   TranscriptPart,
-} from "./types.js";
+} from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, "..", "..", "..");
+const ROOT = join(__dirname, '..', '..', '..');
 
 // Fixed identifiers for the mocked hosted project a local-stack eval links to.
 // Both must satisfy the CLI's format checks: ref is `^[a-z]{20}$`, token is
 // `^sbp_[a-f0-9]{40}$`. platform-lite accepts whatever token it's booted with.
-const HOSTED_PROJECT_REF = "evalshostedprojectxy";
-const HOSTED_ACCESS_TOKEN = "sbp_" + "0".repeat(40);
+const HOSTED_PROJECT_REF = 'evalshostedprojectxy';
+const HOSTED_ACCESS_TOKEN = 'sbp_' + '0'.repeat(40);
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
-const FORCE = !args.has("--skip-existing");
-const SMOKE = args.has("--smoke");
-const DRY = args.has("--dry");
-const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
-  normalizeExperimentName,
+const FORCE = !args.has('--skip-existing');
+const SMOKE = args.has('--smoke');
+const DRY = args.has('--dry');
+const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
+  normalizeExperimentName
 );
-const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
+const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const SELECTED_EXPERIMENT_SUITE =
   EXPERIMENT_SUITE_FILTERS.length === 1
     ? EXPERIMENT_SUITE_FILTERS[0]
     : undefined;
-const RUNS = Number(readFlag("runs") ?? 1);
-const TIMEOUT_SEC = Number(readFlag("timeout-sec") ?? 720);
-const CONCURRENCY = Number(readFlag("concurrency") ?? 1);
-const STOP_ON_PASS = !args.has("--run-all-attempts");
-const DEBUG = args.has("--debug");
+const RUNS = Number(readFlag('runs') ?? 1);
+const TIMEOUT_SEC = Number(readFlag('timeout-sec') ?? 720);
+const CONCURRENCY = Number(readFlag('concurrency') ?? 1);
+const STOP_ON_PASS = !args.has('--run-all-attempts');
+const DEBUG = args.has('--debug');
 
 async function loadExperiments() {
-  const dir = join(ROOT, "experiments");
+  const dir = join(ROOT, 'experiments');
   const out: Array<{ name: string; config: ExperimentConfig }> = [];
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
+  for (const f of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
     const mod = await import(pathToFileURL(join(dir, f)).href);
     out.push({
-      name: f.replace(/\.ts$/, ""),
+      name: f.replace(/\.ts$/, ''),
       config: mod.default as ExperimentConfig,
     });
   }
@@ -100,7 +100,7 @@ function readFlag(name: string): string | undefined {
   const idx = rawArgs.indexOf(`--${name}`);
   if (idx !== -1) {
     const value = rawArgs[idx + 1];
-    if (!value || value.startsWith("--")) {
+    if (!value || value.startsWith('--')) {
       throw new Error(`--${name} requires a value`);
     }
     return value;
@@ -118,25 +118,25 @@ function readFlag(name: string): string | undefined {
  */
 function resolveEvalMode(
   interfaceKind: EvalInterface | undefined,
-  hasLocal: boolean,
+  hasLocal: boolean
 ): EvalMode {
-  if (interfaceKind === "cli" || hasLocal) return "local-stack";
-  return "tools";
+  if (interfaceKind === 'cli' || hasLocal) return 'local-stack';
+  return 'tools';
 }
 
 function discoverEvals(): EvalManifest[] {
-  const dir = join(ROOT, "evals");
+  const dir = join(ROOT, 'evals');
   if (!existsSync(dir)) return [];
   const out: EvalManifest[] = [];
   for (const id of readdirSync(dir)) {
     const evalDir = join(dir, id);
     if (!statSync(evalDir).isDirectory()) continue;
-    const localDir = join(evalDir, "local");
-    const promptPath = join(evalDir, "PROMPT.md");
-    const evalPath = join(evalDir, "EVAL.ts");
+    const localDir = join(evalDir, 'local');
+    const promptPath = join(evalDir, 'PROMPT.md');
+    const evalPath = join(evalDir, 'EVAL.ts');
     const metadata = parseEvalMarkdown(
-      readFileSync(promptPath, "utf8"),
-      `evals/${id}/PROMPT.md`,
+      readFileSync(promptPath, 'utf8'),
+      `evals/${id}/PROMPT.md`
     ).metadata;
     const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
     const mode = resolveEvalMode(metadata.interface, hasLocal);
@@ -152,7 +152,7 @@ function discoverEvals(): EvalManifest[] {
       localDir: hasLocal ? localDir : undefined,
       promptPath,
       evalPath,
-      remoteDir: join(evalDir, "remote"),
+      remoteDir: join(evalDir, 'remote'),
     });
   }
   return out;
@@ -171,14 +171,14 @@ type ToolsSkill = { name: string; description: string; body: string };
 function loadToolsSkills(skillNames: string[]): ToolsSkill[] {
   const skills: ToolsSkill[] = [];
   for (const name of skillNames) {
-    const p = join(ROOT, "skills", name, "SKILL.md");
+    const p = join(ROOT, 'skills', name, 'SKILL.md');
     if (!existsSync(p)) {
       console.warn(
-        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`,
+        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`
       );
       continue;
     }
-    const md = readFileSync(p, "utf8");
+    const md = readFileSync(p, 'utf8');
     skills.push({
       name,
       description: frontmatterDescription(md),
@@ -194,16 +194,16 @@ function loadToolsSkills(skillNames: string[]): ToolsSkill[] {
  * Empty when there are no skills.
  */
 function buildToolsSkillsPrompt(skills: readonly ToolsSkill[]): string {
-  if (skills.length === 0) return "";
+  if (skills.length === 0) return '';
   return [
-    "## Available skills",
-    "",
-    "The following agent skills are available. Only their names and descriptions are shown — " +
-      "the full instructions are not loaded yet. When a task matches a skill, call the `load_skill` " +
-      "tool with its name to load its full instructions.",
-    "",
+    '## Available skills',
+    '',
+    'The following agent skills are available. Only their names and descriptions are shown — ' +
+      'the full instructions are not loaded yet. When a task matches a skill, call the `load_skill` ' +
+      'tool with its name to load its full instructions.',
+    '',
     ...skills.map((s) => `- ${s.name}: ${s.description}`),
-  ].join("\n");
+  ].join('\n');
 }
 
 /**
@@ -220,23 +220,23 @@ function buildLoadSkillTool(skills: readonly ToolsSkill[]): ToolSet {
       description:
         "Load an agent skill's full instructions by name. Available skills are listed in the system prompt.",
       inputSchema: jsonSchema({
-        type: "object",
+        type: 'object',
         properties: {
           name: {
-            type: "string",
+            type: 'string',
             description:
-              "The skill name to load (as listed under Available skills).",
+              'The skill name to load (as listed under Available skills).',
             enum: skills.map((s) => s.name),
           },
         },
-        required: ["name"],
+        required: ['name'],
       }),
       execute: async (input) => {
-        const name = String((input as { name?: unknown })?.name ?? "");
+        const name = String((input as { name?: unknown })?.name ?? '');
         const entry = byName.get(name);
         if (!entry) {
           throw new Error(
-            `unknown skill "${name}"; available: ${skills.map((s) => s.name).join(", ")}`,
+            `unknown skill "${name}"; available: ${skills.map((s) => s.name).join(', ')}`
           );
         }
         return { instructions: entry.body };
@@ -254,14 +254,14 @@ function buildLoadSkillTool(skills: readonly ToolsSkill[]): ToolSet {
  * skipped with a warning.
  */
 function resolveSkillSources(
-  skillNames: string[],
+  skillNames: string[]
 ): Array<{ name: string; dir: string }> {
   const sources: Array<{ name: string; dir: string }> = [];
   for (const name of skillNames) {
-    const dir = join(ROOT, "skills", name);
+    const dir = join(ROOT, 'skills', name);
     if (!existsSync(dir)) {
       console.warn(
-        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`,
+        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`
       );
       continue;
     }
@@ -270,32 +270,32 @@ function resolveSkillSources(
   return sources;
 }
 
-function resultPath(modelName: string, ev: Pick<EvalManifest, "id" | "mode">) {
-  return join(ROOT, "results", modelName, `${ev.id}.json`);
+function resultPath(modelName: string, ev: Pick<EvalManifest, 'id' | 'mode'>) {
+  return join(ROOT, 'results', modelName, `${ev.id}.json`);
 }
 
 function workspacePath(modelName: string, evalId: string, attempt: number) {
   return join(
     ROOT,
-    "results",
+    'results',
     modelName,
     evalId,
     `attempt-${attempt}`,
-    "workspace",
+    'workspace'
   );
 }
 
 function copyWithheldTests(ev: EvalManifest, workspace: string) {
-  const testsDir = join(ev.dir, "tests");
+  const testsDir = join(ev.dir, 'tests');
   if (existsSync(testsDir)) {
-    cpSync(testsDir, join(workspace, "tests"), { recursive: true });
+    cpSync(testsDir, join(workspace, 'tests'), { recursive: true });
   }
 }
 
 function readSessionSeedArgs(ev: EvalManifest) {
-  const projectSeedSql = join(ev.remoteDir, "project.sql");
-  const logsSeedJsonl = join(ev.remoteDir, "logs.jsonl");
-  const functionsSeedDir = join(ev.remoteDir, "functions");
+  const projectSeedSql = join(ev.remoteDir, 'project.sql');
+  const logsSeedJsonl = join(ev.remoteDir, 'logs.jsonl');
+  const functionsSeedDir = join(ev.remoteDir, 'functions');
 
   return {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
@@ -303,33 +303,33 @@ function readSessionSeedArgs(ev: EvalManifest) {
     functionsSeedDir: existsSync(functionsSeedDir)
       ? functionsSeedDir
       : undefined,
-    pgvector: ev.metadata.product.includes("vectors"),
+    pgvector: ev.metadata.product.includes('vectors'),
   };
 }
 
 function basePromptFor(mode: EvalMode): string {
-  if (mode === "local-stack") {
+  if (mode === 'local-stack') {
     return (
-      "You are an agent solving a Supabase eval task in a Linux workspace. " +
-      "Use the provided tools to inspect and modify the workspace and run commands. " +
-      "When you are done, end your turn with a short summary of what you did."
+      'You are an agent solving a Supabase eval task in a Linux workspace. ' +
+      'Use the provided tools to inspect and modify the workspace and run commands. ' +
+      'When you are done, end your turn with a short summary of what you did.'
     );
   }
   return (
-    "You are an agent solving a Supabase eval task. " +
-    "Use the provided tools to inspect and modify the project. " +
-    "When you are done, end your turn with a short summary of what you did " +
-    "(or for audit tasks, your findings)."
+    'You are an agent solving a Supabase eval task. ' +
+    'Use the provided tools to inspect and modify the project. ' +
+    'When you are done, end your turn with a short summary of what you did ' +
+    '(or for audit tasks, your findings).'
   );
 }
 
 function buildSystemPrompt(
   mode: EvalMode,
   addendum?: string,
-  skillContext?: string,
+  skillContext?: string
 ): string {
   const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
-  return blocks.join("\n\n");
+  return blocks.join('\n\n');
 }
 
 /**
@@ -339,7 +339,7 @@ function buildSystemPrompt(
  * scope throws before its own `try`/`finally` is reached.
  */
 function disposable<T extends { close(): Promise<unknown> }>(
-  resource: T,
+  resource: T
 ): T & AsyncDisposable {
   return Object.assign(resource, {
     [Symbol.asyncDispose]: async () => {
@@ -351,7 +351,7 @@ function disposable<T extends { close(): Promise<unknown> }>(
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
-  ev: EvalManifest,
+  ev: EvalManifest
 ): Promise<
   ScoreResult & {
     attempts: number;
@@ -364,8 +364,8 @@ async function runOne(
   }
 > {
   const prompt = parseEvalMarkdown(
-    readFileSync(ev.promptPath, "utf8"),
-    ev.promptPath,
+    readFileSync(ev.promptPath, 'utf8'),
+    ev.promptPath
   ).body;
   // A CLI agent always runs in a sandbox and reads skills from disk with its
   // file tools (both modes). An in-process (ai-sdk) agent has no sandbox, so in
@@ -375,7 +375,7 @@ async function runOne(
   const skillSources = resolveSkillSources(exp.skills);
   const availableSkills = skillSources.map((skill) => skill.name);
   const toolsSkills =
-    ev.mode === "tools" && !agentRunsInSandbox
+    ev.mode === 'tools' && !agentRunsInSandbox
       ? loadToolsSkills(exp.skills)
       : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
@@ -383,21 +383,21 @@ async function runOne(
     | LocalStackScorer;
   let last: ScoreResult = {
     passed: false,
-    checks: [{ name: "ran at least one attempt", passed: false }],
+    checks: [{ name: 'ran at least one attempt', passed: false }],
   };
   let lastToolCalls: ToolCallRecord[] = [];
   let lastTranscript: TranscriptPart[] = [];
-  let lastAgentReport = "";
-  let lastStoppedReason = "not_started";
+  let lastAgentReport = '';
+  let lastStoppedReason = 'not_started';
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
-    if (ev.mode === "local-stack") {
+    if (ev.mode === 'local-stack') {
       // Local-stack mode: the experiment's local-stack tool surface provides
       // the sandbox session; one fresh session per attempt.
       if (!exp.localStack) {
         throw new Error(
           `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
-            `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`,
+            `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`
         );
       }
       // When the eval links to a hosted project, boot a platform-lite backend
@@ -412,11 +412,11 @@ async function runOne(
               ...readSessionSeedArgs(ev),
               ref: HOSTED_PROJECT_REF,
               accessToken: HOSTED_ACCESS_TOKEN,
-              hostname: "0.0.0.0",
+              hostname: '0.0.0.0',
               // Expose Postgres-wire too, so linked DB workflows (`db push`,
               // `migration repair`) reach the same project over the wire.
               pgWire: true,
-            }),
+            })
           )
         : undefined;
       await using session = disposable(
@@ -441,11 +441,11 @@ async function runOne(
           // so no skill text is injected into the prompt here.
           skills: skillSources,
           mounts: supabaseMcpServerMounts(),
-        }),
+        })
       );
 
       const run = await exp.agent.run({
-        systemPrompt: buildSystemPrompt("local-stack", session.promptAddendum),
+        systemPrompt: buildSystemPrompt('local-stack', session.promptAddendum),
         userPrompt: prompt,
         tools: session.tools,
         sandbox: session.sandbox,
@@ -513,14 +513,14 @@ async function runOne(
           await createBareSandbox({
             skills: skillSources,
             mounts: supabaseMcpServerMounts(),
-          }),
+          })
         )
       : undefined;
     await using session = disposable(
       await exp.runtime.startSession({
         ...readSessionSeedArgs(ev),
-        hostname: agentRunsInSandbox ? "0.0.0.0" : undefined,
-      }),
+        hostname: agentRunsInSandbox ? '0.0.0.0' : undefined,
+      })
     );
 
     // CLI agents read their installed skills from disk (the bare sandbox folds
@@ -531,9 +531,9 @@ async function runOne(
       ? cliSandbox!.promptAddendum
       : buildToolsSkillsPrompt(toolsSkills);
     const systemPrompt = buildSystemPrompt(
-      "tools",
+      'tools',
       session.promptAddendum,
-      skillsPrompt,
+      skillsPrompt
     );
     const run = await exp.agent.run({
       systemPrompt,
@@ -544,7 +544,8 @@ async function runOne(
       timeoutSec: TIMEOUT_SEC,
     });
     // Must run before cliSandbox disposes below, see rehydrateTruncatedDocsResults.
-    if (cliSandbox) await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
+    if (cliSandbox)
+      await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
 
     lastToolCalls = run.toolCalls;
     lastTranscript = run.transcript;
@@ -587,10 +588,10 @@ async function runOne(
 function formatPlanLine(
   name: string,
   config: ExperimentConfig,
-  ev: EvalManifest,
+  ev: EvalManifest
 ): string {
   const head = `PLAN ${name} x ${ev.id}  stage=${ev.stage} suite=${ev.suite}`;
-  if (ev.mode === "local-stack") {
+  if (ev.mode === 'local-stack') {
     return `${head} mode=local-stack runtime=${config.localStack?.id} model=${config.agent.modelId}`;
   }
   return `${head} mode=tools runtime=${config.runtime.id} model=${config.agent.modelId}`;
@@ -604,7 +605,7 @@ function formatRunSummary(res: ScoreResult & { attempts: number }): string {
   }
   parts.push(`attempts ${res.attempts}`);
 
-  return parts.join(", ");
+  return parts.join(', ');
 }
 
 /** Prints a retry line when a failed attempt will be followed by another. */
@@ -612,19 +613,19 @@ function logRetryAttempt(
   expName: string,
   ev: EvalManifest,
   attempt: number,
-  result: ScoreResult,
+  result: ScoreResult
 ) {
   if (!STOP_ON_PASS || result.passed || attempt >= RUNS) return;
   const summary = formatRunSummary({ ...result, attempts: attempt });
   console.log(
-    `🔁 RETRY ${expName} x ${ev.id} (attempt ${attempt}/${RUNS} failed, ${summary})`,
+    `🔁 RETRY ${expName} x ${ev.id} (attempt ${attempt}/${RUNS} failed, ${summary})`
   );
 }
 
 async function runConcurrent<T>(
   items: T[],
   limit: number,
-  fn: (item: T) => Promise<void>,
+  fn: (item: T) => Promise<void>
 ): Promise<void> {
   const queue = [...items];
   const workers = Array.from(
@@ -632,13 +633,13 @@ async function runConcurrent<T>(
     async () => {
       let item: T | undefined;
       while ((item = queue.shift()) !== undefined) await fn(item);
-    },
+    }
   );
   await Promise.all(workers);
 }
 
 async function main() {
-  if (rawArgs.filter((a) => a !== "--")[0] === "list") {
+  if (rawArgs.filter((a) => a !== '--')[0] === 'list') {
     const experiments = await loadExperiments();
     const filtered =
       EXPERIMENT_SUITE_FILTERS.length > 0
@@ -646,8 +647,8 @@ async function main() {
             (e) =>
               e.config.suite !== undefined &&
               e.config.suite.some((suite) =>
-                EXPERIMENT_SUITE_FILTERS.includes(suite),
-              ),
+                EXPERIMENT_SUITE_FILTERS.includes(suite)
+              )
           )
         : experiments;
     console.log(JSON.stringify(filtered.map((e) => e.name)));
@@ -658,10 +659,10 @@ async function main() {
   if (EXPERIMENT_FILTERS.length > 0) {
     const experimentNames = new Set(allExperiments.map(({ name }) => name));
     const missing = EXPERIMENT_FILTERS.filter(
-      (name) => !experimentNames.has(name),
+      (name) => !experimentNames.has(name)
     );
     if (missing.length > 0) {
-      throw new Error(`no experiment matched: ${missing.join(",")}`);
+      throw new Error(`no experiment matched: ${missing.join(',')}`);
     }
   }
 
@@ -679,7 +680,7 @@ async function main() {
   if (EXPERIMENT_FILTERS.length > 0) {
     if (experiments.length === 0) {
       throw new Error(
-        `no experiments matched experiment=${EXPERIMENT_FILTERS.join(",")}`,
+        `no experiments matched experiment=${EXPERIMENT_FILTERS.join(',')}`
       );
     }
   }
@@ -688,7 +689,7 @@ async function main() {
     const evalIds = new Set(evals.map((e) => e.id));
     const missing = EVAL_FILTERS.filter((evalId) => !evalIds.has(evalId));
     if (missing.length > 0) {
-      throw new Error(`no eval matched: ${missing.join(",")}`);
+      throw new Error(`no eval matched: ${missing.join(',')}`);
     }
   }
 
@@ -697,7 +698,7 @@ async function main() {
         evals.reduce<Record<string, EvalManifest>>((acc, e) => {
           acc[e.stage] ??= e;
           return acc;
-        }, {}),
+        }, {})
       )
     : EVAL_FILTERS.length > 0
       ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
@@ -709,11 +710,11 @@ async function main() {
 
   if (suiteFiltered.length === 0) {
     const filter = [
-      EVAL_FILTERS.length > 0 ? `eval=${EVAL_FILTERS.join(",")}` : undefined,
-      SUITE_FILTERS.length > 0 ? `suite=${SUITE_FILTERS.join(",")}` : undefined,
+      EVAL_FILTERS.length > 0 ? `eval=${EVAL_FILTERS.join(',')}` : undefined,
+      SUITE_FILTERS.length > 0 ? `suite=${SUITE_FILTERS.join(',')}` : undefined,
     ]
       .filter(Boolean)
-      .join(" ");
+      .join(' ');
     throw new Error(`no evals matched ${filter}`);
   }
 
@@ -723,7 +724,7 @@ async function main() {
 
   console.log(
     `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
-      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}, ${STOP_ON_PASS ? "stop-on-pass" : "run-all-attempts"}`,
+      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}, ${STOP_ON_PASS ? 'stop-on-pass' : 'run-all-attempts'}`
   );
 
   const allWork: Array<{
@@ -748,9 +749,9 @@ async function main() {
         console.log(`SKIP ${name} x ${ev.id} (already ran)`);
         continue;
       }
-      if (ev.mode === "local-stack" && !config.localStack) {
+      if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
-          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`,
+          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`
         );
         continue;
       }
@@ -786,22 +787,22 @@ async function main() {
               ...res,
             },
             null,
-            2,
-          ),
+            2
+          )
         );
         const elapsed = Math.round((Date.now() - start) / 1000);
         console.log(
-          `${res.passed ? "✅ PASS" : "❌ FAIL"} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`,
+          `${res.passed ? '✅ PASS' : '❌ FAIL'} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`
         );
       } catch (e) {
         errored.push(new Error(`${name} x ${ev.id}`, { cause: e }));
         const elapsed = Math.round((Date.now() - start) / 1000);
         stderr(
-          `💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`,
+          `💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`
         );
       }
     };
-    if (ev.mode !== "local-stack") return run();
+    if (ev.mode !== 'local-stack') return run();
     const prev = localStackTurn;
     let release!: () => void;
     localStackTurn = new Promise((r) => (release = r));
