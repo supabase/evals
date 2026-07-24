@@ -4,14 +4,14 @@ import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
-  // Serve under /evals in production so the app works behind the
-  // supabase.com/evals rewrite (AI-826). Dev stays at the root.
-  base: mode === "production" ? "/evals/" : "/",
+export default defineConfig({
+  // Serve under /evals so the app works behind the supabase.com/evals
+  // rewrite (AI-826). The dev server redirects / to /evals/.
+  base: "/evals/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
-}))
+})
