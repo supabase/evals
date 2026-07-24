@@ -58,6 +58,20 @@ export interface SandboxJobOptions {
   resultsDir: string;
 }
 
+/**
+ * Human-readable sandbox name for the dashboard list view (tags only show on
+ * the detail page): `<experiment>--<eval>--<suffix>`. Names must be unique
+ * within the project, so a short random suffix keeps retries and repeat runs
+ * of the same pair from colliding. Sanitized to the accepted charset (e.g.
+ * "4.5" → "4-5") and length-capped defensively.
+ */
+function pairSandboxName(pair: EvalPair): string {
+  const clean = (value: string) =>
+    value.toLowerCase().replaceAll(/[^a-z0-9-]+/g, "-");
+  const suffix = Math.random().toString(36).slice(2, 6);
+  return `${clean(pair.experiment).slice(0, 40)}--${clean(pair.evalId).slice(0, 48)}--${suffix}`;
+}
+
 export interface SandboxJobResult {
   pair: EvalPair;
   ok: boolean;
@@ -88,6 +102,7 @@ export async function runPairInSandbox(
     options.onPhase?.("create");
     sandbox = await createSandbox(
       {
+        name: pairSandboxName(pair),
         resources: { vcpus: options.vcpus },
         timeout: options.sandboxTimeoutMs,
         // Sandboxes auto-snapshot on stop by default ("persistent"); a
@@ -247,12 +262,19 @@ export async function runPairInSandbox(
     };
   } finally {
     if (sandbox) {
+      // A pair's VM is never reused: stop it and delete the record outright
+      // so nothing lingers (persistent:false already prevents auto-snapshot
+      // storage; deletion is belt-and-braces and keeps the dashboard clean).
+      // The snapshot builder's sandbox is deliberately NOT deleted — its
+      // snapshot is the warm-boot cache and Snapshot.list resolves it by the
+      // builder's name.
       try {
         await sandbox.stop();
-        log("sandbox stopped");
+        await sandbox.delete();
+        log("sandbox stopped and deleted");
       } catch (err) {
         stderr.write(
-          `sandbox stop failed (it will expire on its own): ${err instanceof Error ? err.message : String(err)}\n`,
+          `sandbox cleanup failed (it will expire on its own): ${err instanceof Error ? err.message : String(err)}\n`,
         );
       }
     }
