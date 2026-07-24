@@ -29,7 +29,7 @@ function SheetOverlay({
       data-slot="sheet-overlay"
       className={cn(
         "fixed inset-0 z-50 bg-background/70 backdrop-blur-xs",
-        "data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "data-[state=closed]:animate-out data-[state=open]:animate-in",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className
       )}
@@ -50,7 +50,7 @@ function SheetContent({
         data-slot="sheet-content"
         className={cn(
           "fixed top-0 right-0 z-50 flex h-svh w-full max-w-xl flex-col border-l bg-background shadow-lg",
-          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=closed]:animate-out data-[state=open]:animate-in",
           "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
           "data-[state=closed]:duration-200 data-[state=open]:duration-300",
           className

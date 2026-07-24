@@ -3,18 +3,18 @@ import {
   defineExperiment,
   platformLiteRuntime,
   supabaseMcpServer,
-} from "@supabase-evals/core";
-import { localStackRuntime } from "@supabase-evals/sandbox";
+} from '@supabase-evals/core';
+import { localStackRuntime } from '@supabase-evals/sandbox';
 
 export default defineExperiment({
-  suite: ["benchmark", "regression"],
+  suite: ['benchmark', 'regression'],
   agent: claudeCodeAgent({
-    model: "claude-sonnet-5",
-    reasoningEffort: "high",
+    model: 'claude-sonnet-5',
+    reasoningEffort: 'high',
   }),
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],
   }),
   localStack: localStackRuntime(),
-  skills: ["supabase", "supabase-postgres-best-practices"],
+  skills: ['supabase', 'supabase-postgres-best-practices'],
 });

@@ -1,6 +1,6 @@
-import type { CheckResult, ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from '@supabase-evals/core';
 
-const PASSWORD = "secret123";
+const PASSWORD = 'secret123';
 
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
@@ -30,9 +30,10 @@ const scorer: ToolScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            name: "created auth sessions",
+            name: 'created auth sessions',
             passed: false,
-            notes: authAError?.message ?? authBError?.message ?? "missing session",
+            notes:
+              authAError?.message ?? authBError?.message ?? 'missing session',
           },
         ],
       };
@@ -50,49 +51,52 @@ INSERT INTO notes (user_id, body, is_pinned) VALUES
     const { rows: rls } = await q(
       `SELECT relrowsecurity FROM pg_class WHERE relname = 'notes';`
     );
-    checks.push({ name: "RLS still enabled on notes", passed: rls[0]?.relrowsecurity === true });
+    checks.push({
+      name: 'RLS still enabled on notes',
+      passed: rls[0]?.relrowsecurity === true,
+    });
 
     const { data: aNotes, error: aNotesError } = await clientA
-      .from("notes")
-      .select("body,user_id")
-      .order("body");
+      .from('notes')
+      .select('body,user_id')
+      .order('body');
     checks.push({
-      name: "user A reads only own note",
+      name: 'user A reads only own note',
       passed:
         !aNotesError &&
         aNotes?.length === 1 &&
-        aNotes[0]?.body === "a private note" &&
+        aNotes[0]?.body === 'a private note' &&
         aNotes[0]?.user_id === userAId,
     });
 
     const { data: bReadsA, error: bReadsAError } = await clientB
-      .from("notes")
-      .select("id")
-      .eq("body", "a private note");
+      .from('notes')
+      .select('id')
+      .eq('body', 'a private note');
     checks.push({
-      name: "user B cannot read user A note",
+      name: 'user B cannot read user A note',
       passed: !bReadsAError && Array.isArray(bReadsA) && bReadsA.length === 0,
     });
 
     const { data: ownUpdate, error: ownUpdateError } = await clientA
-      .from("notes")
-      .update({ body: "a updated note" })
-      .eq("body", "a private note")
-      .select("body,user_id");
+      .from('notes')
+      .update({ body: 'a updated note' })
+      .eq('body', 'a private note')
+      .select('body,user_id');
     checks.push({
-      name: "user A can still update own note",
+      name: 'user A can still update own note',
       passed:
         !ownUpdateError &&
         ownUpdate?.length === 1 &&
-        ownUpdate[0]?.body === "a updated note" &&
+        ownUpdate[0]?.body === 'a updated note' &&
         ownUpdate[0]?.user_id === userAId,
     });
 
     await clientB
-      .from("notes")
-      .update({ user_id: userAId, body: "stolen by reassignment" })
-      .eq("body", "b private note")
-      .select("id,user_id");
+      .from('notes')
+      .update({ user_id: userAId, body: 'stolen by reassignment' })
+      .eq('body', 'b private note')
+      .select('id,user_id');
     const { rows: reassignedRows } = await q(`
 SELECT user_id, body
 FROM notes
@@ -100,16 +104,16 @@ WHERE body IN ('b private note', 'stolen by reassignment')
 ORDER BY body;
     `);
     checks.push({
-      name: "WITH CHECK prevents user_id reassignment",
+      name: 'WITH CHECK prevents user_id reassignment',
       passed:
         reassignedRows.length === 1 &&
-        reassignedRows[0]?.body === "b private note" &&
+        reassignedRows[0]?.body === 'b private note' &&
         reassignedRows[0]?.user_id === userBId,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      name: "scorer evaluated RLS fix",
+      name: 'scorer evaluated RLS fix',
       passed: false,
       notes: msg,
     });
@@ -126,4 +130,3 @@ ORDER BY body;
 };
 
 export default scorer;
-

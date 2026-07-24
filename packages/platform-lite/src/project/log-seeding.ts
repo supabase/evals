@@ -1,5 +1,5 @@
-import type { PGlite } from '@electric-sql/pglite'
-import type { LogRow } from '../types.js'
+import type { PGlite } from '@electric-sql/pglite';
+import type { LogRow } from '../types.js';
 
 export const LOGS_BASE_SQL = `
 CREATE TABLE IF NOT EXISTS edge_logs (
@@ -179,44 +179,47 @@ CREATE FUNCTION toUInt32OrZero(v text) RETURNS numeric AS $ch$
 BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
 $ch$ LANGUAGE plpgsql IMMUTABLE;
 CREATE FUNCTION toString(v anyelement) RETURNS text AS $ch$ SELECT v::text $ch$ LANGUAGE sql IMMUTABLE;
-`
+`;
 
 export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
-  const id = row.id ?? crypto.randomUUID()
-  const ts = row.ts.toISOString()
-  const source = row.source
-  const normalizedSource = source.toLowerCase()
-  const level = row.level
-  const message = row.message
-  const metadata = row.metadata ?? {}
-  const metadataJson = JSON.stringify(metadata)
+  const id = row.id ?? crypto.randomUUID();
+  const ts = row.ts.toISOString();
+  const source = row.source;
+  const normalizedSource = source.toLowerCase();
+  const level = row.level;
+  const message = row.message;
+  const metadata = row.metadata ?? {};
+  const metadataJson = JSON.stringify(metadata);
 
-  const log = { id, ts, source, level, message, metadata, metadataJson }
+  const log = { id, ts, source, level, message, metadata, metadataJson };
 
-  if (normalizedSource === 'edge-function' || normalizedSource === 'edge_function') {
-    await seedFunctionLog(logsDb, log)
-    await seedEdgeLog(logsDb, log)
-    return
+  if (
+    normalizedSource === 'edge-function' ||
+    normalizedSource === 'edge_function'
+  ) {
+    await seedFunctionLog(logsDb, log);
+    await seedEdgeLog(logsDb, log);
+    return;
   }
 
   if (normalizedSource === 'edge') {
-    await seedEdgeLog(logsDb, log)
-    return
+    await seedEdgeLog(logsDb, log);
+    return;
   }
 
   if (normalizedSource === 'postgres' || normalizedSource === 'database') {
-    await seedPostgresLog(logsDb, log)
-    return
+    await seedPostgresLog(logsDb, log);
+    return;
   }
 
   if (normalizedSource === 'auth') {
-    await seedAuthLog(logsDb, log)
-    return
+    await seedAuthLog(logsDb, log);
+    return;
   }
 
   if (normalizedSource === 'storage' || normalizedSource === 'storage_logs') {
-    await seedStorageLog(logsDb, log)
-    return
+    await seedStorageLog(logsDb, log);
+    return;
   }
 
   // Loud failure over a silent no-op: a dropped seed surfaces later as a false
@@ -224,20 +227,23 @@ export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
   // the unmodeled-source guard in debugging.ts.
   throw new Error(
     `unknown log seed source '${row.source}' — expected edge-function, edge, postgres/database, auth, or storage`
-  )
+  );
 }
 
 type NormalizedLogSeed = {
-  id: string
-  ts: string
-  source: string
-  level: string
-  message: string
-  metadata: Record<string, unknown>
-  metadataJson: string
-}
+  id: string;
+  ts: string;
+  source: string;
+  level: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  metadataJson: string;
+};
 
-async function seedEdgeLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void> {
+async function seedEdgeLog(
+  logsDb: PGlite,
+  log: NormalizedLogSeed
+): Promise<void> {
   await logsDb.query(
     `INSERT INTO edge_logs
       (
@@ -261,11 +267,14 @@ async function seedEdgeLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void
       metadataText(log.metadata, ['search']),
       metadataNumber(log.metadata, ['status_code', 'status']),
     ]
-  )
+  );
 }
 
-async function seedFunctionLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void> {
-  const functionId = metadataText(log.metadata, ['function_id'])
+async function seedFunctionLog(
+  logsDb: PGlite,
+  log: NormalizedLogSeed
+): Promise<void> {
+  const functionId = metadataText(log.metadata, ['function_id']);
   await logsDb.query(
     `INSERT INTO function_edge_logs
       (
@@ -289,10 +298,13 @@ async function seedFunctionLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<
       metadataText(log.metadata, ['method']),
       metadataText(log.metadata, ['pathname', 'path']),
     ]
-  )
+  );
 }
 
-async function seedPostgresLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void> {
+async function seedPostgresLog(
+  logsDb: PGlite,
+  log: NormalizedLogSeed
+): Promise<void> {
   await logsDb.query(
     `INSERT INTO postgres_logs
       (
@@ -310,7 +322,8 @@ async function seedPostgresLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<
       log.metadataJson,
       metadataText(log.metadata, ['error_severity']) ?? log.level.toUpperCase(),
       metadataText(log.metadata, ['user_name', 'role']),
-      metadataText(log.metadata, ['query']) ?? extractSqlFromLogMessage(log.message),
+      metadataText(log.metadata, ['query']) ??
+        extractSqlFromLogMessage(log.message),
       metadataNumber(log.metadata, ['duration_ms', 'execution_time_ms']),
       metadataText(log.metadata, ['query_hash']),
       metadataText(log.metadata, ['table', 'table_name']),
@@ -318,10 +331,13 @@ async function seedPostgresLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<
       metadataText(log.metadata, ['detail']),
       metadataText(log.metadata, ['hint']),
     ]
-  )
+  );
 }
 
-async function seedAuthLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void> {
+async function seedAuthLog(
+  logsDb: PGlite,
+  log: NormalizedLogSeed
+): Promise<void> {
   await logsDb.query(
     `INSERT INTO auth_logs
       (
@@ -342,10 +358,13 @@ async function seedAuthLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void
       metadataText(log.metadata, ['path']),
       metadataText(log.metadata, ['error']),
     ]
-  )
+  );
 }
 
-async function seedStorageLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<void> {
+async function seedStorageLog(
+  logsDb: PGlite,
+  log: NormalizedLogSeed
+): Promise<void> {
   await logsDb.query(
     `INSERT INTO storage_logs
       (id, identifier, timestamp, ts, event_message, message, source, level, metadata)
@@ -359,38 +378,48 @@ async function seedStorageLog(logsDb: PGlite, log: NormalizedLogSeed): Promise<v
       log.level,
       log.metadataJson,
     ]
-  )
+  );
 }
 
-function metadataText(metadata: Record<string, unknown>, keys: string[]): string | null {
+function metadataText(
+  metadata: Record<string, unknown>,
+  keys: string[]
+): string | null {
   for (const key of keys) {
-    const value = metadata[key]
-    if (typeof value === 'string' && value.length > 0) return value
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-    if (typeof value === 'boolean') return String(value)
+    const value = metadata[key];
+    if (typeof value === 'string' && value.length > 0) return value;
+    if (typeof value === 'number' && Number.isFinite(value))
+      return String(value);
+    if (typeof value === 'boolean') return String(value);
   }
-  return null
+  return null;
 }
 
-function metadataNumber(metadata: Record<string, unknown>, keys: string[]): number | null {
+function metadataNumber(
+  metadata: Record<string, unknown>,
+  keys: string[]
+): number | null {
   for (const key of keys) {
-    const value = metadata[key]
-    if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value)
+    const value = metadata[key];
+    if (typeof value === 'number' && Number.isFinite(value))
+      return Math.trunc(value);
     if (typeof value === 'string' && value.trim() !== '') {
-      const parsed = Number(value)
-      if (Number.isFinite(parsed)) return Math.trunc(parsed)
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return Math.trunc(parsed);
     }
   }
-  return null
+  return null;
 }
 
 function extractSqlFromLogMessage(message: string): string | null {
-  const executeMatch = message.match(/\bexecute\s+<[^>]+>:\s*([\s\S]+)$/i)
-  if (executeMatch?.[1]) return executeMatch[1].trim()
+  const executeMatch = message.match(/\bexecute\s+<[^>]+>:\s*([\s\S]+)$/i);
+  if (executeMatch?.[1]) return executeMatch[1].trim();
 
-  const statementMatch = message.match(/\b(?:statement|query):\s*([\s\S]+)$/i)
-  if (statementMatch?.[1]) return statementMatch[1].trim()
+  const statementMatch = message.match(/\b(?:statement|query):\s*([\s\S]+)$/i);
+  if (statementMatch?.[1]) return statementMatch[1].trim();
 
-  const sqlMatch = message.match(/\b(SELECT|INSERT|UPDATE|DELETE|WITH)\b[\s\S]+$/i)
-  return sqlMatch ? sqlMatch[0].trim() : null
+  const sqlMatch = message.match(
+    /\b(SELECT|INSERT|UPDATE|DELETE|WITH)\b[\s\S]+$/i
+  );
+  return sqlMatch ? sqlMatch[0].trim() : null;
 }

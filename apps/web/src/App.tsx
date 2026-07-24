@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { BotIcon, CheckIcon, ChevronRightIcon, CopyIcon, FileTextIcon, SearchIcon, XIcon } from "lucide-react"
+import {
+  BotIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  FileTextIcon,
+  SearchIcon,
+  XIcon,
+} from "lucide-react"
 import { z } from "zod"
 import {
   evalResultSchema,
@@ -104,7 +112,9 @@ function docsCallQueryLabel(call: DocsCall): string {
 function docsCallSizeLabel(call: DocsCall): string | undefined {
   if (call.resultChars === undefined) return undefined
   const tokens = Math.round(call.resultChars / 4)
-  return tokens < 1000 ? `~${tokens} tokens` : `~${(tokens / 1000).toFixed(1)}k tokens`
+  return tokens < 1000
+    ? `~${tokens} tokens`
+    : `~${(tokens / 1000).toFixed(1)}k tokens`
 }
 
 type ExperimentStageSummary = {
@@ -573,12 +583,20 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                   aria-hidden
                 />
                 <Icon
-                  className={cn("size-4 shrink-0", searchOnly ? "text-muted-foreground/60" : "text-muted-foreground")}
+                  className={cn(
+                    "size-4 shrink-0",
+                    searchOnly
+                      ? "text-muted-foreground/60"
+                      : "text-muted-foreground"
+                  )}
                   aria-hidden
                 />
                 <span
                   title={docsCallQueryLabel(call)}
-                  className={cn("min-w-0 truncate", searchOnly ? "text-muted-foreground" : "text-foreground")}
+                  className={cn(
+                    "min-w-0 truncate",
+                    searchOnly ? "text-muted-foreground" : "text-foreground"
+                  )}
                 >
                   {docsCallQueryLabel(call)}
                 </span>
@@ -587,7 +605,13 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                     {docsCallSizeLabel(call)}
                   </span>
                 ) : null}
-                <span className={cn(subgroupLabelClassName, "shrink-0", DOCS_CALL_SOURCE_CHIP_CLASS[call.source])}>
+                <span
+                  className={cn(
+                    subgroupLabelClassName,
+                    "shrink-0",
+                    DOCS_CALL_SOURCE_CHIP_CLASS[call.source]
+                  )}
+                >
                   {DOCS_CALL_SOURCE_LABEL[call.source]}
                 </span>
               </span>
@@ -607,7 +631,8 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                 ))
               ) : (
                 <span className="text-muted-foreground">
-                  No results recovered (the tool's output may have been truncated).
+                  No results recovered (the tool's output may have been
+                  truncated).
                 </span>
               )}
             </div>
@@ -1104,7 +1129,11 @@ function ExperimentSheet({
                               {result.docs?.calls.length ? (
                                 <EvalMetadataRow
                                   label="Docs activity"
-                                  value={<ResultDocsCalls calls={result.docs.calls} />}
+                                  value={
+                                    <ResultDocsCalls
+                                      calls={result.docs.calls}
+                                    />
+                                  }
                                 />
                               ) : null}
                             </dl>

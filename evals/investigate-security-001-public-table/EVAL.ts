@@ -3,20 +3,23 @@ import {
   serializeTranscript,
   type CheckResult,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
 // Planted issue: `customer_payment_methods` is GRANTed to anon and has no RLS.
 // The agent must name this specific table in its final report.
 
 const scorer: ToolScorer = async (ctx) => {
-  const report = ctx.agentReport ?? "";
+  const report = ctx.agentReport ?? '';
 
   const checks: CheckResult[] = [
-    { name: "named the vulnerable table", passed: /customer_payment_methods/i.test(report) },
-    { name: "mentioned the anon role", passed: /\banon\b/i.test(report) },
     {
-      name: "proposed a concrete fix",
+      name: 'named the vulnerable table',
+      passed: /customer_payment_methods/i.test(report),
+    },
+    { name: 'mentioned the anon role', passed: /\banon\b/i.test(report) },
+    {
+      name: 'proposed a concrete fix',
       passed:
         /enable\s+row\s+level\s+security/i.test(report) ||
         /CREATE\s+POLICY/i.test(report) ||
@@ -36,7 +39,7 @@ const scorer: ToolScorer = async (ctx) => {
   });
 
   checks.push({
-    name: "verified the exposed table and fix",
+    name: 'verified the exposed table and fix',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   });

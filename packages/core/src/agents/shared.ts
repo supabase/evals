@@ -4,8 +4,8 @@
  * stop reason.
  */
 
-import type { CommandResult, McpServerConfig } from "../index.js";
-import type { AgentSandbox } from "./types.js";
+import type { CommandResult, McpServerConfig } from '../index.js';
+import type { AgentSandbox } from './types.js';
 
 /** Scratch dir + staged files, outside the workspace so they're never scored. */
 export const SCRATCH = '"$HOME/.eval"';
@@ -25,12 +25,16 @@ export function shellQuote(value: string): string {
 export async function writeSandboxFile(
   sandbox: AgentSandbox,
   shellPath: string,
-  contents: string,
+  contents: string
 ): Promise<void> {
-  const encoded = Buffer.from(contents, "utf8").toString("base64");
-  const result = await sandbox.exec(`printf %s '${encoded}' | base64 -d > ${shellPath}`);
+  const encoded = Buffer.from(contents, 'utf8').toString('base64');
+  const result = await sandbox.exec(
+    `printf %s '${encoded}' | base64 -d > ${shellPath}`
+  );
   if (!result.ok) {
-    throw new Error(`failed to write sandbox file ${shellPath}: ${result.stderr}`);
+    throw new Error(
+      `failed to write sandbox file ${shellPath}: ${result.stderr}`
+    );
   }
 }
 
@@ -38,14 +42,16 @@ export async function writeSandboxFile(
 export async function npmInstallGlobal(
   sandbox: AgentSandbox,
   pkgAtVersion: string,
-  displayName: string,
+  displayName: string
 ): Promise<void> {
   const result = await sandbox.exec(
     `mkdir -p ${NPM_PREFIX} && npm install -g --prefix ${NPM_PREFIX} ${pkgAtVersion}`,
-    { timeoutMs: INSTALL_TIMEOUT_MS },
+    { timeoutMs: INSTALL_TIMEOUT_MS }
   );
   if (!result.ok) {
-    throw new Error(`${displayName} install failed: ${result.stderr || result.stdout}`);
+    throw new Error(
+      `${displayName} install failed: ${result.stderr || result.stdout}`
+    );
   }
 }
 
@@ -62,12 +68,12 @@ export function npmGlobalBin(binName: string): string {
  * the container, where the host is reachable only via `host.docker.internal`.
  */
 export function rewriteLoopback(
-  servers: Record<string, McpServerConfig>,
+  servers: Record<string, McpServerConfig>
 ): Record<string, McpServerConfig> {
   const swap = (value: string) =>
     value.replace(
       /(:\/\/)(127\.0\.0\.1|0\.0\.0\.0|localhost)/g,
-      "$1host.docker.internal",
+      '$1host.docker.internal'
     );
   const out: Record<string, McpServerConfig> = {};
   for (const [name, server] of Object.entries(servers)) {
@@ -75,7 +81,9 @@ export function rewriteLoopback(
       command: server.command,
       args: server.args?.map(swap),
       env: server.env
-        ? Object.fromEntries(Object.entries(server.env).map(([k, v]) => [k, swap(v)]))
+        ? Object.fromEntries(
+            Object.entries(server.env).map(([k, v]) => [k, swap(v)])
+          )
         : undefined,
     };
   }
@@ -89,8 +97,8 @@ export function processStopReason(command: CommandResult): string {
     command.exitCode === 137 ||
     /timed out/i.test(command.stderr)
   ) {
-    return "timeout";
+    return 'timeout';
   }
-  if (command.ok) return "stop";
-  return `error_exit_${command.exitCode ?? "unknown"}`;
+  if (command.ok) return 'stop';
+  return `error_exit_${command.exitCode ?? 'unknown'}`;
 }

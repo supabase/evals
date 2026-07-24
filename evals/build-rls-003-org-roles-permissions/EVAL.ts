@@ -1,12 +1,16 @@
-import type { CheckResult, ToolScorer } from "@supabase-evals/core";
+import type { CheckResult, ToolScorer } from '@supabase-evals/core';
 
-const ORG_A = "11111111-1111-1111-1111-111111111111";
-const ORG_B = "22222222-2222-2222-2222-222222222222";
-const ADMIN_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-const EDITOR_A = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
-const VIEWER_A = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+const ORG_A = '11111111-1111-1111-1111-111111111111';
+const ORG_B = '22222222-2222-2222-2222-222222222222';
+const ADMIN_A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const EDITOR_A = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+const VIEWER_A = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 
-const asUser = (sub: string, body: string, finish: "COMMIT" | "ROLLBACK" = "COMMIT") => `
+const asUser = (
+  sub: string,
+  body: string,
+  finish: 'COMMIT' | 'ROLLBACK' = 'COMMIT'
+) => `
 BEGIN;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub = '${sub}';
@@ -16,13 +20,12 @@ ${finish};
 `;
 
 const scorer: ToolScorer = async (ctx) => {
-  const q = (sql: string) =>
-    ctx.query(sql);
+  const q = (sql: string) => ctx.query(sql);
   const checks: CheckResult[] = [];
 
   const resetTx = async () => {
     try {
-      await q("ROLLBACK;");
+      await q('ROLLBACK;');
     } catch {
       // Clear aborted scorer transactions.
     }
@@ -33,21 +36,21 @@ const scorer: ToolScorer = async (ctx) => {
       `SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('documents', 'document_audit');`
     );
     checks.push({
-      name: "RLS enabled on documents",
-      passed: rls.some((row) => row.relname === "documents" && row.relrowsecurity === true),
+      name: 'RLS enabled on documents',
+      passed: rls.some(
+        (row) => row.relname === 'documents' && row.relrowsecurity === true
+      ),
     });
 
     const { rows: viewerReads } = await q(
-      asUser(
-        VIEWER_A,
-        `SELECT title FROM documents ORDER BY title;`
-      )
+      asUser(VIEWER_A, `SELECT title FROM documents ORDER BY title;`)
     );
     checks.push({
-      name: "viewer sees active org documents only",
+      name: 'viewer sees active org documents only',
       passed:
         viewerReads.length === 2 &&
-        viewerReads.map((row) => row.title).join(",") === "Admin plan,Editor draft",
+        viewerReads.map((row) => row.title).join(',') ===
+          'Admin plan,Editor draft',
     });
 
     let viewerInsertBlocked = false;
@@ -65,7 +68,7 @@ VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
       viewerInsertBlocked = true;
       await resetTx();
     }
-    checks.push({ name: "viewer cannot insert", passed: viewerInsertBlocked });
+    checks.push({ name: 'viewer cannot insert', passed: viewerInsertBlocked });
 
     const { rows: editorInsert } = await q(
       asUser(
@@ -75,10 +78,13 @@ INSERT INTO documents (org_id, owner_id, title, body)
 VALUES ('${ORG_A}', '${EDITOR_A}', 'editor insert', 'allowed')
 RETURNING id;
         `,
-        "ROLLBACK"
+        'ROLLBACK'
       )
     );
-    checks.push({ name: "editor can insert own org document", passed: editorInsert.length === 1 });
+    checks.push({
+      name: 'editor can insert own org document',
+      passed: editorInsert.length === 1,
+    });
 
     const { rows: editorOwnUpdate } = await q(
       asUser(
@@ -89,10 +95,13 @@ SET body = 'editor changed own document'
 WHERE id = '10000000-0000-0000-0000-000000000002'
 RETURNING id;
         `,
-        "ROLLBACK"
+        'ROLLBACK'
       )
     );
-    checks.push({ name: "editor can update own document", passed: editorOwnUpdate.length === 1 });
+    checks.push({
+      name: 'editor can update own document',
+      passed: editorOwnUpdate.length === 1,
+    });
 
     const { rows: editorUpdatesAdmin } = await q(
       asUser(
@@ -103,7 +112,7 @@ SET body = 'editor changed admin document'
 WHERE id = '10000000-0000-0000-0000-000000000001'
 RETURNING id;
         `,
-        "ROLLBACK"
+        'ROLLBACK'
       )
     );
     checks.push({
@@ -124,10 +133,10 @@ WHERE id = '10000000-0000-0000-0000-000000000001';
       `SELECT id, deleted_at FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`
     );
     checks.push({
-      name: "admin delete soft-deletes document in org",
+      name: 'admin delete soft-deletes document in org',
       passed:
         adminSoftDelete.length === 1 &&
-        adminSoftDelete[0]?.id === "10000000-0000-0000-0000-000000000001" &&
+        adminSoftDelete[0]?.id === '10000000-0000-0000-0000-000000000001' &&
         Boolean(adminSoftDelete[0]?.deleted_at),
     });
 
@@ -140,10 +149,13 @@ SET deleted_at = now()
 WHERE id = '20000000-0000-0000-0000-000000000001'
 RETURNING id;
         `,
-        "ROLLBACK"
+        'ROLLBACK'
       )
     );
-    checks.push({ name: "admin cannot affect another org", passed: adminCrossOrg.length === 0 });
+    checks.push({
+      name: 'admin cannot affect another org',
+      passed: adminCrossOrg.length === 0,
+    });
 
     let orgReassignmentBlocked = false;
     try {
@@ -156,7 +168,7 @@ SET org_id = '${ORG_B}'
 WHERE id = '10000000-0000-0000-0000-000000000002'
 RETURNING id;
           `,
-          "ROLLBACK"
+          'ROLLBACK'
         )
       );
       orgReassignmentBlocked = rows.length === 0;
@@ -165,7 +177,7 @@ RETURNING id;
       await resetTx();
     }
     checks.push({
-      name: "WITH CHECK blocks editor from moving document to another org",
+      name: 'WITH CHECK blocks editor from moving document to another org',
       passed: orgReassignmentBlocked,
     });
 
@@ -184,19 +196,19 @@ RETURNING id;
       `SELECT actor_id, document_id FROM document_audit WHERE document_id = '10000000-0000-0000-0000-000000000002';`
     );
     checks.push({
-      name: "write creates audit row with acting user",
+      name: 'write creates audit row with acting user',
       passed:
         auditedUpdate.length === 1 &&
         auditRows.some(
           (row) =>
             row.actor_id === EDITOR_A &&
-            row.document_id === "10000000-0000-0000-0000-000000000002"
+            row.document_id === '10000000-0000-0000-0000-000000000002'
         ),
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      name: "scorer evaluated org role RLS",
+      name: 'scorer evaluated org role RLS',
       passed: false,
       notes: msg,
     });

@@ -28,4 +28,4 @@ ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
 GRANT ALL ON storage.buckets TO anon, authenticated, service_role;
 GRANT ALL ON storage.objects TO anon, authenticated, service_role;
-`
+`;

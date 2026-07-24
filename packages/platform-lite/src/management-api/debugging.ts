@@ -1,6 +1,9 @@
-import type { ProjectStore } from '../project-store.js'
-import { createManagementApiRoutes, type ManagementApiRoutes } from './routes.js'
-import { extractRows } from './utils.js'
+import type { ProjectStore } from '../project-store.js';
+import {
+  createManagementApiRoutes,
+  type ManagementApiRoutes,
+} from './routes.js';
+import { extractRows } from './utils.js';
 
 const RLS_DISABLED_SQL = `
 SELECT
@@ -12,27 +15,31 @@ WHERE c.relkind = 'r'
   AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast', 'auth', 'extensions', 'storage', 'supabase_functions', 'supabase_migrations')
   AND NOT c.relrowsecurity
 ORDER BY n.nspname, c.relname
-`
+`;
 
-export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes {
-  const routes = createManagementApiRoutes()
+export function createDebuggingRoutes(
+  store: ProjectStore
+): ManagementApiRoutes {
+  const routes = createManagementApiRoutes();
 
   routes.get('/v1/projects/:ref/analytics/endpoints/logs.all', async (c) => {
-    const { ref } = c.req.param()
-    const project = store.get(ref)
-    if (!project) return c.json({ message: 'Project not found' }, 404)
+    const { ref } = c.req.param();
+    const project = store.get(ref);
+    if (!project) return c.json({ message: 'Project not found' }, 404);
 
-    const sql = c.req.query('sql') ?? 'SELECT * FROM edge_logs ORDER BY timestamp DESC LIMIT 25'
-    const compiled = compileLogsSql(sql)
+    const sql =
+      c.req.query('sql') ??
+      'SELECT * FROM edge_logs ORDER BY timestamp DESC LIMIT 25';
+    const compiled = compileLogsSql(sql);
 
     try {
-      const result = await project.logsDb.query(compiled)
-      return c.json({ result: result.rows })
+      const result = await project.logsDb.query(compiled);
+      return c.json({ result: result.rows });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return c.json({ result: [], error: message })
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ result: [], error: message });
     }
-  })
+  });
 
   // Current mcp (>= the #326 ClickHouse migration): GET /analytics/endpoints/logs
   // with ClickHouse-dialect sql over the unified 'logs' stream. The 'logs' VIEW
@@ -42,13 +49,13 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
   // current clock — a faithful filter would empty every scenario (the legacy
   // logs.all route makes the same choice).
   routes.get('/v1/projects/:ref/analytics/endpoints/logs', async (c) => {
-    const { ref } = c.req.param()
-    const project = store.get(ref)
-    if (!project) return c.json({ message: 'Project not found' }, 404)
+    const { ref } = c.req.param();
+    const project = store.get(ref);
+    if (!project) return c.json({ message: 'Project not found' }, 404);
 
     const sql =
       c.req.query('sql') ??
-      "select id, timestamp, event_message from logs where source = 'edge_logs' order by timestamp desc limit 100"
+      "select id, timestamp, event_message from logs where source = 'edge_logs' order by timestamp desc limit 100";
 
     // The hosted endpoint is read-only server-side; enforce the same contract on
     // model-authored SQL. The prefix check only shapes the error message — the
@@ -58,67 +65,72 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
     // (the management-API error envelope) — without it the model only sees the
     // generic "Failed to fetch logs" fallback; `error` kept for shape
     // consistency with the 200 SQL-error path.
-    const stmt = sql.trim().replace(/;+\s*$/, '')
+    const stmt = sql.trim().replace(/;+\s*$/, '');
     if (stmt.includes(';') || !/^\s*(select|with)\b/i.test(stmt)) {
-      const message = 'only a single read-only SELECT statement is supported'
-      return c.json({ result: [], error: message, message }, 400)
+      const message = 'only a single read-only SELECT statement is supported';
+      return c.json({ result: [], error: message, message }, 400);
     }
 
     try {
-      const compiled = compileClickHouseLogsSql(stmt)
+      const compiled = compileClickHouseLogsSql(stmt);
       const result = await project.logsDb.transaction(async (tx) => {
-        await tx.exec('SET TRANSACTION READ ONLY')
+        await tx.exec('SET TRANSACTION READ ONLY');
         // logs_reader may SELECT only the unified 'logs' view (grant in
         // LOGS_BASE_SQL) — postgres name resolution denies the backing tables
         // under ANY spelling (edge_logs, public.edge_logs, "edge_logs"),
         // which the best-effort regex in compileClickHouseLogsSql cannot.
         // SET LOCAL reverts with the transaction.
-        await tx.exec('SET LOCAL ROLE logs_reader')
-        return tx.query<Record<string, unknown>>(compiled)
-      })
-      return c.json({ result: result.rows })
+        await tx.exec('SET LOCAL ROLE logs_reader');
+        return tx.query<Record<string, unknown>>(compiled);
+      });
+      return c.json({ result: result.rows });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return c.json({ result: [], error: message })
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ result: [], error: message });
     }
-  })
+  });
 
   routes.get('/v1/projects/:ref/advisors/security', async (c) => {
-    const { ref } = c.req.param()
-    const project = store.get(ref)
-    if (!project) return c.json({ message: 'Project not found' }, 404)
+    const { ref } = c.req.param();
+    const project = store.get(ref);
+    if (!project) return c.json({ message: 'Project not found' }, 404);
 
     try {
-      const raw = await project.app.connection.exec(RLS_DISABLED_SQL)
-      const resultRows: unknown[] = extractRows(raw)
-      const rows = resultRows.filter(isAdvisorRow)
+      const raw = await project.app.connection.exec(RLS_DISABLED_SQL);
+      const resultRows: unknown[] = extractRows(raw);
+      const rows = resultRows.filter(isAdvisorRow);
       const lints = rows.map((row) => ({
         name: 'rls_disabled_in_public' as const,
         title: 'RLS disabled in public schema',
         level: 'ERROR' as const,
         facing: 'EXTERNAL' as const,
         categories: ['SECURITY' as const],
-        description: 'Table is accessible to all roles without row-level security.',
+        description:
+          'Table is accessible to all roles without row-level security.',
         detail: `Table "${row.schema}"."${row.name}" has RLS disabled.`,
         remediation: `Enable RLS: ALTER TABLE "${row.schema}"."${row.name}" ENABLE ROW LEVEL SECURITY;`,
-        metadata: { schema: row.schema, name: row.name, type: 'table' as const },
+        metadata: {
+          schema: row.schema,
+          name: row.name,
+          type: 'table' as const,
+        },
         cache_key: `rls_disabled_in_public:${row.schema}.${row.name}`,
-      }))
-      return c.json({ lints })
+      }));
+      return c.json({ lints });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return c.json({ message }, 500)
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ message }, 500);
     }
-  })
+  });
 
   routes.get('/v1/projects/:ref/advisors/performance', async (c) => {
-    const { ref } = c.req.param()
-    const project = store.get(ref)
-    if (!project) return c.json({ message: 'Project not found' }, 404)
-    return c.json({ lints: [] })
-  })
+    const { ref } = c.req.param();
+    const project = store.get(ref);
+    if (!project) return c.json({ message: 'Project not found' }, 404);
+    return c.json({ lints: [] });
+  });
 
-  return routes
+  return routes;
 }
 
 /**
@@ -164,47 +176,57 @@ export function createDebuggingRoutes(store: ProjectStore): ManagementApiRoutes 
  * (fixed-date seeds), so window-correctness of model queries is NOT exercised
  * locally. A time-window-discriminating eval needs relative-time seeding.
  */
-const UNMODELED_SOURCES = /\b(workflow_run_logs|realtime_logs)\b/i
-const PHYSICAL_RELATIONS = /\b(?:from|join)\s+(edge_logs|function_edge_logs|function_logs|postgres_logs|auth_logs|storage_logs)\b/i
+const UNMODELED_SOURCES = /\b(workflow_run_logs|realtime_logs)\b/i;
+const PHYSICAL_RELATIONS =
+  /\b(?:from|join)\s+(edge_logs|function_edge_logs|function_logs|postgres_logs|auth_logs|storage_logs)\b/i;
 
 export function compileClickHouseLogsSql(sql: string): string {
-  const unmodeled = UNMODELED_SOURCES.exec(sql)
+  const unmodeled = UNMODELED_SOURCES.exec(sql);
   if (unmodeled) {
     throw new Error(
       `source '${unmodeled[1]}' is not modeled by platform-lite — no backing table, so results would be silently empty`
-    )
+    );
   }
-  const physical = PHYSICAL_RELATIONS.exec(sql)
+  const physical = PHYSICAL_RELATIONS.exec(sql);
   if (physical) {
     throw new Error(
       `relation '${physical[1]}' is not queryable on this endpoint — query the unified 'logs' stream and filter with where source = '${physical[1]}'`
-    )
+    );
   }
   return sql
-    .replace(/\blog_attributes\['([^']+)'\]/gi, (_m, key: string) => `(log_attributes->>'${key}')`)
-    .replace(/\bcountIf\s*\(/gi, 'count(*) FILTER (WHERE ')
+    .replace(
+      /\blog_attributes\['([^']+)'\]/gi,
+      (_m, key: string) => `(log_attributes->>'${key}')`
+    )
+    .replace(/\bcountIf\s*\(/gi, 'count(*) FILTER (WHERE ');
 }
 
 function compileLogsSql(sql: string): string {
-  let compiled = sql.trim()
+  let compiled = sql.trim();
 
-  const LOGS_TABLE_PATTERN = /\bfrom\s+(edge_logs|auth_logs|postgres_logs|function_edge_logs|function_logs)\b/i
-  const match = compiled.match(LOGS_TABLE_PATTERN)
-  const source = (match?.[1]?.toLowerCase() ?? 'edge_logs') as LogsSource
-  const compiledSource = source === 'function_logs' ? 'function_edge_logs' : source
+  const LOGS_TABLE_PATTERN =
+    /\bfrom\s+(edge_logs|auth_logs|postgres_logs|function_edge_logs|function_logs)\b/i;
+  const match = compiled.match(LOGS_TABLE_PATTERN);
+  const source = (match?.[1]?.toLowerCase() ?? 'edge_logs') as LogsSource;
+  const compiledSource =
+    source === 'function_logs' ? 'function_edge_logs' : source;
 
-  compiled = compiled.replace(/\s+cross\s+join\s+unnest\([^)]+\)\s+as\s+[a-z_]+/gi, '')
-  compiled = compiled.replace(/\bdatetime\s*\(\s*([^)]+?)\s*\)/gi, '$1')
+  compiled = compiled.replace(
+    /\s+cross\s+join\s+unnest\([^)]+\)\s+as\s+[a-z_]+/gi,
+    ''
+  );
+  compiled = compiled.replace(/\bdatetime\s*\(\s*([^)]+?)\s*\)/gi, '$1');
   compiled = compiled.replace(
     /\btimestamp_trunc\s*\(\s*([^,]+?)\s*,\s*([a-z_]+)\s*\)/gi,
-    (_m, expr: string, part: string) => `date_trunc('${part.toLowerCase()}', ${expr.trim()})`
-  )
+    (_m, expr: string, part: string) =>
+      `date_trunc('${part.toLowerCase()}', ${expr.trim()})`
+  );
   compiled = compiled
     .replace(/\bfunction_logs\b/gi, 'function_edge_logs')
     .replace(/\bfunction_edge_logs\.timestamp\b/gi, 't.timestamp')
     .replace(/\bedge_logs\.timestamp\b/gi, 't.timestamp')
     .replace(/\bpostgres_logs\.timestamp\b/gi, 't.timestamp')
-    .replace(/\bauth_logs\.timestamp\b/gi, 't.timestamp')
+    .replace(/\bauth_logs\.timestamp\b/gi, 't.timestamp');
 
   if (source === 'edge_logs') {
     compiled = compiled
@@ -220,7 +242,7 @@ function compileLogsSql(sql: string): string {
       .replace(/\bmetadata\.execution_time_ms\b/gi, 't.execution_time_ms')
       .replace(/\bmetadata\.status_code\b/gi, 't.status_code')
       .replace(/\bmetadata\.status\b/gi, 't.status_code')
-      .replace(/\bmetadata\.level\b/gi, 't.level')
+      .replace(/\bmetadata\.level\b/gi, 't.level');
   }
   if (source === 'auth_logs') {
     compiled = compiled
@@ -228,7 +250,7 @@ function compileLogsSql(sql: string): string {
       .replace(/\bmetadata\.status\b/gi, 't.status')
       .replace(/\bmetadata\.path\b/gi, 't.path')
       .replace(/\bmetadata\.msg\b/gi, 't.msg')
-      .replace(/\bmetadata\.error\b/gi, 't.error')
+      .replace(/\bmetadata\.error\b/gi, 't.error');
   }
   if (source === 'postgres_logs') {
     compiled = compiled
@@ -241,7 +263,7 @@ function compileLogsSql(sql: string): string {
       .replace(/\bmetadata\.duration_ms\b/gi, 't.duration_ms')
       .replace(/\bmetadata\.query_hash\b/gi, 't.query_hash')
       .replace(/\bmetadata\.table\b/gi, 't.table_name')
-      .replace(/\bmetadata\.role\b/gi, 't.role')
+      .replace(/\bmetadata\.role\b/gi, 't.role');
   }
   if (source === 'function_edge_logs' || source === 'function_logs') {
     compiled = compiled
@@ -257,22 +279,32 @@ function compileLogsSql(sql: string): string {
       .replace(/\bmetadata\.execution_time_ms\b/gi, 't.execution_time_ms')
       .replace(/\bmetadata\.status_code\b/gi, 't.status_code')
       .replace(/\bmetadata\.status\b/gi, 't.status_code')
-      .replace(/\bmetadata\.level\b/gi, 't.level')
+      .replace(/\bmetadata\.level\b/gi, 't.level');
   }
 
   if (/\bt\./i.test(compiled)) {
-    const aliasPattern = new RegExp(`\\bfrom\\s+${compiledSource}\\s+as\\s+t\\b`, 'i')
+    const aliasPattern = new RegExp(
+      `\\bfrom\\s+${compiledSource}\\s+as\\s+t\\b`,
+      'i'
+    );
     if (!aliasPattern.test(compiled)) {
-      compiled = compiled.replace(new RegExp(`\\bfrom\\s+${compiledSource}\\b`, 'i'), `from ${compiledSource} as t`)
+      compiled = compiled.replace(
+        new RegExp(`\\bfrom\\s+${compiledSource}\\b`, 'i'),
+        `from ${compiledSource} as t`
+      );
     }
   }
 
-  return compiled
+  return compiled;
 }
 
-type LogsSource = 'edge_logs' | 'auth_logs' | 'postgres_logs' | 'function_edge_logs' | 'function_logs'
-
+type LogsSource =
+  | 'edge_logs'
+  | 'auth_logs'
+  | 'postgres_logs'
+  | 'function_edge_logs'
+  | 'function_logs';
 
 function isAdvisorRow(v: unknown): v is { schema: string; name: string } {
-  return typeof v === 'object' && v !== null && 'schema' in v && 'name' in v
+  return typeof v === 'object' && v !== null && 'schema' in v && 'name' in v;
 }

@@ -3,10 +3,10 @@ import {
   type CheckResult,
   type ToolEvalContext,
   type ToolScorer,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const TARGET_USER = "00000000-0000-0000-0000-000000000001";
+const TARGET_USER = '00000000-0000-0000-0000-000000000001';
 
 const scorer: ToolScorer = async (ctx) => {
   try {
@@ -28,7 +28,7 @@ const scorer: ToolScorer = async (ctx) => {
       passed: false,
       checks: [
         {
-          name: "scorer evaluated CPU spike fix",
+          name: 'scorer evaluated CPU spike fix',
           passed: false,
           notes: msg,
         },
@@ -44,7 +44,7 @@ function checkQueriedPgStatStatements(ctx: ToolEvalContext): CheckResult {
   const sql = executedSql(ctx);
 
   return {
-    name: "inspected pg_stat_statements for query performance",
+    name: 'inspected pg_stat_statements for query performance',
     passed: /\bpg_stat_statements\b/i.test(sql),
   };
 }
@@ -54,7 +54,7 @@ function checkRanExplain(ctx: ToolEvalContext): CheckResult {
   const sql = executedSql(ctx);
 
   return {
-    name: "ran EXPLAIN on the expensive query",
+    name: 'ran EXPLAIN on the expensive query',
     passed:
       /\bexplain\b/i.test(sql) &&
       /\bevents\b/i.test(sql) &&
@@ -63,7 +63,9 @@ function checkRanExplain(ctx: ToolEvalContext): CheckResult {
 }
 
 /** Checks for the index shape needed by the recent events lookup. */
-async function checkCreatedRecentEventsIndex(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkCreatedRecentEventsIndex(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const { rows } = await ctx.query(stripIndent`
     SELECT indexname, indexdef
     FROM pg_indexes
@@ -74,19 +76,21 @@ async function checkCreatedRecentEventsIndex(ctx: ToolEvalContext): Promise<Chec
   const hasCoveringIndex = rows.some((row) => {
     const def = row.indexdef;
     return (
-      typeof def === "string" &&
+      typeof def === 'string' &&
       /ON\s+(?:public\.)?events\s+.*\(\s*user_id\s*,\s*created_at/i.test(def)
     );
   });
 
   return {
-    name: "created index covering user_id and created_at",
+    name: 'created index covering user_id and created_at',
     passed: hasCoveringIndex,
   };
 }
 
 /** Verifies Postgres plans the target lookup with an index and no sequential scan. */
-async function checkQueryPlanUsesIndex(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkQueryPlanUsesIndex(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const { rows } = await ctx.query(stripIndent`
     EXPLAIN SELECT id, kind, payload, created_at
     FROM events
@@ -94,10 +98,10 @@ async function checkQueryPlanUsesIndex(ctx: ToolEvalContext): Promise<CheckResul
     ORDER BY created_at DESC
     LIMIT 50;
   `);
-  const plan = rows.map((row) => Object.values(row).join(" ")).join("\n");
+  const plan = rows.map((row) => Object.values(row).join(' ')).join('\n');
 
   return {
-    name: "query plan uses an index and avoids sequential scan",
+    name: 'query plan uses an index and avoids sequential scan',
     passed:
       /(Index Scan|Index Only Scan|Bitmap Index Scan)/i.test(plan) &&
       !/Seq Scan on events/i.test(plan),
@@ -106,7 +110,9 @@ async function checkQueryPlanUsesIndex(ctx: ToolEvalContext): Promise<CheckResul
 }
 
 /** Confirms the schema change did not break normal inserts into events. */
-async function checkInsertsStillWork(ctx: ToolEvalContext): Promise<CheckResult> {
+async function checkInsertsStillWork(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
   const { rows } = await ctx.query(stripIndent`
     INSERT INTO events (user_id, kind, payload)
     VALUES ('${TARGET_USER}', 'insert_probe', '{"ok": true}'::jsonb)
@@ -114,7 +120,7 @@ async function checkInsertsStillWork(ctx: ToolEvalContext): Promise<CheckResult>
   `);
 
   return {
-    name: "inserts still work",
+    name: 'inserts still work',
     passed: rows.length === 1,
   };
 }
@@ -123,11 +129,11 @@ async function checkInsertsStillWork(ctx: ToolEvalContext): Promise<CheckResult>
 function executedSql(ctx: ToolEvalContext): string {
   const toolCallSql = ctx.toolCalls
     .flatMap((call) => Object.values(call.body))
-    .filter((value): value is string => typeof value === "string")
-    .join("\n");
+    .filter((value): value is string => typeof value === 'string')
+    .join('\n');
 
   return [
     toolCallSql,
     serializeTranscript(ctx.transcript, { includeToolCallInputs: true }),
-  ].join("\n");
+  ].join('\n');
 }

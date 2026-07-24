@@ -9,7 +9,7 @@
  * and register its definition in `agents/registry.ts`. Nothing else changes.
  */
 
-import type { ParsedTranscript } from "../transcript/types.js";
+import type { ParsedTranscript } from '../transcript/types.js';
 
 export interface AgentTranscriptParser {
   parseTranscript(raw: string): ParsedTranscript;
