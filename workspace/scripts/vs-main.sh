@@ -23,16 +23,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-EXP=claude-code-sonnet-5; RUNS=""; EVALS=()
+EXP=claude-code-sonnet-5; RUNS=""; COMPARE=1; EVALS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --experiment) EXP="${2:?--experiment needs a value}"; shift 2 ;;
     --runs) RUNS="${2:?--runs needs a value}"; shift 2 ;;
+    --no-compare) COMPARE=0; shift ;;
     -*) echo "unknown flag: $1" >&2; exit 2 ;;
     *) EVALS+=("$1"); shift ;;
   esac
 done
-[ ${#EVALS[@]} -gt 0 ] || { echo "usage: workspace/scripts/vs-main.sh <eval-id> [...] [--experiment <id>] [--runs N]" >&2; exit 2; }
+[ ${#EVALS[@]} -gt 0 ] || { echo "usage: workspace/scripts/vs-main.sh <eval-id> [...] [--experiment <id>] [--runs N] [--no-compare]" >&2; exit 2; }
 
 for k in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY; do
   v="$(security find-generic-password -a "$USER" -s "eval-workspace:$k" -w 2>/dev/null || true)"
@@ -42,6 +43,9 @@ done
 OUT=results-vs-main; mkdir -p "$OUT"
 
 # --- resolve published baselines (free; refuses before any spend) ---
+# --no-compare: skip entirely — run YOUR world with the same sync/receipts,
+# no published row required (custom evals aren't in the published set).
+if [ "$COMPARE" = 1 ]; then
 [ -n "${VSMAIN_NO_FETCH:-}" ] || git fetch -q origin main
 EXP="$EXP" OUT="$OUT" node - "${EVALS[@]}" <<'EOF'
 const fs = require("fs");
@@ -84,6 +88,7 @@ for (const e of evals) {
 }
 process.exit(missing ? 1 : 0);
 EOF
+fi
 
 # --- zero-cost eval validation (same gate as ab.sh) ---
 if [ -z "${VSMAIN_EVAL_CMD:-}" ]; then
@@ -123,14 +128,20 @@ if [ -z "${VSMAIN_SKIP_SYNC:-}" ]; then
   if [ -e submodules/agent-skills/.git ] && [ -n "$(git -C submodules/agent-skills status --porcelain)" ]; then
     DIRTY+=(skills)   # read live via symlink; no sync step
   fi
-  [ ${#DIRTY[@]} -gt 0 ] || echo "note: no local edits detected in submodules/{mcp,supabase/apps/docs/content,agent-skills} — this compares your pinned world against published"
+  if [ ${#DIRTY[@]} -eq 0 ]; then
+    [ "$COMPARE" = 1 ] && echo "note: no local edits detected in submodules/{mcp,supabase/apps/docs/content,agent-skills} — this compares your pinned world against published" \
+                       || echo "note: no local edits detected in submodules/{mcp,supabase/apps/docs/content,agent-skills} — this runs your pinned world as-is"
+  fi
 fi
 
 # --- run treatment + report, one eval at a time ---
 FAILED=0
 for e in "${EVALS[@]}"; do
   runs="$RUNS"
-  [ -n "$runs" ] || runs=$(node -pe 'require(`./${process.env.OUT}/${process.argv[1]}.published.json`).attempts || 1' "$e" 2>/dev/null || echo 1)
+  # published attempts drive the default only in compare mode (a stale
+  # published.json from an earlier compare run must not leak in)
+  [ -n "$runs" ] || { [ "$COMPARE" = 1 ] && runs=$(node -pe 'require(`./${process.env.OUT}/${process.argv[1]}.published.json`).attempts || 1' "$e" 2>/dev/null) || true; }
+  [ -n "$runs" ] || runs=1
   RES="results/$EXP/$e.json"
   echo "== treatment: $e ($EXP, runs=$runs, edits: ${DIRTY[*]:-none}) =="
   if [ -n "${VSMAIN_EVAL_CMD:-}" ]; then
@@ -142,22 +153,28 @@ for e in "${EVALS[@]}"; do
   cp "$RES" "$OUT/$e.treatment.json"
   env ${RUN_ENV[@]+"${RUN_ENV[@]}"} node workspace/scripts/provenance.mjs --embed "$OUT/$e.treatment.json"
 
-  EVAL="$e" EXP="$EXP" OUT="$OUT" DIRTY="${DIRTY[*]:-none}" node -e '
+  EVAL="$e" EXP="$EXP" OUT="$OUT" DIRTY="${DIRTY[*]:-none}" COMPARE="$COMPARE" node -e '
 const path=require("path");
 const f=(p)=>{try{return require(path.resolve(p))}catch{return null}};
-const {EVAL,EXP,OUT,DIRTY}=process.env;
-const b=f(`${OUT}/${EVAL}.published.json`), t=f(`${OUT}/${EVAL}.treatment.json`);
+const {EVAL,EXP,OUT,DIRTY,COMPARE}=process.env;
+const b=COMPARE==="1"?f(`${OUT}/${EVAL}.published.json`):null, t=f(`${OUT}/${EVAL}.treatment.json`);
 const chk=(r)=>{const c=(r&&r.checks)||[];return `${c.filter(x=>x&&x.passed).length}/${c.length}`};
 const row=(l,r,extra)=>`${l.padEnd(10)} passed=${String(r&&r.passed).padEnd(5)} checks=${chk(r).padEnd(6)} docs.calls=${String(((r&&r.docs&&r.docs.calls)||[]).length).padEnd(3)} ${extra||""}`;
-const m=(b&&b.vsMainBaseline)||{};
-const age=m.committedAt?Math.round((Date.now()-new Date(m.committedAt))/864e5):"?";
 console.log(`\n=== vs-main: ${EVAL} (${EXP}) ===`);
-console.log(row("published",b,`main@${(m.commit||"").slice(0,7)} ${String(m.committedAt||"").slice(0,10)} (${age}d old, attempts ${b&&b.attempts})`));
-console.log(row("treatment",t,`your world (edits: ${DIRTY})`));
-const d=((t&&t.passed)?1:0)-((b&&b.passed)?1:0);
-console.log(d>0?"-> IMPROVED vs published (FAIL->PASS)":d<0?"-> REGRESSED vs published (PASS->FAIL)":"-> no pass/fail change (compare checks / docs.calls)");
-console.log(`screen only: the published arm ran in the scheduled CI world — confirm causal claims with: mise run ab ${EVAL} <edited-path>`);
-console.log(`saved: ${OUT}/${EVAL}.{published,treatment}.json`);
+if (b) {
+  const m=b.vsMainBaseline||{};
+  const age=m.committedAt?Math.round((Date.now()-new Date(m.committedAt))/864e5):"?";
+  console.log(row("published",b,`main@${(m.commit||"").slice(0,7)} ${String(m.committedAt||"").slice(0,10)} (${age}d old, attempts ${b&&b.attempts})`));
+  console.log(row("treatment",t,`your world (edits: ${DIRTY})`));
+  const d=((t&&t.passed)?1:0)-((b&&b.passed)?1:0);
+  console.log(d>0?"-> IMPROVED vs published (FAIL->PASS)":d<0?"-> REGRESSED vs published (PASS->FAIL)":"-> no pass/fail change (compare checks / docs.calls)");
+  console.log(`screen only: the published arm ran in the scheduled CI world — confirm causal claims with: mise run ab ${EVAL} <edited-path>`);
+  console.log(`saved: ${OUT}/${EVAL}.{published,treatment}.json`);
+} else {
+  console.log(row("treatment",t,`your world (edits: ${DIRTY})`));
+  console.log(`no comparison (--no-compare): result + provenance receipt only`);
+  console.log(`saved: ${OUT}/${EVAL}.treatment.json`);
+}
 '
 done
 exit "$FAILED"

@@ -40,5 +40,14 @@ ck "batch runs both" "$(printf '%s' "$out" | grep -c '=== vs-main: ')" "2"
 ck "batch exits zero" "$(printf '%s' "$out" | grep -c 'rc=0')" "1"
 
 rm -f "results-vs-main/$EVAL".*.json "results-vs-main/$EVAL2".*.json "results/claude-code-sonnet-5/$EVAL.json" "results/claude-code-sonnet-5/$EVAL2.json"
+
+# --- --no-compare: custom eval (no published row anywhere) still runs ---
+out=$(bash workspace/scripts/vs-main.sh custom-eval-not-published --no-compare 2>&1; echo "rc=$?")
+ck "no-compare runs unpublished eval" "$(printf '%s' "$out" | grep -c '=== vs-main: custom-eval-not-published')" "1"
+ck "no-compare has no published row" "$(printf '%s' "$out" | grep -c '^published ')" "0"
+ck "no-compare says receipt only" "$(printf '%s' "$out" | grep -c 'no comparison (--no-compare)')" "1"
+ck "no-compare exits zero" "$(printf '%s' "$out" | grep -c 'rc=0')" "1"
+ck "no-compare treatment receipt exists" "$([ -f results-vs-main/custom-eval-not-published.treatment.json ] && echo 1 || echo 0)" "1"
+rm -f results-vs-main/custom-eval-not-published.*.json results/claude-code-sonnet-5/custom-eval-not-published.json
 echo "vs-main.test: $pass passed, $fail failed"
 [ "$fail" = 0 ]

@@ -75,7 +75,7 @@ mcp/docs/skills edits) and diff against the latest published result on evals
 `main` — no baseline arm, no stashes, no git mutation anywhere.
 
 ```bash
-mise run vs-main <eval-id> [<eval-id>…] [--experiment <id>] [--runs N]
+mise run vs-main <eval-id> [<eval-id>…] [--experiment <id>] [--runs N] [--no-compare]
 ```
 
 Dirty submodule trees are detected and synced automatically (mcp build, docs
@@ -83,7 +83,9 @@ re-embed); receipts land in `results-vs-main/*.json` with the published arm's
 result commit + parent SHA and age. The published arm ran in the scheduled CI
 world (published mcp package, prod docs index, model state at refresh time),
 so a flip is a **screen** — confirm causal claims with one paired `mise run
-ab`. Free self-test: `mise run vs-main-test`.
+ab`. `--no-compare` runs your edited world with the same auto-sync and
+receipts but no published row required — the way to run custom evals (not in
+any published set) against dirty trees. Free self-test: `mise run vs-main-test`.
 
 ## Parallel sessions (worktrees)
 
