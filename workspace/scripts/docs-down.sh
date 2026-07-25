@@ -2,4 +2,5 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
-supabase stop --workdir submodules/supabase
+source workspace/scripts/docs-profile.sh
+supabase stop --workdir "$CONTENT_WORKDIR"

@@ -51,7 +51,7 @@ for p in "${PATHS[@]}"; do
 done
 
 MCP="$PWD/submodules/mcp/packages/mcp-server-supabase"
-CONTENT_URL="http://127.0.0.1:3001/docs/api/graphql"  # also in affected.ts / docs-api.sh / workspace README — keep in sync
+source workspace/scripts/docs-profile.sh   # CONTENT_URL, CONTENT_DB_CONTAINER (per-worktree; also in docs-api.sh / affected.ts)
 RUN_ENV=()
 case "$LOOP" in
   docs) RUN_ENV=( "SUPABASE_MCP_SERVER_PATH=$MCP" "SUPABASE_CONTENT_API_URL=$CONTENT_URL" ) ;;
@@ -121,10 +121,10 @@ done
 
 if [ "$LOOP" = docs ]; then
   : "${OPENAI_API_KEY:?OPENAI_API_KEY not in keychain — the docs re-embed needs it}"
-  curl -sf -o /dev/null "$CONTENT_URL" || { echo "docs-api not reachable on :3001 — run \`mise run docs-api\` in another terminal first" >&2; exit 1; }
+  curl -sf -o /dev/null "$CONTENT_URL" || { echo "docs-api not reachable on :$DOCS_API_PORT — run \`mise run docs-api\` in another terminal first" >&2; exit 1; }
   # Refuse BEFORE spending: an empty-but-running DB would otherwise turn the
   # treatment sync into a full paid seed instead of an incremental re-embed.
-  pages=$(docker exec supabase_db_eval-workspace-content psql -U postgres -d postgres -tAc 'select count(*) from public.page' 2>/dev/null || echo 0)
+  pages=$(docker exec "$CONTENT_DB_CONTAINER" psql -U postgres -d postgres -tAc 'select count(*) from public.page' 2>/dev/null || echo 0)
   [ "${pages:-0}" -gt 0 ] 2>/dev/null || { echo "docs index is not seeded (page count: ${pages:-0}) — run \`mise run docs-seed\` once first (mise run ab with no args = full readiness probe)" >&2; exit 1; }
   [ -d "$MCP/dist" ] || { echo "building local mcp (needed for search_docs routing)…"; ( cd submodules/mcp && pnpm install && pnpm build ); }
 fi

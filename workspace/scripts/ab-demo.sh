@@ -32,10 +32,11 @@ done
 [ -e submodules/supabase/.git ] || fail "supabase not cloned"
 [ -n "${ANTHROPIC_API_KEY:-}" ] || fail "ANTHROPIC_API_KEY missing"
 [ -n "${OPENAI_API_KEY:-}" ] || fail "OPENAI_API_KEY missing"
-docker exec supabase_db_eval-workspace-content true 2>/dev/null || fail "content DB not running"
-pages=$(docker exec supabase_db_eval-workspace-content psql -U postgres -d postgres -tAc 'select count(*) from public.page' 2>/dev/null || echo 0)
+source workspace/scripts/docs-profile.sh
+docker exec "$CONTENT_DB_CONTAINER" true 2>/dev/null || fail "content DB not running"
+pages=$(docker exec "$CONTENT_DB_CONTAINER" psql -U postgres -d postgres -tAc 'select count(*) from public.page' 2>/dev/null || echo 0)
 [ "${pages:-0}" -gt 0 ] 2>/dev/null || fail "docs index not seeded"
-curl -sf -o /dev/null http://127.0.0.1:3001/docs/api/graphql || fail "docs-api not serving on :3001"
+curl -sf -o /dev/null "$CONTENT_URL" || fail "docs-api not serving on :$DOCS_API_PORT"
 git -C submodules/supabase diff --quiet -- "${GUIDE#submodules/supabase/}" || fail "demo guide has local edits (demo needs a clean file): ${GUIDE}"
 [ ! -e "$EVAL_DST" ] || fail "$EVAL_DST already exists — remove it first"
 

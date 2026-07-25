@@ -27,15 +27,17 @@ fi
 
 echo
 echo "docs loop (edit submodules/supabase/apps/docs/content/… pages):"
+source workspace/scripts/docs-profile.sh
+[ "$CONTENT_WORKDIR" = submodules/supabase ] || ok "isolated worktree stack ($CONTENT_PROJECT_ID)"
 if [ -e submodules/supabase/.git ]; then ok "supabase (apps/docs) cloned"; else miss "supabase not cloned" "mise run clone-docs"; fi
-if docker exec supabase_db_eval-workspace-content true 2>/dev/null; then
+if docker exec "$CONTENT_DB_CONTAINER" true 2>/dev/null; then
   ok "content DB running"
-  pages=$(docker exec supabase_db_eval-workspace-content psql -U postgres -d postgres -tAc 'select count(*) from public.page' 2>/dev/null || echo 0)
-  if [ "${pages:-0}" -gt 0 ] 2>/dev/null; then ok "index seeded ($pages pages)"; else miss "index empty" "mise run docs-seed   # one-time full embed (OpenAI \$; asks to confirm)"; fi
+  pages=$(docker exec "$CONTENT_DB_CONTAINER" psql -U postgres -d postgres -tAc 'select count(*) from public.page' 2>/dev/null || echo 0)
+  if [ "${pages:-0}" -gt 0 ] 2>/dev/null; then ok "index seeded ($pages pages)"; else miss "index empty" "mise run docs-seed   # one-time full embed (OpenAI \$; asks to confirm) — or free from a sibling stack: workspace/scripts/docs-copy-index.sh"; fi
 else
   miss "content DB not running" "mise run docs-up"
 fi
-if curl -sf -o /dev/null http://127.0.0.1:3001/docs/api/graphql; then ok "docs-api serving :3001"; else miss "docs-api not serving" "mise run docs-api   # keep it running in a separate terminal"; fi
+if curl -sf -o /dev/null "$CONTENT_URL"; then ok "docs-api serving :$DOCS_API_PORT"; else miss "docs-api not serving" "mise run docs-api   # keep it running in a separate terminal"; fi
 if have_key OPENAI_API_KEY; then ok "OPENAI_API_KEY present"; else miss "OPENAI_API_KEY missing" "mise run store-key OPENAI_API_KEY"; fi
 
 echo

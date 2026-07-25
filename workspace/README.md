@@ -68,6 +68,35 @@ loop (spend-gated, asks first). Writing your own discriminator eval? Ask for
 one precise, docs-only fact ("name the exact package for X") — vague
 questions make both arms search for minutes before converging.
 
+## Screening against published results (`vs-main`)
+
+The cheap iteration loop: run eval(s) in YOUR edited world (any mix of
+mcp/docs/skills edits) and diff against the latest published result on evals
+`main` — no baseline arm, no stashes, no git mutation anywhere.
+
+```bash
+mise run vs-main <eval-id> [<eval-id>…] [--experiment <id>] [--runs N]
+```
+
+Dirty submodule trees are detected and synced automatically (mcp build, docs
+re-embed); receipts land in `results-vs-main/*.json` with the published arm's
+result commit + parent SHA and age. The published arm ran in the scheduled CI
+world (published mcp package, prod docs index, model state at refresh time),
+so a flip is a **screen** — confirm causal claims with one paired `mise run
+ab`. Free self-test: `mise run vs-main-test`.
+
+## Parallel sessions (worktrees)
+
+MCP/skills edits are per-worktree by construction (tools-mode evals only —
+CLI/local-stack evals share host ports, one at a time machine-wide). The docs
+stack is shared by default; give a worktree its own (project id + port block
++ docs-api port, allocated through a locked machine-shared registry):
+
+```bash
+mise run docs-isolate                        # untracked overlay; no clone file touched
+mise run docs-up && workspace/scripts/docs-copy-index.sh   # free seed from a sibling stack
+```
+
 ## Patches & publishing
 
 Local changes to the patched repos (the `submodules/supabase` and

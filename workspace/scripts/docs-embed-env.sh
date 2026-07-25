@@ -20,7 +20,8 @@ source workspace/scripts/load-keys.sh
 set -a
 source submodules/supabase/apps/docs/.env.development
 set +a
-eval "$(supabase status --workdir submodules/supabase -o env)"
+source workspace/scripts/docs-profile.sh
+eval "$(supabase status --workdir "$CONTENT_WORKDIR" -o env)"
 export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
 export NEXT_PUBLIC_SUPABASE_ANON_KEY="$PUBLISHABLE_KEY"
 export SUPABASE_SECRET_KEY="$SECRET_KEY"
