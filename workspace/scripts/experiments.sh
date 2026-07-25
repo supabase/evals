@@ -20,6 +20,7 @@ for f in experiments/*.ts; do
   name=$(basename "$f" .ts)
   agent=$(sed -n 's/.*agent: \([a-zA-Z]*\)Agent(.*/\1/p' "$f" | head -1)
   model=$(sed -n "s/.*model: \([a-z]*(\)\{0,1\}'\([^']*\)'.*/\2/p" "$f" | head -1)
+  effort=$(sed -n "s/.*reasoningEffort: '\([^']*\)'.*/\1/p" "$f" | head -1)
   case " $published " in
     *" $name "*) pub="yes (vs-main)" ;;
     *) pub="-" ;;
