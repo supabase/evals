@@ -302,9 +302,7 @@ jobs:
             --runs "${{ needs.prepare.outputs.runs }}" \
             --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
 
-          # A missing/skipped experiment (e.g. its API key env var is unset)
-          # exits 0 without writing results; fail loudly instead of uploading
-          # nothing and breaking publish-results downstream.
+          # A skipped experiment (e.g. missing API key) exits 0 without writing results.
           if [ ! -f "results/${{ matrix.experiment }}/${{ matrix.eval_id }}.json" ]; then
             echo "::error::no result written for ${{ matrix.experiment }} x ${{ matrix.eval_id }} (experiment skipped?)"
             exit 1
