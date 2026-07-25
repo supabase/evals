@@ -26,10 +26,9 @@ docker exec "$src" pg_dump -U postgres -d postgres --data-only -t public.page -t
 docker exec "$dst" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q \
   -c 'TRUNCATE public.page, public.page_section RESTART IDENTITY CASCADE'
 docker exec -i "$dst" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q < "$tmp"
-docker exec "$dst" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c "
+docker exec "$dst" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -o /dev/null -c "
   select setval(pg_get_serial_sequence('public.page','id'), coalesce(max(id),1)) from public.page;
   select setval(pg_get_serial_sequence('public.page_section','id'), coalesce(max(id),1)) from public.page_section;"
-
 got=$(docker exec "$dst" psql -U postgres -d postgres -tAc 'select count(*) from public.page')
 [ "$got" = "$pages" ] || { echo "copy incomplete: source $pages pages, destination $got" >&2; exit 1; }
 echo "copied $got pages -> $dst (\$0.00 — the next docs-index re-embeds only pages your tree changed)"

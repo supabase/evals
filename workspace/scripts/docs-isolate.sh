@@ -70,12 +70,16 @@ for f in buckets functions migrations seed.sql; do
   ln -sfn "../../../submodules/supabase/supabase/$f" "$ov/$f"
 done
 
+# Slot ports live at 43k21-43k24 — BELOW the macOS ephemeral range (49152+),
+# where the primary's 55xxx block flakily collides with transient outbound
+# sockets (observed live: an ESTABLISHED connection held 55422 and the db
+# container could not bind).
 SLOT="$slot" node -e '
 const fs = require("fs");
 const slot = Number(process.env.SLOT);
 let t = fs.readFileSync(process.argv[1], "utf8");
 t = t.replace(/^project_id = ".*"$/m, `project_id = "eval-workspace-content-${slot}"`);
-t = t.replace(/^port = 55[0-9]([0-9][0-9])$/gm, (_, tail) => `port = ${55300 + 100 * slot + Number(tail)}`);
+t = t.replace(/^port = 55[0-9]([0-9][0-9])$/gm, (_, tail) => `port = ${43000 + 100 * slot + Number(tail)}`);
 fs.writeFileSync(process.argv[2], t);
 ' "$src/config.toml" "$ov/config.toml"
 

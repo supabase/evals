@@ -13,12 +13,15 @@ else
 fi
 _cfg="$CONTENT_WORKDIR/supabase/config.toml"
 CONTENT_PROJECT_ID=$(sed -n 's/^project_id = "\(.*\)"$/\1/p' "$_cfg" 2>/dev/null | head -1)
-CONTENT_API_PORT=$(sed -n 's/^port = \(55[0-9][0-9][0-9]\)$/\1/p' "$_cfg" 2>/dev/null | head -1)
+CONTENT_API_PORT=$(sed -n 's/^port = \([0-9][0-9]*\)$/\1/p' "$_cfg" 2>/dev/null | head -1)
 # fall back to the primary defaults when the submodule isn't cloned yet
 CONTENT_PROJECT_ID="${CONTENT_PROJECT_ID:-eval-workspace-content}"
 CONTENT_API_PORT="${CONTENT_API_PORT:-55321}"
 CONTENT_DB_CONTAINER="supabase_db_${CONTENT_PROJECT_ID}"
-# slot 0 (primary, 55321) -> 3001; slot k (55321+100k) -> 3001+k
-DOCS_API_PORT=$(( 3001 + (CONTENT_API_PORT - 55321) / 100 ))
+# docs-api: primary -> 3001; isolated slot k (project id suffix) -> 3001+k
+case "$CONTENT_PROJECT_ID" in
+  eval-workspace-content-[1-9]) DOCS_API_PORT=$(( 3001 + ${CONTENT_PROJECT_ID##*-} )) ;;
+  *) DOCS_API_PORT=3001 ;;
+esac
 CONTENT_URL="http://127.0.0.1:${DOCS_API_PORT}/docs/api/graphql"
 unset _cfg
