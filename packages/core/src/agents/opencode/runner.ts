@@ -140,6 +140,8 @@ export function createOpencodeRunner(
       const flags = [
         'run',
         message,
+        // Note opencode may 404 if the model drops from its live models.dev catalog.
+        // https://github.com/sst/opencode/blob/v1.18.5/packages/opencode/src/provider/provider.ts#L1805-L1817
         `--model ${shellQuote(`${GATEWAY_PROVIDER_ID}/${model}`)}`,
         // Newline-delimited JSON event records on stdout.
         '--format json',
