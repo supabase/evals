@@ -32,6 +32,7 @@ import {
   buildSkillResult,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
+  supabaseMcpServerMounts,
 } from '@supabase-evals/core';
 import type {
   ExperimentConfig,
@@ -439,6 +440,7 @@ async function runOne(
           // (the session folds the discovery listing into its promptAddendum),
           // so no skill text is injected into the prompt here.
           skills: skillSources,
+          mounts: supabaseMcpServerMounts(),
         })
       );
 
@@ -507,7 +509,12 @@ async function runOne(
     // platform-lite via host.docker.internal (so platform-lite binds 0.0.0.0).
     // An in-process agent runs host-side with no sandbox.
     await using cliSandbox = agentRunsInSandbox
-      ? disposable(await createBareSandbox({ skills: skillSources }))
+      ? disposable(
+          await createBareSandbox({
+            skills: skillSources,
+            mounts: supabaseMcpServerMounts(),
+          })
+        )
       : undefined;
     await using session = disposable(
       await exp.runtime.startSession({

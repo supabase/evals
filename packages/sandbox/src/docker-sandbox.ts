@@ -16,6 +16,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import type { SandboxMount } from '@supabase-evals/core';
 import type { SandboxCommandResult } from './types.js';
 
 const execFileAsync = promisify(execFile);
@@ -78,6 +79,13 @@ export interface DockerSandboxOptions {
    * Omitted means Docker's default bridge.
    */
   network?: string;
+  /**
+   * Extra host directories bind-mounted into the container (read-only unless
+   * a mount sets `readonly: false`), at the identical path unless
+   * `containerPath` overrides it. Used to expose host artifacts the agent's
+   * tools must execute — e.g. a local MCP server build.
+   */
+  mounts?: readonly SandboxMount[];
 }
 
 export interface RunCommandOptions {
@@ -90,6 +98,7 @@ export class DockerSandbox {
   private defaultTimeoutMs: number;
   private network: string | undefined;
   private image: string;
+  private mounts: readonly SandboxMount[];
   readonly workdir: string;
   /**
    * Env vars injected into every `runShell` (non-root) command — both the
@@ -102,6 +111,7 @@ export class DockerSandbox {
     this.defaultTimeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.network = options.network;
     this.image = options.image ?? DEFAULT_IMAGE;
+    this.mounts = options.mounts ?? [];
     this.workdir = `${WORKSPACE_BASE}-${randomUUID().slice(0, 8)}`;
   }
 
@@ -134,6 +144,14 @@ export class DockerSandbox {
         '/var/run/docker.sock:/var/run/docker.sock',
         '--volume',
         `${this.workdir}:${this.workdir}`,
+        // Caller-requested host mounts (e.g. a local MCP server build the
+        // in-container agent launches). Read-only unless the mount opts out.
+        ...this.mounts.flatMap((mount) => [
+          '--volume',
+          `${mount.hostPath}:${mount.containerPath ?? mount.hostPath}${
+            mount.readonly === false ? '' : ':ro'
+          }`,
+        ]),
         '--workdir',
         this.workdir,
         // Reach host-side servers (e.g. the linked platform-lite) at
