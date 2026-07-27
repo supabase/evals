@@ -155,6 +155,91 @@ type Baseline = {
   committedAt: string;
 };
 
+type PublishedFile = {
+  file: string;
+  rows: PublishedRow[];
+  commit: string;
+  parent: string;
+  committedAt: string;
+};
+
+/** Load one published export file from origin/main with its commit metadata. */
+function loadPublishedFile(file: string): PublishedFile | undefined {
+  let rows: PublishedRow[];
+  try {
+    rows = JSON.parse(git(['show', `origin/main:${file}`]));
+  } catch {
+    return undefined;
+  }
+  const [commit, parent, committedAt] = git([
+    'log',
+    'origin/main',
+    '-1',
+    '--format=%H %P %cI',
+    '--',
+    file,
+  ]).split(' ');
+  return { file, rows, commit, parent, committedAt };
+}
+
+/** Report evals with no published row for the experiment, then exit. */
+function refuseMissingBaselines(
+  missing: string[],
+  experiment: string,
+  seen: Map<string, Set<string>>
+): never {
+  for (const e of missing) {
+    const alts = [...(seen.get(e) ?? [])];
+    console.error(
+      alts.length
+        ? `no published ${experiment} result for ${e} on origin/main (published experiments: ${alts.join(', ')})`
+        : `no published result for ${e} on origin/main at all — use \`pnpm local run\` (no baseline needed)`
+    );
+  }
+  process.exit(1);
+}
+
+/** Fold one published file's rows into best/seen for the requested evals. */
+function scanFileRows(
+  loaded: PublishedFile,
+  evalIds: string[],
+  experiment: string,
+  best: Map<string, Baseline>,
+  seen: Map<string, Set<string>>
+) {
+  const { rows, commit, parent, committedAt } = loaded;
+  for (const row of rows) {
+    if (!evalIds.includes(row.eval)) continue;
+    const experiments = seen.get(row.eval) ?? new Set<string>();
+    experiments.add(row.experiment);
+    seen.set(row.eval, experiments);
+    if (row.experiment !== experiment) continue;
+    const cur = best.get(row.eval);
+    if (!cur || new Date(committedAt) > new Date(cur.committedAt))
+      best.set(row.eval, {
+        row,
+        file: loaded.file,
+        commit,
+        parent,
+        committedAt,
+      });
+  }
+}
+
+/** Scan the published export files: freshest matching row per eval, plus every experiment seen per eval. */
+function scanPublishedRows(
+  evalIds: string[],
+  experiment: string
+): { best: Map<string, Baseline>; seen: Map<string, Set<string>> } {
+  const best = new Map<string, Baseline>();
+  const seen = new Map<string, Set<string>>();
+  for (const file of PUBLISHED_FILES) {
+    const loaded = loadPublishedFile(file);
+    if (loaded) scanFileRows(loaded, evalIds, experiment, best, seen);
+  }
+  return { best, seen };
+}
+
 function resolveBaselines(
   evalIds: string[],
   experiment: string,
@@ -169,45 +254,9 @@ function resolveBaselines(
       );
     }
   }
-  const best = new Map<string, Baseline>();
-  const seen = new Map<string, Set<string>>();
-  for (const file of PUBLISHED_FILES) {
-    let rows: PublishedRow[];
-    try {
-      rows = JSON.parse(git(['show', `origin/main:${file}`]));
-    } catch {
-      continue;
-    }
-    const [commit, parent, committedAt] = git([
-      'log',
-      'origin/main',
-      '-1',
-      '--format=%H %P %cI',
-      '--',
-      file,
-    ]).split(' ');
-    for (const row of rows) {
-      if (!evalIds.includes(row.eval)) continue;
-      if (!seen.has(row.eval)) seen.set(row.eval, new Set());
-      seen.get(row.eval)?.add(row.experiment);
-      if (row.experiment !== experiment) continue;
-      const cur = best.get(row.eval);
-      if (!cur || new Date(committedAt) > new Date(cur.committedAt))
-        best.set(row.eval, { row, file, commit, parent, committedAt });
-    }
-  }
+  const { best, seen } = scanPublishedRows(evalIds, experiment);
   const missing = evalIds.filter((e) => !best.has(e));
-  if (missing.length) {
-    for (const e of missing) {
-      const alts = [...(seen.get(e) ?? [])];
-      console.error(
-        alts.length
-          ? `no published ${experiment} result for ${e} on origin/main (published experiments: ${alts.join(', ')})`
-          : `no published result for ${e} on origin/main at all — use \`pnpm local run\` (no baseline needed)`
-      );
-    }
-    process.exit(1);
-  }
+  if (missing.length) refuseMissingBaselines(missing, experiment, seen);
   return best;
 }
 
@@ -323,6 +372,60 @@ async function cmdExperiments() {
   }
 }
 
+/** Resolve --mcp / --content-api into the child env, validating paths pre-spend. */
+function buildOverrideEnv(flags: Map<string, string>): {
+  env: Record<string, string>;
+  mcpPath?: string;
+  contentApi?: string;
+} {
+  const env: Record<string, string> = {};
+  let mcpPath = flags.get('mcp');
+  if (mcpPath) {
+    mcpPath = isAbsolute(mcpPath) ? mcpPath : resolve(process.cwd(), mcpPath);
+    if (!existsSync(mcpPath)) fail(`--mcp path does not exist: ${mcpPath}`);
+    env.SUPABASE_MCP_SERVER_PATH = mcpPath;
+  }
+  const contentApi = flags.get('content-api');
+  if (contentApi) env.SUPABASE_CONTENT_API_URL = contentApi;
+  return { env, mcpPath, contentApi };
+}
+
+/** Print the published-vs-treatment delta; true when treatment regressed. */
+function reportComparison(
+  id: string,
+  b: Baseline,
+  result: PublishedRow
+): boolean {
+  writeFileSync(
+    join(OUT_DIR, `${id}.published.json`),
+    `${JSON.stringify({ ...b.row, publishedProvenance: { file: b.file, commit: b.commit, parent: b.parent, committedAt: b.committedAt } }, null, 1)}\n`
+  );
+  const ageDays = Math.round(
+    (Date.now() - new Date(b.committedAt).getTime()) / 86_400_000
+  );
+  console.log(
+    reportRow(
+      'published',
+      b.row,
+      `main@${b.commit.slice(0, 7)} ${b.committedAt.slice(0, 10)} (${ageDays}d old, attempts ${b.row.attempts})`
+    )
+  );
+  console.log(reportRow('treatment', result, 'your world'));
+  const d = (result.passed ? 1 : 0) - (b.row.passed ? 1 : 0);
+  console.log(
+    d > 0
+      ? '-> IMPROVED vs published (FAIL->PASS)'
+      : d < 0
+        ? '-> REGRESSED vs published (PASS->FAIL)'
+        : '-> no pass/fail change (compare checks / docs.calls)'
+  );
+  console.log(
+    'screen only: the published arm ran in the scheduled CI world — a flip is a signal, not causal proof'
+  );
+  console.log(`saved: results-local/${id}.{published,treatment}.json`);
+  return d < 0;
+}
+
 function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
   const { flags, positionals } = parseArgs(argv);
   const evalIds = positionals;
@@ -339,16 +442,7 @@ function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
       : new Map<string, Baseline>();
 
   validateEvals(evalIds);
-
-  const env: Record<string, string> = {};
-  let mcpPath = flags.get('mcp');
-  if (mcpPath) {
-    mcpPath = isAbsolute(mcpPath) ? mcpPath : resolve(process.cwd(), mcpPath);
-    if (!existsSync(mcpPath)) fail(`--mcp path does not exist: ${mcpPath}`);
-    env.SUPABASE_MCP_SERVER_PATH = mcpPath;
-  }
-  const contentApi = flags.get('content-api');
-  if (contentApi) env.SUPABASE_CONTENT_API_URL = contentApi;
+  const { env, mcpPath, contentApi } = buildOverrideEnv(flags);
 
   mkdirSync(OUT_DIR, { recursive: true });
   let exitCode = 0;
@@ -356,58 +450,53 @@ function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
     const runs = Number(
       flags.get('runs') ?? baselines.get(id)?.row.attempts ?? 1
     );
-    console.log(
-      `== treatment: ${id} (${experiment}, runs=${runs}${mcpPath ? ', mcp override' : ''}${contentApi ? ', content-api override' : ''}) ==`
-    );
-    const resultPath = process.env.LOCAL_EVAL_CMD
-      ? fakeRun(id, experiment)
-      : runEval(id, experiment, runs, env);
-
-    const result = JSON.parse(readFileSync(resultPath, 'utf8')) as PublishedRow;
-    const receipt = {
-      ...result,
-      provenance: collectProvenance(mcpPath, contentApi),
-    };
-    const treatmentPath = join(OUT_DIR, `${id}.treatment.json`);
-    writeFileSync(treatmentPath, `${JSON.stringify(receipt, null, 1)}\n`);
-
-    console.log(`\n=== local ${mode}: ${id} (${experiment}) ===`);
-    const b = baselines.get(id);
-    if (b) {
-      writeFileSync(
-        join(OUT_DIR, `${id}.published.json`),
-        `${JSON.stringify({ ...b.row, publishedProvenance: { file: b.file, commit: b.commit, parent: b.parent, committedAt: b.committedAt } }, null, 1)}\n`
-      );
-      const ageDays = Math.round(
-        (Date.now() - new Date(b.committedAt).getTime()) / 86_400_000
-      );
-      console.log(
-        reportRow(
-          'published',
-          b.row,
-          `main@${b.commit.slice(0, 7)} ${b.committedAt.slice(0, 10)} (${ageDays}d old, attempts ${b.row.attempts})`
-        )
-      );
-      console.log(reportRow('treatment', result, 'your world'));
-      const d = (result.passed ? 1 : 0) - (b.row.passed ? 1 : 0);
-      console.log(
-        d > 0
-          ? '-> IMPROVED vs published (FAIL->PASS)'
-          : d < 0
-            ? '-> REGRESSED vs published (PASS->FAIL)'
-            : '-> no pass/fail change (compare checks / docs.calls)'
-      );
-      if (d < 0) exitCode = 1;
-      console.log(
-        'screen only: the published arm ran in the scheduled CI world — a flip is a signal, not causal proof'
-      );
-      console.log(`saved: results-local/${id}.{published,treatment}.json`);
-    } else {
-      console.log(reportRow('treatment', result, 'your world'));
-      console.log(`saved: results-local/${id}.treatment.json`);
-    }
+    const regressed = runTreatment(mode, id, experiment, runs, {
+      env,
+      mcpPath,
+      contentApi,
+      baseline: baselines.get(id),
+    });
+    if (regressed) exitCode = 1;
   }
   process.exit(exitCode);
+}
+
+/** Run one eval in the treatment world, write its receipt, report; true when it regressed vs published. */
+function runTreatment(
+  mode: 'run' | 'compare',
+  id: string,
+  experiment: string,
+  runs: number,
+  opts: {
+    env: Record<string, string>;
+    mcpPath?: string;
+    contentApi?: string;
+    baseline?: Baseline;
+  }
+): boolean {
+  const { env, mcpPath, contentApi, baseline } = opts;
+  console.log(
+    `== treatment: ${id} (${experiment}, runs=${runs}${mcpPath ? ', mcp override' : ''}${contentApi ? ', content-api override' : ''}) ==`
+  );
+  const resultPath = process.env.LOCAL_EVAL_CMD
+    ? fakeRun(id, experiment)
+    : runEval(id, experiment, runs, env);
+
+  const result = JSON.parse(readFileSync(resultPath, 'utf8')) as PublishedRow;
+  const receipt = {
+    ...result,
+    provenance: collectProvenance(mcpPath, contentApi),
+  };
+  writeFileSync(
+    join(OUT_DIR, `${id}.treatment.json`),
+    `${JSON.stringify(receipt, null, 1)}\n`
+  );
+
+  console.log(`\n=== local ${mode}: ${id} (${experiment}) ===`);
+  if (baseline) return reportComparison(id, baseline, result);
+  console.log(reportRow('treatment', result, 'your world'));
+  console.log(`saved: results-local/${id}.treatment.json`);
+  return false;
 }
 
 // test hook: LOCAL_EVAL_CMD writes the result file itself (no model spend)

@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file -- loaded at runtime (spawned/injected by local-docs.ts), never statically imported
 /**
  * Standalone docs content GraphQL API for `search_docs`.
  *

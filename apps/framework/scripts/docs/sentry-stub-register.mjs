@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file -- loaded at runtime (spawned/injected by local-docs.ts), never statically imported
 // Registers a resolve hook that short-circuits '@sentry/nextjs' to the local
 // no-op stub. Injected via NODE_OPTIONS from `pnpm local docs api`; chains with tsx's
 // own hooks (ours only intercepts the one specifier). Uses module.register()
