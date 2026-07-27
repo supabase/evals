@@ -8,7 +8,13 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -140,6 +146,40 @@ function ck(name: string, fn: () => void) {
     assert.equal(r.status, 1);
     assert.match(r.out, /--mcp path does not exist/);
   });
+}
+
+// --- mcp override: monorepo root resolves to the server package; unbuilt refused ---
+{
+  const fake = join(ROOT, 'results-local', '.smoke-mcp-checkout');
+  const pkg = join(fake, 'packages', 'mcp-server-supabase');
+  mkdirSync(join(pkg, 'dist', 'transports'), { recursive: true });
+
+  const unbuilt = local(['run', EVAL, '--mcp', fake]);
+  ck('unbuilt mcp checkout refused pre-spend with build hint', () => {
+    assert.equal(unbuilt.status, 1);
+    assert.match(unbuilt.out, /no built server at .*mcp-server-supabase/);
+    assert.match(unbuilt.out, /pnpm install && pnpm build/);
+  });
+
+  writeFileSync(
+    join(pkg, 'dist', 'transports', 'stdio.js'),
+    '// smoke fixture\n'
+  );
+  const built = local(['run', EVAL, '--mcp', fake]);
+  ck('monorepo root resolves to the server package dir', () => {
+    assert.equal(built.status, 0);
+    const receipt = JSON.parse(
+      readFileSync(
+        join(ROOT, 'results-local', `${EVAL}.treatment.json`),
+        'utf8'
+      )
+    );
+    assert.match(
+      receipt.provenance.mcpOverride.path,
+      /packages[/\\]mcp-server-supabase$/
+    );
+  });
+  rmSync(fake, { recursive: true, force: true });
 }
 
 // cleanup

@@ -226,6 +226,41 @@ function validateExperiment(experiment: string) {
   }
 }
 
+/**
+ * Accept either the mcp monorepo root or the server package dir for --mcp,
+ * and refuse pre-spend when the server isn't built (the harness would only
+ * discover that after eval setup).
+ */
+function resolveMcpServerPath(raw: string): string {
+  let p = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
+  if (!existsSync(p)) fail(`--mcp path does not exist: ${p}`);
+  const packageDir = join(p, 'packages', 'mcp-server-supabase');
+  if (existsSync(packageDir)) p = packageDir;
+  if (!existsSync(join(p, 'dist', 'transports', 'stdio.js')))
+    fail(
+      `no built server at ${p} (dist/transports/stdio.js missing) — build it first:\n  pnpm install && pnpm build   # in the mcp checkout (use \`mise exec --\` if corepack's pnpm mismatches)`
+    );
+  return p;
+}
+
+/**
+ * The experiment's declared skills must exist in this checkout, or the
+ * treatment silently runs skill-less against a skills-enabled published
+ * baseline — a world mismatch, not a comparison.
+ */
+async function validateSkills(experiment: string) {
+  // runtime-discovered plugin dir (same pattern as run-eval's loadExperiments)
+  const mod = await import(
+    pathToFileURL(join(ROOT, 'experiments', `${experiment}.ts`)).href
+  );
+  const skills: string[] = (mod.default as ExperimentConfig).skills ?? [];
+  const missing = skills.filter((s) => !existsSync(join(ROOT, 'skills', s)));
+  if (missing.length)
+    fail(
+      `experiment ${experiment} declares skills this checkout is missing: ${missing.join(', ')}\ninitialise the skills submodule first: git submodule update --init`
+    );
+}
+
 // ---------- treatment run ----------
 
 function runEval(
@@ -399,7 +434,7 @@ async function cmdExperiments() {
 const RUN_USAGE =
   'usage: pnpm local <run|compare> <eval-id> [...] [--experiment <id>] [--runs N] [--mcp <path>] [--content-api <url>]';
 
-function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
+async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
   const parsed = (() => {
     try {
       return parseArgs({
@@ -427,14 +462,12 @@ function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
       : new Map<string, Baseline>();
 
   validateEvals(evalIds);
+  // skills gate is spend-relevant only for real runs; the test hook fakes them
+  if (!process.env.LOCAL_EVAL_CMD) await validateSkills(experiment);
 
   const env: Record<string, string> = {};
-  let mcpPath = values.mcp;
-  if (mcpPath) {
-    mcpPath = isAbsolute(mcpPath) ? mcpPath : resolve(process.cwd(), mcpPath);
-    if (!existsSync(mcpPath)) fail(`--mcp path does not exist: ${mcpPath}`);
-    env.SUPABASE_MCP_SERVER_PATH = mcpPath;
-  }
+  const mcpPath = values.mcp ? resolveMcpServerPath(values.mcp) : undefined;
+  if (mcpPath) env.SUPABASE_MCP_SERVER_PATH = mcpPath;
   const contentApi = values['content-api'];
   if (contentApi) env.SUPABASE_CONTENT_API_URL = contentApi;
 
@@ -459,7 +492,7 @@ const [command, ...rest] = process.argv.slice(2);
 switch (command) {
   case 'run':
   case 'compare':
-    cmdRunOrCompare(command, rest);
+    await cmdRunOrCompare(command, rest);
     break;
   case 'experiments':
     await cmdExperiments();
