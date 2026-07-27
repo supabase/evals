@@ -19469,38 +19469,41 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
+        "passed": false
       },
       {
         "name": "todos table is created by a migration file",
-        "passed": true
+        "passed": false,
+        "notes": "supabase/migrations does not exist — was a Supabase project initialised?"
       },
       {
         "name": "todos table exists with at least 2 seeded rows",
-        "passed": true,
-        "notes": "found 2 rows"
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
       },
       {
         "name": "row level security is enabled on todos",
-        "passed": true
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
       },
       {
         "name": "a SELECT policy targets the authenticated role",
-        "passed": true
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
       },
       {
         "name": "REST API returns no todos to anonymous requests",
-        "passed": true,
-        "notes": "0 rows"
+        "passed": false,
+        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
       },
       {
         "name": "REST API returns the todos to authenticated requests",
-        "passed": true,
-        "notes": "2 rows"
+        "passed": false,
+        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
       }
     ],
     "skills": {
@@ -19512,7 +19515,7 @@
     },
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
     "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-001-bootstrap-app.json"
   },
   {
@@ -19534,23 +19537,25 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "supabase db diff used to generate the migration",
-        "passed": true
+        "passed": false
       },
       {
         "name": "schema file updated to include description column",
-        "passed": true
+        "passed": false,
+        "notes": "description not found in any schema file"
       },
       {
         "name": "a new migration was generated for the change",
-        "passed": true
+        "passed": false,
+        "notes": "found 1 migration file(s)"
       },
       {
         "name": "description column exists in the live database",
-        "passed": true
+        "passed": false
       }
     ],
     "skills": {
@@ -19562,7 +19567,7 @@
     },
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-002-declarative-schema.json"
   },
   {
@@ -19587,22 +19592,22 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": true,
-        "notes": "schedule='* * * * *', active=true"
+        "passed": false,
+        "notes": "job not found in cron.job"
       },
       {
         "name": "cron command enqueues to the 'tasks' queue",
-        "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "passed": false,
+        "notes": "job not found, so its command can't run"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
+        "passed": false,
+        "notes": "couldn't enqueue a test message. Is the 'tasks' queue created? query failed: ERROR:  relation \"pgmq.q_tasks\" does not exist\nLINE 2:         INSERT INTO pgmq.q_tasks (vt, message, headers)\n                            ^\nQUERY:  \n        INSERT INTO pgmq.q_tasks (vt, message, headers)\n        VALUES ($2, $1, $3)\n        RETURNING msg_id;\n        \nCONTEXT:  PL/pgSQL function pgmq.send(text,jsonb,jsonb,timestamp with time zone) line 14 at RETURN QUERY\nSQL function \"send\" statement 1\n"
       }
     ],
     "skills": {
@@ -19610,80 +19615,11 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"pg_cron schedule job every minute pgmq send queue\") { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
-              "title": "pg_net: Async Networking"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues/pgmq",
-              "title": "PGMQ Extension"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron",
-              "title": "Cron"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
-              "title": "Scheduling Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues/quickstart",
-              "title": "Quickstart"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/install",
-              "title": "Install"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
-              "title": "pg_cron debugging guide"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/upgrading",
-              "title": "Upgrading"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/migrating-to-pg-partman",
-              "title": "Migrate from TimescaleDB to pg_partman"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues",
-              "title": "Supabase Queues"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/pg_cron-launcher-crashes-with-duplicate-key-value-violates-unique-constraint-cc6472",
-              "title": "`pg_cron launcher crashes with 'duplicate key value violates unique constraint'`"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
-              "title": "Foreign Data Wrappers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_partman",
-              "title": "pg_partman: partition management"
-            }
-          ],
-          "resultChars": 125276
-        }
-      ]
+      "calls": []
     },
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-003-pg-cron-queue-workflow.json"
   },
   {
@@ -19704,27 +19640,12 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
-        "name": "all 3 tables exist (teams, members, tasks)",
-        "passed": true
-      },
-      {
-        "name": "row counts match (teams=5, members=10, tasks=13)",
-        "passed": true
-      },
-      {
-        "name": "foreign key constraints survived the restore",
-        "passed": true
-      },
-      {
-        "name": "tasks_team_status_idx index survived the restore",
-        "passed": true
-      },
-      {
-        "name": "sequences synced (next insert won't conflict with existing IDs)",
-        "passed": true
+        "name": "scorer completed without errors",
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-45da1f7a\nTry rerunning the command with --debug to troubleshoot the error.\n"
       }
     ],
     "skills": {
@@ -19736,7 +19657,7 @@
     },
     "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
     "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/build-database-001-migrate-postgres-to-supabase.json"
   },
   {
@@ -19761,7 +19682,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -19775,17 +19696,17 @@
       },
       {
         "name": "reads only with the caller's JWT",
-        "passed": true,
-        "notes": "bearer_tokens=2, all_match=true"
+        "passed": false,
+        "notes": "bearer_tokens=1, all_match=false"
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": true,
+        "passed": false,
         "notes": "status=200"
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": true,
+        "passed": false,
         "notes": "status=200"
       }
     ],
@@ -19798,7 +19719,7 @@
     },
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/build-functions-004-service-role-bypass.json"
   },
   {
@@ -19834,42 +19755,42 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 404: Function not found"
       },
       {
         "name": "user with JWT reads only their own rows",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"68087eb7-1e3e-4ff1-bece-c5bf9637ccd6\",\"metric\":\"steps_a_mrzmx0of\",\"value\":111}]"
+        "passed": false,
+        "notes": "status 404: Function not found"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"68087eb7-1e3e-4ff1-bece-c5bf9637ccd6\",\"metric\":\"steps_a_mrzmx0of\",\"value\":111}]"
+        "passed": false,
+        "notes": "status 404: Function not found"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"15d9b155-0de6-44c2-8eea-a0ba221728a7\",\"metric\":\"steps_b_mrzmx0of\",\"value\":222}]"
+        "passed": false,
+        "notes": "status 404: Function not found"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 404: Function not found"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Invalid or expired access token\"}"
+        "notes": "status 404: Function not found"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Missing credentials\"}"
+        "notes": "status 404: Function not found"
       },
       {
         "name": "implementation uses @supabase/server",
         "passed": false,
-        "notes": "hand-rolled (raw supabase-js or other) — this eval requires @supabase/server"
+        "notes": "could not locate function source to inspect"
       }
     ],
     "skills": {
@@ -19904,45 +19825,12 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "bucket user-files exists",
-        "passed": true
-      },
-      {
-        "name": "bucket user-files is private",
-        "passed": true
-      },
-      {
-        "name": "RLS still enabled on storage.objects",
-        "passed": true
-      },
-      {
-        "name": "user A lists only own files",
-        "passed": true,
-        "notes": "saw: 019f969e-d3b2-770f-bdaa-65de0ebe9d76/receipt-alpha.pdf, 019f969e-d3b2-770f-bdaa-65de0ebe9d76/receipt-beta.pdf"
-      },
-      {
-        "name": "user B cannot read user A files",
-        "passed": true
-      },
-      {
-        "name": "anon reads no files",
-        "passed": true
-      },
-      {
-        "name": "user A can upload into own folder",
-        "passed": true
-      },
-      {
-        "name": "user B cannot upload into user A folder",
-        "passed": true
-      },
-      {
-        "name": "configured private per-user storage access",
-        "passed": true,
-        "judgeNotes": "Meets all requirements: private user-files bucket, authenticated owner-scoped SELECT and INSERT policies on storage.objects with WITH CHECK for uploads, no RLS disabling or permissive/public policies, and supabase-js createSignedUrl with expiry for sharing."
+        "passed": false,
+        "notes": "no row in storage.buckets with id or name 'user-files'"
       }
     ],
     "skills": {
@@ -19950,40 +19838,11 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"storage access control RLS policies private bucket signed URL\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
-              "title": "Storage Buckets"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-angular",
-              "title": "Build a User Management App with Angular"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-angular",
-              "title": "Build a User Management App with Ionic Angular"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/security/product-security",
-              "title": "Secure configuration of Supabase products"
-            }
-          ],
-          "resultChars": 71040
-        }
-      ]
+      "calls": []
     },
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
     "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/build-storage-001-private-bucket-access.json"
   },
   {
@@ -20005,22 +19864,22 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": true,
-        "notes": "1 file(s): supabase/tests/database/tenant_isolation.test.sql"
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
       },
       {
         "name": "pgTAP isolation tests ran and pass",
-        "passed": true,
-        "notes": "12 passed, 0 failed"
+        "passed": false,
+        "notes": "no test summary found; exit 0; output: Connecting to local database...\nFiles=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nA new version of Supabase CLI is available: v2.110.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as the broken tenant isolation policy, specifically that members of any org could read all posts due to missing `m.org_id = posts.org_id`. It grounds the finding in pgTAP results, noting test 9 failed before the fix with have 1/want 0, and distinguishes `notes` as correctly isolated."
+        "judgeNotes": "The implementation fails the tenant-isolation tests because `posts` RLS is too permissive: authenticated users can read posts from orgs they do not belong to. The pgTAP failures correctly identify the broken policy on `posts`; `notes` is not the flawed table."
       }
     ],
     "skills": {
@@ -20032,7 +19891,7 @@
     },
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
     "promptSourcePath": "evals/build-tests-001-rls-tenant-isolation/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/build-tests-001-rls-tenant-isolation.json"
   },
   {
@@ -20055,38 +19914,40 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "document_sections.embedding is vector(384)",
-        "passed": true,
-        "notes": "vector(384)"
+        "passed": false,
+        "notes": "no embedding column"
       },
       {
         "name": "HNSW index on the embedding column",
-        "passed": true,
-        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "passed": false,
+        "notes": "no index on embedding column"
       },
       {
         "name": "index operator class matches the search operator",
-        "passed": true,
-        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "passed": false,
+        "notes": "match_document_sections not found"
       },
       {
         "name": "user A search returns only own sections, best match first",
-        "passed": true
+        "passed": false,
+        "notes": "Could not find the function public.match_document_sections(match_count, query_embedding) in the schema cache"
       },
       {
         "name": "user B search returns only own sections, best match first",
-        "passed": true
+        "passed": false,
+        "notes": "Could not find the function public.match_document_sections(match_count, query_embedding) in the schema cache"
       },
       {
         "name": "user A reads only own sections through the API",
-        "passed": true
+        "passed": false
       },
       {
         "name": "user A reads only own documents through the API",
-        "passed": true
+        "passed": false
       }
     ],
     "skills": {
@@ -20098,7 +19959,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -20118,7 +19979,7 @@
       "observability"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "preserved existing app scrape job",
@@ -20126,13 +19987,13 @@
       },
       {
         "name": "configured the Supabase Metrics API scrape correctly",
-        "passed": true,
-        "judgeNotes": "Adds Supabase Metrics API scrape over HTTPS with the required metrics path, Basic Auth using password_file, preserves the app scrape, and mounts the secrets directory into Prometheus so the password_file is available."
+        "passed": false,
+        "judgeNotes": "prometheus.yml only contains the existing app scrape and does not add a Supabase Metrics API scrape with HTTPS /customer/v1/privileged/metrics, basic_auth password_file, or docker-compose secret/volume wiring."
       },
       {
         "name": "documented live deployment and verification steps",
-        "passed": true,
-        "judgeNotes": "README includes concrete steps to set project ref, create/copy a Supabase Secret API key, place it in the mounted secret file, reload/recreate the Compose stack, and verify via Prometheus targets or PromQL/Grafana."
+        "passed": false,
+        "judgeNotes": "README only shows starting the stack and lists app:8080. It does not explain creating a Secret API key, placing the matching secret file, restarting/reloading the Compose stack, or concrete verification via Prometheus targets/PromQL/Grafana."
       }
     ],
     "skills": {
@@ -20140,36 +20001,11 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"metrics endpoint prometheus scrape project metrics API\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics",
-              "title": "Metrics API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
-              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
-              "title": "Vendor-agnostic Metrics API setup"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
-              "title": "Metrics API with Grafana Cloud"
-            }
-          ],
-          "resultChars": 22788
-        }
-      ]
+      "calls": []
     },
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/deploy-database-001-prometheus-metrics.json"
   },
   {
@@ -20190,21 +20026,22 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "WEATHER_API_KEY is set as a Function secret on the project",
-        "passed": true
+        "passed": false,
+        "notes": "secrets present: []"
       },
       {
         "name": "the weather function is deployed to the project",
-        "passed": true,
-        "notes": "status ACTIVE"
+        "passed": false,
+        "notes": "function not found on the project (status 404)"
       },
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
-        "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+        "passed": false,
+        "notes": "could not read supabase/functions/weather/*"
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -20220,7 +20057,7 @@
     },
     "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
     "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/deploy-functions-001-edge-function-secrets.json"
   },
   {
@@ -20243,11 +20080,12 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": true
+        "passed": false,
+        "notes": "supabase-docker/ is missing docker-compose.yml or volumes/db — not the self-host docker/ tree"
       },
       {
         "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
@@ -20255,11 +20093,13 @@
       },
       {
         "name": "secrets rotated off the shipped defaults",
-        "passed": true
+        "passed": false,
+        "notes": "still default or empty: POSTGRES_PASSWORD, JWT_SECRET, DASHBOARD_PASSWORD, VAULT_ENC_KEY, PG_META_CRYPTO_KEY"
       },
       {
         "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": true
+        "passed": false,
+        "notes": "JWT_SECRET missing"
       }
     ],
     "skills": {
@@ -20271,7 +20111,7 @@
     },
     "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
     "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/deploy-self-hosting-001-docker-compose.json"
   },
   {
@@ -20293,7 +20133,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -20305,16 +20145,18 @@
       },
       {
         "name": "delete-account revokes the user's sessions",
-        "passed": true,
-        "notes": "sessions left: 0"
+        "passed": false,
+        "notes": "sessions left: 1"
       },
       {
         "name": "deleted user's refresh token is rejected",
-        "passed": true
+        "passed": false,
+        "notes": "refresh token still produces a session"
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
@@ -20323,7 +20165,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "Meets all rubric requirements: identifies soft-delete-only root cause, implements auth.users deletion/session+refresh-token revocation, consistently explains remaining stateless JWT expiry window and mitigation, and correctly distinguishes frontend publishable/anon keys from server-only secret/service_role keys with RLS bypass."
+        "judgeNotes": "The answer identifies the root cause as soft-deleting only the profile and not removing/revoking the auth user/sessions, implements deletion of the auth user or equivalent session/refresh-token revocation, explains that stateless JWT access tokens may remain valid until expiry for local validation and provides consistent mitigations or RLS/session-existence checks, and correctly distinguishes publishable frontend keys under user JWT/RLS from secret/server-only keys that bypass RLS and must not be exposed."
       }
     ],
     "skills": {
@@ -20335,7 +20177,7 @@
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -20357,11 +20199,11 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "orders table added to supabase_realtime publication",
-        "passed": true
+        "passed": false
       },
       {
         "name": "courier_locations still in supabase_realtime publication",
@@ -20383,7 +20225,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "Identified the missing orders table in the supabase_realtime publication as the root cause, added public.orders with ALTER PUBLICATION, and did not weaken RLS/policies or disrupt courier_locations."
+        "judgeNotes": "The answer correctly identifies that the Realtime channel can reach SUBSCRIBED while receiving no Postgres INSERT events because the orders table is not included in the supabase_realtime publication. It fixes the issue by adding only orders to the existing publication with ALTER PUBLICATION supabase_realtime ADD TABLE orders, while preserving existing RLS/policies and not disrupting courier_locations."
       }
     ],
     "skills": {
@@ -20395,7 +20237,7 @@
     },
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
     "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/investigate-realtime-001-subscribed-no-events.json"
   },
   {
@@ -20416,22 +20258,22 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "Identified image-transform as the main affected function and described the recurring pattern of 8 HTTP 503 gateway failures across 07:00Z–12:00Z on 2026-04-28, while distinguishing old billing-webhook 503s as unrelated."
+        "judgeNotes": "The assistant identified image-transform as the affected function and recognized a recurring pattern of HTTP 503 responses during the morning of 2026-04-28, covering the gateway failures spread across roughly 07:00Z-12:00Z."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": false,
-        "judgeNotes": "Although it notes the 503s appear only in gateway logs with no function execution logs, it then attributes the main issue to worker boot/cold-start fragility from the function dependency/top-level import and recommends fixing/redeploying image-transform, which violates the rubric."
+        "passed": true,
+        "judgeNotes": "The response attributes the recurring image-transform 503s to the gateway/Edge Functions platform layer rather than the function code, and grounds this in valid observations: the 503s appear only in gateway/HTTP logs with no matching invocation/runtime rows while nearby invocations succeeded; deployment_id/version remained unchanged; and it distinguishes these gateway 503s from a function-level logged 500 such as avatar-upload."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "The assistant recommended concrete actionable next steps, including redeploy/config changes, retry logic, observability improvements, and escalating to Supabase support with specific gateway request IDs if 503s persist."
+        "judgeNotes": "Recommended concrete next steps including checking Supabase Edge Function logs for specific failures, validating env vars/secrets, reviewing recent deployments/configuration changes, testing the function directly with the request ID/time window, and checking Supabase status/support if platform-related."
       }
     ],
     "skills": {
@@ -20443,7 +20285,7 @@
     },
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/investigate-reliability-003-edge-function-5xx-correlation.json"
   },
   {
@@ -20467,7 +20309,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "RLS still enabled on bookmarks",
@@ -20475,7 +20317,7 @@
       },
       {
         "name": "user A reads own bookmarks",
-        "passed": true
+        "passed": false
       },
       {
         "name": "user B cannot read user A bookmarks",
@@ -20487,7 +20329,8 @@
       },
       {
         "name": "user A can save a new bookmark",
-        "passed": true
+        "passed": false,
+        "notes": "new row violates row-level security policy for table \"bookmarks\""
       },
       {
         "name": "user B cannot insert a bookmark as user A",
@@ -20496,7 +20339,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, and created authenticated SELECT and INSERT owner-scoped policies using auth.uid() = user_id with WITH CHECK for inserts."
+        "judgeNotes": "The answer diagnoses RLS enabled with no policies causing deny-all, keeps RLS enabled, and adds authenticated SELECT and INSERT policies scoped to user_id = auth.uid() using USING and WITH CHECK respectively."
       }
     ],
     "skills": {
@@ -20508,7 +20351,7 @@
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-dataapi-001-empty-results.json"
   },
   {
@@ -20529,23 +20372,27 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "the avatar_url column is applied on the hosted profiles table",
-        "passed": true
+        "passed": false,
+        "notes": "avatar_url not found on public.profiles"
       },
       {
         "name": "migration 20240220000000 is recorded in the remote history",
-        "passed": true
+        "passed": false,
+        "notes": "remote history versions: [\"20240101000000\",\"20240115000000\"]"
       },
       {
         "name": "remote migration history matches local migration files",
-        "passed": true
+        "passed": false,
+        "notes": "remote-only versions still unreconciled: [\"20240115000000\"] (remote: [\"20240101000000\",\"20240115000000\"], local: [\"20240101000000\",\"20240220000000\"])"
       },
       {
         "name": "local migrations are a valid reconciled sequence",
-        "passed": true
+        "passed": false,
+        "notes": "expected 20240101000000_create_profiles → <bio reconciliation> → 20240220000000_add_avatar_url, strictly ascending; got [20240101000000_create_profiles.sql, 20240220000000_add_avatar_url.sql]"
       },
       {
         "name": "production profile data is intact (not reset)",
@@ -20553,8 +20400,8 @@
       },
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
-        "passed": true,
-        "judgeNotes": "Avatar migration was applied through `supabase db push` in #14, which shows `Applying migration 20240220000000_add_avatar_url.sql...` and `Finished supabase db push.` The orphan bio migration was reconciled by adding the missing local migration file `supabase/migrations/20240115000000_add_profile_bio.sql` in #13 and then running `supabase db push`, after which `supabase migration list` showed all versions aligned. No prohibited workaround was used; the `psql` commands were read-only inspection."
+        "passed": false,
+        "notes": "no agent actions recorded to evaluate"
       }
     ],
     "skills": {
@@ -20566,7 +20413,7 @@
     },
     "prompt": "I'm trying to ship a migration to our hosted project and it's not working. Can you figure out what's wrong and get it deployed?",
     "promptSourcePath": "evals/resolve-database-001-migration-history-mismatch/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-database-001-migration-history-mismatch.json"
   },
   {
@@ -20588,24 +20435,24 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
-        "passed": true
+        "passed": false
       },
       {
         "name": "ran EXPLAIN on the expensive query",
-        "passed": true
+        "passed": false
       },
       {
         "name": "created index covering user_id and created_at",
-        "passed": true
+        "passed": false
       },
       {
         "name": "query plan uses an index and avoids sequential scan",
-        "passed": true,
-        "notes": "Limit  (cost=79.74..79.86 rows=50 width=58)\n  ->  Sort  (cost=79.74..79.99 rows=100 width=58)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=5.06..76.42 rows=100 width=58)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on events_user_id_created_at_idx  (cost=0.00..5.03 rows=100 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "passed": false,
+        "notes": "Limit  (cost=118.52..118.57 rows=20 width=88)\n  ->  Sort  (cost=118.52..118.57 rows=20 width=88)\n        Sort Key: created_at DESC\n        ->  Seq Scan on events  (cost=0.00..118.09 rows=20 width=88)\n              Filter: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -20621,7 +20468,7 @@
     },
     "prompt": "My database CPU keeps spiking and the app gets slow when loading recent events for a user. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
     "promptSourcePath": "evals/resolve-performance-001-slow-query-cpu-spike/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-performance-001-slow-query-cpu-spike.json"
   },
   {
@@ -20644,7 +20491,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "RLS enabled on notes",
@@ -20652,11 +20499,11 @@
       },
       {
         "name": "tenant A sees only org A notes",
-        "passed": true
+        "passed": false
       },
       {
         "name": "tenant B cannot read org A notes",
-        "passed": true
+        "passed": false
       },
       {
         "name": "tenant A author can update own note",
@@ -20692,7 +20539,7 @@
     },
     "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
   }
 ]
