@@ -113,14 +113,24 @@ pnpm local experiments                      # list experiments + published-basel
   `DOCS_GITHUB_APP_{ID,INSTALLATION_ID,PRIVATE_KEY}` (a GitHub App —
   `createAppAuth`, no token fallback). All sources go through one `Promise.all`,
   so that single rejection aborts the run — before any embedding, so it costs
-  nothing. The blocker is a rate-limit guard, not an access one: `supabase/splinter`
-  is public, and the loader's 30 calls (1 directory listing + 29 lint files) fit
-  inside even the unauthenticated 60/hr budget for a single run. So the cleanest
-  upstream fix is an auth ladder in that loader — App creds, else
-  `GITHUB_TOKEN`/`GH_TOKEN` (5,000/hr, and `gh auth token` is already on most dev
-  machines), else unauthenticated. That keeps the advisor pages IN the local index
-  rather than skipping them, so there is no missing-corpus or purge-retention
-  question for this source at all, and production still takes the first rung.
+  nothing. GitHub imposes the limit (60/hr per IP unauthenticated); the loader
+  responded by hard-requiring App auth, and the reasoning is on record in
+  [supabase/supabase#43015](https://github.com/supabase/supabase/pull/43015):
+  unauthenticated calls were "causing flaky failures on shared CI runners", with
+  the failing job linked. Note this is not an access problem — `supabase/splinter`
+  is public and the loader makes only 30 calls (1 listing + 29 lint files).
+  Do NOT "fix" it by going back to `raw.githubusercontent.com`:
+  [#44274](https://github.com/supabase/supabase/pull/44274) deliberately migrated
+  those calls the other way, so that "all network calls for external content
+  coming from GitHub are done using our authenticated Octokit client", after raw
+  fetches failed in a preview.
+  The upstream change compatible with both: keep the authenticated Octokit client
+  and add ONE auth rung — App creds, else a `GITHUB_TOKEN`/`GH_TOKEN` PAT (still
+  authenticated, still 5,000/hr, so #43015's flakiness stays fixed), else fail
+  with a message naming the export. `gh auth token` supplies the value but is not
+  exported for you. That keeps the 29 advisor pages IN a local index instead of
+  skipping them, so no missing-corpus or purge-retention question arises for this
+  source, and production keeps taking the first rung unchanged.
   An opt-in skip flag remains the right tool only for sources no contributor can
   reach (partner integrations, via the hosted `misc` project). Either way it has
   to land upstream: this runner takes an arbitrary vanilla checkout, so a patch on
