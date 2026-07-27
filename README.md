@@ -107,44 +107,24 @@ pnpm local experiments                      # list experiments + published-basel
   pnpm local run <eval-id> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>
   ```
 
-  **Known limitation — `docs seed` does not complete against a vanilla docs
-  checkout yet.** `fetchAllSources()` unconditionally awaits
-  `fetchLintWarningsGuideSources()`, whose loader throws without
-  `DOCS_GITHUB_APP_{ID,INSTALLATION_ID,PRIVATE_KEY}` (a GitHub App —
-  `createAppAuth`, no token fallback). All sources go through one `Promise.all`,
-  so that single rejection aborts the run — before any embedding, so it costs
-  nothing. GitHub imposes the limit (60/hr per IP unauthenticated); the loader
-  responded by hard-requiring App auth, and the reasoning is on record in
-  [supabase/supabase#43015](https://github.com/supabase/supabase/pull/43015):
-  unauthenticated calls were "causing flaky failures on shared CI runners", with
-  the failing job linked. Note this is not an access problem — `supabase/splinter`
-  is public and the loader makes only 30 calls (1 listing + 29 lint files).
-  Do NOT "fix" it by going back to `raw.githubusercontent.com`:
-  [#44274](https://github.com/supabase/supabase/pull/44274) deliberately migrated
-  those calls the other way, so that "all network calls for external content
-  coming from GitHub are done using our authenticated Octokit client", after raw
-  fetches failed in a preview.
-  The upstream change compatible with both: keep the authenticated Octokit client
-  and add ONE auth rung — App creds, else a `GITHUB_TOKEN`/`GH_TOKEN` PAT (still
-  authenticated, still 5,000/hr, so #43015's flakiness stays fixed), else fail
-  with a message naming the export. `gh auth token` supplies the value but is not
-  exported for you. That keeps the 29 advisor pages IN a local index instead of
-  skipping them, so no missing-corpus or purge-retention question arises for this
-  source, and production keeps taking the first rung unchanged.
-  An opt-in skip flag remains the right tool only for sources no contributor can
-  reach (partner integrations, via the hosted `misc` project). Either way it has
-  to land upstream: this runner takes an arbitrary vanilla checkout, so a patch on
-  yours (what the previous iteration carried) is not something every user or CI
-  job can be asked to hold. Until then this leg needs an index seeded another way;
-  the `run`/`compare` side is verified against one (a real agent's `search_docs`
-  returned local-index-only content).
+  **Known limitation — `docs seed` needs a docs checkout containing
+  [supabase/supabase#48364](https://github.com/supabase/supabase/pull/48364).**
+  Without it, `fetchAllSources()` unconditionally awaits the lint warnings source,
+  whose loader requires the docs GitHub App, and one shared `Promise.all` turns
+  that into a full abort before any embedding (so it costs nothing). That PR adds
+  a token rung below the App, `GH_TOKEN` then `GITHUB_TOKEN`, which is all a
+  contributor needs: `export GH_TOKEN=$(gh auth token)`. Until it merges, check
+  that branch out in the checkout you pass to `--docs`.
 
-  If a skip is chosen instead, note a second requirement identified here and NOT
-  solved by the previous iteration's patches: re-running a skip against an index
-  that already holds those rows deletes them, because the purge removes every page
-  the run did not stamp and a skipped source stamps nothing (the fail-closed patch
-  only gates the purge on counted failures, and an intentional skip counts as
-  success).
+  Verified end to end against a checkout carrying it, with the `NEXT_PUBLIC_MISC_*`
+  wiring `docs seed` supplies: the seed completes (1901 sources, 7890 sections) and
+  a tools-mode eval's `search_docs` returns content that exists only in the local
+  index. Two rough edges to expect, both upstream: the seed exits 0 while silently
+  failing 22 `/reference/{javascript,dart}` pages whose sections exceed the
+  embedding model's 8192-token limit, and a local index has no partner-integration
+  pages, since that source reads the hosted misc project. Neither blocked the
+  tested guide-page eval, but an eval whose answer lives in those reference pages
+  would find them missing from the index.
 
 Every run writes a provenance receipt to `results-local/` (host SHA + dirty
 state, override paths and their git state). `compare` records the published
