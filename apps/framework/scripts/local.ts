@@ -45,7 +45,10 @@ import { main as docsMain } from './local-docs.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..', '..');
-const OUT_DIR = join(ROOT, 'results-local');
+// test seam: the smoke suite redirects ALL outputs into a temp sandbox so it
+// can never clobber a real (possibly in-flight) run's results/receipts
+const RESULTS_ROOT = process.env.LOCAL_RESULTS_ROOT ?? ROOT;
+const OUT_DIR = join(RESULTS_ROOT, 'results-local');
 const PUBLISHED_FILES = [
   'apps/web/src/data/regression-eval-results.json',
   'apps/web/src/data/eval-results.json',
@@ -317,7 +320,12 @@ function runEval(
 
 // test hook: LOCAL_EVAL_CMD writes the result file itself (no model spend)
 function fakeRun(evalId: string, experiment: string): string {
-  const resultPath = join(ROOT, 'results', experiment, `${evalId}.json`);
+  const resultPath = join(
+    RESULTS_ROOT,
+    'results',
+    experiment,
+    `${evalId}.json`
+  );
   mkdirSync(dirname(resultPath), { recursive: true });
   const res = spawnSync(process.env.LOCAL_EVAL_CMD as string, {
     shell: true,
@@ -449,8 +457,36 @@ async function cmdExperiments() {
   }
 }
 
+const SUITE_FILE: Record<string, string> = {
+  regression: 'apps/web/src/data/regression-eval-results.json',
+  benchmark: 'apps/web/src/data/eval-results.json',
+};
+
+/** Expand --suite to every eval the published export carries for the experiment. */
+function expandSuite(suite: string, experiment: string): string[] {
+  const file = SUITE_FILE[suite];
+  if (!file)
+    fail(
+      `unknown suite: ${suite} (available: ${Object.keys(SUITE_FILE).join(', ')})`
+    );
+  const rows = loadPublishedFile(file)?.rows ?? [];
+  const ids = [
+    ...new Set(
+      rows.filter((r) => r.experiment === experiment).map((r) => r.eval)
+    ),
+  ].sort();
+  if (!ids.length)
+    fail(
+      `no ${suite} rows published for ${experiment} (published experiments: ${[...new Set(rows.map((r) => r.experiment))].join(', ')})`
+    );
+  console.log(
+    `suite ${suite} for ${experiment}: ${ids.length} evals (one model run each)\n  ${ids.join('\n  ')}`
+  );
+  return ids;
+}
+
 const RUN_USAGE =
-  'usage: pnpm local <run|compare> <eval-id> [...] [--experiment <id>] [--runs N] [--mcp <path>] [--content-api <url>]';
+  'usage: pnpm local <run|compare> <eval-id...> [--experiment <id>] [--runs N] [--mcp <path>] [--content-api <url>]\n       pnpm local compare --suite <regression|benchmark> [same flags]   # every eval published for the experiment';
 
 async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
   const parsed = (() => {
@@ -460,6 +496,7 @@ async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
         options: {
           experiment: { type: 'string' },
           runs: { type: 'string' },
+          suite: { type: 'string' },
           mcp: { type: 'string' },
           'content-api': { type: 'string' },
         },
@@ -469,10 +506,20 @@ async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
       fail(`${err instanceof Error ? err.message : String(err)}\n${RUN_USAGE}`);
     }
   })();
-  const { values, positionals: evalIds } = parsed;
-  if (!evalIds.length) fail(RUN_USAGE);
+  const { values, positionals } = parsed;
   const experiment = values.experiment ?? DEFAULT_EXPERIMENT;
   validateExperiment(experiment);
+  let evalIds = positionals;
+  if (values.suite) {
+    if (mode !== 'compare')
+      fail(
+        '--suite expands from the published exports and only makes sense with compare'
+      );
+    if (evalIds.length) fail('pass either eval ids or --suite, not both');
+    if (!process.env.LOCAL_NO_FETCH) git(['fetch', '-q', 'origin', 'main']);
+    evalIds = expandSuite(values.suite, experiment);
+  }
+  if (!evalIds.length) fail(RUN_USAGE);
 
   const baselines =
     mode === 'compare'

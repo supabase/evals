@@ -11,15 +11,21 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..', '..', '..');
+// every output lands in a disposable sandbox — never the checkout's real
+// results/ or results-local/ (an in-flight manual run may own those)
+const SANDBOX = mkdtempSync(join(tmpdir(), 'smoke-local-'));
+const OUT = join(SANDBOX, 'results-local');
 const EXPERIMENT = 'claude-code-sonnet-5';
 
 // a published, currently-existing eval id — resolved dynamically so the test
@@ -53,6 +59,7 @@ function local(args: string[], env: Record<string, string> = {}) {
       env: {
         ...process.env,
         LOCAL_NO_FETCH: '1',
+        LOCAL_RESULTS_ROOT: SANDBOX,
         LOCAL_EVAL_CMD: FAKE,
         FORCE_COLOR: '0',
         ...env,
@@ -109,20 +116,14 @@ function ck(name: string, fn: () => void) {
   });
   ck('published receipt carries commit provenance', () => {
     const receipt = JSON.parse(
-      readFileSync(
-        join(ROOT, 'results-local', `${EVAL}.published.json`),
-        'utf8'
-      )
+      readFileSync(join(OUT, `${EVAL}.published.json`), 'utf8')
     );
     assert.match(receipt.publishedProvenance.commit, /^[0-9a-f]{40}$/);
     assert.match(receipt.publishedProvenance.parent, /^[0-9a-f]{40}$/);
   });
   ck('treatment receipt carries host provenance', () => {
     const receipt = JSON.parse(
-      readFileSync(
-        join(ROOT, 'results-local', `${EVAL}.treatment.json`),
-        'utf8'
-      )
+      readFileSync(join(OUT, `${EVAL}.treatment.json`), 'utf8')
     );
     assert.match(receipt.provenance.host.sha, /^[0-9a-f]{40}$/);
     assert.equal(typeof receipt.provenance.host.dirtyFiles, 'number');
@@ -151,7 +152,7 @@ function ck(name: string, fn: () => void) {
 
 // --- mcp override: monorepo root resolves to the server package; unbuilt refused ---
 {
-  const fake = join(ROOT, 'results-local', '.smoke-mcp-checkout');
+  const fake = join(SANDBOX, '.smoke-mcp-checkout');
   const pkg = join(fake, 'packages', 'mcp-server-supabase');
   mkdirSync(join(pkg, 'dist', 'transports'), { recursive: true });
 
@@ -170,10 +171,7 @@ function ck(name: string, fn: () => void) {
   ck('monorepo root resolves to the server package dir', () => {
     assert.equal(built.status, 0);
     const receipt = JSON.parse(
-      readFileSync(
-        join(ROOT, 'results-local', `${EVAL}.treatment.json`),
-        'utf8'
-      )
+      readFileSync(join(OUT, `${EVAL}.treatment.json`), 'utf8')
     );
     assert.match(
       receipt.provenance.mcpOverride.path,
@@ -181,6 +179,34 @@ function ck(name: string, fn: () => void) {
     );
   });
   rmSync(fake, { recursive: true, force: true });
+}
+
+// --- --suite: expands to the published set; guarded against misuse ---
+{
+  const r = local(['compare', '--suite', 'regression']);
+  ck('suite expands and runs every published eval', () => {
+    assert.equal(r.status, 0);
+    assert.match(r.out, /suite regression for claude-code-sonnet-5: \d+ evals/);
+    assert.ok(
+      (r.out.match(/=== local compare: /g) ?? []).length >= 2,
+      'expected multiple compare blocks'
+    );
+  });
+  const wrongMode = local(['run', '--suite', 'regression']);
+  ck('suite refused in run mode', () => {
+    assert.equal(wrongMode.status, 1);
+    assert.match(wrongMode.out, /only makes sense with compare/);
+  });
+  const both = local(['compare', EVAL, '--suite', 'regression']);
+  ck('suite plus ids refused', () => {
+    assert.equal(both.status, 1);
+    assert.match(both.out, /not both/);
+  });
+  const bogus = local(['compare', '--suite', 'nope']);
+  ck('unknown suite lists available', () => {
+    assert.equal(bogus.status, 1);
+    assert.match(bogus.out, /unknown suite: nope.*regression, benchmark/);
+  });
 }
 
 // --- judge-key gate: refused pre-spend, before any agent spawn ---
@@ -206,9 +232,7 @@ function ck(name: string, fn: () => void) {
   });
 }
 
-// cleanup
-rmSync(join(ROOT, 'results-local', `${EVAL}.published.json`), { force: true });
-rmSync(join(ROOT, 'results-local', `${EVAL}.treatment.json`), { force: true });
-rmSync(join(ROOT, 'results', EXPERIMENT, `${EVAL}.json`), { force: true });
+// cleanup: everything lived in the sandbox
+rmSync(SANDBOX, { recursive: true, force: true });
 
 console.log(`smoke-local: ${passed} checks passed`);
