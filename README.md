@@ -108,13 +108,18 @@ pnpm local experiments                      # list experiments + published-basel
   ```
 
   **Known limitation — `docs seed` does not complete against a vanilla docs
-  checkout yet.** The docs app's embedding pipeline fails closed on two
-  prod-only sources: `lint-warnings-guide` and `github-discussion` both require
-  `DOCS_GITHUB_APP_{ID,INSTALLATION_ID,PRIVATE_KEY}` (a GitHub App, no token
-  fallback), so the seed aborts before embedding. Until a source-skip flag lands
-  upstream in `supabase/supabase`, this leg needs an index seeded by some other
-  means; the `run`/`compare` side of the loop is verified against one (a real
-  agent's `search_docs` returned local-index-only content).
+  checkout yet.** `fetchAllSources()` unconditionally awaits
+  `fetchLintWarningsGuideSources()`, whose loader throws without
+  `DOCS_GITHUB_APP_{ID,INSTALLATION_ID,PRIVATE_KEY}` (a GitHub App —
+  `createAppAuth`, no token fallback). All sources go through one `Promise.all`,
+  so that single rejection aborts the run — before any embedding, so it costs
+  nothing. A skip flag has to be upstream because this runner takes an arbitrary
+  checkout: patching yours is what the previous iteration did, and it is not
+  something we can ask every user (or CI) to carry. Any skip must also keep the
+  skipped source's existing rows, since the pipeline deletes every page whose
+  `version` was not stamped by the current run. Until then this leg needs an
+  index seeded another way; the `run`/`compare` side is verified against one (a
+  real agent's `search_docs` returned local-index-only content).
 
 Every run writes a provenance receipt to `results-local/` (host SHA + dirty
 state, override paths and their git state). `compare` records the published

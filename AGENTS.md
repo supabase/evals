@@ -36,9 +36,11 @@ Per input:
   package `search_docs` would query production docs while the receipt claimed
   otherwise, so the runner refuses pre-spend.
   **`docs seed` currently fails against a vanilla docs checkout**: the pipeline
-  requires `DOCS_GITHUB_APP_*` for its lint-warnings and github-discussion
-  sources and fails closed without them. Do not burn spend retrying it; the leg
-  needs an index seeded another way until a source-skip flag lands upstream.
+  unconditionally loads its lint-warnings source, which needs a GitHub App
+  (`DOCS_GITHUB_APP_*`, no token fallback), and one `Promise.all` makes that
+  fatal. It aborts before embedding, so a retry costs nothing but achieves
+  nothing — don't loop on it. The leg needs an index seeded another way until a
+  skip flag lands upstream.
   Score docs evals on retrieval (`docs.calls`, canary content coming back out of
   `search_docs`), not on the answer text: tools mode also exposes
   `WebSearch`/`WebFetch`, and an edit that contradicts the live page invites the
