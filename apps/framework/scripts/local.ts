@@ -308,6 +308,28 @@ function resolveMcpServerPath(raw: string): string {
 }
 
 /**
+ * `--content-api` is only honoured by a local mcp build. The flag sets
+ * SUPABASE_CONTENT_API_URL, which the server reads to point `search_docs` at
+ * a local docs index — support merged in supabase/mcp#343 but shipped in NO
+ * release yet (newest is v0.9.0; the harness pin is older still). Ungated,
+ * the published package ignores the var: `search_docs` silently queries
+ * PRODUCTION docs while collectProvenance still stamps contentApiUrl into the
+ * receipt — a paid run that measures the wrong world and reports the right
+ * one. Shape check, so it runs for fake runs too (like resolveMcpServerPath).
+ */
+function validateContentApi(contentApi: string, mcpServerPath?: string) {
+  if (!mcpServerPath)
+    fail(
+      `--content-api needs --mcp <path>: the published mcp server ignores SUPABASE_CONTENT_API_URL, so search_docs would query production docs while the receipt claims ${contentApi}\n  pass --mcp pointing at an mcp checkout on main, built (flag support merged in supabase/mcp#343, not yet released)`
+    );
+  const stdio = join(mcpServerPath, 'dist', 'transports', 'stdio.js');
+  if (!readFileSync(stdio, 'utf8').includes('SUPABASE_CONTENT_API_URL'))
+    fail(
+      `the mcp build at ${mcpServerPath} predates supabase/mcp#343 and ignores SUPABASE_CONTENT_API_URL — search_docs would query production docs, not ${contentApi}\n  update and rebuild the checkout: git pull && pnpm install && pnpm build`
+    );
+}
+
+/**
  * The experiment's declared skills must exist in this checkout, or the
  * treatment silently runs skill-less against a skills-enabled published
  * baseline — a world mismatch, not a comparison.
@@ -582,7 +604,10 @@ async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
   const mcpPath = values.mcp ? resolveMcpServerPath(values.mcp) : undefined;
   if (mcpPath) env.SUPABASE_MCP_SERVER_PATH = mcpPath;
   const contentApi = values['content-api'];
-  if (contentApi) env.SUPABASE_CONTENT_API_URL = contentApi;
+  if (contentApi) {
+    validateContentApi(contentApi, mcpPath);
+    env.SUPABASE_CONTENT_API_URL = contentApi;
+  }
 
   mkdirSync(OUT_DIR, { recursive: true });
   let exitCode = 0;

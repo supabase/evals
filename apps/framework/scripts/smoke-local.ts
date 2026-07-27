@@ -193,6 +193,48 @@ function ck(name: string, fn: () => void) {
       /packages[/\\]mcp-server-supabase$/
     );
   });
+
+  // --- --content-api: refused unless a build that honours it is supplied ---
+  const noMcp = local(['run', EVAL, '--content-api', 'http://127.0.0.1:3001']);
+  ck('--content-api without --mcp refused pre-spend', () => {
+    assert.equal(noMcp.status, 1);
+    assert.match(noMcp.out, /--content-api needs --mcp/);
+    assert.match(noMcp.out, /production docs/);
+  });
+
+  // the fixture above is a bare stub, i.e. a build predating supabase/mcp#343
+  const staleBuild = local([
+    'run',
+    EVAL,
+    '--content-api',
+    'http://127.0.0.1:3001',
+    '--mcp',
+    fake,
+  ]);
+  ck('mcp build that ignores the env var refused pre-spend', () => {
+    assert.equal(staleBuild.status, 1);
+    assert.match(staleBuild.out, /predates supabase\/mcp#343/);
+  });
+
+  writeFileSync(
+    join(pkg, 'dist', 'transports', 'stdio.js'),
+    '// smoke fixture reading process.env.SUPABASE_CONTENT_API_URL\n'
+  );
+  const honoured = local([
+    'run',
+    EVAL,
+    '--content-api',
+    'http://127.0.0.1:3001',
+    '--mcp',
+    fake,
+  ]);
+  ck('build honouring the env var is accepted and recorded', () => {
+    assert.equal(honoured.status, 0);
+    const receipt = JSON.parse(
+      readFileSync(join(OUT, `${EVAL}.treatment.json`), 'utf8')
+    );
+    assert.equal(receipt.provenance.contentApiUrl, 'http://127.0.0.1:3001');
+  });
   rmSync(fake, { recursive: true, force: true });
 }
 
