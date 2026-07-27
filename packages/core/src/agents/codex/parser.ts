@@ -180,10 +180,14 @@ function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
       );
     }
     case 'web_search': {
+      // `action` says what the hosted tool actually did (`search`,
+      // `open_page`, `find_in_page`). `query` is only its display rendering,
+      // which collapses a url open and a search for that url into the same
+      // string, so keep the action itself.
       return toolCallPair(
         id,
         'web_search',
-        { query: item.query },
+        { query: item.query, action: item.action },
         undefined,
         statusSuccess(item.status)
       );

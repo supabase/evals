@@ -1,5 +1,6 @@
 import type { DocsCall, DocsCallPage, DocsResult } from './eval-metadata.js';
 import type { ToolCallRecord } from './index.js';
+import { isRecord } from './json.js';
 
 /** The subset of AgentSandbox rehydration needs; avoids a hard dependency on its full interface. */
 export interface DocsResultSandbox {
@@ -24,6 +25,13 @@ const TRUNCATION_APPROX_SIZE_PATTERN =
 const TITLED_PAGE_PATTERN =
   /"title":"([^"]*)"\s*,?\s*"(?:href|url)":"([^"]+)"/g;
 const HREF_PATTERN = /"(?:href|url)":"([^"]+)"/g;
+// A shell command that pulls a url down, as opposed to one that merely
+// mentions it. ponytail: curl and wget are the only fetchers observed in eval
+// transcripts; add httpie and friends when they show up.
+const SHELL_FETCH_PATTERN = /\b(?:curl|wget)\b/;
+// Urls inside a shell command, stopping at the shell metacharacters that can
+// legally follow one (`|`, `>`, quotes, backslash-escapes).
+const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
 
 /** The search_docs query arg, flat on `body` or nested under `body.arguments` (Codex's shape). */
 function extractGraphqlQuery(
@@ -46,6 +54,53 @@ function isSupabaseUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * True for a docs page on supabase.com itself. Stricter than `isSupabaseUrl`
+ * on purpose: the docs and changelog all live on the apex host, while the
+ * subdomains an agent curls (`api.`, `mcp.`) are service endpoints, not reading.
+ */
+function isSupabaseDocsUrl(value: string): boolean {
+  try {
+    return new URL(value).hostname === 'supabase.com';
+  } catch {
+    return false;
+  }
+}
+
+/** The shell command a call ran, from the parser's normalized view or the raw body. */
+function shellCommand(call: ToolCallRecord): string | undefined {
+  if (call.name !== 'shell') return undefined;
+  if (call.command) return call.command;
+  return typeof call.body.command === 'string' ? call.body.command : undefined;
+}
+
+/** The docs urls a shell command fetches, empty when it isn't a fetch at all. */
+function shellFetchUrls(command: string | undefined): string[] {
+  if (!command || !SHELL_FETCH_PATTERN.test(command)) return [];
+  const urls: string[] = [];
+  for (const match of command.match(URL_IN_COMMAND_PATTERN) ?? []) {
+    // Trailing sentence punctuation glues onto a url in prose; a real one
+    // never ends in a period or comma.
+    const url = match.replace(/[.,]+$/, '');
+    if (isSupabaseDocsUrl(url) && !urls.includes(url)) urls.push(url);
+  }
+  return urls;
+}
+
+/**
+ * Codex's `web_search` action, the tool's own statement of what it did. Only
+ * `type` and `url` matter here: `query` is already carried separately, and no
+ * other field says anything about which page was read.
+ */
+function webSearchAction(
+  body: Record<string, unknown>
+): { type: string; url?: string } | undefined {
+  const action = body.action;
+  if (!isRecord(action) || typeof action.type !== 'string') return undefined;
+  const url = typeof action.url === 'string' ? action.url : undefined;
+  return { type: action.type, url };
 }
 
 /** The in-container path a truncated result was persisted to, if `result` is one of the known stub shapes. */
@@ -82,7 +137,8 @@ function isDocsRelatedCall(call: ToolCallRecord): boolean {
   return (
     call.endpoint.endsWith('search_docs') ||
     call.name === 'web_fetch' ||
-    call.name === 'web_search'
+    call.name === 'web_search' ||
+    shellFetchUrls(shellCommand(call)).length > 0
   );
 }
 
@@ -170,8 +226,49 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       const query = typeof body.query === 'string' ? body.query : undefined;
       if (!query) continue;
 
-      // Codex's web_search doubles as a fetch when the query is a URL. No
-      // result payload is ever exposed on this tool, so content is unknown, not false.
+      // Codex states what its hosted search did, so trust that over the shape
+      // of the query string, which renders a page open and a search for that
+      // same url identically.
+      //
+      // Only `search` actually arrives intact on CLI 0.138: exec re-parses the
+      // app-server action, which serializes camelCase (`openPage`), into a
+      // snake_case enum (`open_page`), so both page-reading variants land on
+      // the catch-all and reach us as `other`. `search` survives because it's
+      // one word in either casing. The `other` calls fall through to the
+      // url-shape branch below, same as before. See codex's
+      // event_processor_with_jsonl_output.rs (the from_value round trip) and
+      // app-server-protocol v2/item.rs vs protocol/models.rs for the two enums.
+      const action = webSearchAction(body);
+
+      if (action?.type === 'open_page' || action?.type === 'find_in_page') {
+        if (!action.url || !isSupabaseUrl(action.url)) continue;
+        calls.push({
+          source: 'web_search',
+          query,
+          hasContent: true,
+          pages: [{ url: action.url }],
+          resultChars: resultCharCount(result),
+        });
+        continue;
+      }
+
+      if (action?.type === 'search') {
+        if (!/supabase/i.test(query)) continue;
+        // The hits themselves never reach the client, so there's no page to
+        // attribute. Snippet text the model may have read inside those hits is
+        // invisible to us, a known undercount.
+        calls.push({
+          source: 'web_search',
+          query,
+          hasContent: false,
+          pages: [],
+          resultChars: resultCharCount(result),
+        });
+        continue;
+      }
+
+      // No action reported (Claude Code, or an action type we don't know):
+      // fall back to the query's shape, which is all there is to go on.
       if (URL_PATTERN.test(query)) {
         if (!isSupabaseUrl(query)) continue;
         calls.push({
@@ -192,6 +289,26 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
         query,
         hasContent: pages.length > 0 ? false : undefined,
         pages,
+        resultChars: resultCharCount(result),
+      });
+      continue;
+    }
+
+    if (call.name === 'shell') {
+      const urls = shellFetchUrls(shellCommand(call));
+      if (urls.length === 0) continue;
+      // A non-zero exit puts the output on `error` and leaves `result` unset,
+      // so only a fetch that came back with something counts as a read.
+      if (typeof result !== 'string' || result.length === 0) continue;
+      // The command already names the url, and the output is the page, so
+      // this is a web_fetch in everything but the tool that ran it. Output is
+      // whatever the agent piped it through, which is the point: it's what
+      // reached the model, not what the url would have returned.
+      calls.push({
+        source: 'shell_fetch',
+        query: urls[0],
+        hasContent: true,
+        pages: urls.map((url) => ({ url })),
         resultChars: resultCharCount(result),
       });
       continue;

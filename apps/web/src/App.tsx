@@ -85,6 +85,7 @@ const DOCS_CALL_SOURCE_LABEL: Record<DocsCall["source"], string> = {
   search_docs: "MCP",
   web_fetch: "Web Fetch",
   web_search: "Web Search",
+  shell_fetch: "Shell",
 }
 
 // Cool color for MCP (our own docs tool), warm for the agent going around it onto the open web.
@@ -92,6 +93,7 @@ const DOCS_CALL_SOURCE_CHIP_CLASS: Record<DocsCall["source"], string> = {
   search_docs: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
   web_fetch: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
   web_search: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  shell_fetch: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
 }
 
 /** Search icon for a bare hit, file icon for a call that actually pulled in page text. */

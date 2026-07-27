@@ -168,6 +168,27 @@ describe('codexParser', () => {
     expect(result?.tool?.originalName).toBe('search_docs');
   });
 
+  it("keeps a web_search item's action, which says what the hosted tool did", () => {
+    const url = 'https://supabase.com/changelog.md';
+    const stream = JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'ws_0',
+        type: 'web_search',
+        query: url,
+        action: { type: 'open_page', url },
+        status: 'completed',
+      },
+    });
+
+    const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
+    expect(adapted.toolCalls[0].name).toBe('web_search');
+    expect(adapted.toolCalls[0].body).toEqual({
+      query: url,
+      action: { type: 'open_page', url },
+    });
+  });
+
   it('emits an error event for a failed turn', () => {
     const stream = [
       JSON.stringify({ type: 'turn.started' }),

@@ -9,7 +9,9 @@ import type { ToolCallRecord } from './index.js';
 function toolCall(
   endpoint: string,
   body: Record<string, unknown>,
-  options: Partial<Pick<ToolCallRecord, 'url' | 'result' | 'name'>> = {}
+  options: Partial<
+    Pick<ToolCallRecord, 'url' | 'result' | 'name' | 'command' | 'error'>
+  > = {}
 ): ToolCallRecord {
   return { endpoint, body, ...options, ts: 0 };
 }
@@ -328,6 +330,187 @@ describe('buildDocsResult', () => {
     expect(result.calls[0].hasContent).toBeUndefined();
   });
 
+  it('trusts an open_page action over the query string, recording the page as read', () => {
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        {
+          query: 'https://supabase.com/changelog.md',
+          action: {
+            type: 'open_page',
+            url: 'https://supabase.com/changelog.md',
+          },
+        },
+        { name: 'web_search' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'web_search',
+        query: 'https://supabase.com/changelog.md',
+        hasContent: true,
+        pages: [{ url: 'https://supabase.com/changelog.md' }],
+      },
+    ]);
+  });
+
+  it('records a find_in_page action, whose query rendering the URL-shape fallback never matches', () => {
+    const url = 'https://supabase.com/docs/guides/database/extensions/pgmq';
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        {
+          query: `'send(' in ${url}`,
+          action: { type: 'find_in_page', url, pattern: 'send(' },
+        },
+        { name: 'web_search' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'web_search',
+        query: `'send(' in ${url}`,
+        hasContent: true,
+        pages: [{ url }],
+      },
+    ]);
+  });
+
+  it('records a search action as content-less, since its hits never reach the client', () => {
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        {
+          query: 'https://supabase.com/changelog.md',
+          action: {
+            type: 'search',
+            query: 'https://supabase.com/changelog.md',
+          },
+        },
+        { name: 'web_search' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'web_search',
+        query: 'https://supabase.com/changelog.md',
+        hasContent: false,
+        pages: [],
+      },
+    ]);
+  });
+
+  it('drops an open_page action pointing somewhere other than supabase.com', () => {
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        {
+          query: 'https://github.com/pgmq/pgmq',
+          action: { type: 'open_page', url: 'https://github.com/pgmq/pgmq' },
+        },
+        { name: 'web_search' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('counts a docs url curled from the shell, sized by what the pipe actually returned', () => {
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        {
+          command:
+            '/bin/bash -lc "curl -fsSL https://supabase.com/changelog.md | sed -n \'1,160p\'"',
+        },
+        {
+          name: 'shell',
+          command:
+            '/bin/bash -lc "curl -fsSL https://supabase.com/changelog.md | sed -n \'1,160p\'"',
+          result: '# Changelog\n\n2026-06-12 breaking-change ...',
+        }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'shell_fetch',
+        query: 'https://supabase.com/changelog.md',
+        hasContent: true,
+        pages: [{ url: 'https://supabase.com/changelog.md' }],
+        resultChars: '# Changelog\n\n2026-06-12 breaking-change ...'.length,
+      },
+    ]);
+  });
+
+  it('records every supabase url a single shell fetch pulled down', () => {
+    const command =
+      'wget https://supabase.com/changelog.md https://supabase.com/docs/guides/auth.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'saved 2 files' }
+      ),
+    ]);
+
+    expect(result.calls[0].pages).toEqual([
+      { url: 'https://supabase.com/changelog.md' },
+      { url: 'https://supabase.com/docs/guides/auth.md' },
+    ]);
+  });
+
+  it('drops a shell fetch that failed, since a non-zero exit leaves no output to read', () => {
+    const command = 'curl -fsSL https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        {
+          name: 'shell',
+          command,
+          error: 'curl: (22) The requested URL returned error: 404',
+        }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('drops a shell fetch of a supabase service endpoint, which is a probe not a read', () => {
+    const command = 'curl -s https://mcp.supabase.com/mcp';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'Unauthorized' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('drops a shell command that only mentions a docs url without fetching it', () => {
+    const command =
+      'echo "see https://supabase.com/docs/guides/auth for details"';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        {
+          name: 'shell',
+          command,
+          result: 'see https://supabase.com/docs/guides/auth for details',
+        }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
   it('ignores WebFetch/WebSearch-shaped calls when the parser never normalized a canonical name', () => {
     const result = buildDocsResult([
       toolCall(
@@ -469,6 +652,26 @@ describe('rehydrateTruncatedDocsResults', () => {
     await rehydrateTruncatedDocsResults({ readFile }, [call]);
 
     expect(call.result).toBe(stub);
+  });
+
+  it('rehydrates a shell fetch whose output the CLI truncated to disk', async () => {
+    const path = '/home/node/.claude/projects/x/tool-results/changelog.txt';
+    const command = 'curl -fsSL https://supabase.com/changelog.md';
+    const call = toolCall(
+      'Bash',
+      { command },
+      {
+        name: 'shell',
+        command,
+        result: `<persisted-output>\nOutput too large (50.8KB). Full output saved to: ${path}`,
+      }
+    );
+    const readFile = vi.fn().mockResolvedValue('# Changelog');
+
+    await rehydrateTruncatedDocsResults({ readFile }, [call]);
+
+    expect(readFile).toHaveBeenCalledWith(path);
+    expect(call.result).toBe('# Changelog');
   });
 
   it("ignores calls that aren't truncated, and calls outside the docs channels", async () => {
