@@ -114,11 +114,11 @@ export function createCliAgent<M extends string = string>(
       // died before streaming any events at all.
       const errorEvents = events.filter((e) => e.type === 'error');
       for (const e of errorEvents) {
-        console.error(`${runner.displayName} error event: ${e.content}`);
+        console.error(`[${runner.displayName}] ${e.content}`);
       }
       if (events.length === 0) {
         console.error(
-          `${runner.displayName} produced no transcript events (exit ${command.exitCode}).\nstdout:\n${command.stdout}\nstderr:\n${command.stderr}`
+          `[${runner.displayName}] produced no transcript events (exit ${command.exitCode}).\nstdout:\n${command.stdout}\nstderr:\n${command.stderr}`
         );
       }
 
