@@ -49,6 +49,7 @@ function local(args: string[], env: Record<string, string> = {}) {
     {
       cwd: join(__dirname, '..'),
       encoding: 'utf8',
+      timeout: 60_000, // a regressed pre-spend gate must never reach a real agent run
       env: {
         ...process.env,
         LOCAL_NO_FETCH: '1',
@@ -180,6 +181,29 @@ function ck(name: string, fn: () => void) {
     );
   });
   rmSync(fake, { recursive: true, force: true });
+}
+
+// --- judge-key gate: refused pre-spend, before any agent spawn ---
+{
+  // needs an eval whose scorer really uses the judge; EVAL may not
+  const judgedEval = published.find(
+    (row) =>
+      row.experiment === EXPERIMENT &&
+      existsSync(join(ROOT, 'evals', row.eval, 'EVAL.ts')) &&
+      /\bjudge\b/.test(
+        readFileSync(join(ROOT, 'evals', row.eval, 'EVAL.ts'), 'utf8')
+      )
+  )?.eval;
+  assert.ok(judgedEval, 'no judged eval found in the published set');
+  const r = local(['run', judgedEval], {
+    LOCAL_EVAL_CMD: '',
+    OPENAI_API_KEY: '',
+  });
+  ck('judged eval without OPENAI_API_KEY refused pre-spend', () => {
+    assert.equal(r.status, 1);
+    assert.match(r.out, /score with the LLM judge/);
+    assert.match(r.out, /add OPENAI_API_KEY/);
+  });
 }
 
 // cleanup

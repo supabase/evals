@@ -65,8 +65,10 @@ arm's result commit + parent + age.
 
 ## Conventions
 
-- Keys live in `.env` at the repo root (`ANTHROPIC_API_KEY`; plus
-  `OPENAI_API_KEY` for the docs loop). Never hardcode or echo key values.
+- Keys live in `.env` at the repo root: `ANTHROPIC_API_KEY`, plus
+  `OPENAI_API_KEY` for the docs loop AND for any eval whose scorer uses the
+  LLM judge (an OpenAI grader model runs even when the agent under test is
+  Claude). Never hardcode or echo key values.
 - Model/agent selection = experiment id. To test an unlisted model, add a
   small `experiments/<name>.ts` (copy an existing file's shape) rather than
   editing a published experiment in place.

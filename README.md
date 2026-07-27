@@ -110,8 +110,9 @@ arm's result commit, parent, and age — and a pass/fail flip against published
 is a **screen**, not causal proof: the published run happened in the scheduled
 CI world (published mcp package, prod docs index, model state at refresh time).
 
-Keys go in `.env` at the repo root (`ANTHROPIC_API_KEY`, and `OPENAI_API_KEY`
-for the docs loop). Zero-cost self-test: `pnpm --filter
+Keys go in `.env` at the repo root: `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY`
+for the docs loop and for judge-scored evals (the LLM judge is an OpenAI
+grader model, regardless of the agent under test). Zero-cost self-test: `pnpm --filter
 @supabase-evals/framework test:local`.
 
 ## Eval Shape

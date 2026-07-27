@@ -227,6 +227,24 @@ function validateExperiment(experiment: string) {
 }
 
 /**
+ * Evals whose scorer uses the LLM judge grade the agent's output with an
+ * OpenAI model — even when the agent under test is Claude. A missing grader
+ * key otherwise surfaces only AFTER the (paid) agent run, wasting it.
+ * Textual scan of EVAL.ts; a false positive just asks for a key early.
+ */
+function validateJudgeKeys(evalIds: string[]) {
+  if (process.env.OPENAI_API_KEY) return;
+  const judged = evalIds.filter((id) => {
+    const scorer = join(ROOT, 'evals', id, 'EVAL.ts');
+    return existsSync(scorer) && /\bjudge\b/.test(readFileSync(scorer, 'utf8'));
+  });
+  if (judged.length)
+    fail(
+      `these evals score with the LLM judge (OpenAI-backed, regardless of the agent under test): ${judged.join(', ')}\nadd OPENAI_API_KEY to .env at the repo root before running them`
+    );
+}
+
+/**
  * Accept either the mcp monorepo root or the server package dir for --mcp,
  * and refuse pre-spend when the server isn't built (the harness would only
  * discover that after eval setup).
@@ -462,8 +480,11 @@ async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
       : new Map<string, Baseline>();
 
   validateEvals(evalIds);
-  // skills gate is spend-relevant only for real runs; the test hook fakes them
-  if (!process.env.LOCAL_EVAL_CMD) await validateSkills(experiment);
+  // these gates are spend-relevant only for real runs; the test hook fakes them
+  if (!process.env.LOCAL_EVAL_CMD) {
+    await validateSkills(experiment);
+    validateJudgeKeys(evalIds);
+  }
 
   const env: Record<string, string> = {};
   const mcpPath = values.mcp ? resolveMcpServerPath(values.mcp) : undefined;
