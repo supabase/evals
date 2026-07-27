@@ -107,6 +107,15 @@ pnpm local experiments                      # list experiments + published-basel
   pnpm local run <eval-id> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>
   ```
 
+  **Known limitation — `docs seed` does not complete against a vanilla docs
+  checkout yet.** The docs app's embedding pipeline fails closed on two
+  prod-only sources: `lint-warnings-guide` and `github-discussion` both require
+  `DOCS_GITHUB_APP_{ID,INSTALLATION_ID,PRIVATE_KEY}` (a GitHub App, no token
+  fallback), so the seed aborts before embedding. Until a source-skip flag lands
+  upstream in `supabase/supabase`, this leg needs an index seeded by some other
+  means; the `run`/`compare` side of the loop is verified against one (a real
+  agent's `search_docs` returned local-index-only content).
+
 Every run writes a provenance receipt to `results-local/` (host SHA + dirty
 state, override paths and their git state). `compare` records the published
 arm's result commit, parent, and age — and a pass/fail flip against published

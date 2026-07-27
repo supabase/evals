@@ -35,6 +35,14 @@ Per input:
   mcp build carrying supabase/mcp#343 (merged, unreleased). With the published
   package `search_docs` would query production docs while the receipt claimed
   otherwise, so the runner refuses pre-spend.
+  **`docs seed` currently fails against a vanilla docs checkout**: the pipeline
+  requires `DOCS_GITHUB_APP_*` for its lint-warnings and github-discussion
+  sources and fails closed without them. Do not burn spend retrying it; the leg
+  needs an index seeded another way until a source-skip flag lands upstream.
+  Score docs evals on retrieval (`docs.calls`, canary content coming back out of
+  `search_docs`), not on the answer text: tools mode also exposes
+  `WebSearch`/`WebFetch`, and an edit that contradicts the live page invites the
+  agent to fetch production and reject the local content as injection (observed).
 
 Receipts land in `results-local/` (git-ignored): treatment provenance (host
 SHA + dirty state, override git state) and, for `compare`, the published
