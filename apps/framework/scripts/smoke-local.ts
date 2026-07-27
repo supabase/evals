@@ -42,11 +42,26 @@ const EVAL = published.find(
 )?.eval;
 assert.ok(EVAL, 'no published eval with a local evals/ dir found');
 
-// LOCAL_EVAL_CMD contract: write a result JSON to $RES for eval $EVAL
-const FAKE =
-  process.platform === 'win32'
-    ? `node -e "require('fs').mkdirSync(require('path').dirname(process.env.RES),{recursive:true});require('fs').writeFileSync(process.env.RES,JSON.stringify({eval:process.env.EVAL,experiment:'${EXPERIMENT}',passed:true,checks:[{name:'x',passed:true}]}))"`
-    : `node -e 'require("fs").mkdirSync(require("path").dirname(process.env.RES),{recursive:true});require("fs").writeFileSync(process.env.RES,JSON.stringify({eval:process.env.EVAL,experiment:"${EXPERIMENT}",passed:true,checks:[{name:"x",passed:true}]}))'`;
+// LOCAL_EVAL_CMD contract: write a result JSON to $RES for eval $EVAL.
+// A script file sidesteps per-platform shell quoting entirely.
+const fakeScript = join(SANDBOX, 'fake-eval.cjs');
+writeFileSync(
+  fakeScript,
+  `const fs = require('node:fs');
+const path = require('node:path');
+fs.mkdirSync(path.dirname(process.env.RES), { recursive: true });
+fs.writeFileSync(
+  process.env.RES,
+  JSON.stringify({
+    eval: process.env.EVAL,
+    experiment: '${EXPERIMENT}',
+    passed: true,
+    checks: [{ name: 'x', passed: true }],
+  })
+);
+`
+);
+const FAKE = `${JSON.stringify(process.execPath)} ${JSON.stringify(fakeScript)}`;
 
 function local(args: string[], env: Record<string, string> = {}) {
   const res = spawnSync(

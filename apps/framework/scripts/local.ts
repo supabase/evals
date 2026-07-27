@@ -49,10 +49,11 @@ const ROOT = resolve(__dirname, '..', '..', '..');
 // can never clobber a real (possibly in-flight) run's results/receipts
 const RESULTS_ROOT = process.env.LOCAL_RESULTS_ROOT ?? ROOT;
 const OUT_DIR = join(RESULTS_ROOT, 'results-local');
-const PUBLISHED_FILES = [
-  'apps/web/src/data/regression-eval-results.json',
-  'apps/web/src/data/eval-results.json',
-];
+// suite name -> published export file; the values double as the full load list
+const PUBLISHED_EXPORTS: Record<string, string> = {
+  regression: 'apps/web/src/data/regression-eval-results.json',
+  benchmark: 'apps/web/src/data/eval-results.json',
+};
 const DEFAULT_EXPERIMENT = 'claude-code-sonnet-5';
 
 function fail(msg: string): never {
@@ -148,6 +149,25 @@ function loadPublishedFile(file: string): PublishedFile | undefined {
   return { file, rows, commit, parent, committedAt };
 }
 
+/** Fetch origin/main so the published exports are current; warn-and-continue offline. */
+function fetchMain() {
+  if (process.env.LOCAL_NO_FETCH) return;
+  try {
+    git(['fetch', '-q', 'origin', 'main']);
+  } catch {
+    console.error(
+      'warning: could not fetch origin/main — comparing against the local ref, which may be stale'
+    );
+  }
+}
+
+/** Load every published export once; callers share the result. */
+function loadPublished(): PublishedFile[] {
+  return Object.values(PUBLISHED_EXPORTS).flatMap(
+    (f) => loadPublishedFile(f) ?? []
+  );
+}
+
 /**
  * Freshest published row per requested eval for the experiment. Refuses
  * (pre-spend) when any requested eval has no published row, listing the
@@ -156,18 +176,8 @@ function loadPublishedFile(file: string): PublishedFile | undefined {
 function resolveBaselines(
   evalIds: string[],
   experiment: string,
-  fetch: boolean
+  files: PublishedFile[]
 ): Map<string, Baseline> {
-  if (fetch) {
-    try {
-      git(['fetch', '-q', 'origin', 'main']);
-    } catch {
-      console.error(
-        'warning: could not fetch origin/main — comparing against the local ref, which may be stale'
-      );
-    }
-  }
-  const files = PUBLISHED_FILES.flatMap((f) => loadPublishedFile(f) ?? []);
   const best = new Map<string, Baseline>();
   const failures: string[] = [];
   for (const id of evalIds) {
@@ -435,9 +445,7 @@ function runTreatment(
 
 async function cmdExperiments() {
   const published = new Set(
-    PUBLISHED_FILES.flatMap(
-      (f) => loadPublishedFile(f)?.rows.map((r) => r.experiment) ?? []
-    )
+    loadPublished().flatMap((f) => f.rows.map((r) => r.experiment))
   );
   console.log(
     `${'EXPERIMENT'.padEnd(36)} ${'AGENT'.padEnd(12)} ${'MODEL'.padEnd(22)} ${'EFFORT'.padEnd(8)} PUBLISHED`
@@ -457,19 +465,18 @@ async function cmdExperiments() {
   }
 }
 
-const SUITE_FILE: Record<string, string> = {
-  regression: 'apps/web/src/data/regression-eval-results.json',
-  benchmark: 'apps/web/src/data/eval-results.json',
-};
-
 /** Expand --suite to every eval the published export carries for the experiment. */
-function expandSuite(suite: string, experiment: string): string[] {
-  const file = SUITE_FILE[suite];
+function expandSuite(
+  suite: string,
+  experiment: string,
+  files: PublishedFile[]
+): string[] {
+  const file = PUBLISHED_EXPORTS[suite];
   if (!file)
     fail(
-      `unknown suite: ${suite} (available: ${Object.keys(SUITE_FILE).join(', ')})`
+      `unknown suite: ${suite} (available: ${Object.keys(PUBLISHED_EXPORTS).join(', ')})`
     );
-  const rows = loadPublishedFile(file)?.rows ?? [];
+  const rows = files.filter((f) => f.file === file).flatMap((f) => f.rows);
   const ids = [
     ...new Set(
       rows.filter((r) => r.experiment === experiment).map((r) => r.eval)
@@ -509,6 +516,11 @@ async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
   const { values, positionals } = parsed;
   const experiment = values.experiment ?? DEFAULT_EXPERIMENT;
   validateExperiment(experiment);
+  let published: PublishedFile[] = [];
+  if (mode === 'compare') {
+    fetchMain();
+    published = loadPublished();
+  }
   let evalIds = positionals;
   if (values.suite) {
     if (mode !== 'compare')
@@ -516,14 +528,13 @@ async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
         '--suite expands from the published exports and only makes sense with compare'
       );
     if (evalIds.length) fail('pass either eval ids or --suite, not both');
-    if (!process.env.LOCAL_NO_FETCH) git(['fetch', '-q', 'origin', 'main']);
-    evalIds = expandSuite(values.suite, experiment);
+    evalIds = expandSuite(values.suite, experiment, published);
   }
   if (!evalIds.length) fail(RUN_USAGE);
 
   const baselines =
     mode === 'compare'
-      ? resolveBaselines(evalIds, experiment, !process.env.LOCAL_NO_FETCH)
+      ? resolveBaselines(evalIds, experiment, published)
       : new Map<string, Baseline>();
 
   validateEvals(evalIds);
