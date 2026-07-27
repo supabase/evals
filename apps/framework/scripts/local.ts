@@ -34,6 +34,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
 import {
   getExperimentDisplayMetadata,
+  MCP_SERVER_VERSION,
   type ExperimentConfig,
 } from '@supabase-evals/core';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
@@ -240,6 +241,23 @@ function validateExperiment(experiment: string) {
 }
 
 /**
+ * The agent itself needs its provider key. Checked here (not just by the
+ * harness) because the harness SKIPs the experiment with exit 0 on missing
+ * credentials — the runner would only notice at the no-result check. A
+ * set-but-EMPTY var counts as missing (node --env-file does not override
+ * an existing env var, even an empty one, so a stray `export KEY=` in the
+ * shell silently shadows .env — observed live).
+ */
+function validateAgentKey() {
+  if (process.env.ANTHROPIC_API_KEY) return;
+  fail(
+    process.env.ANTHROPIC_API_KEY === undefined
+      ? 'ANTHROPIC_API_KEY not set — add it to .env at the repo root'
+      : 'ANTHROPIC_API_KEY is set but EMPTY in your shell, which shadows .env (node --env-file never overrides an existing var) — unset it or export a real value'
+  );
+}
+
+/**
  * Evals whose scorer uses the LLM judge grade the agent's output with an
  * OpenAI model — even when the agent under test is Claude. A missing grader
  * key otherwise surfaces only AFTER the (paid) agent run, wasting it.
@@ -271,6 +289,21 @@ function resolveMcpServerPath(raw: string): string {
     fail(
       `no built server at ${p} (dist/transports/stdio.js missing) — build it first:\n  pnpm install && pnpm build   # in the mcp checkout (use \`mise exec --\` if corepack's pnpm mismatches)`
     );
+  // Fixture-drift heads-up: platform-lite tracks the pinned package version,
+  // and a local build from a newer line may call endpoints the fixture does
+  // not serve yet (observed: get_logs moved logs.all -> logs in 0.9.0 while
+  // the pin and fixture sat at 0.8.x). Warn, don't block.
+  try {
+    const local = JSON.parse(
+      readFileSync(join(p, 'package.json'), 'utf8')
+    ).version;
+    if (local && local !== MCP_SERVER_VERSION)
+      console.error(
+        `note: local mcp build is v${local}; the harness fixture (platform-lite) tracks the v${MCP_SERVER_VERSION} pin — endpoint drift is possible; judge by tool-call activation, not pass/fail alone`
+      );
+  } catch {
+    /* unversioned checkout: nothing to compare */
+  }
   return p;
 }
 
@@ -540,6 +573,7 @@ async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
   validateEvals(evalIds);
   // these gates are spend-relevant only for real runs; the test hook fakes them
   if (!process.env.LOCAL_EVAL_CMD) {
+    validateAgentKey();
     await validateSkills(experiment);
     validateJudgeKeys(evalIds);
   }
