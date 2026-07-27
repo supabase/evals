@@ -9,7 +9,7 @@
  *      "state":{"status":"completed","input":{…},"output":"…",
  *               "metadata":{"exit":0}}}}
  *   {"type":"reasoning","part":{"type":"reasoning","text":"…"}}
- *   {"type":"error","error":{"message":"…"}}
+ *   {"type":"error","error":{"name":"UnknownError","data":{"message":"…"}}}
  *   {"type":"step_finish","part":{"type":"step-finish","reason":"stop","tokens":{…}}}
  *
  * A `tool_use` record is self-contained (input + output + status), so it yields
@@ -203,10 +203,15 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
 
   if (type === 'error') {
     const error = isRecord(data.error) ? data.error : undefined;
+    const errorData = isRecord(error?.data) ? error.data : undefined;
+    // Error union is keyed by `name`; message (when present) is nested under
+    // `data.message`: https://github.com/sst/opencode/blob/v1.18.5/packages/sdk/js/src/v2/gen/types.gen.ts#L264-L298
+    const name = str(error?.name);
+    const detail = str(errorData?.message);
     const message =
-      str(error?.message) ??
-      str(data.message) ??
-      JSON.stringify(data.error ?? data);
+      name && detail
+        ? `${name}: ${detail}`
+        : detail ?? name ?? JSON.stringify(data);
     return [{ timestamp, type: 'error', content: message, raw: data }];
   }
   // step_start / step_finish carry no transcript content (tokens + finish reason

@@ -192,18 +192,38 @@ describe('opencodeParser', () => {
   });
 
   it('emits an error event and never throws on malformed lines', () => {
+    const record = { type: 'error', error: { unrecognized: true } };
     const { events, errors } = opencodeParser.parseTranscript(
-      'not json\n' +
-        JSON.stringify({ type: 'error', error: { message: 'boom' } })
+      'not json\n' + JSON.stringify(record)
     );
     expect(events).toEqual([
       {
         timestamp: undefined,
         type: 'error',
-        content: 'boom',
-        raw: { type: 'error', error: { message: 'boom' } },
+        content: JSON.stringify(record),
+        raw: record,
       },
     ]);
     expect(errors.length).toBe(1);
+  });
+
+  it('reads the message out of opencode\'s real error envelope', () => {
+    const { events } = opencodeParser.parseTranscript(
+      JSON.stringify({
+        type: 'error',
+        error: { name: 'UnknownError', data: { message: 'boom', ref: 'x' } },
+      })
+    );
+    expect(events[0].content).toBe('UnknownError: boom');
+  });
+
+  it('falls back to the error name when data carries no message', () => {
+    const { events } = opencodeParser.parseTranscript(
+      JSON.stringify({
+        type: 'error',
+        error: { name: 'MessageOutputLengthError', data: {} },
+      })
+    );
+    expect(events[0].content).toBe('MessageOutputLengthError');
   });
 });
