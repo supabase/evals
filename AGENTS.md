@@ -53,6 +53,24 @@ arm's result commit + parent + age.
 - **No published baseline?** Use `pnpm local run` (custom evals included).
   For a before/after, run once before the edit and once after.
 
+## Validating a dependency PR (e.g. supabase/mcp)
+
+1. **Baseline-proof first**: build the dependency's MAIN and run the chosen
+   eval(s) against it before the PR build — version pins hide fixture drift
+   (platform-lite tracks the pinned `MCP_SERVER_VERSION`, not your local
+   build's line; the runner warns on version mismatch).
+2. Fixture or eval support living in an unmerged evals PR? Apply it into the
+   worktree as plain working-tree state: `gh pr diff <n> | git apply`.
+   Receipts record the dirty tree, so runs stay attributable.
+3. Run the PR build with `--mcp <checkout>`; a main-FAIL -> PR-PASS flip with
+   everything else constant is a true two-arm comparison on the dependency
+   axis (stronger than the published screen).
+4. **Judge by tool-call activation, not pass/fail**: confirm the changed tool
+   was called, and unwrap `<untrusted-data-…>` envelopes in `toolCalls[]`
+   before reading results — errors hide inside them. Note that claude-code
+   records endpoints with an `mcp__<server>__` prefix; match with
+   `.endsWith('<tool>')`.
+
 ## Spend rules
 
 - Eval runs cost model tokens; `pnpm local docs seed` costs **~$0.12 OpenAI
