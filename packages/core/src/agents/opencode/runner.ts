@@ -143,6 +143,10 @@ export function createOpencodeRunner(
         `--model ${shellQuote(`${GATEWAY_PROVIDER_ID}/${model}`)}`,
         // Newline-delimited JSON event records on stdout.
         '--format json',
+        // Headless runs default thinking to false. Flag enabled so opencode emits `reasoning` records.
+        // https://github.com/sst/opencode/blob/v1.18.5/packages/opencode/src/cli/cmd/run.ts#L275
+        // https://github.com/sst/opencode/blob/v1.18.5/packages/opencode/src/cli/cmd/run.ts#L761-L762
+        '--thinking',
         // The sandbox is the isolation boundary, so let opencode act freely.
         '--dangerously-skip-permissions',
       ].join(' ');
