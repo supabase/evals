@@ -67,7 +67,12 @@
   --radius-4xl: 2rem;
 }
 
-/* Copied from packages/ui/build/css/source/semantic.css. */
+/*
+ * Semantic tokens, copied from the Supabase monorepo
+ * (packages/ui/build/css/source/semantic.css) so the two stay in sync. Keep
+ * edits here to a minimum and prefer re-copying when upstream changes.
+ * ThemeProvider selects a theme by putting `.light`/`.dark` on <html>.
+ */
 :root {
   --hue: 159;
   --surface-hue: var(--hue);
@@ -83,11 +88,16 @@
   --contrast-down: max(0, calc(var(--contrast-delta) * -1));
   --contrast-text-floor: 0.9;
   --contrast-border-floor: 0.05;
-  --contrast-text: calc(1 - (1 - var(--contrast-text-floor)) * var(--contrast-down));
-  --contrast-border-linear: calc(
-    var(--contrast-border-floor) + (1 - var(--contrast-border-floor)) * var(--contrast)
+  --contrast-text: calc(
+    1 - (1 - var(--contrast-text-floor)) * var(--contrast-down)
   );
-  --contrast-border: calc(var(--contrast-border-linear) * var(--contrast-border-linear));
+  --contrast-border-linear: calc(
+    var(--contrast-border-floor) + (1 - var(--contrast-border-floor)) *
+      var(--contrast)
+  );
+  --contrast-border: calc(
+    var(--contrast-border-linear) * var(--contrast-border-linear)
+  );
   --elevation-1: 1;
   --elevation-2: 1.5;
   --elevation-3: 2;
@@ -102,68 +112,95 @@
   --status-hue-pull: 0.15;
   --warning-hue: clamp(
     65,
-    calc(75 + (var(--primary-hue) - var(--brand-hue-reference)) * var(--status-hue-pull)),
+    calc(
+      75 + (var(--primary-hue) - var(--brand-hue-reference)) *
+        var(--status-hue-pull)
+    ),
     95
   );
   --destructive-hue: clamp(
     12,
-    calc(25 + (var(--primary-hue) - var(--brand-hue-reference)) * var(--status-hue-pull)),
+    calc(
+      25 + (var(--primary-hue) - var(--brand-hue-reference)) *
+        var(--status-hue-pull)
+    ),
     42
   );
   --info-hue: clamp(
     272,
-    calc(288 + (var(--primary-hue) - var(--brand-hue-reference)) * var(--status-hue-pull)),
+    calc(
+      288 + (var(--primary-hue) - var(--brand-hue-reference)) *
+        var(--status-hue-pull)
+    ),
     302
   );
   --expressive-chroma: 0.14;
   --warning-lightness: 0.8;
   --destructive-lightness: 0.75;
   --info-lightness: 0.7;
-  --background: oklch(var(--surface) calc(var(--chroma) * 0.5) var(--surface-hue));
-  --foreground: oklch(
-    calc(var(--surface) + var(--tone-span) * var(--contrast-text)) calc(var(--chroma) * 0.55)
-      var(--surface-hue)
+  --background: oklch(
+    var(--surface) calc(var(--chroma) * 0.5) var(--surface-hue)
   );
-  --card: oklch(from var(--background) calc(l + var(--elevation-step) * var(--elevation-1)) c h);
+  --foreground: oklch(
+    calc(var(--surface) + var(--tone-span) * var(--contrast-text))
+      calc(var(--chroma) * 0.55) var(--surface-hue)
+  );
+  --card: oklch(
+    from var(--background) calc(l + var(--elevation-step) * var(--elevation-1))
+      c h
+  );
   --card-foreground: var(--foreground);
-  --popover: oklch(from var(--background) calc(l + var(--elevation-step) * var(--elevation-2)) c h);
+  --popover: oklch(
+    from var(--background) calc(l + var(--elevation-step) * var(--elevation-2))
+      c h
+  );
   --popover-foreground: var(--foreground);
   --primary: oklch(0.76 0.15 var(--primary-hue));
   --primary-foreground: oklch(
-    min(var(--surface), var(--foreground-lightness)) calc(var(--chroma) * 0.45) var(--primary-hue)
+    min(var(--surface), var(--foreground-lightness)) calc(var(--chroma) * 0.45)
+      var(--primary-hue)
   );
   --secondary: oklch(
-    from var(--background) calc(l + var(--elevation-step) * var(--elevation-3)) c h
+    from var(--background) calc(l + var(--elevation-step) * var(--elevation-3))
+      c h
   );
   --secondary-foreground: var(--foreground);
   --tertiary: oklch(from var(--foreground) l c h / var(--tertiary-alpha));
   --tertiary-foreground-mix: calc(
-    var(--tertiary-foreground-level) + (1 - var(--tertiary-foreground-level)) * var(--contrast-up) -
-      var(--tertiary-foreground-level) * 0.5 * var(--contrast-down)
+    var(--tertiary-foreground-level) + (1 - var(--tertiary-foreground-level)) *
+      var(--contrast-up) - var(--tertiary-foreground-level) * 0.5 *
+      var(--contrast-down)
   );
   --tertiary-foreground: oklch(
-    from var(--foreground) calc(var(--surface) + var(--tone-span) * var(--tertiary-foreground-mix))
-      c h
+    from var(--foreground)
+      calc(var(--surface) + var(--tone-span) * var(--tertiary-foreground-mix)) c
+      h
   );
   --muted: oklch(from var(--foreground) l c h / var(--muted-alpha));
   --muted-foreground-mix: calc(
-    var(--muted-foreground-level) + (1 - var(--muted-foreground-level)) * var(--contrast-up) -
-      var(--muted-foreground-level) * 0.5 * var(--contrast-down)
+    var(--muted-foreground-level) + (1 - var(--muted-foreground-level)) *
+      var(--contrast-up) - var(--muted-foreground-level) * 0.5 *
+      var(--contrast-down)
   );
   --muted-foreground: oklch(
-    from var(--foreground) calc(var(--surface) + var(--tone-span) * var(--muted-foreground-mix)) c h
+    from var(--foreground)
+      calc(var(--surface) + var(--tone-span) * var(--muted-foreground-mix)) c h
   );
   --accent: oklch(from var(--foreground) l c h / var(--accent-alpha));
   --accent-foreground: var(--foreground);
-  --warning: oklch(var(--warning-lightness) var(--expressive-chroma) var(--warning-hue));
+  --warning: oklch(
+    var(--warning-lightness) var(--expressive-chroma) var(--warning-hue)
+  );
   --destructive: oklch(
     var(--destructive-lightness) var(--expressive-chroma) var(--destructive-hue)
   );
   --warning-foreground: oklch(
-    from var(--warning) clamp(0.12, calc((0.62 - l) * 100), 0.99) calc(c * 0.08) h
+    from var(--warning) clamp(0.12, calc((0.62 - l) * 100), 0.99) calc(c * 0.08)
+      h
   );
   --destructive-foreground: oklch(
-    from var(--destructive) clamp(0.12, calc((0.62 - l) * 100), 0.99) calc(c * 0.08) h
+    from var(--destructive) clamp(0.12, calc((0.62 - l) * 100), 0.99)
+      calc(c * 0.08) h
   );
   --info: oklch(var(--info-lightness) var(--expressive-chroma) var(--info-hue));
   --info-foreground: oklch(
@@ -174,15 +211,23 @@
   --border-info: oklch(from var(--info) l c h / 30%);
   --border-brand: oklch(from var(--primary) l c h / 30%);
   --border: oklch(
-    from var(--foreground) l calc(c * 0.54) h / calc(2% + 20% * var(--contrast-border))
+    from var(--foreground) l calc(c * 0.54) h /
+      calc(2% + 20% * var(--contrast-border))
   );
   --input: oklch(
-    from var(--foreground) l calc(c * 0.5) h / calc(3% + 38% * var(--contrast-border))
+    from var(--foreground) l calc(c * 0.5) h /
+      calc(3% + 38% * var(--contrast-border))
   );
   --ring: oklch(from var(--primary) l c h / 55%);
+  /* Supabase brand green. Defined here as well as per theme so the utilities
+     built from it stay valid on the first paint, before ThemeProvider has put
+     a .light/.dark class on <html>. */
+  --brand-default: 153.1deg 60.2% 52.7%;
+  --brand-600: 154.9deg 59.5% 70%;
+  --brand-500: 154.9deg 100% 19.2%;
+  --brand-400: 155.5deg 100% 9.6%;
 }
 
-[data-theme="light"],
 .light {
   --hue: 159;
   --surface-hue: 34;
@@ -202,7 +247,6 @@
   --brand-400: 151.3deg 66.9% 66.9%;
 }
 
-[data-theme="dark"],
 .dark {
   --hue: 159;
   --chroma: 0.005;
