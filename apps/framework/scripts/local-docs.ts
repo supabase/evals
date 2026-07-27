@@ -191,6 +191,14 @@ async function cmdSeed(opts: DocsOptions) {
       NEXT_PUBLIC_SUPABASE_URL: env.API_URL,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: env.PUBLISHABLE_KEY ?? env.ANON_KEY,
       SUPABASE_SECRET_KEY: env.SECRET_KEY ?? env.SERVICE_ROLE_KEY,
+      // generate-embeddings.ts hard-requires these two before doing any work.
+      // It builds its own client from NEXT_PUBLIC_SUPABASE_URL +
+      // SUPABASE_SECRET_KEY, but sources/partner-integrations.ts reads the MISC
+      // pair to pull partner data from the hosted "misc" project. Pointed at the
+      // local stack they clear the gate; the partner source then finds no such
+      // tables, which is the right trade for a local docs index.
+      NEXT_PUBLIC_MISC_URL: env.API_URL,
+      NEXT_PUBLIC_MISC_ANON_KEY: env.PUBLISHABLE_KEY ?? env.ANON_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       NODE_ENV: 'development',
     },
