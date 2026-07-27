@@ -7,7 +7,7 @@
  * shared uses it, but doesn't define it.
  */
 
-import type { ToolName } from "../../transcript/types.js";
+import type { ToolName } from '../../transcript/types.js';
 
 /** An agent's tool-name mapping, owned and supplied by that agent's parser. */
 export interface AgentToolMap {
@@ -27,6 +27,6 @@ export function normalizeToolName(name: string, map: AgentToolMap): ToolName {
   const key = map.caseInsensitive ? name.toLowerCase() : name;
   const mapped = map.tools[key];
   if (mapped) return mapped;
-  if (name.startsWith("mcp__")) return "tool_use";
-  return "unknown";
+  if (name.startsWith('mcp__')) return 'tool_use';
+  return 'unknown';
 }

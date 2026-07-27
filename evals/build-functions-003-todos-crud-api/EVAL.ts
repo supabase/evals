@@ -2,10 +2,10 @@ import {
   unwrapEdgeFunctionResponse,
   type CheckResult,
   type ToolScorer,
-} from "@supabase-evals/core";
+} from '@supabase-evals/core';
 
-const FUNCTION_NAME = "todos-api";
-const PASSWORD = "secret123";
+const FUNCTION_NAME = 'todos-api';
+const PASSWORD = 'secret123';
 
 interface InvokeResult {
   status: number;
@@ -51,9 +51,10 @@ const scorer: ToolScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            name: "created auth sessions",
+            name: 'created auth sessions',
             passed: false,
-            notes: authAError?.message ?? authBError?.message ?? "missing session",
+            notes:
+              authAError?.message ?? authBError?.message ?? 'missing session',
           },
         ],
       };
@@ -72,77 +73,93 @@ const scorer: ToolScorer = async (ctx) => {
         })
         .then(unwrapEdgeFunctionResponse);
 
-    const authHeadersA = { authorization: `Bearer ${authA.session.access_token}` };
-    const authHeadersB = { authorization: `Bearer ${authB.session.access_token}` };
+    const authHeadersA = {
+      authorization: `Bearer ${authA.session.access_token}`,
+    };
+    const authHeadersB = {
+      authorization: `Bearer ${authB.session.access_token}`,
+    };
 
-    const missingAuth = await invoke({ method: "GET" });
-    checks.push({ name: "rejects missing auth", passed: missingAuth.status === 401 });
+    const missingAuth = await invoke({ method: 'GET' });
+    checks.push({
+      name: 'rejects missing auth',
+      passed: missingAuth.status === 401,
+    });
 
     const badLimit = await invoke({
-      method: "GET",
-      path: "?limit=200",
+      method: 'GET',
+      path: '?limit=200',
       headers: authHeadersA,
     });
-    checks.push({ name: "rejects invalid limit", passed: badLimit.status === 400 });
+    checks.push({
+      name: 'rejects invalid limit',
+      passed: badLimit.status === 400,
+    });
 
     const invalidJson = await invoke({
-      method: "POST",
+      method: 'POST',
       headers: authHeadersA,
-      body: "{",
+      body: '{',
     });
-    checks.push({ name: "rejects invalid JSON", passed: invalidJson.status === 400 });
+    checks.push({
+      name: 'rejects invalid JSON',
+      passed: invalidJson.status === 400,
+    });
 
     const created = await invoke({
-      method: "POST",
+      method: 'POST',
       headers: authHeadersA,
-      body: { body: "buy milk", done: false },
+      body: { body: 'buy milk', done: false },
     });
     const createdRow = rowFrom(parseJson(created));
     checks.push({
-      name: "creates todo for authenticated user",
+      name: 'creates todo for authenticated user',
       passed:
         created.status === 201 &&
-        createdRow?.body === "buy milk" &&
+        createdRow?.body === 'buy milk' &&
         createdRow?.user_id === authA.user.id &&
-        typeof createdRow?.id === "string",
+        typeof createdRow?.id === 'string',
     });
 
     await invoke({
-      method: "POST",
+      method: 'POST',
       headers: authHeadersA,
-      body: { body: "done item", done: true },
+      body: { body: 'done item', done: true },
     });
 
     const listDone = await invoke({
-      method: "GET",
-      path: "?done=true&limit=10",
+      method: 'GET',
+      path: '?done=true&limit=10',
       headers: authHeadersA,
     });
     const listJson = parseJson(listDone);
     const todos = Array.isArray(listJson) ? listJson : listJson?.todos;
     checks.push({
-      name: "filters todos by done",
+      name: 'filters todos by done',
       passed:
         listDone.status === 200 &&
         Array.isArray(todos) &&
         todos.length === 1 &&
-        todos[0]?.body === "done item" &&
+        todos[0]?.body === 'done item' &&
         todos[0]?.done === true,
     });
 
     const invalidUuid = await invoke({
-      method: "PATCH",
-      path: "/not-a-uuid",
+      method: 'PATCH',
+      path: '/not-a-uuid',
       headers: authHeadersA,
       body: { done: true },
     });
-    checks.push({ name: "rejects invalid UUID", passed: invalidUuid.status === 400 });
+    checks.push({
+      name: 'rejects invalid UUID',
+      passed: invalidUuid.status === 400,
+    });
 
     const patchOtherUser = await invoke({
-      method: "PATCH",
+      method: 'PATCH',
       path: `/${createdRow?.id}`,
       headers: authHeadersB,
-      body: { body: "stolen" },
+      body: { body: 'stolen' },
     });
     checks.push({
       name: "returns 404 when patching another user's todo",
@@ -150,19 +167,22 @@ const scorer: ToolScorer = async (ctx) => {
     });
 
     const ownPatch = await invoke({
-      method: "PATCH",
+      method: 'PATCH',
       path: `/${createdRow?.id}`,
       headers: authHeadersA,
       body: { done: true },
     });
     const ownPatchRow = rowFrom(parseJson(ownPatch));
     checks.push({
-      name: "updates own todo",
-      passed: ownPatch.status === 200 && ownPatchRow?.id === createdRow?.id && ownPatchRow?.done === true,
+      name: 'updates own todo',
+      passed:
+        ownPatch.status === 200 &&
+        ownPatchRow?.id === createdRow?.id &&
+        ownPatchRow?.done === true,
     });
 
     const deleteOtherUser = await invoke({
-      method: "DELETE",
+      method: 'DELETE',
       path: `/${createdRow?.id}`,
       headers: authHeadersB,
     });
@@ -172,13 +192,14 @@ const scorer: ToolScorer = async (ctx) => {
     });
 
     const ownDelete = await invoke({
-      method: "DELETE",
+      method: 'DELETE',
       path: `/${createdRow?.id}`,
       headers: authHeadersA,
     });
     checks.push({
-      name: "deletes own todo",
-      passed: ownDelete.status === 200 && parseJson(ownDelete)?.deleted === true,
+      name: 'deletes own todo',
+      passed:
+        ownDelete.status === 200 && parseJson(ownDelete)?.deleted === true,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

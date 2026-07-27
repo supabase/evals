@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
-import type { CheckResult, ToolScorer } from "@supabase-evals/core";
+import { randomUUID } from 'node:crypto';
+import type { CheckResult, ToolScorer } from '@supabase-evals/core';
 
-const PASSWORD = "secret123";
-const USER_A_EMAIL = "tenant-notes-a@example.com";
-const USER_B_EMAIL = "tenant-notes-b@example.com";
+const PASSWORD = 'secret123';
+const USER_A_EMAIL = 'tenant-notes-a@example.com';
+const USER_B_EMAIL = 'tenant-notes-b@example.com';
 
 const scorer: ToolScorer = async (ctx) => {
   const clientA = ctx.client;
@@ -34,9 +34,10 @@ const scorer: ToolScorer = async (ctx) => {
         passed: false,
         checks: [
           {
-            name: "created auth sessions",
+            name: 'created auth sessions',
             passed: false,
-            notes: authAError?.message ?? authBError?.message ?? "missing session",
+            notes:
+              authAError?.message ?? authBError?.message ?? 'missing session',
           },
         ],
       };
@@ -62,90 +63,105 @@ INSERT INTO notes (org_id, author_id, body) VALUES
     const rlsEnabled = rls[0]?.relrowsecurity === true;
 
     const aNotes = await clientA
-      .from("notes")
-      .select("body,org_id,author_id")
-      .order("body");
+      .from('notes')
+      .select('body,org_id,author_id')
+      .order('body');
 
     const bReadsA = await clientB
-      .from("notes")
-      .select("id")
-      .eq("org_id", orgAId);
+      .from('notes')
+      .select('id')
+      .eq('org_id', orgAId);
 
     const ownUpdate = await clientA
-      .from("notes")
-      .update({ body: "org A note 1 updated" })
-      .eq("body", "org A note 1")
-      .select("body,author_id");
+      .from('notes')
+      .update({ body: 'org A note 1 updated' })
+      .eq('body', 'org A note 1')
+      .select('body,author_id');
 
     const crossUpdate = await clientB
-      .from("notes")
-      .update({ body: "cross-tenant update" })
-      .eq("body", "org A note 2")
-      .select("id");
+      .from('notes')
+      .update({ body: 'cross-tenant update' })
+      .eq('body', 'org A note 2')
+      .select('id');
 
     const ownDelete = await clientB
-      .from("notes")
+      .from('notes')
       .delete()
-      .eq("body", "org B note 1")
-      .select("id");
+      .eq('body', 'org B note 1')
+      .select('id');
 
     const crossDelete = await clientB
-      .from("notes")
+      .from('notes')
       .delete()
-      .eq("body", "org A note 2")
-      .select("id");
+      .eq('body', 'org A note 2')
+      .select('id');
 
     const ownInsert = await clientA
-      .from("notes")
-      .insert({ org_id: orgAId, author_id: userAId, body: "org A note 3" })
-      .select("id");
+      .from('notes')
+      .insert({ org_id: orgAId, author_id: userAId, body: 'org A note 3' })
+      .select('id');
 
     const crossInsert = await clientB
-      .from("notes")
-      .insert({ org_id: orgAId, author_id: userBId, body: "sneaky org A note" })
-      .select("id");
+      .from('notes')
+      .insert({ org_id: orgAId, author_id: userBId, body: 'sneaky org A note' })
+      .select('id');
 
     const checks: CheckResult[] = [
-      { name: "RLS enabled on notes", passed: rlsEnabled },
+      { name: 'RLS enabled on notes', passed: rlsEnabled },
       {
-        name: "tenant A sees only org A notes",
+        name: 'tenant A sees only org A notes',
         passed:
           !aNotes.error &&
           aNotes.data?.length === 2 &&
-          aNotes.data.every((note) => note.org_id === orgAId && note.author_id === userAId) &&
-          aNotes.data.map((note) => note.body).join(",") === "org A note 1,org A note 2",
+          aNotes.data.every(
+            (note) => note.org_id === orgAId && note.author_id === userAId
+          ) &&
+          aNotes.data.map((note) => note.body).join(',') ===
+            'org A note 1,org A note 2',
       },
       {
-        name: "tenant B cannot read org A notes",
-        passed: !bReadsA.error && Array.isArray(bReadsA.data) && bReadsA.data.length === 0,
+        name: 'tenant B cannot read org A notes',
+        passed:
+          !bReadsA.error &&
+          Array.isArray(bReadsA.data) &&
+          bReadsA.data.length === 0,
       },
       {
-        name: "tenant A author can update own note",
+        name: 'tenant A author can update own note',
         passed:
           !ownUpdate.error &&
           ownUpdate.data?.length === 1 &&
-          ownUpdate.data[0]?.body === "org A note 1 updated" &&
+          ownUpdate.data[0]?.body === 'org A note 1 updated' &&
           ownUpdate.data[0]?.author_id === userAId,
       },
       {
-        name: "tenant B cannot update org A note",
-        passed: Boolean(crossUpdate.error) || !crossUpdate.data || crossUpdate.data.length === 0,
+        name: 'tenant B cannot update org A note',
+        passed:
+          Boolean(crossUpdate.error) ||
+          !crossUpdate.data ||
+          crossUpdate.data.length === 0,
       },
       {
-        name: "tenant B author can delete own note",
+        name: 'tenant B author can delete own note',
         passed: !ownDelete.error && ownDelete.data?.length === 1,
       },
       {
-        name: "tenant B cannot delete org A note",
-        passed: Boolean(crossDelete.error) || !crossDelete.data || crossDelete.data.length === 0,
+        name: 'tenant B cannot delete org A note',
+        passed:
+          Boolean(crossDelete.error) ||
+          !crossDelete.data ||
+          crossDelete.data.length === 0,
       },
       {
-        name: "tenant A can insert note in own org",
+        name: 'tenant A can insert note in own org',
         passed: !ownInsert.error && ownInsert.data?.length === 1,
       },
       {
-        name: "tenant B cannot insert into org A",
-        passed: Boolean(crossInsert.error) || !crossInsert.data || crossInsert.data.length === 0,
+        name: 'tenant B cannot insert into org A',
+        passed:
+          Boolean(crossInsert.error) ||
+          !crossInsert.data ||
+          crossInsert.data.length === 0,
       },
     ];
 
@@ -154,7 +170,13 @@ INSERT INTO notes (org_id, author_id, body) VALUES
     const msg = error instanceof Error ? error.message : String(error);
     return {
       passed: false,
-      checks: [{ name: "scorer evaluated client RLS behavior", passed: false, notes: msg }],
+      checks: [
+        {
+          name: 'scorer evaluated client RLS behavior',
+          passed: false,
+          notes: msg,
+        },
+      ],
     };
   }
 };

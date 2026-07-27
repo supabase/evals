@@ -36,14 +36,16 @@ const SKILL_ENTRYPOINT_PATTERN =
  */
 function firstField(
   args: Record<string, unknown>,
-  keys: readonly string[] | undefined,
+  keys: readonly string[] | undefined
 ): string | undefined {
   if (!keys) return undefined;
   for (const key of keys) {
     const value = args[key];
-    if (typeof value === "string") return value;
+    if (typeof value === 'string') return value;
     if (Array.isArray(value)) {
-      const joined = value.filter((v): v is string => typeof v === "string").join(" ");
+      const joined = value
+        .filter((v): v is string => typeof v === 'string')
+        .join(' ');
       if (joined) return joined;
     }
   }
@@ -53,7 +55,7 @@ function firstField(
 /** Extract the normalized fields a parser's `ArgFieldMap` declares from raw args. */
 export function extractArgs(
   args: Record<string, unknown>,
-  map: ArgFieldMap,
+  map: ArgFieldMap
 ): ExtractedArgs {
   return {
     path: firstField(args, map.path),

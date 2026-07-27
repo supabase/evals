@@ -11,13 +11,13 @@
  * concern that diverges per agent lives in exactly one place.
  */
 
-import type { CommandResult, McpServerConfig } from "../index.js";
+import type { CommandResult, McpServerConfig } from '../index.js';
 import type {
   AgentHarnessId,
   ModelProvider,
   ReasoningEffortLevel,
-} from "../eval-metadata.js";
-import type { AgentTranscriptParser } from "../parsers/types.js";
+} from '../eval-metadata.js';
+import type { AgentTranscriptParser } from '../parsers/types.js';
 
 export type AgentMetadata = {
   agent: AgentHarnessId;
@@ -38,7 +38,7 @@ export interface AgentSandbox {
   /** Run a bash command as the agent user, cwd = workspace. */
   exec(
     command: string,
-    options?: { timeoutMs?: number; env?: Record<string, string> },
+    options?: { timeoutMs?: number; env?: Record<string, string> }
   ): Promise<CommandResult>;
   /** Read a UTF-8 file (absolute path, or relative to the workspace). */
   readFile(path: string): Promise<string>;
@@ -89,7 +89,11 @@ export interface AgentRunner<M extends string = string> {
   /** Model used when the caller doesn't pick one. */
   defaultModel: M;
   /** Install the CLI into the sandbox at `version` (and authenticate if needed). */
-  install(sandbox: AgentSandbox, version: string, apiKey: string): Promise<void>;
+  install(
+    sandbox: AgentSandbox,
+    version: string,
+    apiKey: string
+  ): Promise<void>;
   /** Run the CLI to completion and return the process result + raw transcript. */
   exec(args: RunnerExecArgs<M>): Promise<RunnerExecResult>;
   /**

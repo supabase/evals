@@ -1,40 +1,40 @@
 #!/usr/bin/env tsx
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
-import { fileURLToPath } from "node:url";
-import { parseEvalMarkdown } from "@supabase-evals/core/eval-markdown";
-import { rawEvalResultSchema } from "@supabase-evals/core/eval-metadata";
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
+import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
 import {
   getExperimentDisplayMetadata,
   type ExperimentConfig,
   type ExperimentDisplayMetadata,
-} from "@supabase-evals/core";
+} from '@supabase-evals/core';
 import type {
   EvalResult,
   EvalSuite,
   ExperimentSuite,
-} from "@supabase-evals/core/eval-metadata";
+} from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
   readExperimentSuiteFilters,
   readRepeatedFlag,
   readSuiteFilters,
-} from "../lib/cli-args.js";
+} from '../lib/cli-args.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, "..", "..", "..");
-const RESULTS_DIR = join(ROOT, "results");
-const EVALS_DIR = join(ROOT, "evals");
-const EXPERIMENTS_DIR = join(ROOT, "experiments");
+const ROOT = resolve(__dirname, '..', '..', '..');
+const RESULTS_DIR = join(ROOT, 'results');
+const EVALS_DIR = join(ROOT, 'evals');
+const EXPERIMENTS_DIR = join(ROOT, 'experiments');
 const OUTPUT_PATH = join(
   ROOT,
-  "apps",
-  "web",
-  "src",
-  "data",
-  "eval-results.json",
+  'apps',
+  'web',
+  'src',
+  'data',
+  'eval-results.json'
 );
 
 type ExperimentExportMetadata = {
@@ -47,11 +47,11 @@ async function loadExperimentMetadata(): Promise<
 > {
   const map = new Map<string, ExperimentExportMetadata>();
   for (const f of (await readdir(EXPERIMENTS_DIR)).filter((f) =>
-    f.endsWith(".ts"),
+    f.endsWith('.ts')
   )) {
     const mod = await import(pathToFileURL(join(EXPERIMENTS_DIR, f)).href);
     const config = mod.default as ExperimentConfig;
-    map.set(f.replace(/\.ts$/, ""), {
+    map.set(f.replace(/\.ts$/, ''), {
       display: getExperimentDisplayMetadata(config),
       experimentSuite: config.suite?.[0],
     });
@@ -59,19 +59,19 @@ async function loadExperimentMetadata(): Promise<
   return map;
 }
 const rawArgs = process.argv.slice(2);
-const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, "experiment").map(
-  normalizeExperimentName,
+const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
+  normalizeExperimentName
 );
-const EVAL_FILTERS = readRepeatedFlag(rawArgs, "eval");
+const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
-const MERGE = rawArgs.includes("--merge");
+const MERGE = rawArgs.includes('--merge');
 
-const OUTPUT_FLAG = readRepeatedFlag(rawArgs, "output")[0];
+const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
 
 async function readPrompt(evalId: string) {
-  const promptPath = resolve(EVALS_DIR, evalId, "PROMPT.md");
+  const promptPath = resolve(EVALS_DIR, evalId, 'PROMPT.md');
   const normalizedEvalsDir = resolve(EVALS_DIR);
 
   if (!promptPath.startsWith(`${normalizedEvalsDir}${sep}`)) {
@@ -83,23 +83,23 @@ async function readPrompt(evalId: string) {
   }
 
   const parsed = parseEvalMarkdown(
-    await readFile(promptPath, "utf8"),
-    promptPath,
+    await readFile(promptPath, 'utf8'),
+    promptPath
   );
 
   return {
     ...parsed.metadata,
     prompt: parsed.body,
-    promptSourcePath: relative(ROOT, promptPath).split(sep).join("/"),
+    promptSourcePath: relative(ROOT, promptPath).split(sep).join('/'),
   };
 }
 
 async function readResultFile(
   filePath: string,
   sourcePath: string,
-  experimentMetadata: Map<string, ExperimentExportMetadata>,
+  experimentMetadata: Map<string, ExperimentExportMetadata>
 ): Promise<EvalResult | null> {
-  const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
+  const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'));
   const result = rawEvalResultSchema.safeParse(parsed);
   if (!result.success) {
     return null;
@@ -161,7 +161,7 @@ function shouldIncludeSuite(suite: EvalSuite | undefined): boolean {
 }
 
 function shouldIncludeExperimentSuite(
-  experimentSuite: ExperimentSuite | undefined,
+  experimentSuite: ExperimentSuite | undefined
 ): boolean {
   if (EXPERIMENT_SUITE_FILTERS.length === 0) {
     return true;
@@ -183,7 +183,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
   const experiments = await readdir(RESULTS_DIR);
 
   for (const experiment of experiments) {
-    if (experiment.startsWith(".") || experiment.startsWith("_")) {
+    if (experiment.startsWith('.') || experiment.startsWith('_')) {
       continue;
     }
 
@@ -201,10 +201,10 @@ async function loadEvalResults(): Promise<EvalResult[]> {
       const entryStat = await stat(entryPath);
       const relativeEntryPath = relative(RESULTS_DIR, entryPath)
         .split(sep)
-        .join("/");
+        .join('/');
 
-      if (entryStat.isFile() && entry.endsWith(".json")) {
-        const evalId = entry.replace(/\.json$/, "");
+      if (entryStat.isFile() && entry.endsWith('.json')) {
+        const evalId = entry.replace(/\.json$/, '');
         if (!shouldIncludeEval(evalId)) {
           continue;
         }
@@ -212,7 +212,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
         const result = await readResultFile(
           entryPath,
           relativeEntryPath,
-          experimentMetadata,
+          experimentMetadata
         );
         if (
           result &&
@@ -232,7 +232,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
         continue;
       }
 
-      const summaryPath = join(entryPath, "summary.json");
+      const summaryPath = join(entryPath, 'summary.json');
       if (!existsSync(summaryPath)) {
         continue;
       }
@@ -240,7 +240,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
       const result = await readResultFile(
         summaryPath,
         `${relativeEntryPath}/summary.json`,
-        experimentMetadata,
+        experimentMetadata
       );
       if (
         result &&
@@ -254,7 +254,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
 
   return results.sort(
     (a, b) =>
-      a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval),
+      a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval)
   );
 }
 
@@ -267,24 +267,23 @@ async function main() {
     EXPERIMENT_SUITE_FILTERS.length > 0;
 
   if (hasFilters && newResults.length === 0) {
-    throw new Error("no result files matched the requested export filters");
+    throw new Error('no result files matched the requested export filters');
   }
 
   let results = newResults;
   if (MERGE && existsSync(outputPath)) {
     const existing: EvalResult[] = JSON.parse(
-      await readFile(outputPath, "utf8"),
+      await readFile(outputPath, 'utf8')
     );
     const replaced = new Set(
-      newResults.map((r) => `${r.experiment}::${r.eval}`),
+      newResults.map((r) => `${r.experiment}::${r.eval}`)
     );
     results = [
       ...existing.filter((r) => !replaced.has(`${r.experiment}::${r.eval}`)),
       ...newResults,
     ].sort(
       (a, b) =>
-        a.experiment.localeCompare(b.experiment) ||
-        a.eval.localeCompare(b.eval),
+        a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval)
     );
   }
 
@@ -294,7 +293,7 @@ async function main() {
   const passed = results.filter((result) => result.passed).length;
   console.log(
     `Exported ${results.length} result(s) to ${relative(ROOT, outputPath)} ` +
-      `(${passed} pass, ${results.length - passed} fail)`,
+      `(${passed} pass, ${results.length - passed} fail)`
   );
 }
 

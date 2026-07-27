@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from 'react';
 
 type Todo = {
   id: string;
@@ -7,21 +7,21 @@ type Todo = {
 };
 
 export default function App() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [newTodo, setNewTodo] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [newTodo, setNewTodo] = useState('');
   const [signedIn, setSignedIn] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   async function handleSignIn(event: React.FormEvent) {
     event.preventDefault();
-    setError("TODO: sign in with Supabase");
+    setError('TODO: sign in with Supabase');
   }
 
   async function handleAddTodo(event: React.FormEvent) {
     event.preventDefault();
-    setError("TODO: insert todo with Supabase");
+    setError('TODO: insert todo with Supabase');
   }
 
   async function handleToggleTodo(todo: Todo) {

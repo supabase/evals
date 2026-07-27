@@ -2,15 +2,15 @@ import type {
   CheckResult,
   EdgeFunctionsInvokeResult,
   ToolScorer,
-} from "@supabase-evals/core";
+} from '@supabase-evals/core';
 
-const FUNCTION_NAME = "private-notes";
-const PASSWORD = "secret123";
-const NOTE_A = "user A private note";
-const NOTE_B = "user B private note";
+const FUNCTION_NAME = 'private-notes';
+const PASSWORD = 'secret123';
+const NOTE_A = 'user A private note';
+const NOTE_B = 'user B private note';
 
 function responseNote(res: EdgeFunctionsInvokeResult): string | undefined {
-  return res.type === "response" ? `status=${res.status}` : res.error;
+  return res.type === 'response' ? `status=${res.status}` : res.error;
 }
 
 // A cross-user or unauthenticated request is secure as long as it returns a
@@ -21,12 +21,12 @@ function secureResponse(
   name: string,
   res: EdgeFunctionsInvokeResult,
   acceptedStatuses: number[],
-  forbiddenNotes: string[],
+  forbiddenNotes: string[]
 ): CheckResult {
   return {
     name,
     passed:
-      res.type === "response" &&
+      res.type === 'response' &&
       acceptedStatuses.includes(res.status) &&
       forbiddenNotes.every((note) => !res.body.includes(note)),
     notes: responseNote(res),
@@ -38,11 +38,11 @@ const scorer: ToolScorer = async (ctx) => {
   const clientB = ctx.getClient();
 
   const { data: authA, error: authAError } = await clientA.auth.signUp({
-    email: "private-notes-a@example.com",
+    email: 'private-notes-a@example.com',
     password: PASSWORD,
   });
   const { data: authB, error: authBError } = await clientB.auth.signUp({
-    email: "private-notes-b@example.com",
+    email: 'private-notes-b@example.com',
     password: PASSWORD,
   });
 
@@ -56,9 +56,9 @@ const scorer: ToolScorer = async (ctx) => {
   ) {
     throw new Error(
       `failed to create test users: ${
-        [authAError?.message, authBError?.message].filter(Boolean).join("; ") ||
-        "missing session"
-      }`,
+        [authAError?.message, authBError?.message].filter(Boolean).join('; ') ||
+        'missing session'
+      }`
     );
   }
 
@@ -75,7 +75,7 @@ INSERT INTO private_notes (user_id, body) VALUES
   `);
 
   const invoke = (input: { path?: string; headers?: Record<string, string> }) =>
-    ctx.invokeFunction({ name: FUNCTION_NAME, method: "GET", ...input });
+    ctx.invokeFunction({ name: FUNCTION_NAME, method: 'GET', ...input });
 
   const missingAuth = await invoke({});
   const ownNotes = await invoke({
@@ -92,21 +92,21 @@ INSERT INTO private_notes (user_id, body) VALUES
   });
 
   const ownNotesUsesCallerJwt =
-    ownNotes.type === "response" &&
+    ownNotes.type === 'response' &&
     ownNotes.outboundBearerTokens.length > 0 &&
     ownNotes.outboundBearerTokens.every((token) => token === callerToken);
 
   const checks: CheckResult[] = [
     secureResponse(
-      "rejects missing auth",
+      'rejects missing auth',
       missingAuth,
       [401, 403],
-      [NOTE_A, NOTE_B],
+      [NOTE_A, NOTE_B]
     ),
     {
-      name: "user A reads own note",
+      name: 'user A reads own note',
       passed:
-        ownNotes.type === "response" &&
+        ownNotes.type === 'response' &&
         ownNotes.status === 200 &&
         ownNotes.body.includes(NOTE_A) &&
         !ownNotes.body.includes(NOTE_B),
@@ -117,21 +117,21 @@ INSERT INTO private_notes (user_id, body) VALUES
       name: "reads only with the caller's JWT",
       passed: ownNotesUsesCallerJwt,
       notes:
-        ownNotes.type === "response"
+        ownNotes.type === 'response'
           ? `bearer_tokens=${ownNotes.outboundBearerTokens.length}, all_match=${ownNotesUsesCallerJwt}`
           : ownNotes.error,
     },
     secureResponse(
-      "user A cannot force-read user B note",
+      'user A cannot force-read user B note',
       aRequestsB,
       [200, 401, 403, 404],
-      [NOTE_B],
+      [NOTE_B]
     ),
     secureResponse(
-      "user B cannot force-read user A note",
+      'user B cannot force-read user A note',
       bRequestsA,
       [200, 401, 403, 404],
-      [NOTE_A],
+      [NOTE_A]
     ),
   ];
 

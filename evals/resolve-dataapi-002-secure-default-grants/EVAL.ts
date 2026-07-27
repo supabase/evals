@@ -5,18 +5,18 @@ import {
   type LocalStackEvalContext,
   type LocalStackScorer,
   type SupabaseClient,
-} from "@supabase-evals/core";
-import { stripIndent } from "common-tags";
+} from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
-const PASSWORD = "secret123";
-const ENTRY_A1 = "morning reflection";
-const ENTRY_A2 = "weekend plans";
-const ENTRY_B = "project notes";
+const PASSWORD = 'secret123';
+const ENTRY_A1 = 'morning reflection';
+const ENTRY_A2 = 'weekend plans';
+const ENTRY_B = 'project notes';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
     const setup = await setupTestUsers(ctx);
-    if ("failure" in setup) {
+    if ('failure' in setup) {
       return { passed: false, checks: [setup.failure] };
     }
     const users = setup.users;
@@ -44,7 +44,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       passed: false,
       checks: [
         {
-          name: "scorer evaluated Data API fix",
+          name: 'scorer evaluated Data API fix',
           passed: false,
           notes: msg,
         },
@@ -64,7 +64,7 @@ type TestUsers = {
 
 /** Creates two signed-in clients and seeds journal entries for ownership checks. */
 async function setupTestUsers(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<{ users: TestUsers } | { failure: CheckResult }> {
   const clientA = await ctx.getClient();
   const clientB = await ctx.getClient();
@@ -88,9 +88,9 @@ async function setupTestUsers(
   ) {
     return {
       failure: {
-        name: "created auth sessions",
+        name: 'created auth sessions',
         passed: false,
-        notes: authAError?.message ?? authBError?.message ?? "missing session",
+        notes: authAError?.message ?? authBError?.message ?? 'missing session',
       },
     };
   }
@@ -105,7 +105,7 @@ async function setupTestUsers(
         ('${userAId}', '${ENTRY_A1}', 'A quiet start to the day.'),
         ('${userAId}', '${ENTRY_A2}', 'Ideas for Saturday and Sunday.'),
         ('${userBId}', '${ENTRY_B}', 'Notes from the latest project review.');
-    `,
+    `
   );
 
   return { users: { clientA, clientB, userAId, userBId } };
@@ -113,19 +113,19 @@ async function setupTestUsers(
 
 /** Checks that the fix did not roll back secure-by-default table exposure. */
 async function checkAutoExposeNotEnabled(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
-  const config = await ctx.readFile("supabase/config.toml");
+  const config = await ctx.readFile('supabase/config.toml');
   const explicitlyEnabled = /^\s*auto_expose_new_tables\s*=\s*true\s*$/m.test(
-    config,
+    config
   );
 
   return {
-    name: "auto_expose_new_tables is not enabled",
+    name: 'auto_expose_new_tables is not enabled',
     passed: !explicitlyEnabled,
     notes: !explicitlyEnabled
       ? undefined
-      : "supabase/config.toml sets auto_expose_new_tables = true",
+      : 'supabase/config.toml sets auto_expose_new_tables = true',
   };
 }
 
@@ -133,12 +133,12 @@ async function checkAutoExposeNotEnabled(
 // scorer DB API is refactored away from SELECT-only ctx.query.
 /** Runs non-SELECT SQL against the local stack database. */
 async function execSql(ctx: LocalStackEvalContext, sql: string): Promise<void> {
-  const encoded = Buffer.from(sql, "utf8").toString("base64");
+  const encoded = Buffer.from(sql, 'utf8').toString('base64');
   const result = await ctx.exec(
     stripIndent`
       DB_URL=$(supabase status -o json | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
       echo ${encoded} | base64 -d | psql "$DB_URL" -v ON_ERROR_STOP=1
-    `,
+    `
   );
 
   if (!result.ok) {
@@ -148,18 +148,18 @@ async function execSql(ctx: LocalStackEvalContext, sql: string): Promise<void> {
 
 /** Checks that authenticated clients can reach journal entries through PostgREST. */
 async function checkAuthenticatedGrants(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const { rows } = await ctx.query(
     stripIndent`
       SELECT
         has_table_privilege('authenticated', 'public.journal_entries', 'SELECT') AS can_select,
         has_table_privilege('authenticated', 'public.journal_entries', 'INSERT') AS can_insert;
-    `,
+    `
   );
 
   return {
-    name: "authenticated has explicit journal_entries SELECT and INSERT grants",
+    name: 'authenticated has explicit journal_entries SELECT and INSERT grants',
     passed: rows[0]?.can_select === true && rows[0]?.can_insert === true,
     notes: `can_select=${String(rows[0]?.can_select)}, can_insert=${String(rows[0]?.can_insert)}`,
   };
@@ -167,18 +167,18 @@ async function checkAuthenticatedGrants(
 
 /** Checks that signed-out clients were not granted journal entry access. */
 async function checkAnonNotGranted(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const { rows } = await ctx.query(
     stripIndent`
       SELECT
         has_table_privilege('anon', 'public.journal_entries', 'SELECT') AS can_select,
         has_table_privilege('anon', 'public.journal_entries', 'INSERT') AS can_insert;
-    `,
+    `
   );
 
   return {
-    name: "anon does not have journal_entries SELECT or INSERT grants",
+    name: 'anon does not have journal_entries SELECT or INSERT grants',
     passed: rows[0]?.can_select === false && rows[0]?.can_insert === false,
     notes: `can_select=${String(rows[0]?.can_select)}, can_insert=${String(rows[0]?.can_insert)}`,
   };
@@ -186,29 +186,29 @@ async function checkAnonNotGranted(
 
 /** Checks that RLS remains enabled after exposing the table to authenticated users. */
 async function checkRlsStillEnabled(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const { rows } = await ctx.query(
-    `SELECT relrowsecurity FROM pg_class WHERE relname = 'journal_entries';`,
+    `SELECT relrowsecurity FROM pg_class WHERE relname = 'journal_entries';`
   );
 
   return {
-    name: "RLS still enabled on journal_entries",
+    name: 'RLS still enabled on journal_entries',
     passed: rows[0]?.relrowsecurity === true,
   };
 }
 
 /** Checks that a signed-in user can read only their own journal entries. */
 async function checkUserAReadsOwnEntries(
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { data, error } = await users.clientA
-    .from("journal_entries")
-    .select("title,user_id")
-    .order("title");
+    .from('journal_entries')
+    .select('title,user_id')
+    .order('title');
 
   return {
-    name: "user A reads own journal entries",
+    name: 'user A reads own journal entries',
     passed:
       !error &&
       data?.length === 2 &&
@@ -221,29 +221,29 @@ async function checkUserAReadsOwnEntries(
 
 /** Checks that one signed-in user cannot read another user's journal entries. */
 async function checkUserBCannotReadUserAEntries(
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { data, error } = await users.clientB
-    .from("journal_entries")
-    .select("id")
-    .eq("title", ENTRY_A1);
+    .from('journal_entries')
+    .select('id')
+    .eq('title', ENTRY_A1);
 
   return {
-    name: "user B cannot read user A journal entries",
+    name: 'user B cannot read user A journal entries',
     passed: !error && Array.isArray(data) && data.length === 0,
   };
 }
 
 /** Checks that signed-out clients cannot read journal entries. */
 async function checkAnonReadsNoEntries(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const anonClient = await ctx.getClient();
-  const { data, error } = await anonClient.from("journal_entries").select("id");
+  const { data, error } = await anonClient.from('journal_entries').select('id');
 
   return {
-    name: "anon reads no journal entries",
-    passed: error?.code === "42501" || data?.length === 0,
+    name: 'anon reads no journal entries',
+    passed: error?.code === '42501' || data?.length === 0,
     notes: error
       ? `error ${error.code}: ${error.message}`
       : `${data?.length ?? 0} rows`,
@@ -252,19 +252,19 @@ async function checkAnonReadsNoEntries(
 
 /** Checks that a signed-in user can create an owned journal entry. */
 async function checkUserACanSaveNewEntry(
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   const { data, error } = await users.clientA
-    .from("journal_entries")
-    .insert({ title: "travel ideas", body: "Places to visit next spring." })
-    .select("title,user_id");
+    .from('journal_entries')
+    .insert({ title: 'travel ideas', body: 'Places to visit next spring.' })
+    .select('title,user_id');
 
   return {
-    name: "user A can save a new journal entry",
+    name: 'user A can save a new journal entry',
     passed:
       !error &&
       data?.length === 1 &&
-      data[0]?.title === "travel ideas" &&
+      data[0]?.title === 'travel ideas' &&
       data[0]?.user_id === users.userAId,
     notes: error?.message,
   };
@@ -273,29 +273,29 @@ async function checkUserACanSaveNewEntry(
 /** Checks that one signed-in user cannot create a journal entry for another user. */
 async function checkUserBCannotInsertAsUserA(
   ctx: LocalStackEvalContext,
-  users: TestUsers,
+  users: TestUsers
 ): Promise<CheckResult> {
   await users.clientB
-    .from("journal_entries")
+    .from('journal_entries')
     .insert({
       user_id: users.userAId,
-      title: "planted by user B",
-      body: "This should not be allowed.",
+      title: 'planted by user B',
+      body: 'This should not be allowed.',
     })
-    .select("id");
+    .select('id');
   const { rows } = await ctx.query(
-    `SELECT count(*)::int AS count FROM journal_entries WHERE title = 'planted by user B';`,
+    `SELECT count(*)::int AS count FROM journal_entries WHERE title = 'planted by user B';`
   );
 
   return {
-    name: "user B cannot insert a journal entry as user A",
+    name: 'user B cannot insert a journal entry as user A',
     passed: rows[0]?.count === 0,
   };
 }
 
 /** Checks that the transcript identifies and safely fixes missing table grants. */
 async function checkSecureDefaultDiagnosisAndFix(
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript, {
@@ -316,7 +316,7 @@ async function checkSecureDefaultDiagnosisAndFix(
   });
 
   return {
-    name: "diagnosed secure default grants without weakening RLS",
+    name: 'diagnosed secure default grants without weakening RLS',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };

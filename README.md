@@ -7,7 +7,7 @@ This repo answers how well can agents use Supabase across various tasks.
 Clone with submodules:
 
 ```bash
-git clone --recurse-submodules git@github.com:supabase-org/supabase-evals.git
+git clone --recurse-submodules git@github.com:supabase/evals.git
 ```
 
 If you already cloned without submodules:

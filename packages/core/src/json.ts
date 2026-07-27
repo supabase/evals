@@ -1,7 +1,7 @@
 /** Shared JSON helpers used across the core package. */
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export interface JsonlRecords {
@@ -17,7 +17,7 @@ export interface JsonlRecords {
 export function parseJsonlRecords(raw: string): JsonlRecords {
   const records: Record<string, unknown>[] = [];
   const errors: string[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
     try {
       const value = JSON.parse(line);

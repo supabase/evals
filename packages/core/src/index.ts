@@ -1,18 +1,18 @@
-import vm from "node:vm";
-import { createRequire } from "node:module";
-import { createHash, createHmac } from "node:crypto";
-import { execFile } from "node:child_process";
-import { createServer } from "node:net";
-import { promisify } from "node:util";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
-import type { ToolName } from "./transcript/types.js";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createMCPClient } from "@ai-sdk/mcp";
-import { Experimental_StdioMCPTransport as StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
-import { openai } from "@ai-sdk/openai";
+import vm from 'node:vm';
+import { createRequire } from 'node:module';
+import { createHash, createHmac } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { createServer } from 'node:net';
+import { promisify } from 'node:util';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import type { ToolName } from './transcript/types.js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createMCPClient } from '@ai-sdk/mcp';
+import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
+import { openai } from '@ai-sdk/openai';
 import {
   Output,
   generateText,
@@ -20,9 +20,9 @@ import {
   type JSONValue,
   type LanguageModel,
   type ToolSet,
-} from "ai";
-import ts from "typescript";
-import { z } from "zod";
+} from 'ai';
+import ts from 'typescript';
+import { z } from 'zod';
 import {
   createManagementApiClient,
   createPlatform,
@@ -32,7 +32,7 @@ import {
   type PlatformHandle,
   type ProjectInstance,
   type ServerHandle,
-} from "@supabase-evals/platform-lite";
+} from '@supabase-evals/platform-lite';
 import type {
   AgentHarnessId,
   CheckResult,
@@ -41,10 +41,10 @@ import type {
   ExperimentSuite,
   ModelProvider,
   ReasoningEffortLevel,
-} from "./eval-metadata.js";
-import { reasoningEffortSchema } from "./eval-metadata.js";
-import type { AgentMetadata, AgentSandbox } from "./agents/types.js";
-import { isRecord } from "./json.js";
+} from './eval-metadata.js';
+import { reasoningEffortSchema } from './eval-metadata.js';
+import type { AgentMetadata, AgentSandbox } from './agents/types.js';
+import { isRecord } from './json.js';
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -53,9 +53,9 @@ import { isRecord } from "./json.js";
 let executorBinPath: string | undefined;
 function getExecutorBin(): string {
   executorBinPath ??= join(
-    dirname(fileURLToPath(import.meta.resolve("executor/package.json"))),
-    "bin",
-    "executor",
+    dirname(fileURLToPath(import.meta.resolve('executor/package.json'))),
+    'bin',
+    'executor'
   );
   return executorBinPath;
 }
@@ -91,15 +91,18 @@ export {
   docsResultSchema,
   docsCallSchema,
   docsPageSourceSchema,
-} from "./eval-metadata.js";
-export { parseEvalMarkdown } from "./eval-markdown.js";
-export { buildSkillResult } from "./skill-results.js";
-export { buildDocsResult, rehydrateTruncatedDocsResults } from "./docs-results.js";
-export type { DocsResultSandbox } from "./docs-results.js";
+} from './eval-metadata.js';
+export { parseEvalMarkdown } from './eval-markdown.js';
+export { buildSkillResult } from './skill-results.js';
+export {
+  buildDocsResult,
+  rehydrateTruncatedDocsResults,
+} from './docs-results.js';
+export type { DocsResultSandbox } from './docs-results.js';
 // CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
-export { createCliAgent } from "./agents/engine.js";
-export { claudeCodeAgent } from "./agents/claude-code/index.js";
-export { codexAgent } from "./agents/codex/index.js";
+export { createCliAgent } from './agents/engine.js';
+export { claudeCodeAgent } from './agents/claude-code/index.js';
+export { codexAgent } from './agents/codex/index.js';
 export type {
   AgentMetadata,
   AgentSandbox,
@@ -107,17 +110,17 @@ export type {
   RunnerExecArgs,
   RunnerExecResult,
   AgentDefinition,
-} from "./agents/types.js";
+} from './agents/types.js';
 // Generic transcript vocabulary + parser layer used by CLI agents.
-export { createParser, supportedParsers } from "./agents/registry.js";
-export { adaptTranscript } from "./parsers/adapt.js";
-export type { AdaptedTranscript } from "./parsers/adapt.js";
-export type { AgentTranscriptParser } from "./parsers/types.js";
+export { createParser, supportedParsers } from './agents/registry.js';
+export { adaptTranscript } from './parsers/adapt.js';
+export type { AdaptedTranscript } from './parsers/adapt.js';
+export type { AgentTranscriptParser } from './parsers/types.js';
 export type {
   ToolName,
   TranscriptEvent,
   ParsedTranscript,
-} from "./transcript/types.js";
+} from './transcript/types.js';
 export type {
   AgentHarnessId,
   CheckResult,
@@ -137,7 +140,7 @@ export type {
   DocsCall,
   DocsCallPage,
   DocsPageSource,
-} from "./eval-metadata.js";
+} from './eval-metadata.js';
 
 export interface ScoreResult {
   passed: boolean;
@@ -146,12 +149,12 @@ export interface ScoreResult {
 
 export type TranscriptPart =
   | {
-      type: "message";
-      role: "system" | "user" | "assistant";
+      type: 'message';
+      role: 'system' | 'user' | 'assistant';
       content: string;
     }
   | {
-      type: "tool_call";
+      type: 'tool_call';
       name: string;
       input: Record<string, unknown>;
       output?: unknown;
@@ -222,7 +225,7 @@ export interface EdgeFunctionsInvokeInput {
 }
 
 export interface EdgeFunctionsInvokeResponse {
-  type: "response";
+  type: 'response';
   status: number;
   headers: Record<string, string>;
   body: string;
@@ -239,12 +242,12 @@ export interface EdgeFunctionsInvokeResponse {
  */
 export type EdgeFunctionsInvokeResult =
   | EdgeFunctionsInvokeResponse
-  | { type: "error"; error: string };
+  | { type: 'error'; error: string };
 
 export function unwrapEdgeFunctionResponse(
-  result: EdgeFunctionsInvokeResult,
+  result: EdgeFunctionsInvokeResult
 ): EdgeFunctionsInvokeResponse {
-  if (result.type === "error") throw new Error(result.error);
+  if (result.type === 'error') throw new Error(result.error);
   return result;
 }
 
@@ -261,7 +264,7 @@ export interface ToolScoringContext {
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
   /** Invoke a deployed edge function in-process. */
   invokeFunction: (
-    input: EdgeFunctionsInvokeInput,
+    input: EdgeFunctionsInvokeInput
   ) => Promise<EdgeFunctionsInvokeResult>;
 }
 
@@ -282,7 +285,7 @@ export interface LocalStackScoringContext {
   /** Run a shell command in the workspace as the sandbox user. */
   exec: (
     command: string,
-    options?: { timeoutMs?: number },
+    options?: { timeoutMs?: number }
   ) => Promise<CommandResult>;
   /** Read a UTF-8 file; path relative to the workspace. */
   readFile: (path: string) => Promise<string>;
@@ -329,7 +332,7 @@ export interface LocalStackScoringContext {
    * deployed function reads its secrets at runtime.
    */
   invokeHostedFunction?: (
-    input: EdgeFunctionsInvokeInput,
+    input: EdgeFunctionsInvokeInput
   ) => Promise<EdgeFunctionsInvokeResult>;
 }
 
@@ -351,7 +354,7 @@ export interface LocalStackEvalContext extends LocalStackScoringContext {
 
 export type ToolScorer = (ctx: ToolEvalContext) => Promise<ScoreResult>;
 export type LocalStackScorer = (
-  ctx: LocalStackEvalContext,
+  ctx: LocalStackEvalContext
 ) => Promise<ScoreResult>;
 
 export type AgentRunArgs = {
@@ -455,7 +458,7 @@ export type HostedLink = {
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
   /** Invoke a deployed function in-process, with hosted secrets injected. */
   invokeFunction: (
-    input: EdgeFunctionsInvokeInput,
+    input: EdgeFunctionsInvokeInput
   ) => Promise<EdgeFunctionsInvokeResult>;
 };
 
@@ -513,7 +516,7 @@ export type ExperimentConfig = {
 };
 
 export function getExperimentDisplayMetadata(
-  config: ExperimentConfig,
+  config: ExperimentConfig
 ): ExperimentDisplayMetadata {
   return config.agent.metadata;
 }
@@ -524,10 +527,10 @@ export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
 
 export function serializeTranscript(
   transcript: TranscriptPart[],
-  options: TranscriptSerializationOptions = {},
+  options: TranscriptSerializationOptions = {}
 ): string {
   const parts = transcript.flatMap((event) => {
-    if (event.type === "message") {
+    if (event.type === 'message') {
       const content = event.content.trim();
       return content ? [`[${event.role}]\n${content}`] : [];
     }
@@ -543,10 +546,10 @@ export function serializeTranscript(
         lines.push(`output:\n${JSON.stringify(event.output, null, 2)}`);
       }
     }
-    return [lines.join("\n")];
+    return [lines.join('\n')];
   });
 
-  return parts.join("\n\n");
+  return parts.join('\n\n');
 }
 
 export type AiSdkProviderOptions = Record<string, Record<string, JSONValue>>;
@@ -556,11 +559,11 @@ const judgeOutputSchema = z.object({
   notes: z.string(),
 });
 
-const DEFAULT_JUDGE_MODEL = openai("gpt-5.5");
+const DEFAULT_JUDGE_MODEL = openai('gpt-5.5');
 const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   openai: {
-    reasoningEffort: "low",
-    textVerbosity: "low",
+    reasoningEffort: 'low',
+    textVerbosity: 'low',
   },
 };
 
@@ -572,8 +575,8 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
   const { output } = await generateText({
     model,
     system:
-      "You are a strict eval judge. Return only the requested structured judgment.",
-    prompt: ["Rubric:", args.rubric, "", "Input:", args.input].join("\n"),
+      'You are a strict eval judge. Return only the requested structured judgment.',
+    prompt: ['Rubric:', args.rubric, '', 'Input:', args.input].join('\n'),
     output: Output.object({ schema: judgeOutputSchema }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     providerOptions: withProviderDefaults(model.provider, providerOptions),
@@ -586,12 +589,12 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
 }
 
 function getModelProvider(provider: string, modelId: string): ModelProvider {
-  if (provider.startsWith("anthropic") || modelId.startsWith("claude-")) {
-    return "anthropic";
+  if (provider.startsWith('anthropic') || modelId.startsWith('claude-')) {
+    return 'anthropic';
   }
 
-  if (provider.startsWith("openai") || modelId.startsWith("gpt-")) {
-    return "openai";
+  if (provider.startsWith('openai') || modelId.startsWith('gpt-')) {
+    return 'openai';
   }
 
   throw new Error(`unsupported model provider for ${modelId}: ${provider}`);
@@ -607,10 +610,10 @@ export function aiSdkAgent(options: {
     reasoningEffortSchema.safeParse(configuredEffort).data;
   const modelId = options.model.modelId;
   return {
-    id: "ai-sdk",
+    id: 'ai-sdk',
     modelId,
     metadata: {
-      agent: "ai-sdk",
+      agent: 'ai-sdk',
       modelProvider: getModelProvider(options.model.provider, modelId),
       modelId,
       ...(reasoningEffort ? { reasoningEffort } : {}),
@@ -625,8 +628,8 @@ export function aiSdkAgent(options: {
         : [];
       const toolCalls: ToolCallRecord[] = [];
       const transcript: TranscriptPart[] = [
-        { type: "message", role: "system", content: args.systemPrompt },
-        { type: "message", role: "user", content: args.userPrompt },
+        { type: 'message', role: 'system', content: args.systemPrompt },
+        { type: 'message', role: 'user', content: args.userPrompt },
       ];
       const tools = mergeToolSets([
         ...(args.tools ? [args.tools] : []),
@@ -644,20 +647,20 @@ export function aiSdkAgent(options: {
           timeout: { totalMs: args.timeoutSec * 1000 },
           providerOptions: withProviderDefaults(
             options.model.provider,
-            options.providerOptions,
+            options.providerOptions
           ),
           experimental_onToolCallFinish: (event) => {
             const input = isRecord(event.toolCall.input)
               ? event.toolCall.input
               : {};
             const loadedSkill =
-              event.toolCall.toolName === "load_skill" &&
-              typeof input.name === "string"
+              event.toolCall.toolName === 'load_skill' &&
+              typeof input.name === 'string'
                 ? input.name
                 : undefined;
             const command =
-              event.toolCall.toolName.toLowerCase() === "bash" &&
-              typeof input.command === "string"
+              event.toolCall.toolName.toLowerCase() === 'bash' &&
+              typeof input.command === 'string'
                 ? input.command
                 : undefined;
             toolCalls.push({
@@ -679,9 +682,9 @@ export function aiSdkAgent(options: {
         >();
         for (const step of result.steps) {
           for (const part of step.content) {
-            if (part.type === "tool-result") {
+            if (part.type === 'tool-result') {
               toolOutputs.set(part.toolCallId, { output: part.output });
-            } else if (part.type === "tool-error") {
+            } else if (part.type === 'tool-error') {
               toolOutputs.set(part.toolCallId, {
                 error:
                   part.error instanceof Error
@@ -694,19 +697,19 @@ export function aiSdkAgent(options: {
 
         for (const step of result.steps) {
           for (const part of step.content) {
-            if (part.type === "text") {
+            if (part.type === 'text') {
               const content = part.text.trim();
               if (content) {
                 transcript.push({
-                  type: "message",
-                  role: "assistant",
+                  type: 'message',
+                  role: 'assistant',
                   content,
                 });
               }
-            } else if (part.type === "tool-call") {
+            } else if (part.type === 'tool-call') {
               const resolved = toolOutputs.get(part.toolCallId);
               transcript.push({
-                type: "tool_call",
+                type: 'tool_call',
                 name: part.toolName,
                 input: isRecord(part.input) ? part.input : {},
                 output: resolved?.output,
@@ -725,7 +728,7 @@ export function aiSdkAgent(options: {
           steps: result.steps.length,
           stoppedReason:
             result.steps.length >= MAX_STEPS
-              ? "max_steps"
+              ? 'max_steps'
               : result.finishReason,
         };
       } finally {
@@ -793,7 +796,7 @@ export function platformLiteRuntime(options: {
   mcpServers: McpServerDefinition[];
 }): EvalRuntime {
   return {
-    id: "platform-lite",
+    id: 'platform-lite',
     async startSession(args) {
       const backend = await bootPlatformBackend(args);
       const mcpServers: Record<string, McpServerConfig> = {};
@@ -818,7 +821,7 @@ export function platformLiteRuntime(options: {
             options.mcpServers
               .map((mcpServer) => mcpServer.promptAddendum)
               .filter(isNonEmptyString)
-              .join("\n\n") || undefined,
+              .join('\n\n') || undefined,
           scoringContext: {
             mgmt: backend.mgmt,
             ref: backend.ref,
@@ -843,7 +846,7 @@ export function platformLiteRuntime(options: {
             }
             throwIfCloseErrors(
               errors,
-              "failed to close eval session resources",
+              'failed to close eval session resources'
             );
           },
         };
@@ -864,7 +867,7 @@ export function platformLiteRuntime(options: {
         if (closeErrors.length > 0) {
           throw new AggregateError(
             [err, ...closeErrors],
-            "failed to start eval session",
+            'failed to start eval session'
           );
         }
         throw err;
@@ -877,56 +880,56 @@ export function supabaseMcpServer(
   options: {
     features?: string[];
     version?: string;
-  } = {},
+  } = {}
 ): McpServerDefinition {
   const features = options.features ?? [
-    "docs",
-    "account",
-    "database",
-    "development",
-    "debugging",
-    "functions",
+    'docs',
+    'account',
+    'database',
+    'development',
+    'debugging',
+    'functions',
   ];
   const version = options.version ?? MCP_SERVER_VERSION;
 
   return {
-    name: "supabase-mcp",
+    name: 'supabase-mcp',
     async createConfig({ apiUrl, accessToken } = {}) {
       const args = [
         `@supabase/mcp-server-supabase@${version}`,
         // The server refuses to boot without a token; with only platform-
         // independent features (docs) it never authenticates against the
         // management API, so a well-formed throwaway is enough.
-        "--access-token",
+        '--access-token',
         accessToken ?? THROWAWAY_ACCESS_TOKEN,
-        "--features",
-        features.join(","),
+        '--features',
+        features.join(','),
       ];
       // Only point the server at a platform when one is given. `docs` is
       // platform-independent (it queries the public docs GraphQL API), so a
       // docs-only server runs standalone with no `--api-url`.
-      if (apiUrl) args.push("--api-url", apiUrl);
-      return { config: { command: "npx", args } };
+      if (apiUrl) args.push('--api-url', apiUrl);
+      return { config: { command: 'npx', args } };
     },
   };
 }
 
 export function executorMcpServer(): McpServerDefinition {
   return {
-    name: "executor-mcp",
+    name: 'executor-mcp',
     promptAddendum:
-      "When execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept.",
+      'When execute returns a paused result containing an executionId, immediately call resume with that executionId and action=accept.',
     async createConfig({ apiUrl, accessToken } = {}) {
       // Unlike the docs-only Supabase MCP, the executor proxies the platform's
       // OpenAPI, so it genuinely needs both — fail fast rather than register a
       // broken source.
       if (!apiUrl || !accessToken) {
         throw new Error(
-          "executor MCP requires a platform context (apiUrl + accessToken)",
+          'executor MCP requires a platform context (apiUrl + accessToken)'
         );
       }
-      const scopeDir = mkdtempSync(join(tmpdir(), "eval-executor-scope-"));
-      const dataDir = mkdtempSync(join(tmpdir(), "eval-executor-data-"));
+      const scopeDir = mkdtempSync(join(tmpdir(), 'eval-executor-scope-'));
+      const dataDir = mkdtempSync(join(tmpdir(), 'eval-executor-data-'));
       // Keep source registration isolated from any user daemon already listening on 4788.
       const daemonUrl = `http://localhost:${await getAvailablePort()}`;
 
@@ -938,7 +941,7 @@ export function executorMcpServer(): McpServerDefinition {
           daemonUrl,
           spec: `${apiUrl}/openapi.json`,
           baseUrl: apiUrl,
-          namespace: "platform",
+          namespace: 'platform',
           headers: { Authorization: `Bearer ${accessToken}` },
         });
       } catch (err) {
@@ -949,7 +952,7 @@ export function executorMcpServer(): McpServerDefinition {
       return {
         config: {
           command: process.execPath,
-          args: [getExecutorBin(), "mcp", "--scope", scopeDir],
+          args: [getExecutorBin(), 'mcp', '--scope', scopeDir],
           env: { EXECUTOR_DATA_DIR: dataDir },
         },
         cleanup: async () => {
@@ -981,17 +984,17 @@ async function addExecutorOpenApiSource(input: {
     process.execPath,
     [
       getExecutorBin(),
-      "call",
-      "executor",
-      "openapi",
-      "addSource",
+      'call',
+      'executor',
+      'openapi',
+      'addSource',
       JSON.stringify(sourceConfig),
-      "--scope",
+      '--scope',
       input.scopeDir,
-      "--base-url",
+      '--base-url',
       input.daemonUrl,
     ],
-    { env: executorEnv(input.dataDir) },
+    { env: executorEnv(input.dataDir) }
   );
 
   const executionId = extractExecutorExecutionId(stdout);
@@ -1001,19 +1004,19 @@ async function addExecutorOpenApiSource(input: {
     process.execPath,
     [
       getExecutorBin(),
-      "resume",
-      "--execution-id",
+      'resume',
+      '--execution-id',
       executionId,
-      "--action",
-      "accept",
-      "--content",
-      "{}",
-      "--scope",
+      '--action',
+      'accept',
+      '--content',
+      '{}',
+      '--scope',
       input.scopeDir,
-      "--base-url",
+      '--base-url',
       input.daemonUrl,
     ],
-    { env: executorEnv(input.dataDir) },
+    { env: executorEnv(input.dataDir) }
   );
 }
 
@@ -1026,8 +1029,8 @@ async function cleanupExecutorResources(input: {
   try {
     await execFileAsync(
       process.execPath,
-      [getExecutorBin(), "daemon", "stop", "--base-url", input.daemonUrl],
-      { env: executorEnv(input.dataDir) },
+      [getExecutorBin(), 'daemon', 'stop', '--base-url', input.daemonUrl],
+      { env: executorEnv(input.dataDir) }
     );
   } catch (err) {
     errors.push(err);
@@ -1040,7 +1043,7 @@ async function cleanupExecutorResources(input: {
       errors.push(err);
     }
   }
-  throwIfCloseErrors(errors, "failed to close executor MCP resources");
+  throwIfCloseErrors(errors, 'failed to close executor MCP resources');
 }
 
 function executorEnv(dataDir: string): Record<string, string> {
@@ -1053,29 +1056,29 @@ function extractExecutorExecutionId(stdout: string): string | undefined {
 
 function executorScopeId(scopeDir: string): string {
   const folder = basename(scopeDir) || scopeDir;
-  const hash = createHash("sha256").update(scopeDir).digest("hex").slice(0, 8);
+  const hash = createHash('sha256').update(scopeDir).digest('hex').slice(0, 8);
   return `${folder}-${hash}`;
 }
 
 async function getAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
       const address = server.address();
       server.close(() => {
-        if (typeof address === "object" && address) resolve(address.port);
-        else reject(new Error("failed to allocate executor daemon port"));
+        if (typeof address === 'object' && address) resolve(address.port);
+        else reject(new Error('failed to allocate executor daemon port'));
       });
     });
   });
 }
 
-export const ACCESS_TOKEN = "eval-token";
-export const MCP_SERVER_VERSION = "0.8.1";
+export const ACCESS_TOKEN = 'eval-token';
+export const MCP_SERVER_VERSION = '0.8.1';
 // Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
 // server requires a token to boot but never authenticates without a platform.
-const THROWAWAY_ACCESS_TOKEN = `sbp_${"0".repeat(40)}`;
+const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;
 
 export interface PlatformBackend {
   url: string;
@@ -1089,7 +1092,7 @@ export interface PlatformBackend {
   getClient: () => SupabaseClient;
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
   invokeFunction: (
-    input: EdgeFunctionsInvokeInput,
+    input: EdgeFunctionsInvokeInput
   ) => Promise<EdgeFunctionsInvokeResult>;
   close: () => Promise<void>;
 }
@@ -1113,7 +1116,7 @@ export async function bootPlatformBackend(opts: {
 }): Promise<PlatformBackend> {
   const sql =
     opts.projectSeedSql && existsSync(opts.projectSeedSql)
-      ? readFileSync(opts.projectSeedSql, "utf8")
+      ? readFileSync(opts.projectSeedSql, 'utf8')
       : undefined;
 
   const logs =
@@ -1138,11 +1141,11 @@ export async function bootPlatformBackend(opts: {
 
   try {
     server = await platform.listen(
-      opts.hostname ? { hostname: opts.hostname } : undefined,
+      opts.hostname ? { hostname: opts.hostname } : undefined
     );
 
     const refs = platform.refs();
-    if (refs.length === 0) throw new Error("platform backend: no projects");
+    if (refs.length === 0) throw new Error('platform backend: no projects');
     const ref = refs[0];
     const instance = platform.getProject(ref);
     if (!instance) throw new Error(`platform backend: project missing: ${ref}`);
@@ -1152,7 +1155,7 @@ export async function bootPlatformBackend(opts: {
     // same way (host.docker.internal). Closed alongside the HTTP server.
     pgServer = opts.pgWire
       ? await platform.listenPg(
-          opts.hostname ? { hostname: opts.hostname } : undefined,
+          opts.hostname ? { hostname: opts.hostname } : undefined
         )
       : undefined;
     const pgPort = pgServer?.port;
@@ -1189,33 +1192,33 @@ export async function bootPlatformBackend(opts: {
 // initial tool call, so mutation-heavy evals need more headroom than direct MCP.
 const MAX_STEPS = 60;
 const MAX_OUTPUT_TOKENS = 4096;
-const RUNTIME_URL = "http://supabase-evals.local";
+const RUNTIME_URL = 'http://supabase-evals.local';
 
 function assertProviderReady(provider: string): void {
-  if (provider.startsWith("openai") && !process.env.OPENAI_API_KEY) {
+  if (provider.startsWith('openai') && !process.env.OPENAI_API_KEY) {
     throw new Error(
-      "Missing OpenAI credentials. Set OPENAI_API_KEY before running OpenAI evals.",
+      'Missing OpenAI credentials. Set OPENAI_API_KEY before running OpenAI evals.'
     );
   }
-  if (provider.startsWith("anthropic") && !process.env.ANTHROPIC_API_KEY) {
+  if (provider.startsWith('anthropic') && !process.env.ANTHROPIC_API_KEY) {
     throw new Error(
-      "Missing Anthropic credentials. Set ANTHROPIC_API_KEY before running Anthropic evals.",
+      'Missing Anthropic credentials. Set ANTHROPIC_API_KEY before running Anthropic evals.'
     );
   }
 }
 
 function withProviderDefaults(
   provider: string,
-  options: AiSdkProviderOptions = {},
+  options: AiSdkProviderOptions = {}
 ): AiSdkProviderOptions | undefined {
-  const merged = provider.startsWith("openai")
+  const merged = provider.startsWith('openai')
     ? { ...options, openai: withOpenAiZdrDefaults(options.openai) }
     : options;
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
 async function createAiSdkTools(
-  mcpServers: Record<string, McpServerConfig>,
+  mcpServers: Record<string, McpServerConfig>
 ): Promise<McpClientHandle[]> {
   const handles: McpClientHandle[] = [];
 
@@ -1225,7 +1228,7 @@ async function createAiSdkTools(
         command: server.command,
         args: server.args,
         env: { ...definedEnv(process.env), ...server.env },
-        stderr: "ignore",
+        stderr: 'ignore',
       });
       const mcp = await createMCPClient({ transport });
       const tools = await mcp.tools();
@@ -1248,7 +1251,7 @@ async function closeMcpHandles(handles: McpClientHandle[]): Promise<void> {
       errors.push(err);
     }
   }
-  throwIfCloseErrors(errors, "failed to close MCP clients");
+  throwIfCloseErrors(errors, 'failed to close MCP clients');
 }
 
 function definedEnv(env: NodeJS.ProcessEnv): Record<string, string> {
@@ -1260,23 +1263,23 @@ function definedEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 function withOpenAiZdrDefaults(
-  options: Record<string, JSONValue> = {},
+  options: Record<string, JSONValue> = {}
 ): Record<string, JSONValue> {
   const rawInclude = options.include;
   const include = Array.isArray(rawInclude) ? rawInclude.filter(isString) : [];
   return {
     ...options,
     store: options.store ?? false,
-    include: include.includes("reasoning.encrypted_content")
+    include: include.includes('reasoning.encrypted_content')
       ? include
-      : [...include, "reasoning.encrypted_content"],
+      : [...include, 'reasoning.encrypted_content'],
   };
 }
 
 async function closePlatformResources(
   platform: PlatformHandle,
   server?: ServerHandle,
-  pgServer?: PgServerHandle,
+  pgServer?: PgServerHandle
 ): Promise<void> {
   const errors: unknown[] = [];
 
@@ -1295,7 +1298,7 @@ async function closePlatformResources(
     }
   }
 
-  throwIfCloseErrors(errors, "failed to close platform backend resources");
+  throwIfCloseErrors(errors, 'failed to close platform backend resources');
 }
 
 type LogRow = {
@@ -1308,8 +1311,8 @@ type LogRow = {
 };
 
 function parseJsonl(path: string): LogRow[] {
-  return readFileSync(path, "utf8")
-    .split("\n")
+  return readFileSync(path, 'utf8')
+    .split('\n')
     .filter((line) => line.trim())
     .map(parseLogLine);
 }
@@ -1317,13 +1320,13 @@ function parseJsonl(path: string): LogRow[] {
 function parseLogLine(line: string): LogRow {
   const obj = JSON.parse(line);
   const record = isRecord(obj) ? obj : {};
-  const ts = typeof record.ts === "string" ? new Date(record.ts) : new Date();
+  const ts = typeof record.ts === 'string' ? new Date(record.ts) : new Date();
   return {
-    id: typeof record.id === "string" ? record.id : undefined,
+    id: typeof record.id === 'string' ? record.id : undefined,
     ts,
-    source: typeof record.source === "string" ? record.source : "unknown",
-    level: typeof record.level === "string" ? record.level : "info",
-    message: typeof record.message === "string" ? record.message : "",
+    source: typeof record.source === 'string' ? record.source : 'unknown',
+    level: typeof record.level === 'string' ? record.level : 'info',
+    message: typeof record.message === 'string' ? record.message : '',
     metadata: isRecord(record.metadata) ? record.metadata : undefined,
   };
 }
@@ -1331,28 +1334,28 @@ function parseLogLine(line: string): LogRow {
 function generateProjectKey(
   ref: string,
   jwtSecret: string,
-  role: "anon" | "service_role",
+  role: 'anon' | 'service_role'
 ): string {
-  const b64url = (s: string) => Buffer.from(s).toString("base64url");
-  const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const b64url = (s: string) => Buffer.from(s).toString('base64url');
+  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const body = b64url(
     JSON.stringify({
       role,
-      iss: "supabase-lite",
+      iss: 'supabase-lite',
       ref,
       iat: Math.floor(Date.now() / 1000),
       exp: 9999999999,
-    }),
+    })
   );
-  const sig = createHmac("sha256", jwtSecret)
+  const sig = createHmac('sha256', jwtSecret)
     .update(`${header}.${body}`)
-    .digest("base64url");
+    .digest('base64url');
   return `${header}.${body}.${sig}`;
 }
 
 async function invokeEdgeFunction(
   instance: ProjectInstance,
-  input: EdgeFunctionsInvokeInput,
+  input: EdgeFunctionsInvokeInput
 ): Promise<EdgeFunctionsInvokeResult> {
   // Record the bearer token on every outbound request the function makes back
   // to the project, so scorers can assert which identity it acted as.
@@ -1363,22 +1366,22 @@ async function invokeEdgeFunction(
     const source = fn.files[0]?.content;
     if (!source) throw new Error(`edge function ${input.name} has no source`);
 
-    const method = (input.method ?? "POST").toUpperCase();
+    const method = (input.method ?? 'POST').toUpperCase();
     const headers = new Headers(input.headers ?? {});
-    if (fn.verify_jwt && !headers.has("authorization")) {
+    if (fn.verify_jwt && !headers.has('authorization')) {
       return {
-        type: "response",
+        type: 'response',
         status: 401,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ error: "Missing authorization header" }),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ error: 'Missing authorization header' }),
         outboundBearerTokens,
       };
     }
 
     const projectFetch = (req: Request) => {
       const bearer = req.headers
-        .get("authorization")
-        ?.replace(/^Bearer\s+/i, "");
+        .get('authorization')
+        ?.replace(/^Bearer\s+/i, '');
       if (bearer) outboundBearerTokens.push(bearer);
       return instance.app.fetch(req);
     };
@@ -1394,43 +1397,43 @@ async function invokeEdgeFunction(
       SUPABASE_ANON_KEY: generateProjectKey(
         instance.ref,
         instance.jwtSecret,
-        "anon",
+        'anon'
       ),
       SUPABASE_SERVICE_ROLE_KEY: generateProjectKey(
         instance.ref,
         instance.jwtSecret,
-        "service_role",
+        'service_role'
       ),
     };
     const handler = compileEdgeFunction(source, env, runtimeFetch);
 
     const hasBody =
-      method !== "GET" && method !== "HEAD" && input.body !== undefined;
+      method !== 'GET' && method !== 'HEAD' && input.body !== undefined;
     const bodyStr =
-      typeof input.body === "string"
+      typeof input.body === 'string'
         ? input.body
         : input.body === undefined
           ? undefined
           : JSON.stringify(input.body);
 
-    if (bodyStr !== undefined && !headers.has("content-type")) {
-      headers.set("content-type", "application/json");
+    if (bodyStr !== undefined && !headers.has('content-type')) {
+      headers.set('content-type', 'application/json');
     }
 
     const response = await Promise.resolve(
       handler(
         new Request(
-          `https://project-ref.functions.supabase.co/${input.name}${input.path ?? ""}`,
-          { method, headers, body: hasBody ? bodyStr : undefined },
-        ),
-      ),
+          `https://project-ref.functions.supabase.co/${input.name}${input.path ?? ''}`,
+          { method, headers, body: hasBody ? bodyStr : undefined }
+        )
+      )
     );
     if (!(response instanceof Response)) {
       throw new Error(`edge function ${input.name} did not return a Response`);
     }
 
     return {
-      type: "response",
+      type: 'response',
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
       body: await response.text(),
@@ -1438,7 +1441,7 @@ async function invokeEdgeFunction(
     };
   } catch (error) {
     return {
-      type: "error",
+      type: 'error',
       error: error instanceof Error ? error.message : String(error),
     };
   }
@@ -1448,13 +1451,13 @@ type EdgeHandler = (req: Request) => unknown;
 
 function createRuntimeFetch(
   runtimeUrl: string,
-  projectFetch: (req: Request) => Promise<Response>,
+  projectFetch: (req: Request) => Promise<Response>
 ): typeof fetch {
   const origin = new URL(runtimeUrl).origin;
   return async (input, init) => {
     const req = new Request(input, init);
     const reqOrigin = new URL(req.url).origin;
-    if (reqOrigin === origin || reqOrigin === "http://localhost") {
+    if (reqOrigin === origin || reqOrigin === 'http://localhost') {
       return projectFetch(req);
     }
     return fetch(req);
@@ -1464,7 +1467,7 @@ function createRuntimeFetch(
 function compileEdgeFunction(
   source: string,
   env: Record<string, string>,
-  runtimeFetch: typeof fetch,
+  runtimeFetch: typeof fetch
 ): EdgeHandler {
   const js = ts.transpileModule(source, {
     compilerOptions: {
@@ -1479,21 +1482,21 @@ function compileEdgeFunction(
   const moduleState: { exports: Record<string, unknown> } = { exports };
 
   const requireFromSandbox = (specifier: string) => {
-    if (specifier === "jsr:@supabase/functions-js/edge-runtime.d.ts") {
+    if (specifier === 'jsr:@supabase/functions-js/edge-runtime.d.ts') {
       return {};
     }
     const id = toNodeRequireId(specifier);
     // supabase-js is special-cased so its client uses the in-process runtime
     // fetch (so the function's calls hit this project, not the network).
     if (
-      id === "@supabase/supabase-js" ||
-      id?.startsWith("@supabase/supabase-js/")
+      id === '@supabase/supabase-js' ||
+      id?.startsWith('@supabase/supabase-js/')
     ) {
       return {
         createClient: (
           u: string,
           k: string,
-          opts: Parameters<typeof createClient>[2] = {},
+          opts: Parameters<typeof createClient>[2] = {}
         ) =>
           createClient(u, k, {
             ...opts,
@@ -1512,7 +1515,7 @@ function compileEdgeFunction(
         throw new Error(
           `edge function dependency "${specifier}" is not available in the eval runtime` +
             ` (${code ?? (err instanceof Error ? err.message : String(err))}). ` +
-            "Add it to the runtime's dependencies if an eval needs it.",
+            "Add it to the runtime's dependencies if an eval needs it."
         );
       }
     }
@@ -1523,9 +1526,9 @@ function compileEdgeFunction(
     Deno: {
       serve: (optOrHandler: unknown, maybeHandler?: unknown) => {
         const handler =
-          typeof optOrHandler === "function" ? optOrHandler : maybeHandler;
-        if (typeof handler !== "function") {
-          throw new Error("Deno.serve requires a handler");
+          typeof optOrHandler === 'function' ? optOrHandler : maybeHandler;
+        if (typeof handler !== 'function') {
+          throw new Error('Deno.serve requires a handler');
         }
         denoServeHandler = (req) => handler(req);
       },
@@ -1567,7 +1570,7 @@ function compileEdgeFunction(
 
   if (!handler) {
     throw new Error(
-      "edge function must call Deno.serve(handler) or export a default handler",
+      'edge function must call Deno.serve(handler) or export a default handler'
     );
   }
 
@@ -1575,7 +1578,7 @@ function compileEdgeFunction(
 }
 
 function functionToEdgeHandler(value: unknown): EdgeHandler | undefined {
-  if (typeof value !== "function") return undefined;
+  if (typeof value !== 'function') return undefined;
   return (req) => value(req);
 }
 
@@ -1586,36 +1589,36 @@ function functionToEdgeHandler(value: unknown): EdgeHandler | undefined {
  * specifiers, stripping any version (`pkg@1.2.3/sub` → `pkg/sub`).
  */
 function toNodeRequireId(specifier: string): string | undefined {
-  if (specifier.startsWith("node:")) return specifier;
-  if (specifier.startsWith("npm:"))
+  if (specifier.startsWith('node:')) return specifier;
+  if (specifier.startsWith('npm:'))
     return stripModuleVersion(specifier.slice(4));
-  if (specifier.startsWith("jsr:"))
+  if (specifier.startsWith('jsr:'))
     return stripModuleVersion(specifier.slice(4));
   const cdn = specifier.match(
-    /^https?:\/\/(?:esm\.sh|esm\.run|cdn\.skypack\.dev|cdn\.jsdelivr\.net\/npm)\/(?:v\d+\/)?(.+)$/,
+    /^https?:\/\/(?:esm\.sh|esm\.run|cdn\.skypack\.dev|cdn\.jsdelivr\.net\/npm)\/(?:v\d+\/)?(.+)$/
   );
   if (cdn) return stripModuleVersion(cdn[1]);
   if (/^https?:\/\//.test(specifier)) return undefined;
   // Bare specifier (no scheme), e.g. "zod" or "@scope/pkg/sub".
-  if (!specifier.includes(":")) return specifier;
+  if (!specifier.includes(':')) return specifier;
   return undefined;
 }
 
 /** Strip an npm version range: `@scope/name@1.2.3/sub` → `@scope/name/sub`. */
 function stripModuleVersion(spec: string): string {
-  let scope = "";
+  let scope = '';
   let rest = spec;
-  if (spec.startsWith("@")) {
-    const slash = spec.indexOf("/");
+  if (spec.startsWith('@')) {
+    const slash = spec.indexOf('/');
     if (slash === -1) return spec;
     scope = spec.slice(0, slash + 1);
     rest = spec.slice(slash + 1);
   }
-  const at = rest.indexOf("@");
+  const at = rest.indexOf('@');
   if (at === -1) return scope + rest;
-  const slashAfter = rest.indexOf("/", at);
+  const slashAfter = rest.indexOf('/', at);
   const name = rest.slice(0, at);
-  const sub = slashAfter === -1 ? "" : rest.slice(slashAfter);
+  const sub = slashAfter === -1 ? '' : rest.slice(slashAfter);
   return scope + name + sub;
 }
 
@@ -1653,11 +1656,11 @@ function throwIfCloseErrors(errors: unknown[], message: string): void {
 }
 
 function isString(value: unknown): value is string {
-  return typeof value === "string";
+  return typeof value === 'string';
 }
 
 function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
+  return typeof value === 'string' && value.length > 0;
 }
 
-export { readEnvVariable } from "./env-file.js";
+export { readEnvVariable } from './env-file.js';

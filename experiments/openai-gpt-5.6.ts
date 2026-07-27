@@ -1,5 +1,6 @@
+import { openai } from '@ai-sdk/openai';
 import {
-  codexAgent,
+  aiSdkAgent,
   defineExperiment,
   platformLiteRuntime,
   supabaseMcpServer,
@@ -7,14 +8,18 @@ import {
 import { localStackRuntime } from '@supabase-evals/sandbox';
 
 export default defineExperiment({
-  suite: ['no-skills'],
-  agent: codexAgent({
-    model: 'gpt-5.4-mini',
-    reasoningEffort: 'medium',
+  agent: aiSdkAgent({
+    model: openai('gpt-5.6'),
+    providerOptions: {
+      openai: {
+        reasoningEffort: 'medium',
+        textVerbosity: 'low',
+      },
+    },
   }),
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],
   }),
   localStack: localStackRuntime(),
-  skills: [],
+  skills: ['supabase', 'supabase-postgres-best-practices'],
 });
