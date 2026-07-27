@@ -31,11 +31,16 @@ import {
 } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
+import { parseArgs, type ParseArgsConfig } from 'node:util';
 import {
   getExperimentDisplayMetadata,
   type ExperimentConfig,
 } from '@supabase-evals/core';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
+import {
+  rawEvalResultSchema,
+  type RawEvalResult,
+} from '@supabase-evals/core/eval-metadata';
 import { main as docsMain } from './local-docs.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -46,34 +51,6 @@ const PUBLISHED_FILES = [
   'apps/web/src/data/eval-results.json',
 ];
 const DEFAULT_EXPERIMENT = 'claude-code-sonnet-5';
-
-// ---------- tiny arg helpers (single-value flags; positionals collected) ----------
-
-function parseArgs(argv: string[]) {
-  const flags = new Map<string, string>();
-  const bools = new Set<string>();
-  const positionals: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith('--')) {
-      positionals.push(a);
-      continue;
-    }
-    const eq = a.indexOf('=');
-    if (eq !== -1) {
-      flags.set(a.slice(2, eq), a.slice(eq + 1));
-      continue;
-    }
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith('--')) {
-      flags.set(a.slice(2), next);
-      i++;
-    } else {
-      bools.add(a.slice(2));
-    }
-  }
-  return { flags, bools, positionals };
-}
 
 function fail(msg: string): never {
   console.error(msg);
@@ -124,11 +101,7 @@ function collectProvenance(mcpPath?: string, contentApi?: string): Provenance {
     p.mcpOverride = {
       path: mcpPath,
       sha: inRepo ? tryGit(['rev-parse', 'HEAD'], mcpPath) : undefined,
-      dirtyFiles: inRepo
-        ? (tryGit(['status', '--porcelain'], inRepo) ?? '')
-            .split('\n')
-            .filter(Boolean).length
-        : undefined,
+      dirtyFiles: inRepo ? dirty(inRepo) : undefined,
     };
   }
   if (contentApi) p.contentApiUrl = contentApi;
@@ -137,27 +110,17 @@ function collectProvenance(mcpPath?: string, contentApi?: string): Provenance {
 
 // ---------- published baselines (compare mode) ----------
 
-type PublishedRow = {
-  experiment: string;
-  eval: string;
-  passed?: boolean;
-  attempts?: number;
-  checks?: Array<{ name: string; passed: boolean }>;
-  docs?: { calls?: unknown[] };
-  [k: string]: unknown;
-};
-
-type Baseline = {
-  row: PublishedRow;
+type PublishedFile = {
   file: string;
+  rows: RawEvalResult[];
   commit: string;
   parent: string;
   committedAt: string;
 };
 
-type PublishedFile = {
+type Baseline = {
+  row: RawEvalResult;
   file: string;
-  rows: PublishedRow[];
   commit: string;
   parent: string;
   committedAt: string;
@@ -165,7 +128,7 @@ type PublishedFile = {
 
 /** Load one published export file from origin/main with its commit metadata. */
 function loadPublishedFile(file: string): PublishedFile | undefined {
-  let rows: PublishedRow[];
+  let rows: RawEvalResult[];
   try {
     rows = JSON.parse(git(['show', `origin/main:${file}`]));
   } catch {
@@ -182,64 +145,11 @@ function loadPublishedFile(file: string): PublishedFile | undefined {
   return { file, rows, commit, parent, committedAt };
 }
 
-/** Report evals with no published row for the experiment, then exit. */
-function refuseMissingBaselines(
-  missing: string[],
-  experiment: string,
-  seen: Map<string, Set<string>>
-): never {
-  for (const e of missing) {
-    const alts = [...(seen.get(e) ?? [])];
-    console.error(
-      alts.length
-        ? `no published ${experiment} result for ${e} on origin/main (published experiments: ${alts.join(', ')})`
-        : `no published result for ${e} on origin/main at all — use \`pnpm local run\` (no baseline needed)`
-    );
-  }
-  process.exit(1);
-}
-
-/** Fold one published file's rows into best/seen for the requested evals. */
-function scanFileRows(
-  loaded: PublishedFile,
-  evalIds: string[],
-  experiment: string,
-  best: Map<string, Baseline>,
-  seen: Map<string, Set<string>>
-) {
-  const { rows, commit, parent, committedAt } = loaded;
-  for (const row of rows) {
-    if (!evalIds.includes(row.eval)) continue;
-    const experiments = seen.get(row.eval) ?? new Set<string>();
-    experiments.add(row.experiment);
-    seen.set(row.eval, experiments);
-    if (row.experiment !== experiment) continue;
-    const cur = best.get(row.eval);
-    if (!cur || new Date(committedAt) > new Date(cur.committedAt))
-      best.set(row.eval, {
-        row,
-        file: loaded.file,
-        commit,
-        parent,
-        committedAt,
-      });
-  }
-}
-
-/** Scan the published export files: freshest matching row per eval, plus every experiment seen per eval. */
-function scanPublishedRows(
-  evalIds: string[],
-  experiment: string
-): { best: Map<string, Baseline>; seen: Map<string, Set<string>> } {
-  const best = new Map<string, Baseline>();
-  const seen = new Map<string, Set<string>>();
-  for (const file of PUBLISHED_FILES) {
-    const loaded = loadPublishedFile(file);
-    if (loaded) scanFileRows(loaded, evalIds, experiment, best, seen);
-  }
-  return { best, seen };
-}
-
+/**
+ * Freshest published row per requested eval for the experiment. Refuses
+ * (pre-spend) when any requested eval has no published row, listing the
+ * experiments that ARE published for it.
+ */
 function resolveBaselines(
   evalIds: string[],
   experiment: string,
@@ -254,9 +164,34 @@ function resolveBaselines(
       );
     }
   }
-  const { best, seen } = scanPublishedRows(evalIds, experiment);
-  const missing = evalIds.filter((e) => !best.has(e));
-  if (missing.length) refuseMissingBaselines(missing, experiment, seen);
+  const files = PUBLISHED_FILES.flatMap((f) => loadPublishedFile(f) ?? []);
+  const best = new Map<string, Baseline>();
+  const failures: string[] = [];
+  for (const id of evalIds) {
+    const candidates: Baseline[] = files.flatMap(
+      ({ file, rows, commit, parent, committedAt }) =>
+        rows
+          .filter((row) => row.eval === id)
+          .map((row) => ({ row, file, commit, parent, committedAt }))
+    );
+    const match = candidates
+      .filter((c) => c.row.experiment === experiment)
+      .sort((a, b) => Date.parse(b.committedAt) - Date.parse(a.committedAt))[0];
+    if (match) {
+      best.set(id, match);
+      continue;
+    }
+    const alts = [...new Set(candidates.map((c) => c.row.experiment))];
+    failures.push(
+      alts.length
+        ? `no published ${experiment} result for ${id} on origin/main (published experiments: ${alts.join(', ')})`
+        : `no published result for ${id} on origin/main at all — use \`pnpm local run\` (no baseline needed)`
+    );
+  }
+  if (failures.length) {
+    for (const msg of failures) console.error(msg);
+    process.exit(1);
+  }
   return best;
 }
 
@@ -327,11 +262,24 @@ function runEval(
   return resultPath;
 }
 
+// test hook: LOCAL_EVAL_CMD writes the result file itself (no model spend)
+function fakeRun(evalId: string, experiment: string): string {
+  const resultPath = join(ROOT, 'results', experiment, `${evalId}.json`);
+  mkdirSync(dirname(resultPath), { recursive: true });
+  const res = spawnSync(process.env.LOCAL_EVAL_CMD as string, {
+    shell: true,
+    stdio: 'inherit',
+    env: { ...process.env, RES: resultPath, EVAL: evalId },
+  });
+  if (res.status !== 0) fail(`LOCAL_EVAL_CMD failed for ${evalId}`);
+  return resultPath;
+}
+
 // ---------- reporting ----------
 
 function reportRow(
   label: string,
-  r: PublishedRow | undefined,
+  r: RawEvalResult | undefined,
   extra: string
 ): string {
   const checks = r?.checks ?? [];
@@ -340,61 +288,11 @@ function reportRow(
   return `${label.padEnd(10)} passed=${String(r?.passed).padEnd(5)} checks=${checksSummary.padEnd(6)} docs.calls=${String(docsCalls).padEnd(3)} ${extra}`;
 }
 
-// ---------- subcommands ----------
-
-async function cmdExperiments() {
-  const published = new Set<string>();
-  for (const file of PUBLISHED_FILES) {
-    try {
-      for (const row of JSON.parse(
-        git(['show', `origin/main:${file}`])
-      ) as PublishedRow[])
-        published.add(row.experiment);
-    } catch {
-      /* offline or file missing: published column degrades to '-' */
-    }
-  }
-  console.log(
-    `${'EXPERIMENT'.padEnd(36)} ${'AGENT'.padEnd(12)} ${'MODEL'.padEnd(22)} ${'EFFORT'.padEnd(8)} PUBLISHED`
-  );
-  for (const f of readdirSync(join(ROOT, 'experiments'))
-    .filter((f) => f.endsWith('.ts'))
-    .sort()) {
-    const name = f.replace(/\.ts$/, '');
-    // runtime-discovered plugin dir (same pattern as run-eval's loadExperiments)
-    const mod = await import(pathToFileURL(join(ROOT, 'experiments', f)).href);
-    const display = getExperimentDisplayMetadata(
-      mod.default as ExperimentConfig
-    );
-    console.log(
-      `${name.padEnd(36)} ${(display.agent ?? '?').padEnd(12)} ${(display.modelId ?? '?').padEnd(22)} ${(display.reasoningEffort ?? '-').padEnd(8)} ${published.has(name) ? 'yes (compare)' : '-'}`
-    );
-  }
-}
-
-/** Resolve --mcp / --content-api into the child env, validating paths pre-spend. */
-function buildOverrideEnv(flags: Map<string, string>): {
-  env: Record<string, string>;
-  mcpPath?: string;
-  contentApi?: string;
-} {
-  const env: Record<string, string> = {};
-  let mcpPath = flags.get('mcp');
-  if (mcpPath) {
-    mcpPath = isAbsolute(mcpPath) ? mcpPath : resolve(process.cwd(), mcpPath);
-    if (!existsSync(mcpPath)) fail(`--mcp path does not exist: ${mcpPath}`);
-    env.SUPABASE_MCP_SERVER_PATH = mcpPath;
-  }
-  const contentApi = flags.get('content-api');
-  if (contentApi) env.SUPABASE_CONTENT_API_URL = contentApi;
-  return { env, mcpPath, contentApi };
-}
-
 /** Print the published-vs-treatment delta; true when treatment regressed. */
 function reportComparison(
   id: string,
   b: Baseline,
-  result: PublishedRow
+  result: RawEvalResult
 ): boolean {
   writeFileSync(
     join(OUT_DIR, `${id}.published.json`),
@@ -426,44 +324,8 @@ function reportComparison(
   return d < 0;
 }
 
-function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
-  const { flags, positionals } = parseArgs(argv);
-  const evalIds = positionals;
-  if (!evalIds.length)
-    fail(
-      `usage: pnpm local ${mode} <eval-id> [...] [--experiment <id>] [--runs N] [--mcp <path>] [--content-api <url>]`
-    );
-  const experiment = flags.get('experiment') ?? DEFAULT_EXPERIMENT;
-  validateExperiment(experiment);
-
-  const baselines =
-    mode === 'compare'
-      ? resolveBaselines(evalIds, experiment, !process.env.LOCAL_NO_FETCH)
-      : new Map<string, Baseline>();
-
-  validateEvals(evalIds);
-  const { env, mcpPath, contentApi } = buildOverrideEnv(flags);
-
-  mkdirSync(OUT_DIR, { recursive: true });
-  let exitCode = 0;
-  for (const id of evalIds) {
-    const runs = Number(
-      flags.get('runs') ?? baselines.get(id)?.row.attempts ?? 1
-    );
-    const regressed = runTreatment(mode, id, experiment, runs, {
-      env,
-      mcpPath,
-      contentApi,
-      baseline: baselines.get(id),
-    });
-    if (regressed) exitCode = 1;
-  }
-  process.exit(exitCode);
-}
-
 /** Run one eval in the treatment world, write its receipt, report; true when it regressed vs published. */
 function runTreatment(
-  mode: 'run' | 'compare',
   id: string,
   experiment: string,
   runs: number,
@@ -482,7 +344,14 @@ function runTreatment(
     ? fakeRun(id, experiment)
     : runEval(id, experiment, runs, env);
 
-  const result = JSON.parse(readFileSync(resultPath, 'utf8')) as PublishedRow;
+  const parsed = rawEvalResultSchema.safeParse(
+    JSON.parse(readFileSync(resultPath, 'utf8'))
+  );
+  if (!parsed.success)
+    fail(
+      `result at ${resultPath} does not match the eval result contract:\n${parsed.error.message}`
+    );
+  const result = parsed.data;
   const receipt = {
     ...result,
     provenance: collectProvenance(mcpPath, contentApi),
@@ -492,24 +361,96 @@ function runTreatment(
     `${JSON.stringify(receipt, null, 1)}\n`
   );
 
-  console.log(`\n=== local ${mode}: ${id} (${experiment}) ===`);
+  console.log(
+    `\n=== local ${baseline ? 'compare' : 'run'}: ${id} (${experiment}) ===`
+  );
   if (baseline) return reportComparison(id, baseline, result);
   console.log(reportRow('treatment', result, 'your world'));
   console.log(`saved: results-local/${id}.treatment.json`);
   return false;
 }
 
-// test hook: LOCAL_EVAL_CMD writes the result file itself (no model spend)
-function fakeRun(evalId: string, experiment: string): string {
-  const resultPath = join(ROOT, 'results', experiment, `${evalId}.json`);
-  mkdirSync(dirname(resultPath), { recursive: true });
-  const res = spawnSync(process.env.LOCAL_EVAL_CMD as string, {
-    shell: true,
-    stdio: 'inherit',
-    env: { ...process.env, RES: resultPath, EVAL: evalId },
-  });
-  if (res.status !== 0) fail(`LOCAL_EVAL_CMD failed for ${evalId}`);
-  return resultPath;
+// ---------- subcommands ----------
+
+async function cmdExperiments() {
+  const published = new Set(
+    PUBLISHED_FILES.flatMap(
+      (f) => loadPublishedFile(f)?.rows.map((r) => r.experiment) ?? []
+    )
+  );
+  console.log(
+    `${'EXPERIMENT'.padEnd(36)} ${'AGENT'.padEnd(12)} ${'MODEL'.padEnd(22)} ${'EFFORT'.padEnd(8)} PUBLISHED`
+  );
+  for (const f of readdirSync(join(ROOT, 'experiments'))
+    .filter((f) => f.endsWith('.ts'))
+    .sort()) {
+    const name = f.replace(/\.ts$/, '');
+    // runtime-discovered plugin dir (same pattern as run-eval's loadExperiments)
+    const mod = await import(pathToFileURL(join(ROOT, 'experiments', f)).href);
+    const display = getExperimentDisplayMetadata(
+      mod.default as ExperimentConfig
+    );
+    console.log(
+      `${name.padEnd(36)} ${(display.agent ?? '?').padEnd(12)} ${(display.modelId ?? '?').padEnd(22)} ${(display.reasoningEffort ?? '-').padEnd(8)} ${published.has(name) ? 'yes (compare)' : '-'}`
+    );
+  }
+}
+
+const RUN_USAGE =
+  'usage: pnpm local <run|compare> <eval-id> [...] [--experiment <id>] [--runs N] [--mcp <path>] [--content-api <url>]';
+
+function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
+  const parsed = (() => {
+    try {
+      return parseArgs({
+        args: argv,
+        options: {
+          experiment: { type: 'string' },
+          runs: { type: 'string' },
+          mcp: { type: 'string' },
+          'content-api': { type: 'string' },
+        },
+        allowPositionals: true,
+      });
+    } catch (err) {
+      fail(`${err instanceof Error ? err.message : String(err)}\n${RUN_USAGE}`);
+    }
+  })();
+  const { values, positionals: evalIds } = parsed;
+  if (!evalIds.length) fail(RUN_USAGE);
+  const experiment = values.experiment ?? DEFAULT_EXPERIMENT;
+  validateExperiment(experiment);
+
+  const baselines =
+    mode === 'compare'
+      ? resolveBaselines(evalIds, experiment, !process.env.LOCAL_NO_FETCH)
+      : new Map<string, Baseline>();
+
+  validateEvals(evalIds);
+
+  const env: Record<string, string> = {};
+  let mcpPath = values.mcp;
+  if (mcpPath) {
+    mcpPath = isAbsolute(mcpPath) ? mcpPath : resolve(process.cwd(), mcpPath);
+    if (!existsSync(mcpPath)) fail(`--mcp path does not exist: ${mcpPath}`);
+    env.SUPABASE_MCP_SERVER_PATH = mcpPath;
+  }
+  const contentApi = values['content-api'];
+  if (contentApi) env.SUPABASE_CONTENT_API_URL = contentApi;
+
+  mkdirSync(OUT_DIR, { recursive: true });
+  let exitCode = 0;
+  for (const id of evalIds) {
+    const runs = Number(values.runs ?? baselines.get(id)?.row.attempts ?? 1);
+    const regressed = runTreatment(id, experiment, runs, {
+      env,
+      mcpPath,
+      contentApi,
+      baseline: baselines.get(id),
+    });
+    if (regressed) exitCode = 1;
+  }
+  process.exit(exitCode);
 }
 
 // ---------- entry ----------

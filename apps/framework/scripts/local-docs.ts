@@ -37,6 +37,7 @@ import {
 import { createInterface } from 'node:readline/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..', '..');
@@ -51,6 +52,8 @@ const STACK_EXCLUDES =
   'realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor';
 
 const onWindows = process.platform === 'win32';
+
+type DocsOptions = { docs?: string; port?: string; yes?: boolean };
 
 function fail(msg: string): never {
   console.error(msg);
@@ -82,10 +85,10 @@ function capture(cmd: string, args: string[]): string {
   return execFileSync(cmd, args, { cwd: ROOT, maxBuffer: 1 << 24 }).toString();
 }
 
-function docsPath(flags: Map<string, string>): string {
+function docsPath(docs: string | undefined): string {
   const marker = join(OVERLAY, 'docs-path.txt');
   let p =
-    flags.get('docs') ??
+    docs ??
     (existsSync(marker) ? readFileSync(marker, 'utf8').trim() : undefined);
   if (!p)
     fail(
@@ -113,8 +116,8 @@ function stackEnv(): Record<string, string> {
   return env;
 }
 
-function cmdUp(flags: Map<string, string>) {
-  const docs = docsPath(flags);
+function cmdUp(opts: DocsOptions) {
+  const docs = docsPath(opts.docs);
   const src = join(docs, 'supabase');
   existsSync(join(src, 'config.toml')) ||
     fail(`no supabase/config.toml in the docs checkout: ${docs}`);
@@ -159,8 +162,8 @@ function cmdUp(flags: Map<string, string>) {
   );
 }
 
-async function cmdSeed(flags: Map<string, string>) {
-  const docs = docsPath(flags);
+async function cmdSeed(opts: DocsOptions) {
+  const docs = docsPath(opts.docs);
   if (!process.env.OPENAI_API_KEY)
     fail('OPENAI_API_KEY not set — add it to .env at the repo root');
   const docsApp = join(docs, 'apps', 'docs');
@@ -170,7 +173,7 @@ async function cmdSeed(flags: Map<string, string>) {
     );
   }
   const env = stackEnv();
-  if (!flags.has('yes') && !process.env.LOCAL_DOCS_YES) {
+  if (!opts.yes && !process.env.LOCAL_DOCS_YES) {
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -197,10 +200,10 @@ async function cmdSeed(flags: Map<string, string>) {
   );
 }
 
-function cmdApi(flags: Map<string, string>) {
-  const docs = docsPath(flags);
+function cmdApi(opts: DocsOptions) {
+  const docs = docsPath(opts.docs);
   const docsApp = join(docs, 'apps', 'docs');
-  const port = flags.get('port') ?? '3001';
+  const port = opts.port ?? '3001';
   const env = stackEnv();
   const tsx = join(
     docsApp,
@@ -244,35 +247,38 @@ function cmdApi(flags: Map<string, string>) {
 }
 
 export async function main(argv: string[]) {
-  const [sub, ...rest] = argv;
-  const flags = new Map<string, string>();
-  const boolFlags = new Set(['yes']);
-  for (let i = 0; i < rest.length; i++) {
-    const a = rest[i];
-    if (!a.startsWith('--')) continue;
-    const name = a.slice(2);
-    if (boolFlags.has(name)) flags.set(name, '1');
-    else {
-      flags.set(name, rest[i + 1] ?? '');
-      i++;
+  const usage =
+    'usage: pnpm local docs <up|seed|api|down> [--docs <path>] [--port N] [--yes]';
+  const parsed = (() => {
+    try {
+      return parseArgs({
+        args: argv,
+        options: {
+          docs: { type: 'string' },
+          port: { type: 'string' },
+          yes: { type: 'boolean' },
+        },
+        allowPositionals: true,
+      });
+    } catch (err) {
+      fail(`${err instanceof Error ? err.message : String(err)}\n${usage}`);
     }
-  }
-  switch (sub) {
+  })();
+  const { values } = parsed;
+  switch (parsed.positionals[0]) {
     case 'up':
-      cmdUp(flags);
+      cmdUp(values);
       break;
     case 'seed':
-      await cmdSeed(flags);
+      await cmdSeed(values);
       break;
     case 'api':
-      cmdApi(flags);
+      cmdApi(values);
       break;
     case 'down':
       run('supabase', ['stop', '--workdir', OVERLAY]);
       break;
     default:
-      fail(
-        'usage: pnpm local docs <up|seed|api|down> [--docs <path>] [--port N] [--yes]'
-      );
+      fail(usage);
   }
 }

@@ -306,6 +306,7 @@ const evalResultShape = {
 
 // Raw result files may carry extra fields we don't model; tolerate them.
 export const rawEvalResultSchema = z.looseObject(evalResultShape);
+export type RawEvalResult = z.infer<typeof rawEvalResultSchema>;
 
 // Web-facing result; a clean strict object so its inferred type stays usable.
 export const evalResultSchema = z.object({
