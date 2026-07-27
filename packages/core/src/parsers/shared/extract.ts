@@ -27,8 +27,10 @@ export interface ExtractedArgs {
 }
 
 // Skill reads can appear as bare paths or quoted shell args in tool-call logs.
+// Boundaries are lookarounds (non-consuming) so one command mentioning several
+// SKILL.md paths — e.g. a single `cat` of two skills — yields every skill.
 const SKILL_ENTRYPOINT_PATTERN =
-  /(?:^|[\s"'`])\S*skills\/([^\s"'`/]+)\/SKILL\.md(?:$|[\s"'`])/;
+  /(?<=^|[\s"'`])\S*skills\/([^\s"'`/]+)\/SKILL\.md(?=$|[\s"'`])/g;
 
 /**
  * First arg value among `keys` that is a string — or a string[] joined with
@@ -64,8 +66,11 @@ export function extractArgs(
   };
 }
 
-/** Extracts the loaded skill name from a SKILL.md path mention. */
-export function extractLoadedSkillFromText(text: string): string | undefined {
-  const match = SKILL_ENTRYPOINT_PATTERN.exec(text);
-  return match?.[1];
+/** Extracts every loaded skill name from SKILL.md path mentions. */
+export function extractLoadedSkillsFromText(text: string): string[] {
+  const names = new Set<string>();
+  for (const match of text.matchAll(SKILL_ENTRYPOINT_PATTERN)) {
+    names.add(match[1]);
+  }
+  return [...names];
 }

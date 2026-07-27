@@ -61,8 +61,8 @@ export interface TranscriptEvent {
     path?: string;
     command?: string;
     url?: string;
-    /** Skill name loaded by this call, when the parser can identify one. */
-    loadedSkill?: string;
+    /** Skill names loaded by this call, when the parser can identify any. */
+    loadedSkills?: string[];
     /** Tool result payload (for `tool_result`). */
     result?: unknown;
     /** Whether the tool call succeeded (for `tool_result`). */
