@@ -61,6 +61,11 @@ createServer(async (incoming, outgoing) => {
     Object.fromEntries(response.headers.entries())
   );
   outgoing.end(Buffer.from(await response.arrayBuffer()));
-}).listen(port, '127.0.0.1', () => {
+  // Bind every interface, advertise loopback — same rule as platform-lite in
+  // tools mode (see run-eval.ts: sandboxed CLI agents run their MCP servers
+  // INSIDE the container and reach host-side services via
+  // host.docker.internal, which arrives on the host's bridge interface, not
+  // loopback; a 127.0.0.1-only listener refuses those connections).
+}).listen(port, '0.0.0.0', () => {
   console.log(`Docs content API: http://127.0.0.1:${port}/docs/api/graphql`);
 });

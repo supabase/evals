@@ -18,6 +18,7 @@ import {
 } from 'node:fs';
 import { join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
+import { rewriteLoopback } from './agents/shared.js';
 import {
   MCP_SERVER_VERSION,
   supabaseMcpServer,
@@ -25,8 +26,11 @@ import {
 } from './index.js';
 
 // Stub (not mutate) env so pre-existing SUPABASE_* values are restored per test.
+// SUPABASE_CONTENT_API_URL is cleared too: it now adds server args, so an
+// ambient value would leak into every assertion below.
 function clearEnv() {
   vi.stubEnv('SUPABASE_MCP_SERVER_PATH', undefined);
+  vi.stubEnv('SUPABASE_CONTENT_API_URL', undefined);
 }
 
 // A real on-disk build layout: the override path is existence-checked, so the
@@ -118,6 +122,35 @@ describe('supabaseMcpServer().createConfig', () => {
     } finally {
       rmSync(linkDir, { recursive: true, force: true });
     }
+  });
+
+  it('passes SUPABASE_CONTENT_API_URL as --content-api-url so it survives into the sandbox', async () => {
+    clearEnv();
+    vi.stubEnv(
+      'SUPABASE_CONTENT_API_URL',
+      'http://127.0.0.1:3001/docs/api/graphql'
+    );
+    const { config } = await supabaseMcpServer().createConfig({});
+    // In args, not env: a CLI agent spawns this inside the container, which
+    // inherits nothing from the harness process.
+    const flag = config.args.indexOf('--content-api-url');
+    expect(flag).toBeGreaterThan(-1);
+    expect(config.args[flag + 1]).toBe(
+      'http://127.0.0.1:3001/docs/api/graphql'
+    );
+
+    // ...and being in args is what lets the container reach the host-side API.
+    const rewritten = rewriteLoopback({ supabase: config });
+    expect(rewritten.supabase.args).toContain(
+      'http://host.docker.internal:3001/docs/api/graphql'
+    );
+  });
+
+  it('omits the flag when no local docs API is configured', async () => {
+    clearEnv();
+    vi.stubEnv('SUPABASE_CONTENT_API_URL', undefined);
+    const { config } = await supabaseMcpServer().createConfig({});
+    expect(config.args).not.toContain('--content-api-url');
   });
 });
 

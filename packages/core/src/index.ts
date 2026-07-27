@@ -937,6 +937,17 @@ export function supabaseMcpServer(
       // docs-only server runs standalone with no `--api-url`.
       if (apiUrl) serverArgs.push('--api-url', apiUrl);
 
+      // Docs override: point `search_docs` at a local content API instead of
+      // the public docs GraphQL. Baked into args rather than left to the parent
+      // environment because CLI agents spawn this command INSIDE the sandbox
+      // container, which inherits nothing from the harness process — and
+      // `rewriteLoopback` then maps 127.0.0.1 -> host.docker.internal so the
+      // host-side API is actually reachable from in there. Flag support landed
+      // in supabase/mcp#343 (unreleased), so this needs a local build; `pnpm
+      // local` refuses --content-api without one.
+      const contentApiUrl = process.env.SUPABASE_CONTENT_API_URL;
+      if (contentApiUrl) serverArgs.push('--content-api-url', contentApiUrl);
+
       const local = resolveLocalMcpServer();
       if (local) {
         // `node`, not process.execPath: CLI agents run this command INSIDE the

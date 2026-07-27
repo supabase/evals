@@ -30,7 +30,11 @@ Per input:
 - **Docs page edited** (external supabase/supabase checkout):
   `pnpm local docs seed --yes` to re-embed (**~$0.12 OpenAI — see spend
   rules**), keep `pnpm local docs api` running in a separate terminal, then
-  `pnpm local compare <eval> --content-api http://127.0.0.1:3001/docs/api/graphql`.
+  `pnpm local compare <eval> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>`.
+  `--content-api` also needs `--mcp`: the env var it sets is only read by an
+  mcp build carrying supabase/mcp#343 (merged, unreleased). With the published
+  package `search_docs` would query production docs while the receipt claimed
+  otherwise, so the runner refuses pre-spend.
 
 Receipts land in `results-local/` (git-ignored): treatment provenance (host
 SHA + dirty state, override git state) and, for `compare`, the published
