@@ -77,6 +77,10 @@ describe("formatExperimentLabel", () => {
       expect(openai("gpt-5-4-mini")).toBe("Codex / GPT-5.4 mini")
     })
 
+    it("keeps the variant on an already-dotted version", () => {
+      expect(openai("gpt-5.6-sol")).toBe("Codex / GPT-5.6 sol")
+    })
+
     it("passes through an id that is not a gpt- model", () => {
       expect(openai("o3-pro")).toBe("Codex / o3-pro")
     })
