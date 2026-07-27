@@ -78,6 +78,42 @@ Start the web app development server:
 pnpm web
 ```
 
+## Local development loop (`pnpm local`)
+
+Testing a change to an agent input — a skill, a local build of
+[`mcp-server-supabase`](https://github.com/supabase/mcp), or an edited docs
+page — against the evals, without touching git state:
+
+```bash
+pnpm local run <eval-id> [--experiment <id>] [--mcp <path>] [--content-api <url>]
+pnpm local compare <eval-id> [same flags]   # + diff vs the latest published result on main
+pnpm local experiments                      # list experiments + published-baseline availability
+```
+
+- **Skills**: edit the skills tree in this repo and just `run` — the harness
+  reads it as-is.
+- **MCP**: clone + build the mcp repo anywhere, then `--mcp <path-to-checkout>`
+  (sets `SUPABASE_MCP_SERVER_PATH`, so `search_docs` and friends run your build).
+- **Docs**: serve a local docs content API from your own supabase/supabase
+  checkout, then point runs at it:
+
+  ```bash
+  pnpm local docs up --docs <path-to-supabase-monorepo>
+  pnpm local docs seed        # full embed via the docs app's pipeline (~$0.12 OpenAI; asks first)
+  pnpm local docs api         # keep running in a separate terminal
+  pnpm local run <eval-id> --content-api http://127.0.0.1:3001/docs/api/graphql
+  ```
+
+Every run writes a provenance receipt to `results-local/` (host SHA + dirty
+state, override paths and their git state). `compare` records the published
+arm's result commit, parent, and age — and a pass/fail flip against published
+is a **screen**, not causal proof: the published run happened in the scheduled
+CI world (published mcp package, prod docs index, model state at refresh time).
+
+Keys go in `.env` at the repo root (`ANTHROPIC_API_KEY`, and `OPENAI_API_KEY`
+for the docs loop). Zero-cost self-test: `pnpm --filter
+@supabase-evals/framework test:local`.
+
 ## Eval Shape
 
 Every eval contains:
