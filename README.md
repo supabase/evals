@@ -113,13 +113,19 @@ pnpm local experiments                      # list experiments + published-basel
   `DOCS_GITHUB_APP_{ID,INSTALLATION_ID,PRIVATE_KEY}` (a GitHub App —
   `createAppAuth`, no token fallback). All sources go through one `Promise.all`,
   so that single rejection aborts the run — before any embedding, so it costs
-  nothing. A skip flag has to be upstream because this runner takes an arbitrary
-  checkout: patching yours is what the previous iteration did, and it is not
-  something we can ask every user (or CI) to carry. Any skip must also keep the
-  skipped source's existing rows, since the pipeline deletes every page whose
-  `version` was not stamped by the current run. Until then this leg needs an
-  index seeded another way; the `run`/`compare` side is verified against one (a
-  real agent's `search_docs` returned local-index-only content).
+  nothing. The skip belongs upstream for one reason only: this runner takes an
+  arbitrary vanilla checkout, so a patch on yours (what the previous iteration
+  carried) is not something every user or CI job can be asked to hold. The
+  minimal fix is just the opt-in skip — on a fresh local index the global
+  `version` purge has no rows of that source to remove. Separately, and newly
+  identified here: re-running against an index that ALREADY holds lint-warning
+  rows would delete them, because the purge removes every page the current run
+  did not stamp and a skipped source stamps nothing (the previous iteration's
+  fail-closed patch does not cover this — it only blocks the purge on counted
+  failures, and an intentional skip counts as success). Until the skip lands
+  this leg needs an index seeded another way; the `run`/`compare` side is
+  verified against one (a real agent's `search_docs` returned
+  local-index-only content).
 
 Every run writes a provenance receipt to `results-local/` (host SHA + dirty
 state, override paths and their git state). `compare` records the published
