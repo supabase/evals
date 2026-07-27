@@ -113,19 +113,28 @@ pnpm local experiments                      # list experiments + published-basel
   `DOCS_GITHUB_APP_{ID,INSTALLATION_ID,PRIVATE_KEY}` (a GitHub App —
   `createAppAuth`, no token fallback). All sources go through one `Promise.all`,
   so that single rejection aborts the run — before any embedding, so it costs
-  nothing. The skip belongs upstream for one reason only: this runner takes an
-  arbitrary vanilla checkout, so a patch on yours (what the previous iteration
-  carried) is not something every user or CI job can be asked to hold. The
-  minimal fix is just the opt-in skip — on a fresh local index the global
-  `version` purge has no rows of that source to remove. Separately, and newly
-  identified here: re-running against an index that ALREADY holds lint-warning
-  rows would delete them, because the purge removes every page the current run
-  did not stamp and a skipped source stamps nothing (the previous iteration's
-  fail-closed patch does not cover this — it only blocks the purge on counted
-  failures, and an intentional skip counts as success). Until the skip lands
-  this leg needs an index seeded another way; the `run`/`compare` side is
-  verified against one (a real agent's `search_docs` returned
-  local-index-only content).
+  nothing. The blocker is a rate-limit guard, not an access one: `supabase/splinter`
+  is public, and the loader's 30 calls (1 directory listing + 29 lint files) fit
+  inside even the unauthenticated 60/hr budget for a single run. So the cleanest
+  upstream fix is an auth ladder in that loader — App creds, else
+  `GITHUB_TOKEN`/`GH_TOKEN` (5,000/hr, and `gh auth token` is already on most dev
+  machines), else unauthenticated. That keeps the advisor pages IN the local index
+  rather than skipping them, so there is no missing-corpus or purge-retention
+  question for this source at all, and production still takes the first rung.
+  An opt-in skip flag remains the right tool only for sources no contributor can
+  reach (partner integrations, via the hosted `misc` project). Either way it has
+  to land upstream: this runner takes an arbitrary vanilla checkout, so a patch on
+  yours (what the previous iteration carried) is not something every user or CI
+  job can be asked to hold. Until then this leg needs an index seeded another way;
+  the `run`/`compare` side is verified against one (a real agent's `search_docs`
+  returned local-index-only content).
+
+  If a skip is chosen instead, note a second requirement identified here and NOT
+  solved by the previous iteration's patches: re-running a skip against an index
+  that already holds those rows deletes them, because the purge removes every page
+  the run did not stamp and a skipped source stamps nothing (the fail-closed patch
+  only gates the purge on counted failures, and an intentional skip counts as
+  success).
 
 Every run writes a provenance receipt to `results-local/` (host SHA + dirty
 state, override paths and their git state). `compare` records the published
