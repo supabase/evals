@@ -211,7 +211,7 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
     const message =
       name && detail
         ? `${name}: ${detail}`
-        : detail ?? name ?? JSON.stringify(data);
+        : (detail ?? name ?? JSON.stringify(data));
     return [{ timestamp, type: 'error', content: message, raw: data }];
   }
   // step_start / step_finish carry no transcript content (tokens + finish reason

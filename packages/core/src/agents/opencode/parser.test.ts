@@ -207,7 +207,7 @@ describe('opencodeParser', () => {
     expect(errors.length).toBe(1);
   });
 
-  it('reads the message out of opencode\'s real error envelope', () => {
+  it("reads the message out of opencode's real error envelope", () => {
     const { events } = opencodeParser.parseTranscript(
       JSON.stringify({
         type: 'error',

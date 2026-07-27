@@ -188,7 +188,7 @@ export function createOpencodeRunner(
  * opencode's `OPENCODE_CONFIG`. MCP servers map onto `{ mcp: { name: { type:
  * "local", command: [...], environment } } }` (the harness's `{command,args,env}`
  * → a single `command` array plus `environment`).
- * 
+ *
  * Also disables the built-in `title` agent to avoid unnecessary calls to a
  * different vendor that aren't useful in headless mode.
  * https://opencode.ai/docs/agents/#disable
