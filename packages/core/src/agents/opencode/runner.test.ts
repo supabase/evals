@@ -75,6 +75,12 @@ describe('opencode runner', () => {
       docs: { type: 'local', command: ['docs-server'], enabled: true },
     });
   });
+
+  it('disables the title agent', () => {
+    // Title agent could otherwise call a different vendor
+    const config = JSON.parse(buildOpencodeConfig({}));
+    expect(config.agent).toEqual({ title: { disable: true } });
+  });
 });
 
 /** Capture the `--model` flag, run env, and written config from one exec. */
@@ -127,9 +133,10 @@ describe('opencode runner exec routing', () => {
     expect(config?.mcp).toHaveProperty('supabase');
   });
 
-  it('skips the config file when there are no MCP servers', async () => {
+  it('still writes the config (to disable the title agent) with no MCP servers', async () => {
     const { runCommand, config } = await captureExec('moonshotai/kimi-k3');
-    expect(config).toBeUndefined();
-    expect(runCommand).not.toContain('OPENCODE_CONFIG=');
+    expect(config?.agent).toEqual({ title: { disable: true } });
+    expect(config?.mcp).toEqual({});
+    expect(runCommand).toContain('OPENCODE_CONFIG=');
   });
 });

@@ -125,17 +125,13 @@ export function createOpencodeRunner(
       // single message argument.
       const message = `"$(cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath})"`;
 
-      // A config file is only needed for MCP servers.
-      let configPrefix = '';
-      if (Object.keys(mcpServers).length > 0) {
-        await sandbox.exec(`mkdir -p ${SCRATCH}`);
-        await writeSandboxFile(
-          sandbox,
-          OPENCODE_CONFIG_PATH,
-          buildOpencodeConfig(mcpServers)
-        );
-        configPrefix = `OPENCODE_CONFIG=${OPENCODE_CONFIG_PATH} `;
-      }
+      await sandbox.exec(`mkdir -p ${SCRATCH}`);
+      await writeSandboxFile(
+        sandbox,
+        OPENCODE_CONFIG_PATH,
+        buildOpencodeConfig(mcpServers)
+      );
+      const configPrefix = `OPENCODE_CONFIG=${OPENCODE_CONFIG_PATH} `;
 
       const flags = [
         'run',
@@ -192,6 +188,10 @@ export function createOpencodeRunner(
  * opencode's `OPENCODE_CONFIG`. MCP servers map onto `{ mcp: { name: { type:
  * "local", command: [...], environment } } }` (the harness's `{command,args,env}`
  * → a single `command` array plus `environment`).
+ * 
+ * Also disables the built-in `title` agent to avoid unnecessary calls to a
+ * different vendor that aren't useful in headless mode.
+ * https://opencode.ai/docs/agents/#disable
  */
 export function buildOpencodeConfig(
   servers: Record<string, McpServerConfig>
@@ -210,6 +210,7 @@ export function buildOpencodeConfig(
   const config: Config = {
     $schema: 'https://opencode.ai/config.json',
     mcp,
+    agent: { title: { disable: true } },
   };
   return JSON.stringify(config, null, 2);
 }
