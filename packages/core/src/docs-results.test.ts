@@ -378,7 +378,7 @@ describe('buildDocsResult', () => {
     ]);
   });
 
-  it('records a search action as content-less, since its hits never reach the client', () => {
+  it("leaves a search action's content unknown, and doesn't mistake its url-shaped query for a page read", () => {
     const result = buildDocsResult([
       toolCall(
         'web_search',
@@ -393,14 +393,16 @@ describe('buildDocsResult', () => {
       ),
     ]);
 
+    // No pages: the action says this was a query, not an open, even though the
+    // query text is a bare url the fallback would have counted as a read.
     expect(result.calls).toEqual([
       {
         source: 'web_search',
         query: 'https://supabase.com/changelog.md',
-        hasContent: false,
         pages: [],
       },
     ]);
+    expect(result.calls[0].hasContent).toBeUndefined();
   });
 
   it('drops an open_page action pointing somewhere other than supabase.com', () => {

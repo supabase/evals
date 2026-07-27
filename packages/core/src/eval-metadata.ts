@@ -259,12 +259,11 @@ export const docsCallSchema = z.object({
   query: z.string(),
   // Whether the call's results included page text, not just a title/url hit.
   // Known for search_docs (whether the agent's own GraphQL selection asked
-  // for `content`), web_fetch and shell_fetch (always true, that's what
-  // fetching is), and a Codex web_search whose reported action is a plain
-  // `search` (false, its hits never reach the client). False for Claude Code's
-  // WebSearch, whose results never include page text. Still unknown (omitted)
-  // for a Codex web_search that opened a page, which the CLI reports as an
-  // `other` action; see the note in docs-results.ts.
+  // for `content`) and web_fetch/shell_fetch (always true, that's what
+  // fetching is). False for Claude Code's WebSearch, whose results never
+  // include page text. Unknown (omitted) for any Codex web_search: no result
+  // payload reaches the client, and a plain `search`'s hits carry snippet text
+  // the model may have read, so neither true nor false is defensible.
   hasContent: z.boolean().optional(),
   pages: z.array(docsCallPageSchema),
   // Size of the result the call actually produced, in characters, an

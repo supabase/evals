@@ -254,13 +254,14 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
 
       if (action?.type === 'search') {
         if (!/supabase/i.test(query)) continue;
-        // The hits themselves never reach the client, so there's no page to
-        // attribute. Snippet text the model may have read inside those hits is
-        // invisible to us, a known undercount.
+        // No page to attribute: the hits never reach the client. `hasContent`
+        // stays unknown rather than false, because those hits carry snippet
+        // text the model may well have read, and we can't see it either way.
+        // The gain over the url-shape fallback is knowing this wasn't a page
+        // open even when the query happens to be a bare url.
         calls.push({
           source: 'web_search',
           query,
-          hasContent: false,
           pages: [],
           resultChars: resultCharCount(result),
         });
