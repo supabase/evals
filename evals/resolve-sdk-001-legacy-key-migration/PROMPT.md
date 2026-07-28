@@ -10,6 +10,7 @@ topic:
   - sdk
   - security
 services:
+  - gotrue
   - kong
   - postgrest
 projectRunning: true

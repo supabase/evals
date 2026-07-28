@@ -9,6 +9,7 @@ product:
 topic:
   - sdk
 services:
+  - gotrue
   - kong
   - postgrest
 projectRunning: true
