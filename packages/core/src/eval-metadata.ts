@@ -264,15 +264,14 @@ export type DocsCallPage = z.infer<typeof docsCallPageSchema>;
 
 export const docsCallSchema = z.object({
   source: docsPageSourceSchema,
-  // Whichever field is the meaningful "ask" for that source: search term, GraphQL query, WebFetch's extraction prompt, or target URL.
+  // Whichever field is the meaningful "ask" for that source: search term, GraphQL query, WebFetch's extraction prompt, or shell command.
   query: z.string(),
   // Whether the call's results included page text, not just a title/url hit.
   // Known for search_docs (whether the agent's own GraphQL selection asked
-  // for `content`) and web_fetch/shell_fetch (always true, that's what
-  // fetching is). False for Claude Code's WebSearch, whose results never
-  // include page text. Unknown (omitted) for any Codex web_search: no result
-  // payload reaches the client, and a plain `search`'s hits carry snippet text
-  // the model may have read, so neither true nor false is defensible.
+  // for `content`), web_fetch, and an isolated shell_fetch. False for Claude
+  // Code's WebSearch, whose results never include page text. Unknown (omitted)
+  // when the available trace cannot prove either state, including Codex
+  // web_search and a shell fetch mixed with other commands.
   hasContent: z.boolean().optional(),
   pages: z.array(docsCallPageSchema),
   // Size of the result the call actually produced, in characters, an

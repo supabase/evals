@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import {
   CheckIcon,
   ChevronRightIcon,
+  CircleHelpIcon,
   FileTextIcon,
   SearchIcon,
   XIcon,
@@ -33,9 +34,10 @@ const docsSourceChipClassName =
 const evalMetaGridClassName =
   "grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-x-4 gap-y-4 text-xs"
 
-/** Search icon for a bare hit, file icon for a call that actually pulled in page text. */
+/** Shows whether page content was read, not read, or cannot be determined. */
 function docsCallIcon(call: DocsCall) {
-  return call.hasContent === false ? SearchIcon : FileTextIcon
+  if (call.hasContent === undefined) return CircleHelpIcon
+  return call.hasContent ? FileTextIcon : SearchIcon
 }
 
 /** Pulls the quoted search term out of search_docs's raw GraphQL query for display, else returns the query as-is. */
@@ -122,6 +124,7 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
     <div className="flex flex-col gap-1.5 leading-relaxed text-foreground">
       {calls.map((call, index) => {
         const searchOnly = call.hasContent === false
+        const contentUnknown = call.hasContent === undefined
         const Icon = docsCallIcon(call)
         const queryLabel = docsCallQueryLabel(call)
         const sizeLabel = docsCallSizeLabel(call)
@@ -134,24 +137,34 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                   className="size-4 shrink-0 text-muted-foreground/50 transition-transform group-open:rotate-90"
                   aria-hidden
                 />
-                <Icon
-                  className={cn(
-                    "size-4 shrink-0",
-                    searchOnly
-                      ? "text-muted-foreground/60"
-                      : "text-muted-foreground"
-                  )}
-                  aria-hidden
-                />
+                <span
+                  title={contentUnknown ? "Content unknown" : undefined}
+                  className="shrink-0"
+                >
+                  <Icon
+                    className={cn(
+                      "size-4",
+                      searchOnly || contentUnknown
+                        ? "text-muted-foreground/60"
+                        : "text-muted-foreground"
+                    )}
+                    aria-hidden
+                  />
+                </span>
                 <span
                   title={queryLabel}
                   className={cn(
                     "min-w-0 truncate",
-                    searchOnly ? "text-muted-foreground" : "text-foreground"
+                    searchOnly || contentUnknown
+                      ? "text-muted-foreground"
+                      : "text-foreground"
                   )}
                 >
                   {queryLabel}
                 </span>
+                {contentUnknown ? (
+                  <span className="sr-only">Content unknown</span>
+                ) : null}
                 {sizeLabel ? (
                   <span className="shrink-0 font-mono text-xs tracking-wide text-muted-foreground">
                     {sizeLabel}

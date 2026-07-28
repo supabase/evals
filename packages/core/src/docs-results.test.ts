@@ -421,17 +421,15 @@ describe('buildDocsResult', () => {
   });
 
   it('counts a docs url curled from the shell, sized by what the pipe actually returned', () => {
+    const command =
+      '/bin/bash -lc "curl -fsSL https://supabase.com/changelog.md | sed -n \'1,160p\'"';
     const result = buildDocsResult([
       toolCall(
         'command_execution',
-        {
-          command:
-            '/bin/bash -lc "curl -fsSL https://supabase.com/changelog.md | sed -n \'1,160p\'"',
-        },
+        { command },
         {
           name: 'shell',
-          command:
-            '/bin/bash -lc "curl -fsSL https://supabase.com/changelog.md | sed -n \'1,160p\'"',
+          command,
           result: '# Changelog\n\n2026-06-12 breaking-change ...',
         }
       ),
@@ -440,12 +438,49 @@ describe('buildDocsResult', () => {
     expect(result.calls).toEqual([
       {
         source: 'shell_fetch',
-        query: 'https://supabase.com/changelog.md',
+        query: command,
         hasContent: true,
         pages: [{ url: 'https://supabase.com/changelog.md' }],
         resultChars: '# Changelog\n\n2026-06-12 breaking-change ...'.length,
       },
     ]);
+  });
+
+  it('keeps a fetch from a mixed shell call without attributing the combined output to it', () => {
+    const command =
+      'curl -fsSL https://supabase.com/changelog.md | rg breaking || true; cat local-notes.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'unrelated local notes' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'shell_fetch',
+        query: command,
+        pages: [{ url: 'https://supabase.com/changelog.md' }],
+      },
+    ]);
+    expect(result.calls[0].hasContent).toBeUndefined();
+    expect(result.calls[0].resultChars).toBeUndefined();
+  });
+
+  it('still attributes a fetch pipeline whose only command-list operator is a trailing fallback', () => {
+    const command =
+      'curl -fsSL https://supabase.com/changelog.md | rg breaking || true';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'breaking change' }
+      ),
+    ]);
+
+    expect(result.calls[0].hasContent).toBe(true);
+    expect(result.calls[0].resultChars).toBe('breaking change'.length);
   });
 
   it('records every supabase url a single shell fetch pulled down', () => {

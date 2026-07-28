@@ -31,6 +31,7 @@ const CURL_NO_BODY_PATTERN =
 const WGET_STDOUT_PATTERN =
   /(?:^|\s)(?:-[A-Za-z]*O-|-[A-Za-z]*O\s+-|--output-document(?:=|\s+)-)(?=\s|$)/;
 const SHELL_SEGMENT_PATTERN = /(?:&&|\|\||[;|])/;
+const SHELL_COMMAND_LIST_PATTERN = /(?:&&|\|\||;|\r?\n)/;
 // Urls inside a shell command, stopping at the shell metacharacters that can
 // legally follow one (`|`, `>`, quotes, backslash-escapes).
 const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
@@ -105,6 +106,15 @@ function shellFetchUrls(command: string | undefined): string[] {
     }
   }
   return urls;
+}
+
+/** True when no separate command can contribute to a shell fetch's combined result. */
+function shellFetchOwnsResult(command: string): boolean {
+  const withoutIgnoredFailure = command.replace(
+    /\|\|\s*true\s*(?=(?:["'])?\s*$)/,
+    ''
+  );
+  return !SHELL_COMMAND_LIST_PATTERN.test(withoutIgnoredFailure);
 }
 
 /**
@@ -314,21 +324,18 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
     }
 
     if (call.name === 'shell') {
-      const urls = shellFetchUrls(shellCommand(call));
-      if (urls.length === 0) continue;
-      // A non-zero exit puts the output on `error` and leaves `result` unset,
-      // so only a fetch that came back with something counts as a read.
+      const command = shellCommand(call);
+      const urls = shellFetchUrls(command);
+      if (!command || urls.length === 0) continue;
+      // With no shell output at all, nothing from the fetch reached the model.
       if (typeof result !== 'string' || result.length === 0) continue;
-      // The command already names the url, and the output is the page, so
-      // this is a web_fetch in everything but the tool that ran it. Output is
-      // whatever the agent piped it through, which is the point: it's what
-      // reached the model, not what the url would have returned.
+      const ownsResult = shellFetchOwnsResult(command);
       calls.push({
         source: 'shell_fetch',
-        query: urls[0],
-        hasContent: true,
+        query: command,
+        hasContent: ownsResult ? true : undefined,
         pages: urls.map((url) => ({ url })),
-        resultChars: resultCharCount(result),
+        resultChars: ownsResult ? resultCharCount(result) : undefined,
       });
       continue;
     }
