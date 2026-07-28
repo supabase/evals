@@ -7,14 +7,14 @@ import {
 import { localStackRuntime } from '@supabase-evals/sandbox';
 
 export default defineExperiment({
-  suite: ['benchmark'],
+  suite: ['no-skills'],
   agent: claudeCodeAgent({
-    model: 'claude-opus-4-8',
+    model: 'claude-opus-5',
     reasoningEffort: 'high',
   }),
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],
   }),
   localStack: localStackRuntime(),
-  skills: ['supabase', 'supabase-postgres-best-practices'],
+  skills: [],
 });
