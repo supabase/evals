@@ -31,7 +31,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user ce86b374-4640-4173-9ae8-288753bb9c0a, signUp returned {\"userId\":\"ce86b374-4640-4173-9ae8-288753bb9c0a\"}"
+        "notes": "db user 80463b00-0201-45cb-96b2-3a8e3770f53e, signUp returned {\"userId\":\"80463b00-0201-45cb-96b2-3a8e3770f53e\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -46,7 +46,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"ce86b374-4640-4173-9ae8-288753bb9c0a\"}"
+        "notes": "{\"userId\":\"80463b00-0201-45cb-96b2-3a8e3770f53e\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -398,12 +398,32 @@
     "suite": "benchmark",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
-        "passed": false,
-        "notes": "missing API_URL/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/report.mjs"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -420,7 +440,7 @@
     },
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-opus-4.8/build-dataapi-001-relational-report.json"
   },
   {
@@ -2406,7 +2426,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user b4482103-7a65-4792-90f8-4047b254bdb5, signUp returned {\"userId\":\"b4482103-7a65-4792-90f8-4047b254bdb5\"}"
+        "notes": "db user 70a2faf6-f72e-4bef-a794-3a533d0b4dfe, signUp returned {\"userId\":\"70a2faf6-f72e-4bef-a794-3a533d0b4dfe\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -2421,7 +2441,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"b4482103-7a65-4792-90f8-4047b254bdb5\"}"
+        "notes": "{\"userId\":\"70a2faf6-f72e-4bef-a794-3a533d0b4dfe\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -2700,9 +2720,29 @@
     "passed": false,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
         "passed": false,
-        "notes": "missing API_URL/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -3949,7 +3989,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user f53f4ba0-315a-4668-a0a6-d49d98f06d9f, signUp returned {\"userId\":\"f53f4ba0-315a-4668-a0a6-d49d98f06d9f\"}"
+        "notes": "db user 165887ac-a0d3-4589-bbb6-4efb98e21b93, signUp returned {\"userId\":\"165887ac-a0d3-4589-bbb6-4efb98e21b93\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -3964,7 +4004,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"f53f4ba0-315a-4668-a0a6-d49d98f06d9f\"}"
+        "notes": "{\"userId\":\"165887ac-a0d3-4589-bbb6-4efb98e21b93\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -4278,9 +4318,29 @@
     "passed": false,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
         "passed": false,
-        "notes": "missing API_URL/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -4288,9 +4348,7 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": [
-        "supabase"
-      ]
+      "loaded": []
     },
     "docs": {
       "calls": []
@@ -6105,7 +6163,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 759339ee-2894-4cbe-a0ce-eda031d62308, signUp returned {\"userId\":\"759339ee-2894-4cbe-a0ce-eda031d62308\"}"
+        "notes": "db user 49d31d27-be93-4d06-970f-c82f9746a729, signUp returned {\"userId\":\"49d31d27-be93-4d06-970f-c82f9746a729\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -6120,7 +6178,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"759339ee-2894-4cbe-a0ce-eda031d62308\"}"
+        "notes": "{\"userId\":\"49d31d27-be93-4d06-970f-c82f9746a729\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -6342,12 +6400,32 @@
     "suite": "benchmark",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
-        "passed": false,
-        "notes": "missing API_URL/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/report.mjs"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -6359,7 +6437,7 @@
     },
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-dataapi-001-relational-report.json"
   },
   {
@@ -7434,7 +7512,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user a346f0da-0630-4dfc-8d51-dfea9a715a98, signUp returned {\"userId\":\"a346f0da-0630-4dfc-8d51-dfea9a715a98\"}"
+        "notes": "db user de3c890b-dd5c-45c6-86da-1e8c94840211, signUp returned {\"userId\":\"de3c890b-dd5c-45c6-86da-1e8c94840211\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -7449,7 +7527,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"a346f0da-0630-4dfc-8d51-dfea9a715a98\"}"
+        "notes": "{\"userId\":\"de3c890b-dd5c-45c6-86da-1e8c94840211\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -7480,13 +7558,9 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js auth signUp signInWithPassword getUser profiles table user_metadata app_metadata\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query {\n  searchDocs(query: \"supabase-js signUp options data email password user metadata getUser getSession\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
-            },
             {
               "url": "https://supabase.com/docs/guides/auth/managing-user-data",
               "title": "User Management"
@@ -7496,15 +7570,66 @@
               "title": "Customizing Emails by Language"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-apple",
-              "title": "Login with Apple"
+              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth",
-              "title": "Auth"
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
             }
           ],
-          "resultChars": 79170
+          "resultChars": 67792
+        },
+        {
+          "source": "search_docs",
+          "query": "query {\n  searchDocs(query: \"JavaScript auth signInWithPassword getSession createClient supabase-js\", limit: 10) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
+              "title": "Login with Figma"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
+              "title": "Login with Azure (Microsoft)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-zoom",
+              "title": "Login with Zoom"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-slack",
+              "title": "Login with Slack"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-twitter",
+              "title": "Login with X / Twitter"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-github",
+              "title": "Login with GitHub"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-bitbucket",
+              "title": "Login with Bitbucket"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-gitlab",
+              "title": "Login with GitLab"
+            }
+          ],
+          "resultChars": 220111
         }
       ]
     },
@@ -7837,9 +7962,29 @@
     "passed": false,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
         "passed": false,
-        "notes": "missing API_URL/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -7852,7 +7997,35 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase-js createClient service_role key select query\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } totalCount } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/sveltekit",
+              "title": "Use Supabase with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            }
+          ],
+          "resultChars": 112740
+        }
+      ]
     },
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
@@ -10182,7 +10355,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 32b0bd8e-2a03-4033-aceb-8723d458dac3, signUp returned {\"userId\":\"32b0bd8e-2a03-4033-aceb-8723d458dac3\"}"
+        "notes": "db user b4fe3ed0-5c6b-46c1-a72d-e5e85b482175, signUp returned {\"userId\":\"b4fe3ed0-5c6b-46c1-a72d-e5e85b482175\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -10197,7 +10370,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"32b0bd8e-2a03-4033-aceb-8723d458dac3\"}"
+        "notes": "{\"userId\":\"b4fe3ed0-5c6b-46c1-a72d-e5e85b482175\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -10458,9 +10631,29 @@
     "passed": false,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
         "passed": false,
-        "notes": "missing API_URL/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -11757,7 +11950,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user c651e731-ee81-4768-b3ae-4462c3fb2a9e, signUp returned {\"userId\":\"c651e731-ee81-4768-b3ae-4462c3fb2a9e\"}"
+        "notes": "db user 68bdb09b-5f95-4802-83ff-0c2fe62246ae, signUp returned {\"userId\":\"68bdb09b-5f95-4802-83ff-0c2fe62246ae\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -11772,7 +11965,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"c651e731-ee81-4768-b3ae-4462c3fb2a9e\"}"
+        "notes": "{\"userId\":\"68bdb09b-5f95-4802-83ff-0c2fe62246ae\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -11803,20 +11996,12 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js createClient signUp email password options data user metadata signInWithPassword getUser select single profile\", limit: 6) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase-js signUp email password options data user metadata signInWithPassword getUser select profile single\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
               "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
-              "title": "Customizing Emails by Language"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
-              "title": "Configure SAML SSO"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/passwords",
@@ -11827,55 +12012,23 @@
               "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
-              "title": "Passwordless email logins"
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/enterprise-sso",
+              "title": "Enterprise Single Sign-On"
             }
           ],
-          "resultChars": 108618
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"JavaScript signUp email password options data\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/passwords",
-              "title": "Password-based Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
-              "title": "Customizing Emails by Language"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            }
-          ],
-          "resultChars": 52081
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"JavaScript getUser current user getSession select single maybeSingle profiles RLS\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-getsession"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx",
-              "title": "Why is my select returning an empty data array and I have data in the table?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
-              "title": "RAG with Permissions"
-            }
-          ],
-          "resultChars": 16223
+          "resultChars": 109704
         }
       ]
     },
@@ -12717,12 +12870,32 @@
     "suite": "benchmark",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
-        "passed": false,
-        "notes": "missing API_URL/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/report.mjs"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -12738,65 +12911,64 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js createClient secret key backend select nested relationships pagination max rows range\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase-js Node createClient select nested relationships service role local project\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
+            },
             {
               "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
               "title": "Integrating with Supabase Database (Postgres)"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/performing-administration-tasks-on-the-server-side-with-the-servicerole-secret-BYM4Fa",
-              "title": "Performing administration tasks on the server side with a secret key"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/arrays",
-              "title": "Working With Arrays"
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
             },
             {
               "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
               "title": "Serverless Drivers"
             },
             {
-              "url": "https://supabase.com/docs/guides/api/creating-routes",
-              "title": "Creating API Routes"
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
             }
           ],
-          "resultChars": 26107
+          "resultChars": 66508
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"secret key backend apikey Authorization header sb_secret Supabase Data API\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"secret key sb_secret Authorization header apikey Supabase Data API server-side\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
             {
               "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
               "title": "New API Keys and Asymmetric Authentication"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/realtime/getting_started",
+              "title": "Getting Started with Realtime"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/auth",
               "title": "Securing Edge Functions"
             },
             {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys",
               "title": "Understanding API keys"
             }
           ],
-          "resultChars": 83375
+          "resultChars": 90375
         }
       ]
     },
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.6/build-dataapi-001-relational-report.json"
   },
   {
@@ -14609,7 +14781,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 496d15e6-7d18-4029-9d81-03fea5521f76, signUp returned {\"userId\":\"496d15e6-7d18-4029-9d81-03fea5521f76\"}"
+        "notes": "db user 1675ab0f-f9ed-4305-acf2-88506d38a1bf, signUp returned {\"userId\":\"1675ab0f-f9ed-4305-acf2-88506d38a1bf\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -14624,7 +14796,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"496d15e6-7d18-4029-9d81-03fea5521f76\"}"
+        "notes": "{\"userId\":\"1675ab0f-f9ed-4305-acf2-88506d38a1bf\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -14650,86 +14822,39 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js createClient signUp user metadata signInWithPassword getUser select single profiles auth session\", limit: 8) { nodes { __typename title href content } } }",
+          "query": "query { searchDocs(query: \"supabase-js createClient signUp user metadata signInWithPassword getUser select profile row level security authenticated user\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth",
-              "title": "Auth"
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
-              "title": "Configure SAML SSO"
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
               "title": "Migrate from Auth0 to Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
-              "title": "Login with Google"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-linkedin",
-              "title": "Login with LinkedIn"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
-              "title": "Login with Figma"
-            },
-            {
               "url": "https://supabase.com/docs/guides/auth/managing-user-data",
               "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-slack",
-              "title": "Login with Slack"
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
+              "title": "Build a User Management App with Ionic React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-vue",
+              "title": "Build a User Management App with Ionic Vue"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
             }
           ],
-          "resultChars": 156798
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"JavaScript signUp email password options data user_metadata signInWithPassword select maybeSingle single\", limit: 10) { nodes { __typename title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passwords",
-              "title": "Password-based Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
-              "title": "Passwordless email logins"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/using-modifiers-maybesingle"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
-              "title": "signInWithPassword()"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/csharp/auth-signinwithpassword",
-              "title": "SignIn(email, password)"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
-              "title": "Customizing Emails by Language"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpasskey"
-            }
-          ],
-          "resultChars": 67379
+          "resultChars": 97867
         }
       ]
     },
@@ -15532,9 +15657,29 @@
     "passed": false,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
         "passed": false,
-        "notes": "missing API_URL/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -15545,30 +15690,31 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase javascript client select nested relationships aggregate query node service role\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase-js select nested relationships aggregate querying foreign tables JavaScript\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/javascript/schema"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
-              "title": "Integrating with Supabase Database (Postgres)"
+              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
+              "title": "Querying Joins and Nested tables"
             },
             {
               "url": "https://supabase.com/docs/guides/api/sql-to-api",
               "title": "Converting SQL to JavaScript API"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
-              "title": "Serverless Drivers"
+              "url": "https://supabase.com/docs/guides/api/automatic-retries-in-supabase-js",
+              "title": "How to do automatic retries with `supabase-js`"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
-              "title": "Integrating With Supabase Auth"
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless Drivers"
             }
           ],
-          "resultChars": 21571
+          "resultChars": 42632
         }
       ]
     },

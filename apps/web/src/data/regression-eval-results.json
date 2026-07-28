@@ -644,12 +644,27 @@
     "suite": "regression",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
-        "passed": false,
-        "notes": "missing PUBLISHABLE_KEY/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "name": "posts script still lists published posts",
+        "passed": true,
+        "notes": "got [\"Announcing vector buckets\",\"Realtime broadcast tips\",\"Row level security explained\"]"
+      },
+      {
+        "name": "stats script still counts drafts (secret key bypasses RLS)",
+        "passed": true,
+        "notes": "got {\"drafts\":2}, expected 2 drafts"
+      },
+      {
+        "name": "legacy anon/service_role JWTs removed from the app",
+        "passed": true,
+        "notes": "no legacy JWTs found"
+      },
+      {
+        "name": "public script does not hold the secret key",
+        "passed": true,
+        "notes": "posts.mjs holds no secret-key reference"
       }
     ],
     "skills": {
@@ -662,199 +677,11 @@
       ]
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"local development publishable secret API keys config.toml\", limit: 5) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
-              "title": "Build a Product Management Android App with Jetpack Compose"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
-              "title": "Clerk"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
-              "title": "Login with Azure (Microsoft)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
-              "title": "Configuration"
-            }
-          ],
-          "resultChars": 97856
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"local development config.toml auth.publishable_key auth.secret_key supabase start\", limit: 3) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
-              "title": "Clerk"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/development-environment",
-              "title": "Development Environment"
-            }
-          ],
-          "resultChars": 26442
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"new API keys publishable secret migration guide local development legacy JWT anon service_role\", limit: 5) { nodes { ... on Guide { title href } } } }",
-          "hasContent": false,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
-              "title": "Build a User Management App with SvelteKit"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
-              "title": "Build a User Management App with Next.js"
-            }
-          ],
-          "resultChars": 749
-        },
-        {
-          "source": "web_fetch",
-          "query": "Extract all instructions relevant to: local development with the Supabase CLI, config.toml settings for publishable_key/secret_key, how to obtain or generate publishable/secret keys for a local project via `supabase status`, and how to update client code (supabase-js) from anon/service_role keys to the new keys.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys.md"
-            }
-          ],
-          "resultChars": 1260
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"config.toml reference auth.publishable_key auth.secret_key local development default value\", limit: 5) { nodes { ... on Guide { title href } ... on CLICommandReference { title href } } } }",
-          "hasContent": false,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
-              "title": "Configuration"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/managing-config",
-              "title": "Managing config and secrets"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
-              "title": "Clerk"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passkeys",
-              "title": "Passkey authentication"
-            }
-          ],
-          "resultChars": 615
-        },
-        {
-          "source": "web_fetch",
-          "query": "Find and return any settings related to auth.publishable_key, auth.secret_key, api keys, sb_publishable, sb_secret in this config reference. Include the exact config key names, default values, and descriptions.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/config.md"
-            }
-          ],
-          "resultChars": 215
-        },
-        {
-          "source": "web_fetch",
-          "query": "Find and return any settings related to auth.publishable_key, auth.secret_key, api keys, sb_publishable, sb_secret, and how to configure new-style publishable/secret keys for local development.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/managing-config.md"
-            }
-          ],
-          "resultChars": 669
-        },
-        {
-          "source": "web_fetch",
-          "query": "Find and return any settings related to auth.publishable_key, auth.secret_key, api keys, sb_publishable, sb_secret, and how to configure new-style publishable/secret keys for local development. Include exact key names and default/example values.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/cli/config.md"
-            }
-          ],
-          "resultChars": 215
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"self-hosted Kong publishable secret key apikey header REST API gateway configuration\", limit: 5) { nodes { ... on Guide { title href } ... on TroubleshootingGuide{title href} } } }",
-          "hasContent": false,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
-              "title": "Envoy API Gateway"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
-              "title": "Build a Product Management Android App with Jetpack Compose"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https",
-              "title": "Configure Reverse Proxy and HTTPS"
-            }
-          ],
-          "resultChars": 711
-        },
-        {
-          "source": "web_fetch",
-          "query": "Explain in detail how self-hosted / local Supabase (Kong, PostgREST, GoTrue) supports the new publishable and secret API keys instead of legacy anon/service_role JWTs. Include: config.toml or docker-compose/env var names needed, how Kong is configured to recognize sb_publishable_/sb_secret_ prefixed keys, whether these keys are still JWTs, and step-by-step setup instructions for local development with the Supabase CLI.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys.md"
-            }
-          ],
-          "resultChars": 2981
-        }
-      ]
+      "calls": []
     },
     "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
     "promptSourcePath": "evals/resolve-sdk-001-legacy-key-migration/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/resolve-sdk-001-legacy-key-migration.json"
   },
   {
@@ -1326,12 +1153,27 @@
     "suite": "regression",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "read stack config from `supabase status`",
-        "passed": false,
-        "notes": "missing PUBLISHABLE_KEY/SECRET_KEY — is the stack running on a new-enough CLI? got keys: API_URL, DB_URL, GRAPHQL_URL, REST_URL"
+        "name": "posts script still lists published posts",
+        "passed": true,
+        "notes": "got [\"Announcing vector buckets\",\"Realtime broadcast tips\",\"Row level security explained\"]"
+      },
+      {
+        "name": "stats script still counts drafts (secret key bypasses RLS)",
+        "passed": true,
+        "notes": "got {\"drafts\":2}, expected 2 drafts"
+      },
+      {
+        "name": "legacy anon/service_role JWTs removed from the app",
+        "passed": true,
+        "notes": "no legacy JWTs found"
+      },
+      {
+        "name": "public script does not hold the secret key",
+        "passed": true,
+        "notes": "posts.mjs holds no secret-key reference"
       }
     ],
     "skills": {
@@ -1339,183 +1181,11 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"publishable and secret API keys local development new API keys anon service_role migration\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
-              "title": "Build a Social Auth App with Expo React Native"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
-              "title": "Build a User Management App with SvelteKit"
-            }
-          ],
-          "resultChars": 169611
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"publishable key secret key local development config.toml\", limit: 2) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
-              "title": "Build a Product Management Android App with Jetpack Compose"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-linkedin",
-              "title": "Login with LinkedIn"
-            }
-          ],
-          "resultChars": 69263
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"JWT signing keys publishable secret API key migration anon service_role\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            }
-          ],
-          "resultChars": 61983
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"supabase CLI local development config.toml publishable secret key generate local\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
-              "title": "Build a Product Management Android App with Jetpack Compose"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-linkedin",
-              "title": "Login with LinkedIn"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 78114
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"config.toml reference api.keys publishable_key secret_key local config\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/managing-config",
-              "title": "Managing config and secrets"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
-              "title": "Building an MCP Server with mcp-lite"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
-              "title": "Configuration"
-            }
-          ],
-          "resultChars": 21802
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"CLI config reference auth.publishable_key auth.secret_key\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            }
-          ],
-          "resultChars": 42641
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"CLI config.toml reference auth section publishable_key secret_key jwt_secret fields list\", limit: 2) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/passkeys",
-              "title": "Passkey authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/managing-config",
-              "title": "Managing config and secrets"
-            }
-          ],
-          "resultChars": 14597
-        },
-        {
-          "source": "web_fetch",
-          "query": "Find and quote all config fields under the [auth] section related to publishable_key, secret_key, jwt_secret, and any keys / API keys configuration. Also mention default values and whether they are required.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/cli/config"
-            }
-          ],
-          "resultChars": 1424
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"auth.publishable_key auth.secret_key config reference default sb_publishable sb_secret local\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
-              "title": "Build a Product Management Android App with Jetpack Compose"
-            }
-          ],
-          "resultChars": 78840
-        }
-      ]
+      "calls": []
     },
     "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
     "promptSourcePath": "evals/resolve-sdk-001-legacy-key-migration/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-sdk-001-legacy-key-migration.json"
   },
   {
