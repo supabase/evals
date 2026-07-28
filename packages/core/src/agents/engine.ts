@@ -29,6 +29,7 @@ import {
   SYSTEM_PROMPT_PATH,
   USER_PROMPT_PATH,
   processStopReason,
+  requireEnv,
   rewriteLoopback,
   writeSandboxFile,
 } from './shared.js';
@@ -39,6 +40,10 @@ function modelProviderForAgent(id: AgentRunner['id']): ModelProvider {
       return 'anthropic';
     case 'codex':
       return 'openai';
+    case 'opencode':
+      throw new Error(
+        'opencode is multi-provider; its runner sets `modelProvider` from the model id'
+      );
     case 'ai-sdk':
       throw new Error('ai-sdk agents are not created through createCliAgent');
   }
@@ -60,7 +65,9 @@ export function createCliAgent<M extends string = string>(
     modelId: options.model,
     metadata: {
       agent: runner.id,
-      modelProvider: modelProviderForAgent(runner.id),
+      // A multi-provider runner (e.g. opencode) sets its own `modelProvider`
+      // from the model id; single-provider agents derive it from the agent id.
+      modelProvider: runner.modelProvider ?? modelProviderForAgent(runner.id),
       modelId: options.model,
       ...(options.reasoningEffort
         ? { reasoningEffort: options.reasoningEffort }
@@ -102,6 +109,19 @@ export function createCliAgent<M extends string = string>(
       const { events } = raw ? parser.parseTranscript(raw) : { events: [] };
       const adapted = adaptTranscript(events);
 
+      // Surface run failures that would otherwise be invisible in results
+      // (visible under --debug): the CLI's own error events, or a run that
+      // died before streaming any events at all.
+      const errorEvents = events.filter((e) => e.type === 'error');
+      for (const e of errorEvents) {
+        console.error(`[${runner.displayName}] ${e.content}`);
+      }
+      if (events.length === 0) {
+        console.error(
+          `[${runner.displayName}] produced no transcript events (exit ${command.exitCode}).\nstdout:\n${command.stdout}\nstderr:\n${command.stderr}`
+        );
+      }
+
       return {
         // The final report is the transcript's closing assistant message — the
         // CLI's stdout is JSONL, not prose.
@@ -117,11 +137,8 @@ export function createCliAgent<M extends string = string>(
 }
 
 function requireApiKey(runner: AgentRunner): string {
-  const apiKey = process.env[runner.apiKeyEnvVar];
-  if (!apiKey) {
-    throw new Error(
-      `Missing ${runner.displayName} credentials. Set ${runner.apiKeyEnvVar} before running ${runner.id} evals.`
-    );
-  }
-  return apiKey;
+  return requireEnv(
+    runner.apiKeyEnvVar,
+    `Set it to run ${runner.displayName} (${runner.id}) evals.`
+  );
 }

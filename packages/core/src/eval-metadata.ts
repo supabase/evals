@@ -52,10 +52,19 @@ export const experimentSuiteSchema = z.enum([
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
 
-export const agentHarnessIdSchema = z.enum(['ai-sdk', 'claude-code', 'codex']);
+export const agentHarnessIdSchema = z.enum([
+  'ai-sdk',
+  'claude-code',
+  'codex',
+  'opencode',
+]);
 export type AgentHarnessId = z.infer<typeof agentHarnessIdSchema>;
 
-export const modelProviderSchema = z.enum(['anthropic', 'openai']);
+export const modelProviderSchema = z.enum([
+  'anthropic',
+  'openai',
+  'moonshotai',
+]);
 export type ModelProvider = z.infer<typeof modelProviderSchema>;
 
 export const reasoningEffortSchema = z.enum([
