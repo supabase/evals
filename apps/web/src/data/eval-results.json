@@ -19423,41 +19423,38 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": false
+        "passed": true
       },
       {
         "name": "todos table is created by a migration file",
-        "passed": false,
-        "notes": "supabase/migrations does not exist — was a Supabase project initialised?"
+        "passed": true
       },
       {
         "name": "todos table exists with at least 2 seeded rows",
-        "passed": false,
-        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "passed": true,
+        "notes": "found 3 rows"
       },
       {
         "name": "row level security is enabled on todos",
-        "passed": false,
-        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "passed": true
       },
       {
         "name": "a SELECT policy targets the authenticated role",
-        "passed": false,
-        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "passed": true
       },
       {
         "name": "REST API returns no todos to anonymous requests",
-        "passed": false,
-        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "passed": true,
+        "notes": "0 rows"
       },
       {
         "name": "REST API returns the todos to authenticated requests",
-        "passed": false,
-        "notes": "could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after 5 attempts — the local stack must be running and include the auth service (status only reports API keys while gotrue is up; add `gotrue` to the eval's services). Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-ad7fb75b\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "passed": true,
+        "notes": "3 rows"
       }
     ],
     "skills": {
@@ -19469,7 +19466,7 @@
     },
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
     "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-001-bootstrap-app.json"
   },
   {
@@ -19491,25 +19488,23 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "supabase db diff used to generate the migration",
-        "passed": false
+        "passed": true
       },
       {
         "name": "schema file updated to include description column",
-        "passed": false,
-        "notes": "description not found in any schema file"
+        "passed": true
       },
       {
         "name": "a new migration was generated for the change",
-        "passed": false,
-        "notes": "found 1 migration file(s)"
+        "passed": true
       },
       {
         "name": "description column exists in the live database",
-        "passed": false
+        "passed": true
       }
     ],
     "skills": {
@@ -19521,7 +19516,7 @@
     },
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-002-declarative-schema.json"
   },
   {
@@ -19546,22 +19541,22 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": false,
-        "notes": "job not found in cron.job"
+        "passed": true,
+        "notes": "schedule='* * * * *', active=true"
       },
       {
         "name": "cron command enqueues to the 'tasks' queue",
-        "passed": false,
-        "notes": "job not found, so its command can't run"
+        "passed": true,
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "couldn't enqueue a test message. Is the 'tasks' queue created? query failed: ERROR:  relation \"pgmq.q_tasks\" does not exist\nLINE 2:         INSERT INTO pgmq.q_tasks (vt, message, headers)\n                            ^\nQUERY:  \n        INSERT INTO pgmq.q_tasks (vt, message, headers)\n        VALUES ($2, $1, $3)\n        RETURNING msg_id;\n        \nCONTEXT:  PL/pgSQL function pgmq.send(text,jsonb,jsonb,timestamp with time zone) line 14 at RETURN QUERY\nSQL function \"send\" statement 1\n"
+        "passed": true,
+        "notes": "function removed the seeded message (id 37) from the queue"
       }
     ],
     "skills": {
@@ -19573,7 +19568,7 @@
     },
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-003-pg-cron-queue-workflow.json"
   },
   {
@@ -19594,12 +19589,27 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "scorer completed without errors",
-        "passed": false,
-        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: failed to inspect container health: Error response from daemon: No such container: supabase_db_sandbox-45da1f7a\nTry rerunning the command with --debug to troubleshoot the error.\n"
+        "name": "all 3 tables exist (teams, members, tasks)",
+        "passed": true
+      },
+      {
+        "name": "row counts match (teams=5, members=10, tasks=13)",
+        "passed": true
+      },
+      {
+        "name": "foreign key constraints survived the restore",
+        "passed": true
+      },
+      {
+        "name": "tasks_team_status_idx index survived the restore",
+        "passed": true
+      },
+      {
+        "name": "sequences synced (next insert won't conflict with existing IDs)",
+        "passed": true
       }
     ],
     "skills": {
@@ -19611,7 +19621,7 @@
     },
     "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
     "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-database-001-migrate-postgres-to-supabase.json"
   },
   {
@@ -19636,7 +19646,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "rejects missing auth",
@@ -19650,17 +19660,17 @@
       },
       {
         "name": "reads only with the caller's JWT",
-        "passed": false,
-        "notes": "bearer_tokens=1, all_match=false"
+        "passed": true,
+        "notes": "bearer_tokens=2, all_match=true"
       },
       {
         "name": "user A cannot force-read user B note",
-        "passed": false,
+        "passed": true,
         "notes": "status=200"
       },
       {
         "name": "user B cannot force-read user A note",
-        "passed": false,
+        "passed": true,
         "notes": "status=200"
       }
     ],
@@ -19669,11 +19679,32 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function authenticate user JWT getUser RLS\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            }
+          ],
+          "resultChars": 50282
+        }
+      ]
     },
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-functions-004-service-role-bypass.json"
   },
   {
@@ -19699,7 +19730,7 @@
     "suite": "benchmark",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "seed rows present",
@@ -19709,42 +19740,42 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 404: Function not found"
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
-        "passed": false,
-        "notes": "status 404: Function not found"
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"ffac847f-b734-4c98-a4fb-32356e032e87\",\"metric\":\"steps_a_ms3zogi9\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
-        "passed": false,
-        "notes": "status 404: Function not found"
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"ffac847f-b734-4c98-a4fb-32356e032e87\",\"metric\":\"steps_a_ms3zogi9\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
-        "passed": false,
-        "notes": "status 404: Function not found"
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"b1a74712-deb9-4b80-841d-f23a2fbad78c\",\"metric\":\"steps_b_ms3zogi9\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 404: Function not found"
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 404: Function not found"
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 404: Function not found"
+        "notes": "status 401: {\"message\":\"Invalid credentials\",\"code\":\"INVALID_CREDENTIALS\"}"
       },
       {
         "name": "implementation uses @supabase/server",
-        "passed": false,
-        "notes": "could not locate function source to inspect"
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
       }
     ],
     "skills": {
@@ -19752,7 +19783,36 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"withSupabase @supabase/server edge function authMode publishable secret supabaseAdmin\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            }
+          ],
+          "resultChars": 44429
+        }
+      ]
     },
     "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nOur product stores per-user metrics in the existing `user_stats` table.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
     "promptSourcePath": "evals/build-functions-005-dual-auth-user-secret/PROMPT.md",
@@ -19779,12 +19839,45 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "bucket user-files exists",
-        "passed": false,
-        "notes": "no row in storage.buckets with id or name 'user-files'"
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 019fa651-c08d-731a-9d74-1cda83a3daf8/receipt-alpha.pdf, 019fa651-c08d-731a-9d74-1cda83a3daf8/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Meets all requirements: private bucket, RLS enabled, authenticated owner-scoped SELECT and INSERT policies with WITH CHECK, and supabase-js createSignedUrl with expiry for sharing."
       }
     ],
     "skills": {
@@ -19792,11 +19885,66 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"createSignedUrl supabase-js storage temporary expiring link\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/serving/downloads",
+              "title": "Serving assets from Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/serving/image-transformations",
+              "title": "Storage Image Transformations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/uploads/resumable-uploads",
+              "title": "Resumable Uploads"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createsignedurls"
+            }
+          ],
+          "resultChars": 38982
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"storage access control RLS policies foldername auth.uid bucket private\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/product-security",
+              "title": "Secure configuration of Supabase products"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/debugging/error-codes",
+              "title": "Error Codes"
+            }
+          ],
+          "resultChars": 33308
+        }
+      ]
     },
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
     "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-storage-001-private-bucket-access.json"
   },
   {
@@ -19818,22 +19966,22 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": false,
-        "notes": "no .sql files found under supabase/tests/"
+        "passed": true,
+        "notes": "1 file(s): supabase/tests/database/tenant_isolation.test.sql"
       },
       {
         "name": "pgTAP isolation tests ran and pass",
-        "passed": false,
-        "notes": "no test summary found; exit 0; output: Connecting to local database...\nFiles=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nA new version of Supabase CLI is available: v2.110.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
+        "passed": true,
+        "notes": "14 passed, 0 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The implementation fails the tenant-isolation tests because `posts` RLS is too permissive: authenticated users can read posts from orgs they do not belong to. The pgTAP failures correctly identify the broken policy on `posts`; `notes` is not the flawed table."
+        "judgeNotes": "The agent correctly identifies `posts` as having the broken tenant isolation policy, specifically that authenticated members could read posts from organizations they are not members of. It grounds this in pgTAP failures (tests 4 and 11) and treats the test results as authoritative. It does not blame `notes` for the read isolation flaw, though it separately notes other write-policy issues."
       }
     ],
     "skills": {
@@ -19841,11 +19989,140 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"pgTAP database tests supabase test db directory tests\") { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-test-db",
+              "title": "Tests local database with pgTAP"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/unit-test",
+              "title": "Testing your Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform",
+              "title": "Supabase Platform"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/download-objects",
+              "title": "Download Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/vercel-postgres",
+              "title": "Migrate from Vercel Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/heroku",
+              "title": "Migrate from Heroku to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase",
+              "title": "Migrating to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/overview",
+              "title": "Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/mysql",
+              "title": "Migrate from MySQL to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/choosing-login-flow",
+              "title": "Choosing the Right SSO Login Flow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/inspect",
+              "title": "Debugging and monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-test",
+              "title": "Run tests on local Supabase containers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/mssql",
+              "title": "Migrate from MSSQL to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/permissions",
+              "title": "Permissions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions",
+              "title": "Postgres Extensions Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            }
+          ],
+          "resultChars": 234607
+        }
+      ]
     },
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
     "promptSourcePath": "evals/build-tests-001-rls-tenant-isolation/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-tests-001-rls-tenant-isolation.json"
   },
   {
@@ -19868,40 +20145,38 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "document_sections.embedding is vector(384)",
-        "passed": false,
-        "notes": "no embedding column"
+        "passed": true,
+        "notes": "vector(384)"
       },
       {
         "name": "HNSW index on the embedding column",
-        "passed": false,
-        "notes": "no index on embedding column"
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
       },
       {
         "name": "index operator class matches the search operator",
-        "passed": false,
-        "notes": "match_document_sections not found"
+        "passed": true,
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
       },
       {
         "name": "user A search returns only own sections, best match first",
-        "passed": false,
-        "notes": "Could not find the function public.match_document_sections(match_count, query_embedding) in the schema cache"
+        "passed": true
       },
       {
         "name": "user B search returns only own sections, best match first",
-        "passed": false,
-        "notes": "Could not find the function public.match_document_sections(match_count, query_embedding) in the schema cache"
+        "passed": true
       },
       {
         "name": "user A reads only own sections through the API",
-        "passed": false
+        "passed": true
       },
       {
         "name": "user A reads only own documents through the API",
-        "passed": false
+        "passed": true
       }
     ],
     "skills": {
@@ -19913,7 +20188,7 @@
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-vectors-001-rag-with-permissions.json"
   },
   {
@@ -19933,7 +20208,7 @@
       "observability"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "preserved existing app scrape job",
@@ -19941,13 +20216,13 @@
       },
       {
         "name": "configured the Supabase Metrics API scrape correctly",
-        "passed": false,
-        "judgeNotes": "prometheus.yml only contains the existing app scrape and does not add a Supabase Metrics API scrape with HTTPS /customer/v1/privileged/metrics, basic_auth password_file, or docker-compose secret/volume wiring."
+        "passed": true,
+        "judgeNotes": "Prometheus preserves the app scrape and adds a Supabase HTTPS scrape at /customer/v1/privileged/metrics using HTTP Basic Auth with password_file. docker-compose mounts the secrets directory containing that password file read-only."
       },
       {
         "name": "documented live deployment and verification steps",
-        "passed": false,
-        "judgeNotes": "README only shows starting the stack and lists app:8080. It does not explain creating a Secret API key, placing the matching secret file, restarting/reloading the Compose stack, or concrete verification via Prometheus targets/PromQL/Grafana."
+        "passed": true,
+        "judgeNotes": "README includes Secret API key creation, matching secret file placement, project ref replacement, restart/hot-reload of the Compose stack, and concrete verification via Prometheus targets plus curl smoke test. Endpoint/auth and secret setup match the Prometheus and Compose configuration."
       }
     ],
     "skills": {
@@ -19955,11 +20230,44 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"metrics endpoint Prometheus scrape project metrics\", limit: 10) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics",
+              "title": "Metrics API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
+              "title": "Vendor-agnostic Metrics API setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
+              "title": "Metrics API with Grafana Cloud"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-view-database-metrics-uqf2z_",
+              "title": "How to View Database Metrics"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas",
+              "title": "Read Replicas"
+            }
+          ],
+          "resultChars": 32499
+        }
+      ]
     },
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/deploy-database-001-prometheus-metrics.json"
   },
   {
@@ -19980,22 +20288,21 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "WEATHER_API_KEY is set as a Function secret on the project",
-        "passed": false,
-        "notes": "secrets present: []"
+        "passed": true
       },
       {
         "name": "the weather function is deployed to the project",
-        "passed": false,
-        "notes": "function not found on the project (status 404)"
+        "passed": true,
+        "notes": "status ACTIVE"
       },
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
-        "passed": false,
-        "notes": "could not read supabase/functions/weather/*"
+        "passed": true,
+        "judgeNotes": "The function reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -20007,11 +20314,40 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge functions environment variables secrets management deploy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            }
+          ],
+          "resultChars": 65241
+        }
+      ]
     },
     "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
     "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/deploy-functions-001-edge-function-secrets.json"
   },
   {
@@ -20034,12 +20370,11 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "cloned the self-host stack (docker-compose.yml + volumes/db)",
-        "passed": false,
-        "notes": "supabase-docker/ is missing docker-compose.yml or volumes/db — not the self-host docker/ tree"
+        "passed": true
       },
       {
         "name": "didn't conflate with the CLI (no supabase/config.toml in the stack)",
@@ -20047,13 +20382,11 @@
       },
       {
         "name": "secrets rotated off the shipped defaults",
-        "passed": false,
-        "notes": "still default or empty: POSTGRES_PASSWORD, JWT_SECRET, DASHBOARD_PASSWORD, VAULT_ENC_KEY, PG_META_CRYPTO_KEY"
+        "passed": true
       },
       {
         "name": "ANON_KEY and SERVICE_ROLE_KEY are HS256 JWTs signed by JWT_SECRET",
-        "passed": false,
-        "notes": "JWT_SECRET missing"
+        "passed": true
       }
     ],
     "skills": {
@@ -20061,11 +20394,140 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"self-hosting with docker deploy\") { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting",
+              "title": "Self-Hosting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/postgres-upgrade-17",
+              "title": "Upgrade to Postgres 17"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https",
+              "title": "Configure Reverse Proxy and HTTPS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-phone-mfa",
+              "title": "Configure Phone Login & MFA"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-oauth",
+              "title": "Configure Social Login (OAuth) Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/grafana-not-displaying-data-sXJrMj",
+              "title": "Grafana not displaying data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
+              "title": "Custom Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/byo-mcp",
+              "title": "Deploy MCP servers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/architecture",
+              "title": "Architecture"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/webhooks",
+              "title": "Database Webhooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/serving/image-transformations",
+              "title": "Storage Image Transformations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/github-actions",
+              "title": "GitHub Actions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/enable-mcp",
+              "title": "Enabling MCP Server Access"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/openai",
+              "title": "Generating OpenAI GPT3 completions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            }
+          ],
+          "resultChars": 320077
+        }
+      ]
     },
     "prompt": "I'm moving off the hosted Supabase and running the whole thing myself on a VPS I\njust spun up. Can you get a Docker setup ready for me to copy onto the box?\n\nI don't need it running here, I'll do the actual bring-up once I'm on the\nserver. I just want everything in place and the secrets set up. Put it in a `supabase-docker/`\nfolder at the repo root so I can scp the whole thing across in one go.",
     "promptSourcePath": "evals/deploy-self-hosting-001-docker-compose/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/deploy-self-hosting-001-docker-compose.json"
   },
   {
@@ -20087,7 +20549,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -20099,18 +20561,16 @@
       },
       {
         "name": "delete-account revokes the user's sessions",
-        "passed": false,
-        "notes": "sessions left: 1"
+        "passed": true,
+        "notes": "sessions left: 0"
       },
       {
         "name": "deleted user's refresh token is rejected",
-        "passed": false,
-        "notes": "refresh token still produces a session"
+        "passed": true
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": false,
-        "notes": "deleted account can still sign in"
+        "passed": true
       },
       {
         "name": "other users keep their sessions and access",
@@ -20119,7 +20579,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "The answer identifies the root cause as soft-deleting only the profile and not removing/revoking the auth user/sessions, implements deletion of the auth user or equivalent session/refresh-token revocation, explains that stateless JWT access tokens may remain valid until expiry for local validation and provides consistent mitigations or RLS/session-existence checks, and correctly distinguishes publishable frontend keys under user JWT/RLS from secret/server-only keys that bypass RLS and must not be exposed."
+        "judgeNotes": "Meets the rubric: correctly diagnoses soft-delete without auth/session revocation, implements auth user deletion with refresh/session revocation, explains the remaining stateless JWT expiry window consistently, and correctly distinguishes publishable frontend keys from secret server-only RLS-bypassing keys."
       }
     ],
     "skills": {
@@ -20127,11 +20587,66 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"delete user account RPC security definer function auth.users\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-admin-deleteuser",
+              "title": "deleteUser()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0029_authenticated_security_definer_function_executable",
+              "title": "Database Advisor: Lint 0029_authenticated_security_definer_function_executable"
+            }
+          ],
+          "resultChars": 15474
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"publishable secret API keys replacing anon service_role\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
+            }
+          ],
+          "resultChars": 98570
+        }
+      ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -20153,11 +20668,11 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "orders table added to supabase_realtime publication",
-        "passed": false
+        "passed": true
       },
       {
         "name": "courier_locations still in supabase_realtime publication",
@@ -20179,7 +20694,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "The answer correctly identifies that the Realtime channel can reach SUBSCRIBED while receiving no Postgres INSERT events because the orders table is not included in the supabase_realtime publication. It fixes the issue by adding only orders to the existing publication with ALTER PUBLICATION supabase_realtime ADD TABLE orders, while preserving existing RLS/policies and not disrupting courier_locations."
+        "judgeNotes": "Identifies missing orders table in supabase_realtime publication as root cause, applies ALTER PUBLICATION ADD TABLE public.orders, preserves courier_locations/RLS/policies, and does not blame or change unrelated areas."
       }
     ],
     "skills": {
@@ -20191,7 +20706,7 @@
     },
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
     "promptSourcePath": "evals/investigate-realtime-001-subscribed-no-events/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/investigate-realtime-001-subscribed-no-events.json"
   },
   {
@@ -20212,22 +20727,22 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "identified image-transform and the recurring 503 pattern",
         "passed": true,
-        "judgeNotes": "The assistant identified image-transform as the affected function and recognized a recurring pattern of HTTP 503 responses during the morning of 2026-04-28, covering the gateway failures spread across roughly 07:00Z-12:00Z."
+        "judgeNotes": "Identified image-transform as the affected function and described the recurring pattern of 8 HTTP 503 gateway failures across the morning of 2026-04-28 from 07:00Z to 12:00Z, while distinguishing old billing-webhook 503s as unrelated."
       },
       {
         "name": "attributed recurring 503s to gateway/platform layer, not function code",
-        "passed": true,
-        "judgeNotes": "The response attributes the recurring image-transform 503s to the gateway/Edge Functions platform layer rather than the function code, and grounds this in valid observations: the 503s appear only in gateway/HTTP logs with no matching invocation/runtime rows while nearby invocations succeeded; deployment_id/version remained unchanged; and it distinguishes these gateway 503s from a function-level logged 500 such as avatar-upload."
+        "passed": false,
+        "judgeNotes": "The response notes gateway-only 503s with no function execution logs, but ultimately attributes the primary cause to the image-transform function's unpinned npm dependency/cold-start behavior and recommends pinning/bundling/redeploying the function, which the rubric explicitly treats as failing."
       },
       {
         "name": "recommended a concrete next step",
         "passed": true,
-        "judgeNotes": "Recommended concrete next steps including checking Supabase Edge Function logs for specific failures, validating env vars/secrets, reviewing recent deployments/configuration changes, testing the function directly with the request ID/time window, and checking Supabase status/support if platform-related."
+        "judgeNotes": "Recommended concrete next steps including pinning/bundling dependency, redeploying, adding retries, and monitoring specific gateway vs function logs."
       }
     ],
     "skills": {
@@ -20239,7 +20754,7 @@
     },
     "prompt": "Users have been reporting that image uploads are intermittently failing with server errors throughout the morning of `2026-04-28`.\n\nCan you investigate the project logs and tell me what is going on and what we\nshould do next?",
     "promptSourcePath": "evals/investigate-reliability-003-edge-function-5xx-correlation/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/investigate-reliability-003-edge-function-5xx-correlation.json"
   },
   {
@@ -20263,7 +20778,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "RLS still enabled on bookmarks",
@@ -20271,7 +20786,7 @@
       },
       {
         "name": "user A reads own bookmarks",
-        "passed": false
+        "passed": true
       },
       {
         "name": "user B cannot read user A bookmarks",
@@ -20283,8 +20798,7 @@
       },
       {
         "name": "user A can save a new bookmark",
-        "passed": false,
-        "notes": "new row violates row-level security policy for table \"bookmarks\""
+        "passed": true
       },
       {
         "name": "user B cannot insert a bookmark as user A",
@@ -20293,7 +20807,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The answer diagnoses RLS enabled with no policies causing deny-all, keeps RLS enabled, and adds authenticated SELECT and INSERT policies scoped to user_id = auth.uid() using USING and WITH CHECK respectively."
+        "judgeNotes": "Diagnosed RLS deny-all due to no policies, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for inserts."
       }
     ],
     "skills": {
@@ -20305,7 +20819,7 @@
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-dataapi-001-empty-results.json"
   },
   {
@@ -20330,23 +20844,19 @@
     "checks": [
       {
         "name": "the avatar_url column is applied on the hosted profiles table",
-        "passed": false,
-        "notes": "avatar_url not found on public.profiles"
+        "passed": true
       },
       {
         "name": "migration 20240220000000 is recorded in the remote history",
-        "passed": false,
-        "notes": "remote history versions: [\"20240101000000\",\"20240115000000\"]"
+        "passed": true
       },
       {
         "name": "remote migration history matches local migration files",
-        "passed": false,
-        "notes": "remote-only versions still unreconciled: [\"20240115000000\"] (remote: [\"20240101000000\",\"20240115000000\"], local: [\"20240101000000\",\"20240220000000\"])"
+        "passed": true
       },
       {
         "name": "local migrations are a valid reconciled sequence",
-        "passed": false,
-        "notes": "expected 20240101000000_create_profiles → <bio reconciliation> → 20240220000000_add_avatar_url, strictly ascending; got [20240101000000_create_profiles.sql, 20240220000000_add_avatar_url.sql]"
+        "passed": true
       },
       {
         "name": "production profile data is intact (not reset)",
@@ -20355,7 +20865,7 @@
       {
         "name": "the avatar migration and history reconciliation were done via the Supabase CLI",
         "passed": false,
-        "notes": "no agent actions recorded to evaluate"
+        "judgeNotes": "FAIL: No `supabase db push` output shows `Applying migration ...` or `Finished supabase db push`, so there is no evidence the pending avatar_url migration was actually applied through the CLI. The agent added `supabase/migrations/20240115000000_add_profile_bio.sql` (#13), which could reconcile the orphan bio migration locally, and ran `supabase db push` (#15), but the recorded push output does not show a successful application/reconciliation. No prohibited direct-SQL mutation or prepared-statement workaround was seen; psql usage was read-only inspection."
       }
     ],
     "skills": {
@@ -20389,24 +20899,24 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "inspected pg_stat_statements for query performance",
-        "passed": false
+        "passed": true
       },
       {
         "name": "ran EXPLAIN on the expensive query",
-        "passed": false
+        "passed": true
       },
       {
         "name": "created index covering user_id and created_at",
-        "passed": false
+        "passed": true
       },
       {
         "name": "query plan uses an index and avoids sequential scan",
-        "passed": false,
-        "notes": "Limit  (cost=118.52..118.57 rows=20 width=88)\n  ->  Sort  (cost=118.52..118.57 rows=20 width=88)\n        Sort Key: created_at DESC\n        ->  Seq Scan on events  (cost=0.00..118.09 rows=20 width=88)\n              Filter: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
+        "passed": true,
+        "notes": "Limit  (cost=55.55..55.61 rows=25 width=88)\n  ->  Sort  (cost=55.55..55.61 rows=25 width=88)\n        Sort Key: created_at DESC\n        ->  Bitmap Heap Scan on events  (cost=4.48..54.97 rows=25 width=88)\n              Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)\n              ->  Bitmap Index Scan on idx_events_user_created_at  (cost=0.00..4.47 rows=25 width=0)\n                    Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)"
       },
       {
         "name": "inserts still work",
@@ -20422,7 +20932,7 @@
     },
     "prompt": "My database CPU keeps spiking and the app gets slow when loading recent events for a user. Can you figure out what query is causing it and make the database change needed to fix it?\n\nEnd your turn with a short summary of what you changed and why.",
     "promptSourcePath": "evals/resolve-performance-001-slow-query-cpu-spike/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-performance-001-slow-query-cpu-spike.json"
   },
   {
@@ -20445,7 +20955,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "RLS enabled on notes",
@@ -20453,11 +20963,11 @@
       },
       {
         "name": "tenant A sees only org A notes",
-        "passed": false
+        "passed": true
       },
       {
         "name": "tenant B cannot read org A notes",
-        "passed": false
+        "passed": true
       },
       {
         "name": "tenant A author can update own note",
@@ -20493,7 +21003,7 @@
     },
     "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
   }
 ]
