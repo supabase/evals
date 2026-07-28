@@ -1,15 +1,24 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import type { CommandResult, VitestResult } from '@supabase-evals/core';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '..', '..', '..');
+const nodeRequire = createRequire(import.meta.url);
+
+/**
+ * Resolve a dependency's bundled entry script. pnpm's isolated layout never
+ * creates a hoisted `<repo>/node_modules/<pkg>`, so anchoring on the repo root
+ * misses every time. Anchor on the `package.json` each package exports instead
+ * of requesting a deep subpath, which `exports` may stop publishing on a bump.
+ */
+export function resolvePackageBin(pkg: string, entry: string): string {
+  return join(dirname(nodeRequire.resolve(`${pkg}/package.json`)), entry);
+}
 
 export async function viteBuild(workspace: string): Promise<CommandResult> {
   return runNodeBin(
-    join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'),
+    resolvePackageBin('vite', 'bin/vite.js'),
     ['build'],
     workspace
   );
@@ -38,7 +47,7 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
     ].join('\n')
   );
   const result = await runNodeBin(
-    join(ROOT, 'node_modules', 'vitest', 'vitest.mjs'),
+    resolvePackageBin('vitest', 'vitest.mjs'),
     [
       'run',
       '--config',
