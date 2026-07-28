@@ -355,9 +355,9 @@ describe('adaptTranscript', () => {
         'thinking',
         'message',
       ]);
-      expect(
-        tagged.find((p) => p.type === 'thinking')?.content
-      ).toBe('97 is prime; 91 and 100 are not.');
+      expect(tagged.find((p) => p.type === 'thinking')?.content).toBe(
+        '97 is prime; 91 and 100 are not.'
+      );
     });
 
     it('serializes identically to a subagent-free transcript by default', () => {
@@ -377,7 +377,9 @@ describe('adaptTranscript', () => {
       expect(serialized).toContain(
         '[subagent:general-purpose thinking]\n97 is prime; 91 and 100 are not.'
       );
-      expect(serialized).toContain('[subagent:general-purpose assistant]\n[97]');
+      expect(serialized).toContain(
+        '[subagent:general-purpose assistant]\n[97]'
+      );
     });
   });
 
