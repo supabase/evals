@@ -9337,27 +9337,23 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development migrations seed.sql row level security authenticated role select policy REST API\", limit: 8) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Row Level Security policy authenticated users select table grants Data API migrations local development seed data auth sign up\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
             {
               "url": "https://supabase.com/docs/guides/api/securing-your-api",
               "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
             },
             {
               "url": "https://supabase.com/docs/guides/getting-started/features",
@@ -9368,41 +9364,32 @@
               "title": "Securing your data"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles",
-              "title": "Postgres Roles"
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/auth-mfa",
               "title": "Multi-Factor Authentication"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
-              "title": "Column Level Security"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started",
+              "title": "Getting Started with Realtime"
             }
           ],
-          "resultChars": 104607
+          "resultChars": 140356
         },
         {
           "source": "shell_fetch",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
+          "query": "/bin/bash -lc \"set -e\nprintf '%s\\\\n' '--- CLI ---'\nsupabase --version\nprintf '%s\\\\n' '--- ROOT ---'\nls -la\nprintf '%s\\\\n' '--- CHANGELOG RELEVANT ---'\ncurl -fsSL https://supabase.com/changelog.md | rg -n -i 'breaking-change|row level|rls|grant|migration|local development' | head -80 || true\nprintf '%s\\\\n' '--- BEST PRACTICE FILES ---'\nfind .agents/skills/supabase-postgres-best-practices/references -maxdepth 1 -type f | sort | rg 'security|schema' | head -80\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
-          ],
-          "resultChars": 2754
-        },
-        {
-          "source": "shell_fetch",
-          "query": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically.md"
-            }
-          ],
-          "resultChars": 17508
+          ]
         }
       ]
     },
@@ -9463,7 +9450,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development declarative database schemas generate migration db diff schema_paths\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"local development declarative database schemas schema_paths generate migration db diff\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -9471,34 +9458,15 @@
               "title": "Declarative database schemas"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-diff",
-              "title": "Diffs the local database for schema changes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
             }
           ],
-          "resultChars": 72112
-        },
-        {
-          "source": "shell_fetch",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 10410
+          "resultChars": 55139
         }
       ]
     },
@@ -11554,12 +11522,12 @@
       {
         "name": "pgTAP isolation tests ran and pass",
         "passed": true,
-        "notes": "7 passed, 4 failed"
+        "notes": "9 passed, 0 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identifies `posts` as having a tenant isolation flaw: the policy checks for any membership rather than membership in the post's `org_id`, allowing cross-organization post reads. It grounds this in the pgTAP failures and explicitly says `notes` is correctly isolated."
+        "judgeNotes": "The agent correctly identifies `posts` as having a tenant isolation flaw: its policy checks for any membership rather than membership in the post’s `org_id`. It does not blame `notes` as the broken table and treats the pgTAP suite as validation rather than dismissing it."
       }
     ],
     "skills": {
@@ -11575,7 +11543,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"row level security testing pgTAP auth.uid tenant isolation policies performance select wrapper\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"row level security tenant isolation testing pgTAP auth.uid policy performance select wrapper\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -11583,34 +11551,32 @@
               "title": "Testing Overview"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            },
-            {
               "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
               "title": "pgTAP: Unit Testing"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
             },
             {
               "url": "https://supabase.com/docs/guides/database/testing",
               "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
             }
           ],
           "resultChars": 70562
         },
         {
           "source": "shell_fetch",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i \\\"breaking-change|row level|rls|pgtap|database test\\\" | head -80; printf '\\\\n--- FILES ---\\\\n'; find .. -name AGENTS.md -print; printf '\\\\n'; rg --files -g '\"'!node_modules'\"' -g '\"'!vendor'\"' | sed -n '1,240p'; printf '\\\\n--- SECURITY REFERENCES ---\\\\n'; find .claude/skills/supabase-postgres-best-practices/references -maxdepth 1 -type f -iname '*security*' -o -iname '*rls*' | sort\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
-          ],
-          "resultChars": 17014
+          ]
         }
       ]
     },
@@ -11650,12 +11616,12 @@
       {
         "name": "HNSW index on the embedding column",
         "passed": true,
-        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+        "notes": "CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops) WHERE (embedding IS NOT NULL)"
       },
       {
         "name": "index operator class matches the search operator",
         "passed": true,
-        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_hnsw_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops) WHERE (embedding IS NOT NULL)"
       },
       {
         "name": "user A search returns only own sections, best match first",
@@ -11686,83 +11652,81 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "https://supabase.com/changelog.md",
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"pgvector semantic search vector columns HNSW index match documents RLS auth.uid edge functions\", limit: 8) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 98029
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"pgvector semantic search match_documents RPC cosine distance RLS auth.uid security invoker HNSW vector dimensions\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            },
             {
               "url": "https://supabase.com/docs/guides/ai/semantic-search",
               "title": "Semantic search"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/vector-columns",
-              "title": "Vector columns"
+              "url": "https://supabase.com/docs/guides/ai/vector-indexes",
+              "title": "Vector indexes"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/vector-indexes/hnsw-indexes",
-              "title": "HNSW indexes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/vector/introduction",
-              "title": "Vector Buckets"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
-              "title": "RAG with Permissions"
+              "url": "https://supabase.com/docs/guides/ai/vector-indexes/ivf-indexes",
+              "title": "IVFFlat indexes"
             },
             {
               "url": "https://supabase.com/docs/guides/ai/hybrid-search",
               "title": "Hybrid search"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage",
-              "title": "Storage"
+              "url": "https://supabase.com/docs/guides/ai/going-to-prod",
+              "title": "Going to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/vector-indexes/hnsw-indexes",
+              "title": "HNSW indexes"
             },
             {
               "url": "https://supabase.com/docs/guides/storage/vector/querying-vectors",
               "title": "Querying Vectors"
             }
           ],
-          "resultChars": 87700
+          "resultChars": 88777
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i \\\"breaking|vector|pgvector|rls|edge function\\\" | sed -n '1,160p'; printf '\\\\n--- relevant best practices ---\\\\n'; cat .claude/skills/supabase-postgres-best-practices/references/security-rls-basics.md; printf '\\\\n--- RLS performance ---\\\\n'; cat .claude/skills/supabase-postgres-best-practices/references/security-rls-performance.md; printf '\\\\n--- index types ---\\\\n'; cat .claude/skills/supabase-postgres-best-practices/references/query-index-types.md\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase Edge Functions gte-small vector(384) semantic search example match_document_sections\", limit: 6) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"pgvector HNSW vector_cosine_ops gte-small 384 dimensions match_documents SQL function\", limit: 6) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/functions/examples/semantic-search",
-              "title": "Semantic Search"
+              "url": "https://supabase.com/docs/guides/ai/vector-indexes/hnsw-indexes",
+              "title": "HNSW indexes"
             },
             {
               "url": "https://supabase.com/docs/guides/ai/semantic-search",
               "title": "Semantic search"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
+              "url": "https://supabase.com/docs/guides/ai/vector-indexes/ivf-indexes",
+              "title": "IVFFlat indexes"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/langchain",
-              "title": "LangChain"
+              "url": "https://supabase.com/docs/guides/ai/vector-columns",
+              "title": "Vector columns"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/vector/querying-vectors",
-              "title": "Querying Vectors"
+              "url": "https://supabase.com/docs/guides/ai/vector-indexes",
+              "title": "Vector indexes"
             }
           ],
-          "resultChars": 83706
+          "resultChars": 36655
         }
       ]
     },
@@ -11798,12 +11762,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Meets all requirements: preserves app scrape, adds HTTPS Supabase Metrics API target for project ref, uses correct metrics path and basic_auth with password_file, and wires the password file via a Compose secret mounted at /run/secrets/supabase_secret_key."
+        "judgeNotes": "Adds HTTPS Supabase Metrics API scrape with correct path, Basic Auth password_file, project target template, preserves app scrape, and wires the password file via Compose secret."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, secret file placement, Compose start/recreate steps, and concrete verification via Prometheus targets and PromQL/Grafana."
+        "judgeNotes": "README includes Secret API key creation, matching Compose secret file placement, Compose start/restart commands, and concrete verification via Prometheus targets/query and Grafana guidance. Endpoint/auth and secret setup match the configuration."
       }
     ],
     "skills": {
@@ -11812,14 +11776,15 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase project metrics Prometheus endpoint observability Grafana authentication service role key\", limit: 8) { nodes { __typename title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase project metrics Prometheus Grafana metrics endpoint service role authentication\", limit: 8) { nodes { __typename title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -11827,12 +11792,12 @@
               "title": "Metrics API with Prometheus & Grafana (self-hosted)"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
-              "title": "Vendor-agnostic Metrics API setup"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
               "title": "Metrics API with Grafana Cloud"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
+              "title": "Vendor-agnostic Metrics API setup"
             },
             {
               "url": "https://supabase.com/docs/guides/telemetry/metrics",
@@ -11843,30 +11808,20 @@
               "title": "Connection management"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas",
-              "title": "Read Replicas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-view-database-metrics-uqf2z_",
-              "title": "How to View Database Metrics"
-            },
-            {
               "url": "https://supabase.com/docs/guides/troubleshooting/grafana-not-displaying-data-sXJrMj",
               "title": "Grafana not displaying data"
             }
           ],
-          "resultChars": 41966
+          "resultChars": 31936
         },
         {
           "source": "shell_fetch",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- observability files ---'; find observability -maxdepth 5 -type f -print; printf '%s\\\\n' '--- contents ---'; while IFS= read -r file; do echo \\\"--- \"'$file\"; sed -n '\"'1,280p' \\\"\"'$file\"; done < <(find observability -maxdepth 5 -type f -print); printf '\"'%s\\\\n' '--- changelog relevant lines ---'; curl -fsSL https://supabase.com/changelog.md | rg -i -C 2 'metric|telemetry|prometheus|grafana|breaking-change' | sed -n '1,240p'; printf '%s\\\\n' '--- cli ---'; supabase --version; supabase --help | sed -n '1,100p'\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
-          ],
-          "resultChars": 14298
+          ]
         }
       ]
     },
@@ -12018,13 +11973,24 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase"
+      ]
     },
     "docs": {
       "calls": [
         {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- ROOT ---'; ls -la; printf '%s\\\\n' '--- AGENTS ---'; find . -name AGENTS.md -print; printf '%s\\\\n' '--- FILES ---'; rg --files -g '\"'!data/**'\"' -g '\"'!skills/**'\"' -g '\"'!.claude/**'\"' | sed -n '1,200p'; printf '%s\\\\n' '--- GIT ---'; git status --short --branch; printf '%s\\\\n' '--- CHANGELOG HEAD ---'; curl -fsSL https://supabase.com/changelog.md | sed -n '1,120p'\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"self-hosting Docker docker-compose environment variables JWT secret Vault 2026\", limit: 8) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"self-hosting Docker docker compose .env generate secrets JWT_SECRET ANON_KEY SERVICE_ROLE_KEY Envoy API gateway July 2026\", limit: 8) { nodes { __typename title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -12032,8 +11998,8 @@
               "title": "New API Keys and Asymmetric Authentication"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
-              "title": "Self-Hosted Functions"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
             },
             {
               "url": "https://supabase.com/docs/guides/self-hosting/docker",
@@ -12044,34 +12010,43 @@
               "title": "Configure Social Login (OAuth) Providers"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
-              "title": "Configure S3 Storage"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-phone-mfa",
-              "title": "Configure Phone Login & MFA"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https",
+              "title": "Configure Reverse Proxy and HTTPS"
             },
             {
               "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
               "title": "Custom Email Templates"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
-              "title": "Restore a Platform Project to Self-Hosted"
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
             }
           ],
-          "resultChars": 116637
+          "resultChars": 146267
         },
         {
-          "source": "shell_fetch",
-          "query": "https://supabase.com/changelog.md",
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Self-hosting with Docker quick start Linux generate-keys.sh docker compose deployment production reverse proxy HTTPS\", limit: 5) { nodes { __typename title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/changelog.md"
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https",
+              "title": "Configure Reverse Proxy and HTTPS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
             }
           ],
-          "resultChars": 19843
+          "resultChars": 84065
         }
       ]
     },
@@ -12130,7 +12105,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "Meets rubric: identifies soft-delete-only cause, implements auth user deletion/session cascade plus session-validating RLS, correctly explains JWTs remain valid for local validation and the remaining window consistent with its RLS fix, and accurately distinguishes publishable frontend key from secret backend-only RLS-bypassing key."
+        "judgeNotes": "Meets all rubric requirements: diagnoses soft-delete/no auth revocation, implements auth user/session removal plus session-aware RLS, explains remaining JWT expiry caveat consistently with the implemented data-path fix, and correctly distinguishes publishable vs secret keys and RLS behavior."
       }
     ],
     "skills": {
@@ -12146,98 +12121,93 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user access token remains valid revoke sessions sign out delete account JWT auth.sessions session_id RLS publishable secret keys legacy anon service_role\", limit: 8) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"delete user existing access token sessions revoke sign out JWT expiry auth.sessions delete account\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/sessions",
               "title": "User sessions"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/auth/signout",
+              "title": "Signing out"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
               "title": "Multiple SSO Providers"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/rotating-anon-service-and-jwt-secrets-1Jq6yd",
-              "title": "Rotating Anon, Service, and JWT Secrets"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
+              "url": "https://supabase.com/docs/reference/api/v1-delete-jit-access",
+              "title": "Delete JIT access by user-id"
             }
           ],
-          "resultChars": 86332
-        },
-        {
-          "source": "shell_fetch",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 19064
+          "resultChars": 44465
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"publishable key secret key frontend RLS bypass service_role migration sb_publishable sb_secret API keys\", limit: 6) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"publishable key secret key legacy anon service_role RLS frontend bypass\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
-            },
             {
               "url": "https://supabase.com/docs/guides/storage/security/access-control",
               "title": "Storage Access Control"
             },
             {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys",
               "title": "Understanding API keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            }
-          ],
-          "resultChars": 78022
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Understanding API keys publishable keys secret keys RLS bypass browser frontend sb_publishable sb_secret\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
             {
               "url": "https://supabase.com/docs/guides/database/secure-data",
               "title": "Securing your data"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z",
+              "title": "Why is my service role key client getting RLS errors or not returning data?"
             }
           ],
-          "resultChars": 30135
+          "resultChars": 109579
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog Supabase changelog auth API keys breaking change",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/getting-started/migrating-to-new-api-keys publishable secret keys RLS",
+          "pages": []
         }
       ]
     },
