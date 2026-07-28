@@ -13,10 +13,5 @@ export default defineConfig({
       // agent's workspace, and must never run as part of this suite.
       '../../evals/*/EVAL.test.ts',
     ],
-    // Scorers make expected-fail supabase-js calls that log through
-    // console.error. Vitest reports failures through its own reporter, so
-    // dropping this noise cannot hide a failing test.
-    onConsoleLog: (_log, type) =>
-      type === 'stderr' && !process.env.DEBUG_TESTS ? false : undefined,
   },
 });

@@ -4,7 +4,7 @@ import {
   deployFunction,
   scorerCtx,
   withBackend,
-} from '../../apps/framework/harness/scorer-test-kit.js';
+} from '../../test-utils/scorer-test-kit.js';
 import scorer from './EVAL.js';
 
 const ORDER_TOTAL_SOURCE = `

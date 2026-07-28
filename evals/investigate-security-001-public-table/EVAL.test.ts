@@ -7,8 +7,8 @@ import {
   scorerCtx,
   seedPath,
   withBackend,
-} from '../../apps/framework/harness/scorer-test-kit.js';
-import type { TranscriptPart } from '../../apps/framework/harness/types.js';
+} from '../../test-utils/scorer-test-kit.js';
+import type { TranscriptPart } from '@supabase-evals/core';
 import scorer from './EVAL.js';
 
 // The scorer's fourth check calls a real OpenAI judge, which needs

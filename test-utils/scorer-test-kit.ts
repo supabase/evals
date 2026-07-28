@@ -1,28 +1,29 @@
 /**
  * Helpers for testing eval scorers against a real platform-lite backend.
  *
+ * Lives at the repo root rather than inside a package on purpose: it hardcodes
+ * the monorepo layout (`ROOT`, `seedPath`) and is test-only, so shipping it
+ * from `@supabase-evals/core` would make a production package own repo-shaped
+ * test infrastructure. Canonical types come from core; nothing here reaches
+ * into an app's internals.
+ *
  * Scorer tests live next to the scorer they cover (`evals/<id>/EVAL.test.ts`)
  * and import it directly; harness tests live beside the harness module they
- * cover. Both import from here so a scorer test stays a description of the
- * scenario rather than a pile of backend plumbing.
+ * cover. Both import from here so a test stays a description of the scenario
+ * rather than a pile of backend plumbing.
  */
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bootPlatformBackend } from './platform-backend.js';
-import type { PlatformBackend } from './platform-backend.js';
+import { bootPlatformBackend } from '@supabase-evals/core';
 import type {
   EdgeFunctionsInvokeResult,
+  PlatformBackend,
   ToolEvalContext,
   TranscriptPart,
-} from './types.js';
+} from '@supabase-evals/core';
 
-/** Repo root, from `apps/framework/harness/`. */
-export const ROOT = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..'
-);
+/** Repo root, from `test-utils/`. */
+export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Path to a file in an eval's `remote/` seed directory. */
 export function seedPath(relDir: string, file: string): string {

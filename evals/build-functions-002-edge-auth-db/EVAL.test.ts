@@ -5,7 +5,7 @@ import {
   scorerCtx,
   seedPath,
   withBackend,
-} from '../../apps/framework/harness/scorer-test-kit.js';
+} from '../../test-utils/scorer-test-kit.js';
 import scorer from './EVAL.js';
 
 const EVAL_DIR = 'evals/build-functions-002-edge-auth-db';

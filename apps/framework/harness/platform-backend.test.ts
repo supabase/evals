@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { bootPlatformBackend } from './platform-backend.js';
-import { seedPath, withBackend } from './scorer-test-kit.js';
+import { seedPath, withBackend } from '../../../test-utils/scorer-test-kit.js';
 
 const LOGS_EVAL = 'evals/investigate-logs-001-top-error-function';
 

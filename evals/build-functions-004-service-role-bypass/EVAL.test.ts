@@ -3,11 +3,11 @@ import {
   checksMessage,
   failedCheckNames,
   functionResponse,
-} from '../../apps/framework/harness/scorer-test-kit.js';
+} from '../../test-utils/scorer-test-kit.js';
 import type {
   EdgeFunctionsInvokeResult,
   ToolEvalContext,
-} from '../../apps/framework/harness/types.js';
+} from '@supabase-evals/core';
 import scorer from './EVAL.js';
 
 /**
