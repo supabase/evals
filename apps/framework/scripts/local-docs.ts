@@ -60,7 +60,21 @@ function fail(msg: string): never {
   process.exit(1);
 }
 
-/** Run a command, streaming output; fails loudly on nonzero exit. */
+/**
+ * Run a command, streaming output; fails loudly on nonzero exit.
+ *
+ * `quiet` buffers instead of streaming, because the supabase CLI reports the
+ * stack's ANON_KEY, PUBLISHABLE_KEY, SERVICE_ROLE_KEY, SECRET_KEY, and
+ * JWT_SECRET on every start, plus an update-notifier nag. That buries our own
+ * one-line status, and the keys are not something to leave on a screen
+ * recording.
+ *
+ * On failure it replays stderr only. Measured against `supabase start`: the key
+ * report goes to stdout (3 key lines there, 0 on stderr), while stderr carries
+ * the diagnostics you actually want (workdir, config warnings, per-service
+ * status). Dropping stdout is a stream boundary rather than a pattern match, so
+ * there is no redaction regex to keep in step with the CLI's output shapes.
+ */
 function run(
   cmd: string,
   args: string[],
@@ -68,21 +82,36 @@ function run(
     cwd?: string;
     env?: Record<string, string | undefined>;
     shim?: boolean;
+    quiet?: boolean;
   } = {}
 ) {
   const res = spawnSync(cmd, args, {
-    stdio: 'inherit',
+    stdio: opts.quiet ? 'pipe' : 'inherit',
+    encoding: opts.quiet ? 'utf8' : undefined,
     cwd: opts.cwd ?? ROOT,
     env: opts.env ? { ...process.env, ...opts.env } : process.env,
     // .cmd shims (corepack, .bin/tsx) need a shell on Windows
     shell: opts.shim ? onWindows : false,
   });
-  if (res.status !== 0)
+  if (res.status !== 0) {
+    if (opts.quiet && res.stderr) process.stderr.write(res.stderr);
     fail(`${cmd} ${args.join(' ')} failed (exit ${res.status})`);
+  }
 }
 
+/**
+ * Capture stdout. stderr is swallowed rather than inherited: the supabase CLI
+ * writes its workdir line, deprecation warnings, stopped-service list, and
+ * update-notifier nag there on every invocation, and this runs inside helpers
+ * whose own output is one line. On failure execFileSync throws with the output
+ * attached, so nothing is lost when it matters.
+ */
 function capture(cmd: string, args: string[]): string {
-  return execFileSync(cmd, args, { cwd: ROOT, maxBuffer: 1 << 24 }).toString();
+  return execFileSync(cmd, args, {
+    cwd: ROOT,
+    maxBuffer: 1 << 24,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).toString();
 }
 
 function docsPath(docs: string | undefined): string {
@@ -142,23 +171,30 @@ function cmdUp(opts: DocsOptions) {
   }
   writeFileSync(join(OVERLAY, 'docs-path.txt'), `${docs}\n`);
 
-  run('supabase', ['start', '--workdir', OVERLAY, '-x', STACK_EXCLUDES]);
+  console.log(`starting the docs stack (project ${PROJECT_ID})...`);
+  run('supabase', ['start', '--workdir', OVERLAY, '-x', STACK_EXCLUDES], {
+    quiet: true,
+  });
   // Upstream page migrations grant service_role no CRUD on the content
   // tables; the embedder authenticates as service_role and needs it.
-  run('docker', [
-    'exec',
-    DB_CONTAINER,
-    'psql',
-    '-U',
-    'postgres',
-    '-d',
-    'postgres',
-    '-q',
-    '-c',
-    'GRANT ALL ON public.page, public.page_section TO service_role; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role; GRANT SELECT ON public.page, public.page_section TO anon, authenticated;',
-  ]);
+  run(
+    'docker',
+    [
+      'exec',
+      DB_CONTAINER,
+      'psql',
+      '-U',
+      'postgres',
+      '-d',
+      'postgres',
+      '-q',
+      '-c',
+      'GRANT ALL ON public.page, public.page_section TO service_role; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role; GRANT SELECT ON public.page, public.page_section TO anon, authenticated;',
+    ],
+    { quiet: true }
+  );
   console.log(
-    `docs stack up (project ${PROJECT_ID}); next: pnpm local docs seed`
+    `docs stack up on ${stackEnv().API_URL}; next: pnpm local docs seed`
   );
 }
 
@@ -284,7 +320,10 @@ export async function main(argv: string[]) {
       cmdApi(values);
       break;
     case 'down':
-      run('supabase', ['stop', '--workdir', OVERLAY]);
+      run('supabase', ['stop', '--workdir', OVERLAY], { quiet: true });
+      console.log(
+        `docs stack stopped (project ${PROJECT_ID}); the seeded index stays in its docker volume`
+      );
       break;
     default:
       fail(usage);
