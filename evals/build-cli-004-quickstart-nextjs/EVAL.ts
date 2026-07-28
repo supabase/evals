@@ -7,8 +7,10 @@ import {
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 
+// Tolerates npx flags between `npx` and `plugins` (e.g. `npx --yes plugins add ...`),
+// since the agent is free to pass its own npx flags and still be attempting the install.
 const PLUGIN_INSTALL_PATTERN =
-  /npx\s+plugins\s+add\s+supabase-community\/supabase-plugin/i;
+  /npx\s+(?:--?\S+\s+)*plugins\s+add\s+supabase-community\/supabase-plugin/i;
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
