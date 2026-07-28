@@ -450,12 +450,12 @@ describe('buildDocsResult', () => {
 
   it('records every supabase url a single shell fetch pulled down', () => {
     const command =
-      'wget https://supabase.com/changelog.md https://supabase.com/docs/guides/auth.md';
+      'wget -qO- https://supabase.com/changelog.md https://supabase.com/docs/guides/auth.md';
     const result = buildDocsResult([
       toolCall(
         'command_execution',
         { command },
-        { name: 'shell', command, result: 'saved 2 files' }
+        { name: 'shell', command, result: 'page 1\npage 2' }
       ),
     ]);
 
@@ -463,6 +463,61 @@ describe('buildDocsResult', () => {
       { url: 'https://supabase.com/changelog.md' },
       { url: 'https://supabase.com/docs/guides/auth.md' },
     ]);
+  });
+
+  it('drops an ordinary wget whose page was saved to disk instead of shown to the model', () => {
+    const command = 'wget https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'saved changelog.md' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('counts wget with the long-form stdout destination', () => {
+    const command =
+      'wget --quiet --output-document=- https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: '# Changelog' }
+      ),
+    ]);
+
+    expect(result.calls).toHaveLength(1);
+  });
+
+  it('drops curl output saved to a file instead of shown to the model', () => {
+    const command =
+      'curl -fsSL -ochangelog.md https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'download complete' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('does not attribute an unrelated url elsewhere in a compound command to curl', () => {
+    const command =
+      'echo https://supabase.com/changelog.md; curl -fsSL https://example.com';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'example page' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
   });
 
   it('drops a shell fetch that failed, since a non-zero exit leaves no output to read', () => {
@@ -489,6 +544,19 @@ describe('buildDocsResult', () => {
         'command_execution',
         { command },
         { name: 'shell', command, result: 'Unauthorized' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('drops a shell fetch from a lookalike hostname', () => {
+    const command = 'curl https://not-supabase.com/foo';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'not Supabase docs' }
       ),
     ]);
 

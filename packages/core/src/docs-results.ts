@@ -25,10 +25,12 @@ const TRUNCATION_APPROX_SIZE_PATTERN =
 const TITLED_PAGE_PATTERN =
   /"title":"([^"]*)"\s*,?\s*"(?:href|url)":"([^"]+)"/g;
 const HREF_PATTERN = /"(?:href|url)":"([^"]+)"/g;
-// A shell command that pulls a url down, as opposed to one that merely
-// mentions it. ponytail: curl and wget are the only fetchers observed in eval
-// transcripts; add httpie and friends when they show up.
-const SHELL_FETCH_PATTERN = /\b(?:curl|wget)\b/;
+const CURL_PATTERN = /\bcurl\b/;
+const CURL_NO_BODY_PATTERN =
+  /(?:^|\s)(?:-[^-\s]*[oOI]\S*|--(?:output|remote-name|head)(?:=\S*)?)(?=\s|$)/;
+const WGET_STDOUT_PATTERN =
+  /(?:^|\s)(?:-[A-Za-z]*O-|-[A-Za-z]*O\s+-|--output-document(?:=|\s+)-)(?=\s|$)/;
+const SHELL_SEGMENT_PATTERN = /(?:&&|\|\||[;|])/;
 // Urls inside a shell command, stopping at the shell metacharacters that can
 // legally follow one (`|`, `>`, quotes, backslash-escapes).
 const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
@@ -76,15 +78,31 @@ function shellCommand(call: ToolCallRecord): string | undefined {
   return typeof call.body.command === 'string' ? call.body.command : undefined;
 }
 
-/** The docs urls a shell command fetches, empty when it isn't a fetch at all. */
+/** The docs urls a shell command writes to stdout, empty when page text won't reach the model. */
 function shellFetchUrls(command: string | undefined): string[] {
-  if (!command || !SHELL_FETCH_PATTERN.test(command)) return [];
+  if (!command) return [];
   const urls: string[] = [];
-  for (const match of command.match(URL_IN_COMMAND_PATTERN) ?? []) {
-    // Trailing sentence punctuation glues onto a url in prose; a real one
-    // never ends in a period or comma.
-    const url = match.replace(/[.,]+$/, '');
-    if (isSupabaseDocsUrl(url) && !urls.includes(url)) urls.push(url);
+  for (const segment of command.split(SHELL_SEGMENT_PATTERN)) {
+    const curlToStdout =
+      CURL_PATTERN.test(segment) &&
+      !CURL_NO_BODY_PATTERN.test(segment) &&
+      !segment.includes('>');
+    const wgetToStdout =
+      /\bwget\b/.test(segment) &&
+      WGET_STDOUT_PATTERN.test(segment) &&
+      !segment.includes('>');
+    if (!curlToStdout && !wgetToStdout) continue;
+
+    const fetcher = segment.match(/\b(?:curl|wget)\b/);
+    if (!fetcher || fetcher.index === undefined) continue;
+    for (const match of segment
+      .slice(fetcher.index + fetcher[0].length)
+      .match(URL_IN_COMMAND_PATTERN) ?? []) {
+      // Trailing sentence punctuation glues onto a url in prose; a real one
+      // never ends in a period or comma.
+      const url = match.replace(/[.,]+$/, '');
+      if (isSupabaseDocsUrl(url) && !urls.includes(url)) urls.push(url);
+    }
   }
   return urls;
 }

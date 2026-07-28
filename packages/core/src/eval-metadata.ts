@@ -234,7 +234,7 @@ export type SkillResult = z.infer<typeof skillResultSchema>;
 // tool vocabulary). `web_fetch`/`web_search` are the harness's own normalized
 // name, so Claude Code's `WebSearch` and Codex's `web_search` (the same
 // action, spelled differently per harness) collapse into one value here.
-// `shell_fetch` is a docs url fetched from the shell, which is how an agent
+// `shell_fetch` is a docs url fetched to shell stdout, which is how an agent
 // with no fetch tool of its own reads a page (Codex curls the changelog).
 export const docsPageSourceSchema = z.enum([
   'search_docs',
