@@ -7,11 +7,9 @@ import {
 } from '../../test-utils/scorer-test-kit.js';
 import scorer from './EVAL.js';
 
-const EVAL_DIR = 'evals/investigate-logs-001-top-error-function';
-
 test('passes for a report naming the top error function and its count', async () => {
   await withBackend(
-    { logsSeedJsonl: seedPath(EVAL_DIR, 'logs.jsonl') },
+    { logsSeedJsonl: seedPath(import.meta.url, 'logs.jsonl') },
     async (backend) => {
       const result = await scorer(
         scorerCtx(backend, {

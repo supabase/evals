@@ -25,9 +25,14 @@ import type {
 /** Repo root, from `test-utils/`. */
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Path to a file in an eval's `remote/` seed directory. */
-export function seedPath(relDir: string, file: string): string {
-  return join(ROOT, relDir, 'remote', file);
+/**
+ * Path to a file in an eval's `remote/` seed directory, resolved from the
+ * calling test's own location. Pass `import.meta.url`: a colocated
+ * `EVAL.test.ts` always seeds its own scenario, where a hand-written directory
+ * string can silently point at a different eval's fixtures and still pass.
+ */
+export function seedPath(testUrl: string, file: string): string {
+  return join(dirname(fileURLToPath(testUrl)), 'remote', file);
 }
 
 /** A `ToolEvalContext` backed by a live platform-lite project. */

@@ -8,8 +8,6 @@ import {
 } from '../../test-utils/scorer-test-kit.js';
 import scorer from './EVAL.js';
 
-const EVAL_DIR = 'evals/build-functions-002-edge-auth-db';
-
 const TODO_CREATE_SOURCE = `
 import { createClient } from "@supabase/supabase-js";
 
@@ -48,7 +46,7 @@ Deno.serve(async (req) => {
 
 test('passes for a JWT-verifying function that inserts as the caller', async () => {
   await withBackend(
-    { projectSeedSql: seedPath(EVAL_DIR, 'project.sql') },
+    { projectSeedSql: seedPath(import.meta.url, 'project.sql') },
     async (backend) => {
       await deployFunction(backend, 'todo-create', TODO_CREATE_SOURCE, {
         verifyJwt: true,

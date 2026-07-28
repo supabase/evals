@@ -20,8 +20,6 @@ vi.mock('@supabase-evals/core', async (importOriginal) => ({
   judge: vi.fn(async () => ({ passed: true, notes: 'stubbed verdict' })),
 }));
 
-const EVAL_DIR = 'evals/investigate-security-001-public-table';
-
 const GOOD_REPORT = [
   'customer_payment_methods is exposed to anon.',
   'Fix by REVOKE SELECT ON customer_payment_methods FROM anon and enable row level security.',
@@ -38,8 +36,8 @@ const asTranscript = (report: string): TranscriptPart[] => [
 test('scores a report that names the exposure and the fix', async () => {
   await withBackend(
     {
-      projectSeedSql: seedPath(EVAL_DIR, 'project.sql'),
-      logsSeedJsonl: seedPath(EVAL_DIR, 'logs.jsonl'),
+      projectSeedSql: seedPath(import.meta.url, 'project.sql'),
+      logsSeedJsonl: seedPath(import.meta.url, 'logs.jsonl'),
     },
     async (backend) => {
       const { rows } = await backend.query(`

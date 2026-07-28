@@ -7,11 +7,9 @@ import {
 } from '../../test-utils/scorer-test-kit.js';
 import scorer from './EVAL.js';
 
-const EVAL_DIR = 'evals/build-rls-002-own-todos-client';
-
 test('passes once per-user RLS policies are in place', async () => {
   await withBackend(
-    { projectSeedSql: seedPath(EVAL_DIR, 'project.sql') },
+    { projectSeedSql: seedPath(import.meta.url, 'project.sql') },
     async (backend) => {
       await backend.query(`
 ALTER TABLE todos ENABLE ROW LEVEL SECURITY;

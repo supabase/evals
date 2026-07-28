@@ -1,8 +1,14 @@
+import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { bootPlatformBackend } from './platform-backend.js';
-import { seedPath, withBackend } from '../../../test-utils/scorer-test-kit.js';
+import { ROOT, withBackend } from '../../../test-utils/scorer-test-kit.js';
 
-const LOGS_EVAL = 'evals/investigate-logs-001-top-error-function';
+// Deliberately borrows another eval's fixture, so the path stays explicit
+// rather than going through the colocated `seedPath` helper.
+const LOGS_SEED = join(
+  ROOT,
+  'evals/investigate-logs-001-top-error-function/remote/logs.jsonl'
+);
 
 test('supalite auth issues a session supabase-js can write and read under RLS', async () => {
   await withBackend({}, async (backend) => {
@@ -54,7 +60,7 @@ test('close disposes the platform, and is idempotent', async () => {
 
 test('seeded logs are queryable over the analytics endpoint', async () => {
   await withBackend(
-    { logsSeedJsonl: seedPath(LOGS_EVAL, 'logs.jsonl') },
+    { logsSeedJsonl: LOGS_SEED },
     async ({ url, ref, accessToken }) => {
       const sql = 'SELECT count(*)::int AS n FROM edge_logs';
       const res = await fetch(
