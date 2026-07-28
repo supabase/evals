@@ -56,6 +56,10 @@ function formatOpenAiModel(modelId: string) {
     .join(" ")
 }
 
+function formatMoonshotaiModel(modelId: string) {
+  return modelId.split("-").map(capitalize).join(" ")
+}
+
 function formatModel(display: ExperimentDisplay) {
   // opencode ids are AI Gateway `vendor/model` slugs; format just the model part.
   const modelId = display.modelId.replace(/^[a-z-]+\//, "")
@@ -65,7 +69,7 @@ function formatModel(display: ExperimentDisplay) {
     case "openai":
       return formatOpenAiModel(modelId)
     case "moonshotai":
-      return modelId
+      return formatMoonshotaiModel(modelId)
   }
 }
 
