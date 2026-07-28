@@ -1041,7 +1041,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -1062,7 +1062,8 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
@@ -1071,17 +1072,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant explicitly identifies the root cause: delete_account only set profiles.deleted=true (soft delete), no RLS checked it, and it did not delete auth.users or revoke sessions/refresh tokens, so the user stayed signed in/refreshed tokens. It explains why the deleted account still worked and proposes a flow-level fix, not caching/client bugs."
+        "judgeNotes": "The assistant clearly identifies the root cause: delete_account only set profiles.deleted, did not disable/remove auth.users, did not revoke sessions/refresh tokens, and RLS did not enforce the deleted flag, so the user could keep using existing tokens and sign in again."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant changed the flow from soft-delete to deleting auth.users, cascading/removing sessions, refresh tokens, identities, and profile, plus explicitly deleting notes and adding RLS gating to close the live JWT window. This satisfies revoking auth access rather than leaving a cosmetic soft delete."
+        "judgeNotes": "The assistant rewrote the delete_account flow to revoke/delete sessions and refresh tokens and ban the auth user, plus added RLS checks to reject existing tokens. This satisfies the requirement to remove auth access rather than only soft-deleting."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly explains that issued access tokens remain cryptographically valid until expiry and that local/JWT-only validation would still accept them. Its shipped fix includes RLS gating via account_active(), so its claim of no post-deletion data-path window for the protected tables is consistent, while still caveating that new/local paths need mitigation and naming short JWT expiry/session checks."
+        "judgeNotes": "The assistant correctly explains that Supabase access tokens are stateless JWTs that remain cryptographically valid until expiry and are not invalidated merely by deleting sessions/users. Its window claim is consistent with the shipped fix: because it added stateful RLS checks against auth.sessions/profile/banned status, it says the current data path is closed immediately, while warning that purely local JWT validation surfaces still accept the token until exp and naming mitigations."
       }
     ],
     "skills": {
@@ -1094,11 +1095,40 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"delete user account revoke session access token still valid RLS\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/mcp-authentication",
+              "title": "Model Context Protocol (MCP) Authentication"
+            }
+          ],
+          "resultChars": 73211
+        }
+      ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-opus-4.8/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -2406,17 +2436,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant clearly identifies that delete_account only soft-deletes the profile row, does not remove/disable the auth user or revoke sessions/refresh tokens, and explains that this is why the account can keep signing in/accessing data. It does not blame caching or client bugs."
+        "judgeNotes": "The assistant explicitly identifies the root cause: delete_account only set profiles.deleted and did not remove/disable auth.users or revoke auth.sessions/refresh tokens, allowing continued sign-in/session refresh. It also explains the flag was not enforced by RLS."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant rewrote the flow to revoke auth-layer access by banning/marking deleted in auth.users and deleting auth.sessions and auth.refresh_tokens, plus enforced the deleted flag in RLS. This satisfies removal of identity/sessions or equivalent revocation."
+        "judgeNotes": "The assistant changes the flow beyond a soft delete: delete_account bans the auth user and deletes auth.sessions (cascading to refresh_tokens), and adds RLS enforcement so stale JWTs cannot access app data. This satisfies revoking sessions/refresh tokens or equivalently removing auth access."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly explains stateless JWTs remain cryptographically valid until expiry and that local-only validation would keep accepting them. Its implemented fix adds RLS checks against the deleted/account_active state, so its claim of no meaningful Data API window is consistent, while still noting an auth/JWT expiry window remains for custom local validation and suggesting lower JWT expiry."
+        "judgeNotes": "The assistant correctly explains stateless JWTs remain cryptographically valid until expiry and that local validation would still accept them. Its shipped fix adds RLS enforcing account active state, so its claim of no app-data window is consistent, while still noting a residual token-validity window and mitigation via shorter JWT expiry."
       }
     ],
     "skills": {
@@ -3931,17 +3961,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant explicitly identifies that delete_account only updated a profiles deleted flag, did not remove auth.users, sessions, refresh tokens, identities, or enforce the flag in RLS, explaining why the deleted account could keep using an existing session or sign in again."
+        "judgeNotes": "The assistant explicitly identifies the root cause: delete_account only updated profiles.deleted, did not delete auth.users or revoke sessions/tokens, and RLS ignored the flag, so the user could keep signing in/accessing data."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant replaced the soft-delete flow with deletion from auth.users, explicitly noting cascades to identities, sessions, and refresh tokens, and added session-active RLS checks to cut off existing JWT access. This satisfies revoking auth access rather than leaving only a soft delete."
+        "judgeNotes": "The assistant changed the flow from a soft delete to deleting the auth.users row, explicitly noting cascade removal of identities/sessions/refresh tokens, and added/verified session revocation behavior."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "Pass: The assistant explicitly explains that already-issued Supabase access tokens remain cryptographically valid until expiry and that local validation would still accept them. Its shipped fix adds RLS checking auth.sessions via session_id, which genuinely closes the Data API/RLS window after deletion, and its window claim is consistent with that fix while still noting caveats like service-role bypass and in-flight requests."
+        "judgeNotes": "Explains stateless JWTs remain valid until expiry for local validation, identifies the stale-token window without the RLS/session fix, and the implemented fix genuinely closes the Data API path by checking auth.sessions in RLS. Notes residual risk for other auth.uid-only tables/RPCs."
       }
     ],
     "skills": {
@@ -3957,36 +3987,37 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"allow users to delete their own account SQL function auth.users\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"JWT claims session_id access token fields\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
-              "title": "Anonymous Sign-Ins"
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
-              "title": "Build a User Management App with SvelteKit"
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook",
+              "title": "Custom Access Token Hook"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/extensions/pgaudit",
-              "title": "PGAudit: Postgres Auditing"
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
             }
           ],
-          "resultChars": 74244
+          "resultChars": 89772
         }
       ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -5260,17 +5291,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant clearly identifies the root cause: delete_account only set profiles.deleted, did not touch auth.users, did not ban/remove the auth user, and did not revoke sessions/refresh tokens, so existing sessions and future sign-ins continued to work."
+        "judgeNotes": "Identifies that delete_account only sets profiles.deleted, does not touch auth.users or revoke sessions/tokens, and explains existing JWT/RLS allows continued access/sign-in."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant updates delete_account to ban the auth user and delete auth.refresh_tokens and auth.sessions, plus adds RLS checks for deleted users. This fixes the soft-delete-only flow by revoking auth access and refresh/session capability."
+        "judgeNotes": "The assistant updated delete_account to revoke auth access by banning the auth user and deleting sessions/refresh tokens, and also tightened RLS to block deleted accounts immediately."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly explains that access tokens are stateless JWTs that remain cryptographically valid until expiry and are not invalidated merely by banning/deleting sessions. Its shipped fix adds RLS checks against the deleted flag, so its claim of no practical Data API window is consistent, while still noting local/JWT validation would accept the token until exp."
+        "judgeNotes": "Explains Supabase access tokens are self-contained and remain cryptographically valid until expiry, while the shipped RLS fix reads live deleted state and closes the Data API path immediately. The window claim is consistent with the implemented RLS mitigation."
       }
     ],
     "skills": {
@@ -9067,7 +9098,8 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
@@ -9077,17 +9109,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "Identified that delete_account only soft-deletes public.profiles and leaves auth.users/sessions intact, explaining why stale auth/JWT access continues."
+        "judgeNotes": "The assistant explicitly identifies the root cause: delete_account only soft-deleted public.profiles and did not revoke sessions or delete/mark the auth user, so JWT/session/RLS still allowed access. It does not blame caching/client bugs."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant changed the flow from a soft delete to deleting the auth.users row, which cascades to sessions/identities/refresh tokens, and added RLS checks requiring an active auth user to block stale JWT access."
+        "judgeNotes": "The assistant replaced the soft-delete-only flow with a delete_account RPC that removes auth.refresh_tokens and auth.sessions, marks the auth user deleted/banned, and updates RLS to require an undeleted auth user plus live session. This satisfies revoking sessions/refresh tokens and removing auth access."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": false,
-        "judgeNotes": "The fix/window claim is consistent with the shipped RLS/auth.users check, but the assistant did not explicitly explain that stateless JWT access tokens remain accepted until expiry by purely local validation such as getClaims() or custom signature/expiry middleware."
+        "judgeNotes": "The shipped fix genuinely closes the Supabase Data API path via RLS checks against auth.users and auth.sessions, so the no post-delete data window claim is consistent. However, the assistant did not clearly explain that access tokens are stateless JWTs that remain valid until expiry for purely local validation such as getClaims/custom middleware, which the rubric requires even when the data path is closed."
       }
     ],
     "skills": {
@@ -9096,17 +9128,84 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user sessions auth.admin.deleteUser invalidate existing access tokens\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"delete user revoke sessions delete account auth.admin.deleteUser signOut before delete\", limit: 5) { nodes { title href ... on Guide { content } ... on ClientLibraryFunctionReference { language methodName content href } } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-signout"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
+            }
+          ],
+          "resultChars": 9673
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth.sessions access token invalidation delete user session exists refresh token revoke auth.users\", limit: 8) { nodes { title href ... on Guide { content } ... on ClientLibraryFunctionReference { language methodName content href } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/build-a-supabase-oauth-integration",
+              "title": "Build a Supabase Integration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            }
+          ],
+          "resultChars": 106483
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"banned_until auth.users deleted_at soft delete user login blocked\", limit: 5) { nodes { title href ... on Guide { content } ... on ClientLibraryFunctionReference { language methodName content href } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            },
             {
               "url": "https://supabase.com/docs/guides/auth/managing-user-data",
               "title": "User Management"
@@ -9116,22 +9215,15 @@
               "title": "Multiple SSO Providers"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions",
-              "title": "User sessions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
+              "url": "https://supabase.com/docs/guides/platform/sso/testing-best-practices",
+              "title": "SSO Testing and Best Practices"
             }
           ],
-          "resultChars": 47942
+          "resultChars": 72816
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"auth.sessions delete user revoke sessions auth.admin.deleteUser delete user does not automatically sign out\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "query": "query { searchDocs(query: \"shouldSoftDelete deleted_at auth.users sign in soft delete user\", limit: 10) { nodes { title href ... on Guide { content } ... on ClientLibraryFunctionReference { language methodName content href } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -9139,21 +9231,15 @@
               "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-signout"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/sessions",
-              "title": "User sessions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signout",
-              "title": "Signing out"
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
             }
           ],
-          "resultChars": 24999
+          "resultChars": 29011
         }
       ]
     },
@@ -11539,17 +11625,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant clearly identifies the root cause: delete_account only soft-deleted public.profiles.deleted and did not remove the auth user or revoke sessions/JWTs, so RLS based on auth.uid() continued to allow access. It explains why the deleted account still works and does not blame caching/client bugs."
+        "judgeNotes": "The assistant explicitly identified that delete_account only set public.profiles.deleted=true while auth.users and sessions remained, explaining why auth.uid()/JWT-based access still worked. It did not blame caching/client bugs."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant changed delete_account to delete from auth.users, which cascades to sessions/identities/profile per the discovered FKs, and added active-account checks in RLS. This satisfies removing auth identity/sessions and revoking access rather than leaving only a soft delete."
+        "judgeNotes": "The assistant replaced the soft-delete RPC with deletion from auth.users, relying on ON DELETE CASCADE to remove sessions, identities, and profile, and also tightened RLS to require an active auth session. This revokes refresh/session access rather than leaving only a profile flag."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "The assistant shipped RLS policies that check the auth user still exists via account_is_active(), so its claim that the data path has no post-commit backend access window is consistent with the fix. It explains the prior stale JWT/session issue, though it does not explicitly note that the JWT itself remains valid until expiry for purely local validation."
+        "judgeNotes": "The assistant correctly explains JWTs remain valid until expiry generally, and its shipped fix adds RLS checks against auth.users/auth.sessions, genuinely closing the Data API path after deletion while noting only in-flight race remains. It does not explicitly mention purely local validation in the final, but it relied on Supabase docs and its window claim is consistent with the implemented RLS mitigation."
       }
     ],
     "skills": {
@@ -11557,7 +11643,28 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"delete user revoke sessions auth.users.deleted_at session invalidation\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
+            }
+          ],
+          "resultChars": 34047
+        }
+      ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
@@ -14163,17 +14270,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant explicitly identifies the root cause: delete_account only sets profiles.deleted=true, leaves the Auth user and sessions intact, and RLS ignores the deleted flag, allowing continued sign-in/access. It does not blame caching/client bugs, though it notes client cached session only as secondary behavior."
+        "judgeNotes": "Identifies that delete_account only soft-deletes profiles.deleted, does not delete auth.users or revoke sessions, and explains the still-valid JWT/session is why access continues."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant replaced the soft-delete-only flow with an RPC that deletes the auth.users row, causing sessions to be removed, and added RLS protections for immediate access denial. Verification showed auth user and session removed and same unexpired token denied data access."
+        "judgeNotes": "The assistant replaced the soft-delete-only flow with a hard delete from auth.users, causing cascade removal of sessions/identity-related rows, and added RLS checks against auth.sessions session_id to reject existing JWTs after session deletion. It explicitly verified auth user/session deletion and post-delete access denial."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly explains that Supabase access tokens/JWTs remain cryptographically valid until exp after user/session deletion. Its shipped fix updates RLS to require live non-deleted profile state and deletes auth.users/sessions, then it claims new database requests lose access immediately, with only already-executing snapshot caveat. This is consistent with its RLS-based mitigation closing the Data API stale-JWT window while noting purely local token validity remains."
+        "judgeNotes": "The assistant clearly explains JWTs remain cryptographically valid until expiry and that local validation would still accept them. Its shipped fix genuinely closes the Data API path by hard-deleting auth user/sessions and adding RLS checks against auth.sessions/session_id, so its 'no window for these database tables' claim is consistent. It also notes the token itself remains valid until expiration."
       }
     ],
     "skills": {
@@ -14189,7 +14296,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user existing access token sessions revoke auth.sessions sign out scope global JWT remains valid\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"delete user invalidate access token revoke sessions auth.sessions session_id JWT\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -14197,34 +14304,31 @@
               "title": "User sessions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/signout",
-              "title": "Signing out"
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/signing-keys",
               "title": "JWT Signing Keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
-              "title": "Should I set a shorter Max-Age parameter on the cookies?"
-            },
-            {
               "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
               "title": "OAuth 2.1 Flows"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
-              "title": "JWT Claims Reference"
             }
           ],
-          "resultChars": 107162
+          "resultChars": 129030
         },
         {
           "source": "web_search",
@@ -14237,14 +14341,59 @@
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com changelog auth session delete user revoke sessions Supabase",
+          "query": "site:supabase.com/changelog auth sessions revoke deleted user JWT Supabase breaking change",
           "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"admin deleteUser access token remains valid until expiry sign out revoke refresh tokens delete account\", limit: 10) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/build-a-supabase-oauth-integration",
+              "title": "Build a Supabase Integration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/temporary-access",
+              "title": "Temporary access"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
+            }
+          ],
+          "resultChars": 94713
         }
       ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.6/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -16957,17 +17106,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant explicitly identifies that delete_account only set profiles.deleted=true, did not remove the Auth user/sessions/JWT, and explains that auth.uid()-based RLS allowed continued access/sign-in. It does not blame caching or client bugs."
+        "judgeNotes": "The assistant explicitly identified the root cause: delete_account only set profiles.deleted=true while the Auth user and sessions remained active, so JWT/RLS still allowed access. It did not blame caching or client bugs."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant changed delete_account() to delete from auth.users, which cascades to sessions/identities/profile per FK constraints, and added RLS hardening. This fixes the soft-delete-only flow and removes auth access/refresh sessions."
+        "judgeNotes": "The assistant replaced the soft-delete-only RPC with a flow that deletes the auth.users row, which cascades to sessions and identities, and verified auth/profile/notes removal. This satisfies revoking auth access/refresh sessions rather than leaving a soft delete."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly explains JWTs remain cryptographically valid until expiration and that local/auth.uid-only checks can still accept them. Its shipped fix adds RLS checks against auth.users/profiles via is_active_account(), so the claim of no post-commit data window for protected profile/note data is consistent, while caveating future auth.uid-only paths and in-flight requests."
+        "judgeNotes": "The assistant explains JWTs remain signature-valid until exp and that auth.uid-only/local validation paths could accept stale tokens until expiry. Its shipped fix deletes auth.users and gates Data API via RLS using the active profile, so saying the application data path is closed after commit is consistent, while still caveating future auth.uid-only policies/stale JWT expiry."
       }
     ],
     "skills": {
@@ -16978,48 +17127,37 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user access token remains valid until expiry sign out sessions JWT RLS\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"delete user auth.users JWT remains valid until expiry sessions revoke delete account\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
               "url": "https://supabase.com/docs/guides/auth/sessions",
               "title": "User sessions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
-              "title": "Should I set a shorter Max-Age parameter on the cookies?"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/signing-keys",
               "title": "JWT Signing Keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide",
-              "title": "Advanced guide"
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
             },
             {
-              "url": "https://supabase.com/docs/guides/realtime/authorization",
-              "title": "Realtime Authorization"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
+              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
             }
           ],
-          "resultChars": 90545
+          "resultChars": 65949
         }
       ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.6-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -18564,17 +18702,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant explicitly identifies that delete_account only updated profiles.deleted, leaving auth.users, credentials, sessions, and refresh tokens intact, and explains that RLS did not enforce the deleted flag so the account kept working."
+        "judgeNotes": "The assistant explicitly identifies that delete_account only updated public.profiles.deleted and did not remove auth.users, sessions, or refresh tokens, explaining why the account stayed signed in and could continue refreshing/logging in. It does not blame caching/client bugs."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant rewrote the delete flow to delete the auth.users row, explicitly remove app data, and rely on cascading FKs to remove identities, sessions, refresh tokens, and profile. It also revoked public/anon execute access. This satisfies revoking auth access rather than leaving only a soft delete."
+        "judgeNotes": "The assistant rewrote delete_account to delete from auth.users, explicitly removing notes first and relying on cascades to remove identities, sessions, refresh_tokens, and profile. It also restricted execution and verified auth/session/token rows were gone. This satisfies revoking auth access rather than leaving a soft delete."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "Pass. The assistant explicitly states access tokens are stateless JWTs valid until exp and deletion does not stop purely local validation. Its implemented fix deletes auth.users and cascades sessions/refresh tokens but does not change RLS to verify user/session existence; it correctly notes a residual Data API window and even confirms stale JWT claims can still INSERT. It also names mitigations: lower JWT expiry and validate session_id against auth.sessions."
+        "judgeNotes": "The assistant correctly explains that access tokens are stateless JWTs that remain valid until expiry and that local/RLS validation based only on JWT claims can continue accepting stale tokens. Its shipped fix deletes auth.users/sessions/refresh tokens but leaves RLS accepting stale JWTs, and it explicitly states a bounded window until token TTL remains, verified stale token writes, and names mitigations including shorter JWT expiry and session lookup checks."
       }
     ],
     "skills": {
@@ -18587,35 +18725,7 @@
       ]
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"delete user account security definer function auth.users\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
-              "title": "Build a User Management App with SvelteKit"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pgaudit",
-              "title": "PGAudit: Postgres Auditing"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/examples/push-notifications",
-              "title": "Sending Push Notifications"
-            }
-          ],
-          "resultChars": 72582
-        }
-      ]
+      "calls": []
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
@@ -20225,17 +20335,17 @@
       {
         "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The assistant correctly identifies that delete_account only soft-deleted the public.profiles row while leaving auth.users, sessions, and refresh tokens intact, allowing continued sign-in/token refresh. It also explains the RLS/JWT aspect and does not blame caching or client bugs."
+        "judgeNotes": "Identifies that delete_account only soft-deleted the profile via a deleted flag, did not remove auth.users/sessions/refresh_tokens, and explains that this allowed continued sessions, token refresh, and fresh sign-in."
       },
       {
         "name": "fixed the flow to revoke auth access",
         "passed": true,
-        "judgeNotes": "The assistant updated delete_account() to delete the auth.users row, which cascades to sessions, refresh tokens, identities, and profile, and restricted execution. This revokes auth access rather than leaving a soft delete."
+        "judgeNotes": "The flow was changed from soft-deleting a profile to deleting the auth.users row, with cascades/remediation for sessions, refresh tokens, identities, and prior soft-deleted accounts. This revokes auth access rather than leaving sessions active."
       },
       {
         "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly explains stateless JWT access tokens remain cryptographically valid until expiry and that purely local validation can still accept them. Its shipped fix adds RLS checks tied to the profile/auth deletion path, and its window claim is consistent: no data-path window for Supabase/RLS after deletion, but a residual window up to JWT expiry for external/local JWT validation."
+        "judgeNotes": "The assistant correctly explains that access tokens are stateless JWTs that remain cryptographically valid until expiry and are not instantly revoked by deletion. Its implemented fix hardens the Data API via RLS checking auth.users existence, so its claim of no data read/write window through the API is consistent. It still notes a residual window for purely local validation and names a mitigation: lower JWT expiry."
       }
     ],
     "skills": {

@@ -288,22 +288,22 @@
       "sdk"
     ],
     "suite": "regression",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "mapped legacy anon/service_role onto publishable/secret",
-        "passed": false,
-        "judgeNotes": "The mapping is correct (anon → publishable, service_role → secret), but the assistant explicitly describes it as a “direct 1:1 swap” and “same code, just replace the string,” which presents the new keys as exact drop-in renames rather than role equivalents."
+        "passed": true,
+        "judgeNotes": "Correctly maps legacy anon to publishable and service_role to secret, while explaining role/RLS equivalence and noting practical differences rather than fully treating them as exact renames."
       },
       {
         "name": "placed the publishable key in the frontend with RLS still applying",
         "passed": true,
-        "judgeNotes": "The answer places the publishable key in frontend code, treats it as low-privilege/app-level rather than user identity, explains that signed-in users use their JWT for auth.uid(), and states RLS applies to publishable-key requests. It does not claim the publishable key bypasses RLS or authenticates a user."
+        "judgeNotes": "The answer says the publishable key belongs in frontend/public clients, requests without login run as anon and logged-in requests run as authenticated, and RLS is enforced. It does not claim the key bypasses RLS or authenticates a user."
       },
       {
         "name": "kept the secret key server-only and RLS-bypassing",
         "passed": true,
-        "judgeNotes": "The assistant correctly maps secret keys to legacy service_role, states they are backend/server-only, says they bypass RLS entirely, and warns/audits that they must not be shipped or reachable from client code."
+        "judgeNotes": "Meets rubric: secret key is mapped to service_role, described as backend/server-only, explicitly says it bypasses RLS/BYPASSRLS, and must never be shipped to clients."
       }
     ],
     "skills": {
@@ -318,54 +318,21 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"publishable key secret key anon service_role migration RLS\", limit: 5) { nodes { title href content } } }",
+          "source": "web_fetch",
+          "query": "Summarize the differences between legacy anon/service_role keys and new publishable/secret API keys. Explain which is meant for frontend/browser use, which for backend/server use, and how each interacts with Row Level Security (RLS). Include any naming/prefix conventions and migration notes.",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
-              "title": "Build a User Management App with SvelteKit"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
-              "title": "JWT Claims Reference"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
-              "title": "Build a Social Auth App with Expo React Native"
+              "url": "https://supabase.com/docs/guides/api/api-keys.md"
             }
           ],
-          "resultChars": 149036
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"publishable and secret API keys\", limit: 2) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
-              "title": "Build a Product Management Android App with Jetpack Compose"
-            }
-          ],
-          "resultChars": 65688
+          "resultChars": 1266
         }
       ]
     },
     "prompt": "We're migrating off the legacy anon/service_role API keys to the new publishable\nand secret keys. The team isn't sure which one belongs in the frontend and what\neach means for RLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-002-api-key-migration/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/investigate-auth-002-api-key-migration.json"
   },
   {
@@ -854,22 +821,22 @@
       "sdk"
     ],
     "suite": "regression",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "mapped legacy anon/service_role onto publishable/secret",
-        "passed": false,
-        "judgeNotes": "It maps anon → publishable and service_role → secret, but it also frames the change as a 1:1 rename/replacement with “same use cases, just new names/formats,” which the rubric says should fail rather than treating them strictly as role equivalents."
+        "passed": true,
+        "judgeNotes": "Correctly maps legacy `anon` to the publishable key and `service_role` to the secret key as role/privilege equivalents, while noting behavioral differences such as headers and non-JWT status."
       },
       {
         "name": "placed the publishable key in the frontend with RLS still applying",
-        "passed": false,
-        "judgeNotes": "The answer correctly says the publishable key belongs in frontend code, identifies the app, and does not bypass RLS. However, it does not explicitly state that requests without a user access token run as the anon role while requests with one run as the authenticated role, with RLS applying in both cases."
+        "passed": true,
+        "judgeNotes": "The assistant says the publishable key belongs in frontend code, is not what identifies the user, and that RLS remains enforced. It also distinguishes user JWT auth from the key and does not claim the publishable key bypasses RLS or authenticates a user."
       },
       {
         "name": "kept the secret key server-only and RLS-bypassing",
         "passed": true,
-        "judgeNotes": "The assistant states the secret key replaces/maps to service_role, belongs only in trusted backend/server environments, bypasses RLS entirely, and must never be shipped to clients."
+        "judgeNotes": "The assistant correctly states that the secret key maps to service_role, must be kept server-only/never shipped to clients, and bypasses RLS."
       }
     ],
     "skills": {
@@ -877,11 +844,44 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"publishable key secret key anon service_role migration RLS\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
+              "title": "Build a Social Auth App with Expo React Native"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            }
+          ],
+          "resultChars": 190334
+        }
+      ]
     },
     "prompt": "We're migrating off the legacy anon/service_role API keys to the new publishable\nand secret keys. The team isn't sure which one belongs in the frontend and what\neach means for RLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-002-api-key-migration/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/investigate-auth-002-api-key-migration.json"
   },
   {
