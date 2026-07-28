@@ -24,8 +24,10 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
   apiKeyEnvVar: 'ANTHROPIC_API_KEY',
   cliPackage: '@anthropic-ai/claude-code',
   // Pinned: Claude Code's transcript format evolves; bump deliberately and
-  // re-check the parser. See ./parser.ts.
-  defaultCliVersion: '2.1.191',
+  // re-check the parser. See ./parser.ts. 2.1.220 is the minimum for
+  // `--forward-subagent-text` (added in 2.1.212) and renames the Task tool
+  // to Agent.
+  defaultCliVersion: '2.1.220',
   defaultModel: 'claude-sonnet-4-6',
 
   async install(sandbox, version) {
@@ -65,6 +67,13 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       // Newline-delimited JSON events on stdout (requires --verbose).
       '--output-format stream-json',
       '--verbose',
+      // Forward subagent text/thinking as lines tagged with
+      // `parent_tool_use_id` (see ./parser.ts), and request summarized
+      // thinking text — Opus 5-era models stream empty thinking blocks
+      // otherwise. Both are visibility-only: they change what the transcript
+      // captures, not how the agent behaves.
+      '--forward-subagent-text',
+      '--thinking-display summarized',
       `--model ${shellQuote(model)}`,
       // Reasoning effort for the session; omitted leaves Claude Code's default.
       ...(reasoningEffort ? [`--effort ${shellQuote(reasoningEffort)}`] : []),

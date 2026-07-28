@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import type { ToolName } from './transcript/types.js';
+import type { SubagentRef, ToolName } from './transcript/types.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
@@ -121,6 +121,7 @@ export type {
   ToolName,
   TranscriptEvent,
   ParsedTranscript,
+  SubagentRef,
 } from './transcript/types.js';
 export type {
   AgentHarnessId,
@@ -153,6 +154,13 @@ export type TranscriptPart =
       type: 'message';
       role: 'system' | 'user' | 'assistant';
       content: string;
+      /** Set when the part came from a delegated subagent, not the main thread. */
+      subagent?: SubagentRef;
+    }
+  | {
+      type: 'thinking';
+      content: string;
+      subagent?: SubagentRef;
     }
   | {
       type: 'tool_call';
@@ -160,11 +168,22 @@ export type TranscriptPart =
       input: Record<string, unknown>;
       output?: unknown;
       error?: string;
+      subagent?: SubagentRef;
     };
 
 export type TranscriptSerializationOptions = {
   includeToolCallInputs?: boolean;
   includeToolCallOutputs?: boolean;
+  /**
+   * Include `thinking` parts. Off by default so existing judge inputs are
+   * unchanged by transcripts that now capture thinking.
+   */
+  includeThinking?: boolean;
+  /**
+   * Include subagent-attributed parts. Off by default for the same reason:
+   * the main thread reads exactly as it did before subagent forwarding.
+   */
+  includeSubagents?: boolean;
 };
 
 export interface JudgeInput {
@@ -531,12 +550,27 @@ export function serializeTranscript(
   options: TranscriptSerializationOptions = {}
 ): string {
   const parts = transcript.flatMap((event) => {
+    // Subagent-attributed and thinking parts are captured for visibility but
+    // serialized only on request, so judge inputs written before subagent
+    // forwarding read the same after it.
+    if (event.subagent && !options.includeSubagents) return [];
+    const label = (base: string) =>
+      event.subagent
+        ? `[subagent${event.subagent.type ? `:${event.subagent.type}` : ''} ${base}]`
+        : `[${base}]`;
+
     if (event.type === 'message') {
       const content = event.content.trim();
-      return content ? [`[${event.role}]\n${content}`] : [];
+      return content ? [`${label(event.role)}\n${content}`] : [];
     }
 
-    const lines = [`[called ${event.name}]`];
+    if (event.type === 'thinking') {
+      if (!options.includeThinking) return [];
+      const content = event.content.trim();
+      return content ? [`${label('thinking')}\n${content}`] : [];
+    }
+
+    const lines = [label(`called ${event.name}`)];
     if (options.includeToolCallInputs) {
       lines.push(`input:\n${JSON.stringify(event.input, null, 2)}`);
     }
