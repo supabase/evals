@@ -28,7 +28,7 @@ const scorer: ToolScorer = async (ctx) => {
       await checkRefreshTokenRejected(ctx, users),
       await checkCannotSignBackIn(ctx, users),
       await checkBystanderUnaffected(users),
-      await checkRevocationDiagnosis(ctx),
+      ...(await checkRevocationAnswer(ctx)),
     ];
 
     return {
@@ -199,28 +199,55 @@ async function checkBystanderUnaffected(
   };
 }
 
-async function checkRevocationDiagnosis(
+async function checkRevocationAnswer(
   ctx: ToolEvalContext
-): Promise<CheckResult> {
-  const verdict = await judge({
-    input: serializeTranscript(ctx.transcript, {
-      includeToolCallInputs: true,
-    }),
-    rubric: stripIndent`
-      Pass if the assistant diagnoses why the deleted account still works, fixes the delete-account flow with real revocation, and explains any remaining access-token window consistently with the fix it implemented.
-
-      A passing answer should:
-      - Identify that delete_account only soft-deletes the profile row and never removes the auth user or revokes their sessions, so the account keeps signing in.
-      - Fix the flow so the auth user is deleted (or equivalently their identity and sessions are removed), revoking their sessions and refresh tokens.
-      - Explain that access tokens are stateless JWTs that are not recalled by deletion or revocation, so anything that validates them only locally (such as getClaims() or custom middleware checking signature and expiry) keeps accepting them until they expire. Judge the window claim against the fix the assistant actually shipped: if its fix leaves the Data API accepting stale JWTs, it must say a window up to the token expiry remains and name a mitigation (short JWT expiry, server-side auth.getUser() checks, or RLS validating the user or session still exists); if its fix genuinely closes the Data API window (for example RLS policies that verify the auth user or session still exists), it may say the data path has no post-deletion window, but must still note the token itself stays valid until expiry for purely local validation.
-
-      Fail if the assistant leaves the flow as a soft delete without revoking auth access, claims existing access tokens are instantly invalidated everywhere the moment the user is deleted without any caveat, makes a window claim that contradicts its own implemented fix in either direction, or blames the symptom on caching or client bugs instead of the flow.
-    `,
+): Promise<CheckResult[]> {
+  const input = serializeTranscript(ctx.transcript, {
+    includeToolCallInputs: true,
   });
 
-  return {
-    name: 'diagnosed and explained session revocation',
-    passed: verdict.passed,
-    judgeNotes: verdict.notes,
-  };
+  const [causeFound, flowFixed, windowExplained] = await Promise.all([
+    judge({
+      input,
+      rubric: stripIndent`
+        Pass if the assistant identifies that delete_account only soft-deletes the profile row and never removes the auth user or revokes their sessions, so the account keeps signing in.
+
+        Fail if the assistant blames the symptom on caching or client bugs instead of the flow, or never explains why the deleted account still works.
+      `,
+    }),
+    judge({
+      input,
+      rubric: stripIndent`
+        Pass if the assistant fixes the flow so the auth user is deleted (or equivalently their identity and sessions are removed), revoking their sessions and refresh tokens.
+
+        Fail if the assistant leaves the flow as a soft delete without revoking auth access.
+      `,
+    }),
+    judge({
+      input,
+      rubric: stripIndent`
+        Pass if the assistant explains that access tokens are stateless JWTs that are not recalled by deletion or revocation, so anything that validates them only locally (such as getClaims() or custom middleware checking signature and expiry) keeps accepting them until they expire. Judge the window claim against the fix the assistant actually shipped: if its fix leaves the Data API accepting stale JWTs, it must say a window up to the token expiry remains and name a mitigation (short JWT expiry, server-side auth.getUser() checks, or RLS validating the user or session still exists); if its fix genuinely closes the Data API window (for example RLS policies that verify the auth user or session still exists), it may say the data path has no post-deletion window, but must still note the token itself stays valid until expiry for purely local validation.
+
+        Fail if the assistant claims existing access tokens are instantly invalidated everywhere the moment the user is deleted without any caveat, or makes a window claim that contradicts its own implemented fix in either direction.
+      `,
+    }),
+  ]);
+
+  return [
+    {
+      name: 'diagnosed the soft-delete as the cause',
+      passed: causeFound.passed,
+      judgeNotes: causeFound.notes,
+    },
+    {
+      name: 'fixed the flow to revoke auth access',
+      passed: flowFixed.passed,
+      judgeNotes: flowFixed.notes,
+    },
+    {
+      name: 'explained the access-token window consistently with its fix',
+      passed: windowExplained.passed,
+      judgeNotes: windowExplained.notes,
+    },
+  ];
 }
