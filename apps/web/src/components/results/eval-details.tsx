@@ -153,12 +153,7 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                 </span>
                 <span
                   title={queryLabel}
-                  className={cn(
-                    "min-w-0 truncate",
-                    searchOnly || contentUnknown
-                      ? "text-muted-foreground"
-                      : "text-foreground"
-                  )}
+                  className="min-w-0 truncate text-foreground"
                 >
                   {queryLabel}
                 </span>

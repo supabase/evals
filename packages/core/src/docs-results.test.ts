@@ -462,10 +462,10 @@ describe('buildDocsResult', () => {
         source: 'shell_fetch',
         query: command,
         pages: [{ url: 'https://supabase.com/changelog.md' }],
+        resultChars: 'unrelated local notes'.length,
       },
     ]);
     expect(result.calls[0].hasContent).toBeUndefined();
-    expect(result.calls[0].resultChars).toBeUndefined();
   });
 
   it('still attributes a fetch pipeline whose only command-list operator is a trailing fallback', () => {

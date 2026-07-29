@@ -280,7 +280,8 @@ export const docsCallSchema = z.object({
   // rehydrated file when the CLI truncated the result, or parsed out of the
   // truncation message's own reported size when rehydration wasn't
   // possible or wasn't attempted (e.g. no sandbox, ai-sdk/Codex which don't
-  // truncate this way). Omitted only when there's no result at all.
+  // truncate this way). Omitted when the trace exposes no result, including
+  // Codex web_search and failed calls whose output is recorded as an error.
   resultChars: z.number().optional(),
 });
 export type DocsCall = z.infer<typeof docsCallSchema>;

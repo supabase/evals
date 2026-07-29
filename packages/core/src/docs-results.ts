@@ -335,7 +335,7 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
         query: command,
         hasContent: ownsResult ? true : undefined,
         pages: urls.map((url) => ({ url })),
-        resultChars: ownsResult ? resultCharCount(result) : undefined,
+        resultChars: resultCharCount(result),
       });
       continue;
     }
