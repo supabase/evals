@@ -2,18 +2,18 @@ import {
   getExperimentDisplay,
   type ExperimentDisplay,
 } from "@/lib/eval-results"
-import { AGENT_LABELS, formatModelLabel, formatModelName } from "@/lib/format"
+import { AGENT_LABELS, formatModelLabel } from "@/lib/format"
 
-type AgentIcon = { dark: string; light?: string }
+type AgentIcon = { default: string; light?: string }
 
 const AGENT_ICONS: Partial<Record<ExperimentDisplay["agent"], AgentIcon>> = {
-  "claude-code": { dark: "agent-claude-icon.svg" },
+  "claude-code": { default: "agent-claude-icon.svg" },
   codex: {
-    dark: "agent-openai-icon.svg",
+    default: "agent-openai-icon.svg",
     light: "agent-openai-icon-light.svg",
   },
   opencode: {
-    dark: "agent-opencode-icon.svg",
+    default: "agent-opencode-icon.svg",
     light: "agent-opencode-icon-light.svg",
   },
 }
@@ -37,8 +37,8 @@ export function ExperimentLabel({
   const icon = AGENT_ICONS[display.agent]
 
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {icon && "light" in icon ? (
+    <span className="inline-flex items-center gap-1.5 align-middle">
+      {icon?.light ? (
         <>
           <img
             src={`${ICON_BASE_PATH}${icon.light}`}
@@ -46,14 +46,14 @@ export function ExperimentLabel({
             className="size-3.5 shrink-0 object-contain dark:hidden"
           />
           <img
-            src={`${ICON_BASE_PATH}${icon.dark}`}
+            src={`${ICON_BASE_PATH}${icon.default}`}
             alt=""
             className="hidden size-3.5 shrink-0 object-contain dark:block"
           />
         </>
       ) : icon ? (
         <img
-          src={`${ICON_BASE_PATH}${icon.dark}`}
+          src={`${ICON_BASE_PATH}${icon.default}`}
           alt=""
           className="size-3.5 shrink-0 object-contain"
         />
@@ -61,7 +61,7 @@ export function ExperimentLabel({
       {compact ? (
         <>
           <span className="sr-only">{AGENT_LABELS[display.agent]} / </span>
-          <span>{formatModelName(display)}</span>
+          <span>{formatModelLabel(display)}</span>
         </>
       ) : (
         <>

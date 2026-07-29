@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useQueryStates } from "nuqs"
 
 import { ExperimentLabel } from "@/components/results/experiment-label"
@@ -7,6 +7,7 @@ import {
   activateOnKeyDown,
   clickableTableItemClassName,
   columnHighlightClassName,
+  hasMoreContentToRight,
   passFailClassName,
   passRateClassName,
   scoreLabel,
@@ -130,6 +131,28 @@ export function ResultsTable({
     { urlKeys: selectionQueryKeys }
   )
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [showScrollHint, setShowScrollHint] = useState(false)
+  const updateScrollHint = useCallback(() => {
+    const container = scrollContainerRef.current
+    setShowScrollHint(container ? hasMoreContentToRight(container) : false)
+  }, [])
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    updateScrollHint()
+    const observer = new ResizeObserver(updateScrollHint)
+    observer.observe(container)
+
+    if (container.firstElementChild) {
+      observer.observe(container.firstElementChild)
+    }
+
+    return () => observer.disconnect()
+  }, [experimentSuite, groupBy, updateScrollHint])
+
   const selection: TableSelection | null =
     selectionQuery.dimension && selectionQuery.key
       ? {
@@ -183,7 +206,11 @@ export function ResultsTable({
             />
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div
+          ref={scrollContainerRef}
+          className="overflow-x-auto"
+          onScroll={updateScrollHint}
+        >
           {sourceResults.length ? (
             <table
               className={cn(
@@ -228,9 +255,12 @@ export function ResultsTable({
                               : columnDimension.title(columnKey)
                           }
                           onClick={() => select(columnDimension, columnKey)}
-                          className="block w-full cursor-pointer px-2.5 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                          className="flex h-7 w-full cursor-pointer items-center px-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                         >
-                          <TableHeaderLabel tooltip={tooltip}>
+                          <TableHeaderLabel
+                            tooltip={tooltip}
+                            className="leading-none"
+                          >
                             {columnDimension.id === "model" ? (
                               <ExperimentLabel experiment={columnKey} compact />
                             ) : (
@@ -243,8 +273,23 @@ export function ResultsTable({
                   })}
                   <th
                     scope="col"
-                    className={cn(tableHeadCellClassName, "w-20 px-2.5 py-1.5")}
+                    className={cn(
+                      tableHeadCellClassName,
+                      "sticky right-0 z-20 w-20 bg-secondary px-2.5 py-1.5"
+                    )}
                   >
+                    {showScrollHint ? (
+                      <>
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-y-0 -left-6 w-6 bg-[linear-gradient(to_right,transparent,var(--secondary))]"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-y-0 left-0 w-px bg-border"
+                        />
+                      </>
+                    ) : null}
                     Total
                   </th>
                 </tr>
@@ -317,7 +362,19 @@ export function ResultsTable({
                           </td>
                         )
                       })}
-                      <td className="border-b border-border px-2.5 py-2">
+                      <td className="sticky right-0 z-10 border-b border-border bg-card px-2.5 py-2">
+                        {showScrollHint ? (
+                          <>
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none absolute inset-y-0 -left-6 w-6 bg-[linear-gradient(to_right,transparent,var(--card))]"
+                            />
+                            <span
+                              aria-hidden="true"
+                              className="absolute inset-y-0 left-0 w-px bg-border"
+                            />
+                          </>
+                        ) : null}
                         <ScoreCell
                           passed={rowTotal.passed}
                           total={rowTotal.total}

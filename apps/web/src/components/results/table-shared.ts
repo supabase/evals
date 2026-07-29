@@ -43,6 +43,15 @@ export function scoreLabel(
   return `${Math.round((passed / total) * 100)}%`
 }
 
+/** Checks whether a horizontal scroller has content beyond its right edge. */
+export function hasMoreContentToRight({
+  scrollLeft,
+  clientWidth,
+  scrollWidth,
+}: Pick<HTMLElement, "scrollLeft" | "clientWidth" | "scrollWidth">) {
+  return scrollLeft + clientWidth < scrollWidth - 1
+}
+
 /** Rows are clickable `<tr>`s rather than buttons, so they need their own key handling. */
 export function activateOnKeyDown(event: KeyboardEvent, open: () => void) {
   if (event.key === "Enter" || event.key === " ") {

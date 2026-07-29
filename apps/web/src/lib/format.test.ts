@@ -4,7 +4,6 @@ import {
   formatEvalName,
   formatExperimentLabel,
   formatModelColumnLabel,
-  formatModelName,
   formatProductLabel,
   formatTagLabel,
 } from "@/lib/format"
@@ -98,14 +97,6 @@ describe("formatModelColumnLabel", () => {
   it("falls back to the raw key when the export has no display", () => {
     expect(formatModelColumnLabel(undefined, "some-experiment")).toBe(
       "some-experiment"
-    )
-  })
-})
-
-describe("formatModelName", () => {
-  it("omits reasoning effort from compact labels", () => {
-    expect(formatModelName(display({ reasoningEffort: "high" }))).toBe(
-      "Sonnet 5"
     )
   })
 })

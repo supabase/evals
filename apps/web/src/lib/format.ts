@@ -60,8 +60,7 @@ function formatMoonshotaiModel(modelId: string) {
   return modelId.split("-").map(capitalize).join(" ")
 }
 
-/** Formats a model name without experiment modifiers such as reasoning effort. */
-export function formatModelName(display: ExperimentDisplay) {
+function formatModel(display: ExperimentDisplay) {
   // opencode ids are AI Gateway `vendor/model` slugs; format just the model part.
   const modelId = display.modelId.replace(/^[a-z-]+\//, "")
   switch (display.modelProvider) {
@@ -76,7 +75,7 @@ export function formatModelName(display: ExperimentDisplay) {
 
 export function formatModelLabel(display: ExperimentDisplay) {
   return [
-    formatModelName(display),
+    formatModel(display),
     display.reasoningEffort ? `(${display.reasoningEffort})` : "",
   ]
     .filter(Boolean)
