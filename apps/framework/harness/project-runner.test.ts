@@ -53,14 +53,9 @@ test('builds and tests a known-good frontend workspace', async () => {
   cpSync(join(ROOT, FRONTEND_EVAL, 'tests'), join(workspace, 'tests'), {
     recursive: true,
   });
-  writeFileSync(
-    join(workspace, '.env.local'),
-    [
-      'VITE_SUPABASE_URL=http://supabase-evals.local',
-      'VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key',
-      '',
-    ].join('\n')
-  );
+  // Deliberately no `.env.local`. A real agent workspace does not have one, so
+  // writing it here would make this test pass while the live scoring path
+  // fails. `vitestRun` injects VITE_SUPABASE_* through the config it generates.
   writeFileSync(join(workspace, 'src', 'App.tsx'), referenceApp());
 
   const build = await viteBuild(workspace);

@@ -16,6 +16,17 @@ export function resolvePackageBin(pkg: string, entry: string): string {
   return join(dirname(nodeRequire.resolve(`${pkg}/package.json`)), entry);
 }
 
+/**
+ * The mock project the generated vitest setup serves. Shared by that setup and
+ * by the generated config, which injects them as `VITE_*` so an app under test
+ * resolves the same project the setup boots. Evals instruct agents to read
+ * `import.meta.env.VITE_SUPABASE_URL` / `_ANON_KEY`, so the harness has to
+ * supply them or every correct solution throws at import.
+ */
+const PROJECT_DB_URL = 'http://supabase-evals.local';
+const PROJECT_DB_ANON_KEY = 'supabase-evals-anon-key';
+const PROJECT_DB_JWT_SECRET = 'supabase-evals-dev-secret';
+
 export async function viteBuild(workspace: string): Promise<CommandResult> {
   return runNodeBin(
     resolvePackageBin('vite', 'bin/vite.js'),
@@ -41,6 +52,10 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
       '    environment: "happy-dom",',
       `    setupFiles: [${JSON.stringify('./.evals/vitest-supalite-setup.ts')}],`,
       '    include: ["tests/**/*.test.{ts,tsx}"],',
+      '    env: {',
+      `      VITE_SUPABASE_URL: ${JSON.stringify(PROJECT_DB_URL)},`,
+      `      VITE_SUPABASE_ANON_KEY: ${JSON.stringify(PROJECT_DB_ANON_KEY)},`,
+      '    },',
       '  },',
       '});',
       '',
@@ -72,9 +87,9 @@ import { afterAll } from "vitest";
 import { App, getAuthSchemaSql, SUPABASE_AUTH_HELPERS_SQL } from "@supabase/lite";
 import { createPgliteConnection } from "@supabase/lite/pglite";
 
-const PROJECT_DB_URL = "http://supabase-evals.local";
-const PROJECT_DB_ANON_KEY = "supabase-evals-anon-key";
-const PROJECT_DB_JWT_SECRET = "supabase-evals-dev-secret";
+const PROJECT_DB_URL = ${JSON.stringify(PROJECT_DB_URL)};
+const PROJECT_DB_ANON_KEY = ${JSON.stringify(PROJECT_DB_ANON_KEY)};
+const PROJECT_DB_JWT_SECRET = ${JSON.stringify(PROJECT_DB_JWT_SECRET)};
 const AUTH_SQL = \`
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
