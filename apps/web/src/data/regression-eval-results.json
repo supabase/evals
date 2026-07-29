@@ -146,6 +146,72 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "investigate-auth-002-api-key-migration",
+    "stage": "investigate",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "regression",
+    "passed": false,
+    "checks": [
+      {
+        "name": "mapped legacy anon/service_role onto publishable/secret",
+        "passed": false,
+        "judgeNotes": "It maps anon→publishable and service_role→secret correctly, but it also presents the migration as a mechanical swap/rename-reissue, implying drop-in replacement despite the new keys not being interchangeable JWTs."
+      },
+      {
+        "name": "placed the publishable key in the frontend with RLS still applying",
+        "passed": true,
+        "judgeNotes": "The assistant clearly states the publishable key belongs in frontend code and that requests made with it have RLS fully enforced. It does not claim the publishable key bypasses RLS or authenticates a user, and it keeps the secret key backend-only."
+      },
+      {
+        "name": "kept the secret key server-only and RLS-bypassing",
+        "passed": true,
+        "judgeNotes": "The assistant maps sb_secret to legacy service_role, states it is backend/server-only, says it bypasses RLS, and warns never to expose it in public clients."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the difference between publishable and secret API keys vs legacy anon/service_role keys, which is meant for frontend/browser use, which is meant for backend/server use, and how they interact with Row Level Security (RLS).",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/api-keys.md"
+            }
+          ],
+          "resultChars": 1286
+        }
+      ]
+    },
+    "prompt": "We're migrating off the legacy anon/service_role API keys to the new publishable\nand secret keys. The team isn't sure which one belongs in the frontend and what\neach means for RLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-002-api-key-migration/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "claude-code-sonnet-5/investigate-auth-002-api-key-migration.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "investigate-functions-001-546-resource-limit",
     "stage": "investigate",
     "product": [
@@ -702,6 +768,55 @@
     "promptSourcePath": "evals/build-realtime-001-live-chat-updates/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-realtime-001-live-chat-updates.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-auth-002-api-key-migration",
+    "stage": "investigate",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "regression",
+    "passed": false,
+    "checks": [
+      {
+        "name": "mapped legacy anon/service_role onto publishable/secret",
+        "passed": false,
+        "judgeNotes": "The mapping is correct (anon → publishable, service_role → secret), but the answer repeatedly frames them as direct replacements / just swapping keys, which the rubric says should fail because the new keys are not exact drop-in interchangeable replacements."
+      },
+      {
+        "name": "placed the publishable key in the frontend with RLS still applying",
+        "passed": true,
+        "judgeNotes": "The answer correctly says the publishable key belongs in frontend/client code and that RLS is fully enforced for requests made with it. It also correctly keeps the secret key/server role backend-only."
+      },
+      {
+        "name": "kept the secret key server-only and RLS-bypassing",
+        "passed": true,
+        "judgeNotes": "The assistant states the secret key replaces/maps to service_role, must be backend/server-only and never shipped to clients, and bypasses RLS."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "We're migrating off the legacy anon/service_role API keys to the new publishable\nand secret keys. The team isn't sure which one belongs in the frontend and what\neach means for RLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-002-api-key-migration/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "claude-code-sonnet-5-no-skills/investigate-auth-002-api-key-migration.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",

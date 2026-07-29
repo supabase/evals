@@ -1037,8 +1037,7 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
@@ -1071,9 +1070,19 @@
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
+        "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "Identifies soft-delete-only cause and lack of session revocation; implements meaningful revocation by banning auth user and deleting sessions/refresh tokens plus RLS enforcement of deleted flag. Explains JWTs remain valid until expiry for local validation, while DB path is closed immediately due to RLS checking active account, which is consistent with the implemented fix. Correctly distinguishes publishable/frontend/RLS-enforced keys from secret/server-only/RLS-bypassing keys."
+        "judgeNotes": "The assistant explicitly identifies that delete_account only soft-deleted the profile, did not remove/ban the auth user or revoke sessions/refresh tokens, and explains that this allowed the deleted account to keep signing in/accessing data."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": true,
+        "judgeNotes": "The flow no longer remains a mere soft delete: it revokes auth access by banning the auth user and deleting sessions and refresh tokens, with RLS enforcement added and verified."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
+        "passed": true,
+        "judgeNotes": "Explains JWTs remain valid until expiry for local validation, and its Data API no-window claim is consistent with the shipped RLS fix enforcing deleted status on every query. It also names mitigations such as shorter JWT expiry and server-side session checks."
       }
     ],
     "skills": {
@@ -1088,7 +1097,7 @@
     "docs": {
       "calls": []
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 2,
     "sourcePath": "claude-code-opus-4.8/investigate-auth-001-deleted-user-access.json"
@@ -2363,12 +2372,11 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -2389,16 +2397,27 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
+        "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "Meets all rubric requirements: identifies soft-delete-only bug, implements real auth user deletion/session revocation, correctly explains stateless JWT residual window and aligns it with added RLS live-profile mitigation while caveating local validation, and accurately distinguishes publishable vs secret keys including RLS behavior and frontend/server placement."
+        "judgeNotes": "The assistant clearly identifies the root cause: delete_account only soft-deleted public.profiles.deleted, did not remove/ban the auth.users row, did not revoke sessions/refresh tokens, and RLS ignored the deleted flag, so the account could keep signing in/accessing data."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": true,
+        "judgeNotes": "The flow was changed from a soft delete to an auth-level revocation: the function bans the auth user, deletes sessions, deletes refresh tokens, and RLS blocks already-issued JWTs."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly states that Supabase access tokens are stateless JWTs that remain valid until expiry and that banning/deleting sessions only stops refreshed/new tokens. Its window claim is consistent with the shipped fix: RLS re-checks account state server-side, so the Data API path has no usable post-deletion window for covered tables, while the token itself still exists until expiry."
       }
     ],
     "skills": {
@@ -2406,40 +2425,11 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"publishable key secret key API keys migration anon service_role RLS\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
-              "title": "Build a Social Auth App with Expo React Native"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
-              "title": "Build a User Management App with SvelteKit"
-            }
-          ],
-          "resultChars": 169611
-        }
-      ]
+      "calls": []
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-opus-4.8-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -3908,42 +3898,16 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
-        "name": "victim session active before delete-account",
-        "passed": true
-      },
-      {
-        "name": "delete_account flow ran for the victim",
-        "passed": true
-      },
-      {
-        "name": "delete-account revokes the user's sessions",
-        "passed": true,
-        "notes": "sessions left: 0"
-      },
-      {
-        "name": "deleted user's refresh token is rejected",
-        "passed": true
-      },
-      {
-        "name": "deleted user cannot sign back in",
-        "passed": true
-      },
-      {
-        "name": "other users keep their sessions and access",
-        "passed": true
-      },
-      {
-        "name": "diagnosed and explained session revocation",
-        "passed": true,
-        "judgeNotes": "Meets all rubric requirements: correctly diagnoses soft-delete-only flow, implements hard auth user deletion/session revocation, accurately explains residual JWT access window consistent with the implemented fix and names mitigations, and correctly distinguishes publishable vs secret keys and RLS behavior."
+        "name": "created auth sessions",
+        "passed": false,
+        "notes": "Internal server error"
       }
     ],
     "skills": {
@@ -3958,7 +3922,7 @@
     "docs": {
       "calls": []
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 2,
     "sourcePath": "claude-code-sonnet-5/investigate-auth-001-deleted-user-access.json"
@@ -5199,8 +5163,7 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
@@ -5233,9 +5196,19 @@
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
+        "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The answer diagnoses the soft-delete-only bug, implements real session/refresh-token revocation and blocks future sign-in, explains JWT expiry and the remaining/local-validation window consistently with its RLS mitigation, and correctly states publishable keys are client-safe while secret/service-role keys are server-only and bypass RLS. There is one slightly contradictory closing phrase about RLS being the enforcement layer regardless of key, but the surrounding explanation clearly says secret keys bypass RLS."
+        "judgeNotes": "The assistant clearly identifies the root cause: delete_account only marked public.profiles.deleted and did not touch auth.users, auth.sessions, or auth.refresh_tokens, allowing continued sign-in/session refresh. It also explains the deleted flag was not enforced by RLS and proposes/applies revocation fixes."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": true,
+        "judgeNotes": "The assistant updated the flow to revoke auth access by banning the auth user and deleting auth.sessions and auth.refresh_tokens, plus added RLS checks for deleted users. This is more than a soft delete and satisfies the requirement."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly explains that access tokens are stateless JWTs that remain valid until expiry despite session/refresh-token deletion, and that local signature/expiry validation will still accept them. Its shipped fix adds live RLS checks against the deleted profile state, so its claim that the data path is closed while the token itself remains valid until expiry is consistent. It also names JWT expiry reduction as a mitigation."
       }
     ],
     "skills": {
@@ -5245,7 +5218,7 @@
     "docs": {
       "calls": []
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 2,
     "sourcePath": "claude-code-sonnet-5-no-skills/investigate-auth-001-deleted-user-access.json"
@@ -9006,12 +8979,11 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -9023,25 +8995,37 @@
       },
       {
         "name": "delete-account revokes the user's sessions",
-        "passed": true,
-        "notes": "sessions left: 0"
+        "passed": false,
+        "notes": "sessions left: 1"
       },
       {
         "name": "deleted user's refresh token is rejected",
-        "passed": true
+        "passed": false,
+        "notes": "refresh token still produces a session"
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
+        "name": "diagnosed the soft-delete as the cause",
+        "passed": false,
+        "judgeNotes": "The assistant does not identify the specific bug: delete_account only soft-deletes the profile row and never deletes the auth user or revokes sessions. It instead gives a generic Supabase JWT/session explanation and even discusses deleting auth.users, so it does not clearly explain why the deleted account can still sign in in the given flow."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": false,
+        "judgeNotes": "The assistant leaves the main flow as a soft delete when possible and only adds a helper for session-aware RLS, explicitly noting that stale JWTs may still work unless policies are updated. This does not fully fix auth access revocation."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
         "passed": true,
-        "judgeNotes": "Meets rubric: identifies soft-delete-only delete_account as cause, changes flow to delete auth.users and closes RLS data path for stale JWTs, explains JWT expiry caveat consistently, and correctly distinguishes publishable vs secret keys."
+        "judgeNotes": "The assistant correctly states that Supabase access JWTs remain valid until expiry despite user deletion/sign-out/session revocation, and that local/JWT-only checks such as auth.uid()/claims can continue to accept them. It also correctly qualifies the remaining window based on its actual fix: since it only adds a session-aware helper and revokes sessions, stale JWTs may still work until expiry unless RLS/data access is updated to validate active sessions."
       }
     ],
     "skills": {
@@ -9057,248 +9041,39 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/changelog.md supabase changelog md",
+          "query": "site:supabase.com/docs deleting a user does not invalidate existing access tokens Supabase auth sessions delete user",
           "pages": []
         },
         {
           "source": "web_search",
-          "query": "Supabase changelog breaking change auth delete user sessions publishable secret key",
+          "query": "site:supabase.com/docs auth.admin.signOut user all sessions Supabase",
           "pages": []
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user revoke sessions auth.admin.deleteUser auth.sessions\", limit: 5) { nodes { __typename title href content ... on Guide { subsections { nodes { title href content } } } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data#accessing-user-data-via-api",
-              "title": "Accessing user data via API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data#adding-and-retrieving-user-metadata",
-              "title": "Adding and retrieving user metadata"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data#exporting-users",
-              "title": "Exporting users"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data#deleting-users",
-              "title": "Deleting users"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-admin-deleteuser",
-              "title": "deleteUser()"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#row-level-security-policies-rls",
-              "title": "Row level security policies (RLS)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#access-token",
-              "title": "Access token"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#authentication",
-              "title": "Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#authenticator-app",
-              "title": "Authenticator app"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#authorization",
-              "title": "Authorization"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#identity-provider",
-              "title": "Identity provider"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#json-web-token-jwt",
-              "title": "JSON Web Token (JWT)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#jwt-signing-secret",
-              "title": "JWT signing secret"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#multi-factor-authentication-mfa-or-2fa",
-              "title": "Multi-factor authentication (MFA or 2FA)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#nonce",
-              "title": "Nonce"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#oauth",
-              "title": "OAuth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#oidc",
-              "title": "OIDC"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#one-time-password-otp",
-              "title": "One-time password (OTP)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#password-hashing-function",
-              "title": "Password hashing function"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#password-strength",
-              "title": "Password strength"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#pkce",
-              "title": "PKCE"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#provider-refresh-token",
-              "title": "Provider refresh token"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#provider-tokens",
-              "title": "Provider tokens"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#refresh-token",
-              "title": "Refresh token"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#refresh-token-flow",
-              "title": "Refresh token flow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#replay-attack",
-              "title": "Replay attack"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#saml",
-              "title": "SAML"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#session",
-              "title": "Session"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#single-sign-on-sso",
-              "title": "Single-sign on (SSO)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary#time-based-one-time-password-totp",
-              "title": "Time-based one-time password (TOTP)"
-            }
-          ],
-          "resultChars": 35929
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"migrating to new API keys publishable secret frontend RLS\", limit: 5) { nodes { __typename title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
-              "title": "Getting Started with OAuth 2.1 Server"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            }
-          ],
-          "resultChars": 109403
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"revoke sessions delete user auth.sessions sign out current user delete account\", limit: 10) { nodes { __typename title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-signout"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signout",
-              "title": "Signing out"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/sessions",
-              "title": "User sessions"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signout"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-signout",
-              "title": "signOut()"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
-              "title": "Anonymous Sign-Ins"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
-              "title": "OAuth 2.1 Flows"
-            }
-          ],
-          "resultChars": 84801
+          "source": "web_search",
+          "query": "site:supabase.com/docs session_id claim auth.sessions Supabase sensitive actions",
+          "pages": []
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs deleting a user does not automatically sign out a user JWT remain valid until it has expired Supabase",
+          "query": "site:supabase.com/docs soft delete disable account access token valid until expires Supabase deleteUser shouldSoftDelete",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs soft deleted user JWT valid until expiry Supabase",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs auth.users deleted_at soft delete token validation Supabase",
           "pages": []
         }
       ]
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -11644,12 +11419,11 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -11670,17 +11444,26 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": false,
-        "notes": "deleted account can still sign in"
+        "passed": true
       },
       {
         "name": "other users keep their sessions and access",
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "Fails because it does not explain that existing access tokens are stateless JWTs that remain cryptographically valid until expiry for purely local validation such as getClaims() or custom JWT middleware. It instead says the only remaining race is an in-flight request, which omits the required caveat. The diagnosis, RLS/data-path fix, session/refresh-token revocation, and publishable vs secret key explanation are otherwise largely correct."
+        "name": "diagnosed the soft-delete as the cause",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly identifies the root cause: delete_account only sets public.profiles.deleted=true and does not remove the auth identity or sessions, so valid JWTs keep working. It also explains why the deleted account still works and does not blame caching/client bugs."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": true,
+        "judgeNotes": "The assistant replaced the soft-delete-only RPC with a hard delete of auth.users for auth.uid(), which cascades to auth.sessions/auth.refresh_tokens/auth.identities per inspected FKs, and also tightened RLS to block stale JWTs. This satisfies deleting/removing auth identity and revoking sessions/refresh tokens."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified stale JWT behavior and shipped an RLS-based mitigation that checks auth.users existence, genuinely closing the Data API path after deletion commits. It appropriately claims no post-commit data window for normal app requests. It does not explicitly state that the JWT itself remains valid until expiry for purely local validation, but it does note still-valid/stale JWTs and that RLS blocks them; overall satisfies the rubric for this implemented fix."
       }
     ],
     "skills": {
@@ -11688,40 +11471,11 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"publishable secret keys RLS anon service_role\", limit: 5) {\n    nodes {\n      __typename\n      ... on Guide { title href content }\n      ... on TroubleshootingGuide { title href content }\n      ... on ClientLibraryFunctionReference { title href methodName language content }\n      ... on ManagementApiReference { title href content }\n      ... on CLICommandReference { title href content }\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
-              "title": "JWT Claims Reference"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
-              "title": "Creating a Supabase client for SSR"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/secrets",
-              "title": "Environment Variables"
-            }
-          ],
-          "resultChars": 112269
-        }
-      ]
+      "calls": []
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -14289,12 +14043,11 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -14315,17 +14068,26 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": false,
-        "notes": "deleted account can still sign in"
+        "passed": true
       },
       {
         "name": "other users keep their sessions and access",
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
+        "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The answer identifies the soft-delete-only root cause, implements real revocation by banning the auth user and deleting sessions, and also adds RLS active-user checks that consistently justify no post-deletion Data API window for protected tables while caveating JWTs remain valid for local validation/unprotected paths until exp. It correctly distinguishes publishable vs secret keys and says secret bypasses RLS and is server-only."
+        "judgeNotes": "The assistant explicitly identifies that delete_account only sets profiles.deleted=true, leaving the Auth user and sessions intact, and explains that RLS based on auth.uid()/JWT means the account can continue accessing/signing in. It does not blame caching/client bugs."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": true,
+        "judgeNotes": "The assistant replaced the soft-delete-only RPC with a flow that deletes auth.sessions and auth.users, and added session/account checks in RLS. It explicitly verifies the same JWT loses data access after deletion and notes refresh/future login fail."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
+        "passed": true,
+        "judgeNotes": "Assistant clearly explains JWTs remain cryptographically valid until expiry and local signature-only validation could still accept them. Its shipped fix includes RLS/session/account existence checks, so the claim that Data API access is closed immediately after commit is consistent, with caveat for already-running requests and purely local validation."
       }
     ],
     "skills": {
@@ -14341,43 +14103,43 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user existing access token JWT session revoke auth.sessions delete_account publishable secret keys RLS\", limit: 8) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"delete user existing access token session revoke auth.sessions JWT account deletion\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
-              "title": "Clerk"
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/security/ownership",
-              "title": "Ownership"
+              "url": "https://supabase.com/docs/reference/api/v1-delete-jit-access",
+              "title": "Delete JIT access by user-id"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
-              "title": "Storage Buckets"
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/s3/authentication",
-              "title": "S3 Authentication"
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
-              "title": "Getting Started with OAuth 2.1 Server"
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
-              "title": "Delete Objects"
+              "url": "https://supabase.com/docs/guides/platform/sso/testing-best-practices",
+              "title": "SSO Testing and Best Practices"
             }
           ],
-          "resultChars": 69441
+          "resultChars": 152997
         },
         {
           "source": "web_search",
@@ -14390,92 +14152,12 @@
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/changelog Supabase changelog auth session delete user API keys publishable secret",
+          "query": "site:supabase.com/changelog Supabase auth delete user sessions JWT revocation",
           "pages": []
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase publishable key secret key legacy anon service_role RLS bypass behavior\", limit: 10) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z",
-              "title": "Why is my service role key client getting RLS errors or not returning data?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
-              "title": "JWT Claims Reference"
-            }
-          ],
-          "resultChars": 147735
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Understanding API keys publishable key secret key sb_publishable sb_secret service_role bypass RLS\", limit: 6) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z",
-              "title": "Why is my service role key client getting RLS errors or not returning data?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
-            }
-          ],
-          "resultChars": 64041
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"sign out revoke sessions access token remains valid until expiry Supabase Auth delete user\", limit: 10) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"delete user JWT remain valid until expired sign out scope admin deleteUser sessions\", limit: 10) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -14483,49 +14165,45 @@
               "title": "User sessions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
+              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/managing-user-data",
               "title": "User Management"
             },
             {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
               "url": "https://supabase.com/docs/guides/auth/signout",
               "title": "Signing out"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
-              "title": "OAuth 2.1 Flows"
+              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/sso",
-              "title": "Enable SSO for Your Organization"
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/jwts",
-              "title": "JSON Web Token (JWT)"
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide",
+              "title": "Advanced guide"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/users",
-              "title": "Users"
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
             },
             {
-              "url": "https://supabase.com/docs/guides/integrations/build-a-supabase-oauth-integration",
-              "title": "Build a Supabase Integration"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/temporary-access",
-              "title": "Temporary access"
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-signout"
             }
           ],
-          "resultChars": 143995
+          "resultChars": 69328
         }
       ]
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.6/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -17204,8 +16882,7 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
@@ -17237,9 +16914,19 @@
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
+        "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "The answer identifies the soft-delete-only root cause, implements real auth user deletion with cascading sessions/identities and RLS active-user checks, and explains the remaining JWT caveat consistently: Data API paths covered by its RLS check are blocked after commit, but purely local validation or other services/policies may accept the JWT until expiry. It also correctly distinguishes publishable frontend/RLS use from secret server-only RLS-bypassing use."
+        "judgeNotes": "The assistant clearly identified that delete_account only soft-deleted the profiles row, did not remove the auth user or sessions, and explained that this allowed continued authentication/access."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": true,
+        "judgeNotes": "The assistant replaced the soft-delete RPC with deletion from auth.users, which cascades sessions, refresh tokens, identities, and profile removal, and added RLS defenses for stale JWTs. This satisfies revoking auth access rather than leaving a soft delete."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identifies JWT staleness and ships RLS changes that close the Data API path by requiring an existing non-deleted profile, so its claim of no JWT-expiration window for database access is consistent with the fix. It also caveats concurrent in-flight requests. It does not explicitly state that the token itself remains valid until expiry for purely local validation, but its explanation is sufficient for the implemented Data API window judgment."
       }
     ],
     "skills": {
@@ -17250,7 +16937,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user JWT remains valid until expiry revoke sessions access token RLS\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"delete user auth.users access token JWT remains valid until expiration RLS\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -17266,119 +16953,19 @@
               "title": "Realtime Authorization"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/security/ownership",
-              "title": "Ownership"
-            },
-            {
               "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
               "title": "Should I set a shorter Max-Age parameter on the cookies?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/users",
+              "title": "Users"
             }
           ],
-          "resultChars": 40980
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"publishable key secret key anon service_role RLS new API keys\", limit: 6) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on ManagementApiReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
-              "title": "Creating a Supabase client for SSR"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
-              "title": "Build a Social Auth App with Expo React Native"
-            }
-          ],
-          "resultChars": 197013
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"API keys publishable secret key bypass RLS Authorization header apikey\", limit: 10) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
-              "title": "Envoy API Gateway"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
-              "title": "Build a Product Management Android App with Jetpack Compose"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/debugging/error-codes",
-              "title": "Error Codes"
-            }
-          ],
-          "resultChars": 174374
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"secret key RLS user Authorization JWT publishable key authenticated role\", limit: 5) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
-              "title": "Getting Started with OAuth 2.1 Server"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
-            }
-          ],
-          "resultChars": 56289
+          "resultChars": 50790
         }
       ]
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.6-no-skills/investigate-auth-001-deleted-user-access.json"
@@ -18891,8 +18478,7 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
@@ -18924,9 +18510,19 @@
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
+        "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "Meets all rubric points: identifies soft-delete-only root cause; implements auth user deletion with cascaded sessions/refresh token revocation; explains stateless JWT access-token window consistently and gives mitigations; correctly distinguishes publishable frontend/RLS behavior from secret backend-only/RLS-bypass behavior."
+        "judgeNotes": "The assistant clearly identifies the root cause: delete_account only soft-deletes public.profiles via a deleted flag, never deletes auth.users or revokes auth.sessions/refresh_tokens, so login and sessions remain valid. It does not blame caching/client bugs; it explains why the deleted account still works."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": true,
+        "judgeNotes": "The assistant rewrote delete_account to hard-delete auth.users, cascading to sessions, refresh_tokens, identities, and profiles, and also added RLS session validation to block still-unexpired JWTs. This satisfies revocation of auth access rather than leaving a soft delete."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
+        "passed": true,
+        "judgeNotes": "Explains JWTs are stateless and remain cryptographically valid until exp; local-only validation would still accept them. Its shipped fix adds RLS session-existence checks, so claiming no data-path window is consistent, while still noting the token remains valid until expiry and naming mitigations/caveats."
       }
     ],
     "skills": {
@@ -18939,38 +18535,9 @@
       ]
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"publishable secret API keys migration anon service_role RLS\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
-              "title": "Build a Social Auth App with Expo React Native"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
-              "title": "Build a User Management App with SvelteKit"
-            }
-          ],
-          "resultChars": 169611
-        }
-      ]
+      "calls": []
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
     "attempts": 1,
     "sourcePath": "opencode-kimi-k3/investigate-auth-001-deleted-user-access.json"
@@ -20544,8 +20111,7 @@
       "auth"
     ],
     "topic": [
-      "security",
-      "sdk"
+      "security"
     ],
     "suite": "benchmark",
     "interface": "mcp",
@@ -20577,9 +20143,19 @@
         "passed": true
       },
       {
-        "name": "diagnosed and explained session revocation",
+        "name": "diagnosed the soft-delete as the cause",
         "passed": true,
-        "judgeNotes": "Meets the rubric: correctly diagnoses soft-delete without auth/session revocation, implements auth user deletion with refresh/session revocation, explains the remaining stateless JWT expiry window consistently, and correctly distinguishes publishable frontend keys from secret server-only RLS-bypassing keys."
+        "judgeNotes": "Identifies the root cause: delete_account only marked public.profiles.deleted=true and did not delete auth.users or revoke identities/sessions/refresh tokens, so credentials and sessions remained valid and the account could keep signing in."
+      },
+      {
+        "name": "fixed the flow to revoke auth access",
+        "passed": true,
+        "judgeNotes": "The assistant replaced the soft-delete flow with deletion from auth.users and explicitly verified identities, sessions, and refresh tokens are cascade-deleted/revoked."
+      },
+      {
+        "name": "explained the access-token window consistently with its fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly explains that access tokens/JWTs remain valid under local stateless validation until expiry, and that its shipped fix deletes auth users/refresh tokens but still leaves the Data API accepting stale JWTs under existing RLS. It states the remaining window is up to access-token expiry and names mitigations such as shorter JWT expiry and server-side/RLS existence checks."
       }
     ],
     "skills": {
@@ -20587,66 +20163,11 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user account RPC security definer function auth.users\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-admin-deleteuser",
-              "title": "deleteUser()"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0029_authenticated_security_definer_function_executable",
-              "title": "Database Advisor: Lint 0029_authenticated_security_definer_function_executable"
-            }
-          ],
-          "resultChars": 15474
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"publishable secret API keys replacing anon service_role\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
-              "title": "Envoy API Gateway"
-            }
-          ],
-          "resultChars": 98570
-        }
-      ]
+      "calls": []
     },
-    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
