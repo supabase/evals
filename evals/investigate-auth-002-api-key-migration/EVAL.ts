@@ -13,9 +13,9 @@ const scorer: ToolScorer = async (ctx) => {
     judge({
       input,
       rubric: stripIndent`
-        Pass if the assistant maps the legacy keys onto the new ones: the anon key corresponds to the publishable key, and the service_role key corresponds to a secret key. Wording like "replaces" or "drop-in" is fine, the mapping itself is what matters.
+        Pass if the assistant maps the legacy keys onto the new ones: the anon key corresponds to the publishable key, and the service_role key corresponds to a secret key.
 
-        Fail if the assistant inverts that mapping, or never relates the legacy keys to the new ones at all.
+        Fail if the assistant inverts that mapping, never relates the legacy keys to the new ones, or presents the new keys as exact drop-in replacements. They are not interchangeable with the legacy ones: the new keys are not JWTs and behave differently in places such as Edge Functions, so "same role, new key" is right and "just swap the string" is not.
       `,
     }),
     judge({
