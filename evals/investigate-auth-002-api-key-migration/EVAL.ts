@@ -13,17 +13,17 @@ const scorer: ToolScorer = async (ctx) => {
     judge({
       input,
       rubric: stripIndent`
-        Pass if the assistant maps the legacy keys onto the new ones as role equivalents: the anon key corresponds to the publishable key, and the service_role key corresponds to a secret key.
+        Pass if the assistant maps the legacy keys onto the new ones: the anon key corresponds to the publishable key, and the service_role key corresponds to a secret key. Wording like "replaces" or "drop-in" is fine, the mapping itself is what matters.
 
-        Fail if the assistant inverts that mapping, or presents the new keys as exact drop-in renames of the legacy ones rather than role equivalents.
+        Fail if the assistant inverts that mapping, or never relates the legacy keys to the new ones at all.
       `,
     }),
     judge({
       input,
       rubric: stripIndent`
-        Pass if the assistant puts the publishable key in frontend code and describes it as identifying the app rather than a user: requests carrying no user access token run as the anon role, requests carrying one run as the authenticated role, and RLS applies either way.
+        Pass if the assistant puts the publishable key in frontend code and says RLS still applies to requests made with it. Detail beyond that (naming the anon and authenticated roles, or that the key identifies the app rather than a user) is a bonus, not a requirement: the user asked which key belongs in the frontend and what it means for RLS, so answering that is enough.
 
-        Fail if the assistant says the publishable key bypasses RLS, or says the key itself authenticates a user or carries their identity.
+        Fail if the assistant says the publishable key bypasses RLS, says the key itself authenticates a user or carries their identity, or puts a secret key in the frontend instead.
       `,
     }),
     judge({
