@@ -17,21 +17,31 @@ export function resolvePackageBin(pkg: string, entry: string): string {
 }
 
 /**
- * The mock project the generated vitest setup serves. Shared by that setup and
- * by the generated config, which injects them as `VITE_*` so an app under test
- * resolves the same project the setup boots. Evals instruct agents to read
- * `import.meta.env.VITE_SUPABASE_URL` / `_ANON_KEY`, so the harness has to
+ * The mock project the generated vitest setup serves. Evals instruct agents to
+ * read `import.meta.env.VITE_SUPABASE_URL` / `_ANON_KEY`, so the harness has to
  * supply them or every correct solution throws at import.
  */
 const PROJECT_DB_URL = 'http://supabase-evals.local';
 const PROJECT_DB_ANON_KEY = 'supabase-evals-anon-key';
 const PROJECT_DB_JWT_SECRET = 'supabase-evals-dev-secret';
 
+/**
+ * One definition, reached two ways: Vite reads `VITE_`-prefixed vars straight
+ * off the build process env, while Vitest takes them from the config it is
+ * handed. Both are generated from this object so a build and its tests can
+ * never disagree about which project the app points at.
+ */
+const PROJECT_ENV: Record<string, string> = {
+  VITE_SUPABASE_URL: PROJECT_DB_URL,
+  VITE_SUPABASE_ANON_KEY: PROJECT_DB_ANON_KEY,
+};
+
 export async function viteBuild(workspace: string): Promise<CommandResult> {
   return runNodeBin(
     resolvePackageBin('vite', 'bin/vite.js'),
     ['build'],
-    workspace
+    workspace,
+    PROJECT_ENV
   );
 }
 
@@ -53,8 +63,9 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
       `    setupFiles: [${JSON.stringify('./.evals/vitest-supalite-setup.ts')}],`,
       '    include: ["tests/**/*.test.{ts,tsx}"],',
       '    env: {',
-      `      VITE_SUPABASE_URL: ${JSON.stringify(PROJECT_DB_URL)},`,
-      `      VITE_SUPABASE_ANON_KEY: ${JSON.stringify(PROJECT_DB_ANON_KEY)},`,
+      ...Object.entries(PROJECT_ENV).map(
+        ([key, value]) => `      ${key}: ${JSON.stringify(value)},`
+      ),
       '    },',
       '  },',
       '});',

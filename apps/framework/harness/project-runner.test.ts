@@ -2,6 +2,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -55,11 +56,24 @@ test('builds and tests a known-good frontend workspace', async () => {
   });
   // Deliberately no `.env.local`. A real agent workspace does not have one, so
   // writing it here would make this test pass while the live scoring path
-  // fails. `vitestRun` injects VITE_SUPABASE_* through the config it generates.
+  // fails. The harness supplies VITE_SUPABASE_* to both tools instead.
   writeFileSync(join(workspace, 'src', 'App.tsx'), referenceApp());
 
   const build = await viteBuild(workspace);
   expect(build.ok, build.stderr || build.stdout).toBe(true);
+
+  // An exit code of 0 only says Vite ran. Without the build env the bundle
+  // compiles `import.meta.env.VITE_SUPABASE_URL` to undefined and the app
+  // throws on load, so assert the config actually landed in the artifact.
+  const bundle = readdirSync(join(workspace, 'dist', 'assets'))
+    .filter((file) => file.endsWith('.js'))
+    .map((file) =>
+      readFileSync(join(workspace, 'dist', 'assets', file), 'utf8')
+    )
+    .join('');
+  expect(bundle, 'built bundle is missing the Supabase project URL').toContain(
+    'supabase-evals.local'
+  );
 
   const vitest = await vitestRun(workspace);
   expect(vitest.ok, vitest.stderr || vitest.stdout).toBe(true);
