@@ -26,10 +26,6 @@ import {
 import { scoreResults, type ParsedResult } from "@/lib/eval-results"
 import { cn } from "@/lib/utils"
 
-function runKey(result: ParsedResult) {
-  return `${result.experiment}::${result.eval}`
-}
-
 /**
  * Detail view for a clicked row or column, listing the runs behind it. Every
  * axis the selection leaves open becomes a column, so a model selection lists
@@ -50,7 +46,9 @@ export function SelectionSheet({
   const orderedRuns = orderRuns(runs, columns, sourceResults)
   const { passed, total } = scoreResults(runs)
   const passRate = total ? Math.round((passed / total) * 100) : null
-  const [expandedRun, setExpandedRun] = useState<string | null>(null)
+  const [expandedRun, setExpandedRun] = useState<string | null>(
+    selection.expandedRun ?? null
+  )
 
   const toggleRun = (key: string) => {
     setExpandedRun((current) => (current === key ? null : key))
@@ -110,7 +108,7 @@ export function SelectionSheet({
             </thead>
             <tbody>
               {orderedRuns.map((run) => {
-                const key = runKey(run)
+                const key = run.sourcePath
                 const expanded = expandedRun === key
 
                 return (

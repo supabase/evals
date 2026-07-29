@@ -25,8 +25,8 @@ export function App() {
           <>
             <SiteHeader />
             <SiteHero />
-            {/* Pulled up so the table overlaps the hero's bottom edge. */}
-            <PageContainer className="relative z-20 -mt-10 pb-8 md:-mt-16 md:pb-10">
+            {/* Overlap the table with the hero while preserving its content spacing. */}
+            <PageContainer className="relative z-20 -mt-6 pb-8 md:-mt-8 md:pb-10">
               <ResultsTable
                 sourceResults={suiteResults}
                 groupBy={groupBy}
