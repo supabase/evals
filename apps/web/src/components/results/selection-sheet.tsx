@@ -1,4 +1,5 @@
-import { Fragment, useState } from "react"
+import { Fragment } from "react"
+import { useQueryState } from "nuqs"
 
 import { EvalDetails } from "@/components/results/eval-details"
 import {
@@ -24,6 +25,7 @@ import {
   type TableSelection,
 } from "@/lib/dimensions"
 import { scoreResults, type ParsedResult } from "@/lib/eval-results"
+import { selectionQueryKeys, selectionQueryParsers } from "@/lib/url-state"
 import { cn } from "@/lib/utils"
 
 /**
@@ -46,12 +48,13 @@ export function SelectionSheet({
   const orderedRuns = orderRuns(runs, columns, sourceResults)
   const { passed, total } = scoreResults(runs)
   const passRate = total ? Math.round((passed / total) * 100) : null
-  const [expandedRun, setExpandedRun] = useState<string | null>(
-    selection.expandedRun ?? null
+  const [expandedRun, setExpandedRun] = useQueryState(
+    selectionQueryKeys.run,
+    selectionQueryParsers.run
   )
 
   const toggleRun = (key: string) => {
-    setExpandedRun((current) => (current === key ? null : key))
+    void setExpandedRun((current) => (current === key ? null : key))
   }
 
   return (
