@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react"
+import { useQueryStates } from "nuqs"
 
 import { SelectionSheet } from "@/components/results/selection-sheet"
 import {
@@ -31,6 +32,7 @@ import {
   type ExperimentSuite,
   type ParsedResult,
 } from "@/lib/eval-results"
+import { selectionQueryKeys, selectionQueryParsers } from "@/lib/url-state"
 import { cn } from "@/lib/utils"
 
 /** Header text that truncates to its cell, with an optional tooltip for the full story. */
@@ -113,22 +115,38 @@ export function ResultsTable({
   const modelsAsRows = groupBy === "model"
   const rowKeys = rowDimension.keys(sourceResults)
   const columnKeys = columnDimension.keys(sourceResults)
-  const [selection, setSelection] = useState<TableSelection | null>(null)
+  const [selectionQuery, setSelectionQuery] = useQueryStates(
+    selectionQueryParsers,
+    { urlKeys: selectionQueryKeys }
+  )
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null)
+  const selection: TableSelection | null =
+    selectionQuery.dimension && selectionQuery.key
+      ? {
+          dimension: selectionQuery.dimension,
+          key: selectionQuery.key,
+        }
+      : null
 
   const select = (
     dimension: Dimension,
     key: string,
     cellRuns?: ParsedResult[]
   ) => {
-    setSelection(tableSelection(dimension, key, cellRuns))
+    const nextSelection = tableSelection(dimension, key, cellRuns)
+
+    void setSelectionQuery({
+      dimension: nextSelection.dimension,
+      key: nextSelection.key,
+      run: nextSelection.expandedRun ?? null,
+    })
   }
 
   return (
     <Sheet
       open={selection !== null}
       onOpenChange={(open) => {
-        if (!open) setSelection(null)
+        if (!open) void setSelectionQuery(null)
       }}
     >
       <section
