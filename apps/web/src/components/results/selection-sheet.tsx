@@ -2,6 +2,7 @@ import { Fragment } from "react"
 import { useQueryState } from "nuqs"
 
 import { EvalDetails } from "@/components/results/eval-details"
+import { ExperimentLabel } from "@/components/results/experiment-label"
 import {
   activateOnKeyDown,
   clickableTableItemClassName,
@@ -132,14 +133,22 @@ export function SelectionSheet({
                             scope="row"
                             className="border-r border-b border-border py-2.5 pr-3 pl-6 text-left font-normal text-foreground"
                           >
-                            {dimensionCell(facet, run)}
+                            {facet.id === "model" ? (
+                              <ExperimentLabel experiment={run.experiment} />
+                            ) : (
+                              dimensionCell(facet, run)
+                            )}
                           </th>
                         ) : (
                           <td
                             key={facet.id}
                             className="border-r border-b border-border px-3 py-2.5 text-muted-foreground"
                           >
-                            {dimensionCell(facet, run)}
+                            {facet.id === "model" ? (
+                              <ExperimentLabel experiment={run.experiment} />
+                            ) : (
+                              dimensionCell(facet, run)
+                            )}
                           </td>
                         )
                       )}

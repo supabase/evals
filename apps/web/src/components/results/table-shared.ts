@@ -32,6 +32,26 @@ export function passFailClassName(passed: boolean) {
   return passed ? PASS_CLASS : FAIL_CLASS
 }
 
+/** Formats aggregate scores as rates and single eval runs as pass or fail. */
+export function scoreLabel(
+  passed: number,
+  total: number,
+  showPassFail = false
+) {
+  if (!total) return null
+  if (showPassFail && total === 1) return passed ? "Pass" : "Fail"
+  return `${Math.round((passed / total) * 100)}%`
+}
+
+/** Checks whether a horizontal scroller has content beyond its right edge. */
+export function hasMoreContentToRight({
+  scrollLeft,
+  clientWidth,
+  scrollWidth,
+}: Pick<HTMLElement, "scrollLeft" | "clientWidth" | "scrollWidth">) {
+  return scrollLeft + clientWidth < scrollWidth - 1
+}
+
 /** Rows are clickable `<tr>`s rather than buttons, so they need their own key handling. */
 export function activateOnKeyDown(event: KeyboardEvent, open: () => void) {
   if (event.key === "Enter" || event.key === " ") {

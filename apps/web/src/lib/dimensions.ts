@@ -96,7 +96,7 @@ export type Dimension = {
 export const DIMENSIONS: Record<GroupBy, Dimension> = {
   model: {
     id: "model",
-    label: "Model",
+    label: "Agent",
     keys: getRankedExperiments,
     filter: getExperimentResults,
     keyOf: (result) => result.experiment,

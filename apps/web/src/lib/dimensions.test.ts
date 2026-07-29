@@ -224,6 +224,10 @@ describe("orderRuns", () => {
 })
 
 describe("the model dimension, against the real export", () => {
+  it("presents the experiment axis as Agent", () => {
+    expect(DIMENSIONS.model.label).toBe("Agent")
+  })
+
   it("labels every experiment rather than falling back to its raw id", () => {
     const experiments = Array.from(
       new Set(sortedResults.map((result) => result.experiment))
