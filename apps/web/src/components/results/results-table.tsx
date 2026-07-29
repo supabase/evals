@@ -19,6 +19,7 @@ import {
   DIMENSIONS,
   GROUP_BY_OPTIONS,
   dimensionShortTitle,
+  tableSelection,
   type Dimension,
   type GroupBy,
   type TableSelection,
@@ -115,8 +116,12 @@ export function ResultsTable({
   const [selection, setSelection] = useState<TableSelection | null>(null)
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null)
 
-  const select = (dimension: Dimension, key: string) => {
-    setSelection({ dimension: dimension.id, key })
+  const select = (
+    dimension: Dimension,
+    key: string,
+    cellRuns?: ParsedResult[]
+  ) => {
+    setSelection(tableSelection(dimension, key, cellRuns))
   }
 
   return (
@@ -242,23 +247,36 @@ export function ResultsTable({
                         </TableHeaderLabel>
                       </th>
                       {columnKeys.map((columnKey) => {
-                        const summary = scoreResults(
-                          columnDimension.filter(columnKey, rowResults)
+                        const cellRuns = columnDimension.filter(
+                          columnKey,
+                          rowResults
                         )
+                        const summary = scoreResults(cellRuns)
 
                         return (
                           <td
                             key={columnKey}
                             className={cn(
-                              "border-r border-b border-border px-2.5 py-2 transition-colors",
+                              "border-r border-b border-border p-0 transition-colors",
                               hoveredColumn === columnKey &&
                                 columnHighlightClassName
                             )}
                           >
-                            <ScoreCell
-                              passed={summary.passed}
-                              total={summary.total}
-                            />
+                            <button
+                              type="button"
+                              aria-label={`Open ${columnDimension.title(columnKey)} results for ${rowDimension.title(rowKey)}`}
+                              className="block w-full cursor-pointer px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                select(rowDimension, rowKey, cellRuns)
+                              }}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              <ScoreCell
+                                passed={summary.passed}
+                                total={summary.total}
+                              />
+                            </button>
                           </td>
                         )
                       })}

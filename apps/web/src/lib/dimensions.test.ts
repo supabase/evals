@@ -7,6 +7,7 @@ import {
   dimensionCell,
   dimensionShortTitle,
   orderRuns,
+  tableSelection,
   type GroupBy,
 } from "@/lib/dimensions"
 import { makeResult } from "@/lib/eval-results.fixture"
@@ -114,6 +115,40 @@ describe("dimensionShortTitle", () => {
 
   it("falls back to the full title for an axis with no compact form", () => {
     expect(dimensionShortTitle(DIMENSIONS.stage, "build")).toBe("Build")
+  })
+})
+
+describe("tableSelection", () => {
+  it("deep-links a score cell when its dimensions identify one run", () => {
+    const run = makeResult({
+      eval: "build-cli-001-bootstrap-app",
+      sourcePath: "claude-code-sonnet-5/build-cli-001-bootstrap-app.json",
+    })
+
+    expect(tableSelection(DIMENSIONS.eval, run.eval, [run])).toEqual({
+      dimension: "eval",
+      key: run.eval,
+      expandedRun: run.sourcePath,
+    })
+  })
+
+  it("leaves aggregate cells at the sheet level", () => {
+    const runs = [
+      makeResult({ eval: "a", sourcePath: "model/a.json" }),
+      makeResult({ eval: "b", sourcePath: "model/b.json" }),
+    ]
+
+    expect(tableSelection(DIMENSIONS.stage, "build", runs)).toEqual({
+      dimension: "stage",
+      key: "build",
+    })
+  })
+
+  it("leaves row and column selections at the sheet level", () => {
+    expect(tableSelection(DIMENSIONS.model, "model-a")).toEqual({
+      dimension: "model",
+      key: "model-a",
+    })
   })
 })
 
