@@ -26,10 +26,10 @@ const PROJECT_DB_ANON_KEY = 'supabase-evals-anon-key';
 const PROJECT_DB_JWT_SECRET = 'supabase-evals-dev-secret';
 
 /**
- * One definition, reached two ways: Vite reads `VITE_`-prefixed vars straight
- * off the build process env, while Vitest takes them from the config it is
- * handed. Both are generated from this object so a build and its tests can
- * never disagree about which project the app points at.
+ * Handed to both tools the same way, as process env. Vite exposes
+ * `VITE_`-prefixed variables that already exist in the environment on
+ * `import.meta.env`, and Vitest inherits that behaviour, so neither the build
+ * nor the test run needs this injected through generated config.
  */
 const PROJECT_ENV: Record<string, string> = {
   VITE_SUPABASE_URL: PROJECT_DB_URL,
@@ -62,11 +62,6 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
       '    environment: "happy-dom",',
       `    setupFiles: [${JSON.stringify('./.evals/vitest-supalite-setup.ts')}],`,
       '    include: ["tests/**/*.test.{ts,tsx}"],',
-      '    env: {',
-      ...Object.entries(PROJECT_ENV).map(
-        ([key, value]) => `      ${key}: ${JSON.stringify(value)},`
-      ),
-      '    },',
       '  },',
       '});',
       '',
@@ -82,7 +77,7 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
       `--outputFile=${reportPath}`,
     ],
     workspace,
-    { SUPABASE_EVALS_WORKSPACE: workspace }
+    { ...PROJECT_ENV, SUPABASE_EVALS_WORKSPACE: workspace }
   );
   const parsed = existsSync(reportPath)
     ? parseVitestReport(reportPath)
