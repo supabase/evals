@@ -51,7 +51,7 @@ Run selected evals across multiple experiments:
 ```bash
 pnpm eval -- \
   --experiment claude-code-sonnet-5 \
-  --experiment claude-code-opus-4.8 \
+  --experiment claude-code-opus-5 \
   --eval resolve-dataapi-001-empty-results \
   --eval investigate-auth-001-deleted-user-access
 ```
