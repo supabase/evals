@@ -60,7 +60,8 @@ function formatMoonshotaiModel(modelId: string) {
   return modelId.split("-").map(capitalize).join(" ")
 }
 
-function formatModel(display: ExperimentDisplay) {
+/** Formats a model name without experiment modifiers such as reasoning effort. */
+export function formatModelName(display: ExperimentDisplay) {
   // opencode ids are AI Gateway `vendor/model` slugs; format just the model part.
   const modelId = display.modelId.replace(/^[a-z-]+\//, "")
   switch (display.modelProvider) {
@@ -73,9 +74,9 @@ function formatModel(display: ExperimentDisplay) {
   }
 }
 
-function formatModelWithModifiers(display: ExperimentDisplay) {
+export function formatModelLabel(display: ExperimentDisplay) {
   return [
-    formatModel(display),
+    formatModelName(display),
     display.reasoningEffort ? `(${display.reasoningEffort})` : "",
   ]
     .filter(Boolean)
@@ -91,7 +92,7 @@ export function formatExperimentLabel(
     return fallback
   }
 
-  return `${AGENT_LABELS[display.agent]} / ${formatModelWithModifiers(display)}`
+  return `${AGENT_LABELS[display.agent]} / ${formatModelLabel(display)}`
 }
 
 /** Model alone, for column headers where the agent sits in the caption. */
@@ -103,7 +104,7 @@ export function formatModelColumnLabel(
     return fallback
   }
 
-  return formatModelWithModifiers(display)
+  return formatModelLabel(display)
 }
 
 /** Upper-cases short words so acronyms like "rls" and "api" read correctly. */

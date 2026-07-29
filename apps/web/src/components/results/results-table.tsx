@@ -1,12 +1,15 @@
 import { useState, type ReactNode } from "react"
 import { useQueryStates } from "nuqs"
 
+import { ExperimentLabel } from "@/components/results/experiment-label"
 import { SelectionSheet } from "@/components/results/selection-sheet"
 import {
   activateOnKeyDown,
   clickableTableItemClassName,
   columnHighlightClassName,
+  passFailClassName,
   passRateClassName,
+  scoreLabel,
   tableHeadCellClassName,
 } from "@/components/results/table-shared"
 import { SegmentedControl } from "@/components/ui/segmented-control"
@@ -65,16 +68,21 @@ function ScoreCell({
   passed,
   total,
   isTotal = false,
+  showPassFail = false,
 }: {
   passed: number
   total: number
   isTotal?: boolean
+  showPassFail?: boolean
 }) {
-  if (!total) {
+  const label = scoreLabel(passed, total, showPassFail)
+
+  if (!label) {
     return <span className="text-muted-foreground/50">—</span>
   }
 
   const passRate = Math.round((passed / total) * 100)
+  const isPassFail = showPassFail && total === 1
 
   return (
     <span
@@ -82,10 +90,12 @@ function ScoreCell({
       className={cn(
         "font-mono text-xs",
         isTotal && "font-semibold",
-        passRateClassName(passRate)
+        isPassFail
+          ? passFailClassName(passed === total)
+          : passRateClassName(passRate)
       )}
     >
-      {passRate}%
+      {label}
     </span>
   )
 }
@@ -221,7 +231,11 @@ export function ResultsTable({
                           className="block w-full cursor-pointer px-2.5 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                         >
                           <TableHeaderLabel tooltip={tooltip}>
-                            {dimensionShortTitle(columnDimension, columnKey)}
+                            {columnDimension.id === "model" ? (
+                              <ExperimentLabel experiment={columnKey} compact />
+                            ) : (
+                              dimensionShortTitle(columnDimension, columnKey)
+                            )}
                           </TableHeaderLabel>
                         </button>
                       </th>
@@ -261,7 +275,11 @@ export function ResultsTable({
                           tooltip={rowDimension.tooltip?.(rowKey)}
                           className="font-medium"
                         >
-                          {rowDimension.title(rowKey)}
+                          {rowDimension.id === "model" ? (
+                            <ExperimentLabel experiment={rowKey} />
+                          ) : (
+                            rowDimension.title(rowKey)
+                          )}
                         </TableHeaderLabel>
                       </th>
                       {columnKeys.map((columnKey) => {
@@ -293,6 +311,7 @@ export function ResultsTable({
                               <ScoreCell
                                 passed={summary.passed}
                                 total={summary.total}
+                                showPassFail={groupBy === "eval"}
                               />
                             </button>
                           </td>
