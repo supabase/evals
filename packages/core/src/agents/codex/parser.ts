@@ -30,7 +30,7 @@ import {
 } from '../../parsers/shared/normalize.js';
 import {
   extractArgs,
-  extractLoadedSkillFromText,
+  extractLoadedSkillsFromText,
   type ArgFieldMap,
   type ExtractedArgs,
 } from '../../parsers/shared/extract.js';
@@ -108,7 +108,8 @@ function toolCallPair(
   if (normalized.path) tool.path = normalized.path;
   if (normalized.command) tool.command = normalized.command;
   if (normalized.url) tool.url = normalized.url;
-  tool.loadedSkill = loadedSkillFromCodexCall(tool);
+  const loadedSkills = loadedSkillsFromCodexCall(tool);
+  if (loadedSkills.length > 0) tool.loadedSkills = loadedSkills;
   return [
     { type: 'tool_call', tool },
     { type: 'tool_result', tool: { name, originalName, id, result, success } },
@@ -116,12 +117,12 @@ function toolCallPair(
 }
 
 /** Identifies Codex skill loads from normalized file paths or shell commands. */
-function loadedSkillFromCodexCall(
+function loadedSkillsFromCodexCall(
   tool: NonNullable<TranscriptEvent['tool']>
-): string | undefined {
-  if (tool.path) return extractLoadedSkillFromText(tool.path);
-  if (tool.command) return extractLoadedSkillFromText(tool.command);
-  return undefined;
+): string[] {
+  if (tool.path) return extractLoadedSkillsFromText(tool.path);
+  if (tool.command) return extractLoadedSkillsFromText(tool.command);
+  return [];
 }
 
 function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {

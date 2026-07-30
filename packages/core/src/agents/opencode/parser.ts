@@ -32,7 +32,7 @@ import {
 } from '../../parsers/shared/normalize.js';
 import {
   extractArgs,
-  extractLoadedSkillFromText,
+  extractLoadedSkillsFromText,
   type ArgFieldMap,
   type ExtractedArgs,
 } from '../../parsers/shared/extract.js';
@@ -151,7 +151,8 @@ function partToEvents(
       if (normalized.path) tool.path = normalized.path;
       if (normalized.command) tool.command = normalized.command;
       if (normalized.url) tool.url = normalized.url;
-      tool.loadedSkill = loadedSkillFromOpencodeCall(tool);
+      const loadedSkills = loadedSkillsFromOpencodeCall(tool);
+      if (loadedSkills.length > 0) tool.loadedSkills = loadedSkills;
 
       const events: TranscriptEvent[] = [
         { timestamp, type: 'tool_call', tool, raw },
@@ -184,16 +185,16 @@ function partToEvents(
  * skill name in its args; skills read manually surface as `skills/<name>/
  * SKILL.md` in a file path or shell command.
  */
-function loadedSkillFromOpencodeCall(
+function loadedSkillsFromOpencodeCall(
   tool: NonNullable<TranscriptEvent['tool']>
-): string | undefined {
+): string[] {
   if (tool.originalName.toLowerCase() === 'skill') {
     const name = tool.args?.name ?? tool.args?.skill;
-    if (typeof name === 'string') return name;
+    if (typeof name === 'string') return [name];
   }
-  if (tool.path) return extractLoadedSkillFromText(tool.path);
-  if (tool.command) return extractLoadedSkillFromText(tool.command);
-  return undefined;
+  if (tool.path) return extractLoadedSkillsFromText(tool.path);
+  if (tool.command) return extractLoadedSkillsFromText(tool.command);
+  return [];
 }
 
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
