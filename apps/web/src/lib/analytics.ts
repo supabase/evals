@@ -9,7 +9,7 @@ export function initAnalytics() {
     api_host: POSTHOG_API_HOST,
     ui_host: POSTHOG_UI_HOST,
     defaults: "2026-01-30",
-    persistence: "memory",
+    persistence: "localStorage",
     person_profiles: "identified_only",
     autocapture: false,
     capture_pageview: "history_change",
