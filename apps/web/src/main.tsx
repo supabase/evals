@@ -17,7 +17,7 @@ createRoot(document.getElementById("root")!).render(
 )
 
 if (import.meta.env.PROD) {
-  void import("@/lib/posthog")
+  void import("@/lib/analytics")
     .then(({ initAnalytics }) => initAnalytics())
-    .catch(() => {})
+    .catch(() => console.warn("analytics failed to load"))
 }

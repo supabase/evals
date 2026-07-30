@@ -12,8 +12,12 @@ export function initAnalytics() {
     persistence: "memory",
     person_profiles: "identified_only",
     autocapture: false,
-    capture_pageview: true,
+    capture_pageview: "history_change",
     capture_pageleave: true,
+    capture_heatmaps: false,
+    capture_dead_clicks: false,
+    capture_exceptions: false,
+    capture_performance: false,
     disable_session_recording: true,
   })
 }
