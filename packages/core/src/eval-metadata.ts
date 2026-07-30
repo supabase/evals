@@ -222,6 +222,26 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
   };
 }, evalMetadataSchema);
 
+/**
+ * Whole-run token/cost accounting, normalized across harnesses. Every field
+ * is optional — each harness reports what its transcript actually carries.
+ * `inputTokens` is reported OpenAI-style (cache reads/writes ⊆ input) so
+ * token counts stay comparable across agents.
+ */
+export const agentUsageSchema = z.object({
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  /** Prompt tokens served from cache (cache reads). */
+  cachedInputTokens: z.number().optional(),
+  /** Prompt tokens written to cache (Anthropic only). */
+  cacheCreationInputTokens: z.number().optional(),
+  reasoningTokens: z.number().optional(),
+  totalTokens: z.number().optional(),
+  /** Run cost in USD, when the harness reports one. */
+  costUsd: z.number().optional(),
+});
+export type AgentUsage = z.infer<typeof agentUsageSchema>;
+
 export const checkResultSchema = z.object({
   name: z.string(),
   passed: z.boolean(),
@@ -311,6 +331,10 @@ const evalResultShape = {
   attempts: z.number().optional(),
   skills: skillResultSchema.optional(),
   docs: docsResultSchema.optional(),
+  // Performance metrics: the scoring attempt's agent token/cost accounting
+  // and wall-clock agent time, when the harness reports them.
+  usage: agentUsageSchema.optional(),
+  durationMs: z.number().optional(),
 };
 
 // Raw result files may carry extra fields we don't model; tolerate them.

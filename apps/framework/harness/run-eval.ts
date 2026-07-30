@@ -34,6 +34,7 @@ import {
   getExperimentDisplayMetadata,
 } from '@supabase-evals/core';
 import type {
+  AgentUsage,
   ExperimentConfig,
   EvalInterface,
   EvalManifest,
@@ -360,6 +361,8 @@ async function runOne(
     transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
+    usage?: AgentUsage;
+    durationMs?: number;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -388,6 +391,11 @@ async function runOne(
   let lastTranscript: TranscriptPart[] = [];
   let lastAgentReport = '';
   let lastStoppedReason = 'not_started';
+  // Performance metrics for the attempt that produced the reported score:
+  // the agent's own token/cost accounting and its wall-clock time (agent run
+  // only — sandbox boot and scoring excluded, so harnesses compare fairly).
+  let lastUsage: AgentUsage | undefined;
+  let lastDurationMs: number | undefined;
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === 'local-stack') {
@@ -442,6 +450,7 @@ async function runOne(
         })
       );
 
+      const agentStart = Date.now();
       const run = await exp.agent.run({
         systemPrompt: buildSystemPrompt('local-stack', session.promptAddendum),
         userPrompt: prompt,
@@ -457,6 +466,8 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
+      lastUsage = run.usage;
+      lastDurationMs = Date.now() - agentStart;
 
       // Export the agent's workspace to the host so scorers can run host
       // tooling (vite/vitest from the repo root) against the produced files
@@ -495,6 +506,8 @@ async function runOne(
           transcript: run.transcript,
           agentReport: run.agentReport,
           stoppedReason: run.stoppedReason,
+          usage: lastUsage,
+          durationMs: lastDurationMs,
         };
       }
       logRetryAttempt(expName, ev, attempt, last);
@@ -528,6 +541,7 @@ async function runOne(
       session.promptAddendum,
       skillsPrompt
     );
+    const agentStart = Date.now();
     const run = await exp.agent.run({
       systemPrompt,
       userPrompt: prompt,
@@ -544,6 +558,8 @@ async function runOne(
     lastTranscript = run.transcript;
     lastAgentReport = run.agentReport;
     lastStoppedReason = run.stoppedReason;
+    lastUsage = run.usage;
+    lastDurationMs = Date.now() - agentStart;
     last = await (scorer as ToolScorer)({
       ...session.scoringContext,
       toolCalls: run.toolCalls,
@@ -561,6 +577,8 @@ async function runOne(
         transcript: run.transcript,
         agentReport: run.agentReport,
         stoppedReason: run.stoppedReason,
+        usage: lastUsage,
+        durationMs: lastDurationMs,
       };
     }
     logRetryAttempt(expName, ev, attempt, last);
@@ -575,6 +593,8 @@ async function runOne(
     transcript: lastTranscript,
     agentReport: lastAgentReport,
     stoppedReason: lastStoppedReason,
+    usage: lastUsage,
+    durationMs: lastDurationMs,
   };
 }
 

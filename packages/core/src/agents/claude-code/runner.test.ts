@@ -55,3 +55,41 @@ describe('claudeCodeRunner.deriveStopReason', () => {
     expect(derive(undefined, ok)).toBe('stop');
   });
 });
+
+describe('claudeCodeRunner.extractUsage', () => {
+  const extract = claudeCodeRunner.extractUsage!;
+
+  it("reads the terminal result line's usage and cost", () => {
+    const raw = [
+      JSON.stringify({ type: 'system', subtype: 'init' }),
+      JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        total_cost_usd: 0.42,
+        usage: {
+          input_tokens: 10,
+          cache_creation_input_tokens: 200,
+          cache_read_input_tokens: 3000,
+          output_tokens: 40,
+        },
+      }),
+    ].join('\n');
+    expect(extract(raw)).toEqual({
+      // 10 raw + 3000 cache-read + 200 cache-creation: OpenAI-style totals
+      // so counts compare across agents.
+      inputTokens: 3210,
+      outputTokens: 40,
+      cachedInputTokens: 3000,
+      cacheCreationInputTokens: 200,
+      costUsd: 0.42,
+    });
+  });
+
+  it('returns undefined without a result line or usage fields', () => {
+    expect(extract(undefined)).toBeUndefined();
+    expect(extract('not json\n')).toBeUndefined();
+    expect(
+      extract(JSON.stringify({ type: 'result', subtype: 'success' }))
+    ).toBeUndefined();
+  });
+});

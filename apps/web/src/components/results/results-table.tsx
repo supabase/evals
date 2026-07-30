@@ -7,6 +7,9 @@ import {
   activateOnKeyDown,
   clickableTableItemClassName,
   columnHighlightClassName,
+  formatCost,
+  formatDuration,
+  formatTokens,
   hasMoreContentToRight,
   passFailClassName,
   passRateClassName,
@@ -33,6 +36,7 @@ import {
   EXPERIMENT_SUITES,
   EXPERIMENT_SUITE_LABELS,
   scoreResults,
+  summarizeMetrics,
   type ExperimentSuite,
   type ParsedResult,
 } from "@/lib/eval-results"
@@ -98,6 +102,42 @@ function ScoreCell({
     >
       {label}
     </span>
+  )
+}
+
+/**
+ * Per-run efficiency columns shown when models are the rows, so harnesses can
+ * be compared on cost alongside solve rates. Each label pairs with a formatter
+ * over the row's `summarizeMetrics` aggregate.
+ */
+const METRIC_COLUMNS = [
+  {
+    key: "durationMs",
+    label: "Time",
+    tooltip: "Mean agent wall-clock time per run",
+    format: formatDuration,
+  },
+  {
+    key: "tokens",
+    label: "Tokens",
+    tooltip: "Mean tokens per run (input + output)",
+    format: formatTokens,
+  },
+  {
+    key: "costUsd",
+    label: "Cost",
+    tooltip: "Mean cost per run (USD), when the harness reports one",
+    format: formatCost,
+  },
+] as const
+
+function MetricCell({ value }: { value: string | undefined }) {
+  if (!value) {
+    return <span className="text-muted-foreground/50">—</span>
+  }
+
+  return (
+    <span className="font-mono text-xs text-muted-foreground">{value}</span>
   )
 }
 
@@ -271,6 +311,22 @@ export function ResultsTable({
                       </th>
                     )
                   })}
+                  {modelsAsRows
+                    ? METRIC_COLUMNS.map((metric) => (
+                        <th
+                          key={metric.key}
+                          scope="col"
+                          className={cn(
+                            tableHeadCellClassName,
+                            "w-20 border-r px-2.5 py-1.5"
+                          )}
+                        >
+                          <TableHeaderLabel tooltip={metric.tooltip}>
+                            {metric.label}
+                          </TableHeaderLabel>
+                        </th>
+                      ))
+                    : null}
                   <th
                     scope="col"
                     className={cn(
@@ -298,6 +354,9 @@ export function ResultsTable({
                 {rowKeys.map((rowKey) => {
                   const rowResults = rowDimension.filter(rowKey, sourceResults)
                   const rowTotal = scoreResults(rowResults)
+                  const rowMetrics = modelsAsRows
+                    ? summarizeMetrics(rowResults)
+                    : undefined
 
                   return (
                     <tr
@@ -362,6 +421,26 @@ export function ResultsTable({
                           </td>
                         )
                       })}
+                      {rowMetrics
+                        ? METRIC_COLUMNS.map((metric) => {
+                            const value = rowMetrics[metric.key]
+
+                            return (
+                              <td
+                                key={metric.key}
+                                className="border-r border-b border-border px-2.5 py-2"
+                              >
+                                <MetricCell
+                                  value={
+                                    value !== undefined
+                                      ? metric.format(value)
+                                      : undefined
+                                  }
+                                />
+                              </td>
+                            )
+                          })
+                        : null}
                       <td className="sticky right-0 z-10 border-b border-border bg-card px-2.5 py-2">
                         {showScrollHint ? (
                           <>

@@ -175,3 +175,55 @@ export function scoreResults(sourceResults: ParsedResult[]) {
     total: sourceResults.length,
   }
 }
+
+/**
+ * Total tokens a run consumed: the harness's own total when it reported one,
+ * else input + output (input already includes cache reads across harnesses).
+ */
+export function runTokens(result: ParsedResult): number | undefined {
+  const usage = result.usage
+  if (!usage) return undefined
+  if (usage.totalTokens !== undefined) return usage.totalTokens
+  if (usage.inputTokens === undefined && usage.outputTokens === undefined) {
+    return undefined
+  }
+  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
+}
+
+/**
+ * Per-run performance means for comparing harness efficiency alongside solve
+ * rates. Each metric averages only the runs that report it (older result files
+ * carry none), so a key is absent when no run in the slice has it.
+ */
+export type MetricsSummary = {
+  durationMs?: number
+  tokens?: number
+  costUsd?: number
+}
+
+function mean(values: number[]): number | undefined {
+  if (!values.length) return undefined
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function definedValues(values: (number | undefined)[]): number[] {
+  return values.filter((value): value is number => value !== undefined)
+}
+
+export function summarizeMetrics(
+  sourceResults: ParsedResult[]
+): MetricsSummary {
+  const durationMs = mean(
+    definedValues(sourceResults.map((result) => result.durationMs))
+  )
+  const tokens = mean(definedValues(sourceResults.map(runTokens)))
+  const costUsd = mean(
+    definedValues(sourceResults.map((result) => result.usage?.costUsd))
+  )
+
+  return {
+    ...(durationMs !== undefined ? { durationMs } : {}),
+    ...(tokens !== undefined ? { tokens } : {}),
+    ...(costUsd !== undefined ? { costUsd } : {}),
+  }
+}

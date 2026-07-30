@@ -26,8 +26,9 @@
 import type { Config, McpLocalConfig } from '@opencode-ai/sdk';
 import type { McpServerConfig } from '../../index.js';
 import type { ModelProvider } from '../../eval-metadata.js';
+import type { AgentUsage } from '../../eval-metadata.js';
 import { modelProviderSchema } from '../../eval-metadata.js';
-import { isRecord, parseJsonlRecords } from '../../json.js';
+import { finiteNumber, isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
 import {
   SCRATCH,
@@ -180,6 +181,46 @@ export function createOpencodeRunner(
         break;
       }
       return processStopReason(command);
+    },
+
+    extractUsage(raw) {
+      // Each `step_finish` (one LLM call) carries `part.tokens: { input,
+      // output, reasoning, cache: { read, write } }` and a per-step `cost`.
+      // Sum across steps. opencode's `input` already includes cache reads
+      // (AI SDK convention), so it maps straight onto `inputTokens`.
+      if (!raw) return undefined;
+      const { records } = parseJsonlRecords(raw);
+      let sawUsage = false;
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let reasoningTokens = 0;
+      let cachedInputTokens = 0;
+      let costUsd: number | undefined;
+      for (const record of records) {
+        if (record.type !== 'step_finish' || !isRecord(record.part)) continue;
+        const part = record.part;
+        const cost = finiteNumber(part.cost);
+        if (cost !== undefined) costUsd = (costUsd ?? 0) + cost;
+        if (!isRecord(part.tokens)) continue;
+        sawUsage = true;
+        inputTokens += finiteNumber(part.tokens.input) ?? 0;
+        outputTokens += finiteNumber(part.tokens.output) ?? 0;
+        reasoningTokens += finiteNumber(part.tokens.reasoning) ?? 0;
+        const cache = isRecord(part.tokens.cache)
+          ? part.tokens.cache
+          : undefined;
+        cachedInputTokens += finiteNumber(cache?.read) ?? 0;
+      }
+      if (!sawUsage && costUsd === undefined) return undefined;
+      const usage: AgentUsage = {
+        ...(sawUsage
+          ? { inputTokens, outputTokens, reasoningTokens, cachedInputTokens }
+          : {}),
+        // opencode prices runs from its models.dev catalog; 0 means "unknown"
+        // for gateway models, so only a positive total is trustworthy.
+        ...(costUsd ? { costUsd } : {}),
+      };
+      return usage;
     },
   };
 }

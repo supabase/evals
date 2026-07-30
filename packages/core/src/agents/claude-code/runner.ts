@@ -7,6 +7,7 @@
 import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messages';
 import type { McpServerConfig } from '../../index.js';
 import { parseJsonlRecords } from '../../json.js';
+import { anthropicUsage } from './usage.js';
 import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
@@ -96,6 +97,15 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     if (subtype === 'success') return 'stop';
     if (subtype) return subtype; // e.g. error_max_turns — surface verbatim
     return processStopReason(command);
+  },
+
+  extractUsage(raw) {
+    // The terminal `result` line carries the run's aggregate accounting:
+    // `usage: { input_tokens, cache_creation_input_tokens,
+    // cache_read_input_tokens, output_tokens }` plus `total_cost_usd`.
+    const result = lastResultEvent(raw);
+    if (!result) return undefined;
+    return anthropicUsage(result.usage, result.total_cost_usd);
   },
 };
 

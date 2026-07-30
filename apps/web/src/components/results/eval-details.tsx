@@ -7,8 +7,18 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { passFailClassName } from "@/components/results/table-shared"
-import type { CheckResult, DocsCall, ParsedResult } from "@/lib/eval-results"
+import {
+  formatCost,
+  formatDuration,
+  formatTokens,
+  passFailClassName,
+} from "@/components/results/table-shared"
+import {
+  runTokens,
+  type CheckResult,
+  type DocsCall,
+  type ParsedResult,
+} from "@/lib/eval-results"
 import { formatProductLabel, formatTagLabel } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -193,8 +203,22 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
   )
 }
 
+/** "1.2M tokens (982k in / 218k out)" — total with the in/out split when known. */
+function tokensLabel(result: ParsedResult): string | undefined {
+  const total = runTokens(result)
+  if (total === undefined) return undefined
+  const { inputTokens, outputTokens } = result.usage ?? {}
+  const split =
+    inputTokens !== undefined && outputTokens !== undefined
+      ? ` (${formatTokens(inputTokens)} in / ${formatTokens(outputTokens)} out)`
+      : ""
+  return `${formatTokens(total)}${split}`
+}
+
 /** Everything recorded about one run, shown when its row in the sheet is expanded. */
 export function EvalDetails({ result }: { result: ParsedResult }) {
+  const tokens = tokensLabel(result)
+
   return (
     <dl className={evalMetaGridClassName}>
       {result.prompt ? (
@@ -210,6 +234,19 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
         />
       ) : null}
       <EvalMetadataRow label="Attempts" value={result.attempts ?? "-"} />
+      {result.durationMs !== undefined ? (
+        <EvalMetadataRow
+          label="Agent time"
+          value={formatDuration(result.durationMs)}
+        />
+      ) : null}
+      {tokens ? <EvalMetadataRow label="Tokens" value={tokens} /> : null}
+      {result.usage?.costUsd !== undefined ? (
+        <EvalMetadataRow
+          label="Cost"
+          value={formatCost(result.usage.costUsd)}
+        />
+      ) : null}
       <EvalMetadataRow
         label="Source"
         value={<span className="break-all">{result.sourcePath}</span>}

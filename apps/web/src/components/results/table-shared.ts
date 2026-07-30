@@ -43,6 +43,27 @@ export function scoreLabel(
   return `${Math.round((passed / total) * 100)}%`
 }
 
+/** Formats a run duration: "38s" under a minute, "4m 05s" above. */
+export function formatDuration(ms: number) {
+  const totalSec = Math.round(ms / 1000)
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  if (!min) return `${sec}s`
+  return `${min}m ${String(sec).padStart(2, "0")}s`
+}
+
+/** Formats a token count compactly: "845", "12k", "1.2M". */
+export function formatTokens(count: number) {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`
+  if (count >= 1_000) return `${Math.round(count / 1_000)}k`
+  return `${Math.round(count)}`
+}
+
+/** Formats a USD cost, keeping cents-level runs from rounding to $0.00. */
+export function formatCost(usd: number) {
+  return usd < 0.1 ? `$${usd.toFixed(3)}` : `$${usd.toFixed(2)}`
+}
+
 /** Checks whether a horizontal scroller has content beyond its right edge. */
 export function hasMoreContentToRight({
   scrollLeft,

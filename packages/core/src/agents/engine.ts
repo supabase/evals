@@ -122,6 +122,8 @@ export function createCliAgent<M extends string = string>(
         );
       }
 
+      const usage = runner.extractUsage?.(raw);
+
       return {
         // The final report is the transcript's closing assistant message — the
         // CLI's stdout is JSONL, not prose.
@@ -131,6 +133,7 @@ export function createCliAgent<M extends string = string>(
         steps: adapted.steps,
         stoppedReason:
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
+        ...(usage ? { usage } : {}),
       };
     },
   };
