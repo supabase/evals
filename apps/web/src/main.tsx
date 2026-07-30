@@ -15,3 +15,9 @@ createRoot(document.getElementById("root")!).render(
     </NuqsAdapter>
   </StrictMode>
 )
+
+if (import.meta.env.PROD) {
+  void import("@/lib/posthog")
+    .then(({ initAnalytics }) => initAnalytics())
+    .catch(() => {})
+}
