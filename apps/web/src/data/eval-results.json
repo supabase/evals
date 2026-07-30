@@ -976,7 +976,7 @@
       "observability"
     ],
     "suite": "benchmark",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "preserved existing app scrape job",
@@ -984,13 +984,13 @@
       },
       {
         "name": "configured the Supabase Metrics API scrape correctly",
-        "passed": false,
-        "judgeNotes": "Supabase scrape uses placeholder YOUR_PROJECT_REF, so it is not deployable and lacks a real project target. Other required wiring (HTTPS path, basic_auth password_file, app job preserved, secret volume mount) is present."
+        "passed": true,
+        "judgeNotes": "Supabase scrape uses HTTPS, the required metrics path, basic_auth with password_file, targets the project ref on supabase.co, preserves the app job, and docker-compose mounts the secrets directory containing the password file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes concrete steps to set project ref, create/provide the Supabase Secret API key in the matching secret file path, restart or reload Prometheus/Compose, and verify via direct endpoint curl plus Prometheus query. Secret file setup matches docker-compose and prometheus.yml; no hardcoded real secret or wrong auth detected."
+        "judgeNotes": "README includes Secret API key creation, matching secret file path, Compose Prometheus restart/reload guidance, and concrete verification via curl to the endpoint, Prometheus targets API, and Grafana dashboard."
       }
     ],
     "skills": {
@@ -1006,7 +1006,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"Prometheus metrics endpoint observability\", limit: 6) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Prometheus metrics endpoint project observability scrape\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -1018,49 +1018,25 @@
               "title": "Metrics API"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
-              "title": "Metrics API with Grafana Cloud"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
               "title": "Vendor-agnostic Metrics API setup"
             },
             {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
+              "title": "Metrics API with Grafana Cloud"
+            },
+            {
               "url": "https://supabase.com/docs/guides/platform/read-replicas",
               "title": "Read Replicas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-view-database-metrics-uqf2z_",
-              "title": "How to View Database Metrics"
             }
           ],
-          "resultChars": 33507
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Metrics API plan requirement paid plan availability beta\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/billing-faq",
-              "title": "Billing FAQ"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/analytics/pricing",
-              "title": "Analytics Buckets Pricing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
-            }
-          ],
-          "resultChars": 34861
+          "resultChars": 32656
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-opus-5/deploy-database-001-prometheus-metrics.json"
   },
   {
@@ -3013,12 +2989,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Prometheus preserves the app scrape and adds a Supabase scrape using HTTPS, the required metrics path, HTTP Basic Auth with password_file, and a <project-ref>.supabase.co target. docker-compose mounts the referenced password file into the Prometheus container."
+        "judgeNotes": "Meets requirements: preserves app scrape, adds HTTPS Supabase Metrics API target with correct path and project host, uses basic_auth password_file, and docker-compose mounts the secrets directory containing that password file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes project ref setup, Secret API key creation, matching secret file placement, Prometheus reload, and concrete verification via promtool, direct curl, Prometheus targets API, PromQL, and Grafana."
+        "judgeNotes": "README includes creating a Supabase Secret API key, writing it to the mounted secret file, reloading Prometheus/Compose stack, and verifying via Prometheus targets and Grafana."
       }
     ],
     "skills": {
@@ -3029,13 +3005,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"Prometheus metrics endpoint project observability scrape\", limit: 6) {\n    nodes {\n      title\n      href\n      content\n      subsections {\n        nodes { title href content }\n      }\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"Prometheus metrics endpoint observability scrape service_role\", limit: 6) {\n    nodes {\n      title\n      href\n      content\n      ... on Guide {\n        subsections { nodes { title href content } }\n      }\n    }\n  }\n}",
+          "query": "{ searchDocs(query: \"Prometheus metrics endpoint project observability\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -3043,251 +3013,27 @@
               "title": "Metrics API with Prometheus & Grafana (self-hosted)"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#3-import-supabase-dashboards",
-              "title": "3. Import Supabase dashboards"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#2-deploy-grafana",
-              "title": "2. Deploy Grafana"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#4-configure-alerting",
-              "title": "4. Configure alerting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#1-deploy-prometheus",
-              "title": "1. Deploy Prometheus"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#architecture",
-              "title": "Architecture"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted#5-operating-tips",
-              "title": "5. Operating tips"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics",
               "title": "Metrics API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics#additional-resources",
-              "title": "Additional resources"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics#choose-your-monitoring-stack",
-              "title": "Choose your monitoring stack"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics#what-you-can-do-with-the-metrics-api",
-              "title": "What you can do with the Metrics API"
             },
             {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
               "title": "Vendor-agnostic Metrics API setup"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#1-define-the-scrape-job",
-              "title": "1. Define the scrape job"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#components",
-              "title": "Components"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#collector-specific-notes",
-              "title": "Collector-specific notes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#2-secure-the-credentials",
-              "title": "2. Secure the credentials"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#3-downstream-dashboards",
-              "title": "3. Downstream dashboards"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#4-alerts-and-automation",
-              "title": "4. Alerts and automation"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic#5-multi-project-setups",
-              "title": "5. Multi-project setups"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
               "title": "Metrics API with Grafana Cloud"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#3-import-the-supabase-dashboard",
-              "title": "3. Import the Supabase dashboard"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#prerequisites",
-              "title": "Prerequisites"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#1-create-a-grafana-cloud-stack",
-              "title": "1. Create a Grafana Cloud stack"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#2-configure-the-supabase-integration",
-              "title": "2. Configure the Supabase integration"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#4-configure-alerts-optional",
-              "title": "4. Configure alerts (optional)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud#5-troubleshooting",
-              "title": "5. Troubleshooting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles",
-              "title": "Postgres Roles"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#role-hierarchy",
-              "title": "Role hierarchy"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#revoking-permissions",
-              "title": "Revoking permissions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#granting-permissions",
-              "title": "Granting permissions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#changing-your-project-password",
-              "title": "Changing your project password"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#special-symbols-in-passwords",
-              "title": "Special symbols in passwords"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#passwords",
-              "title": "Passwords"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#creating-users",
-              "title": "Creating users"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#creating-roles",
-              "title": "Creating roles"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#users-vs-roles",
-              "title": "Users vs roles"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#postgres",
-              "title": "postgres"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#anon",
-              "title": "anon"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#authenticator",
-              "title": "authenticator"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#authenticated",
-              "title": "authenticated"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#service_role",
-              "title": "service_role"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#supabase_auth_admin",
-              "title": "supabase_auth_admin"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#supabase_storage_admin",
-              "title": "supabase_storage_admin"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#supabase_etl_admin",
-              "title": "supabase_etl_admin"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#dashboard_user",
-              "title": "dashboard_user"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#supabase_admin",
-              "title": "supabase_admin"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#resources",
-              "title": "Resources"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#supabase-roles",
-              "title": "Supabase roles"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#preventing-inheritance",
-              "title": "Preventing inheritance"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles#role-inheritance",
-              "title": "Role inheritance"
-            },
-            {
               "url": "https://supabase.com/docs/guides/platform/read-replicas",
               "title": "Read Replicas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#pricing",
-              "title": "Pricing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#about-read-replicas",
-              "title": "About Read Replicas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#features",
-              "title": "Features"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#dedicated-endpoints",
-              "title": "Dedicated endpoints"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#dedicated-connection-pool",
-              "title": "Dedicated connection pool"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#api-load-balancer",
-              "title": "API load balancer"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#querying-through-the-sql-editor",
-              "title": "Querying through the SQL editor"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#logging",
-              "title": "Logging"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#metrics",
-              "title": "Metrics"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas#centralized-configuration-management",
-              "title": "Centralized configuration management"
             }
           ],
-          "resultChars": 12
+          "resultChars": 32656
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-5-no-skills/deploy-database-001-prometheus-metrics.json"
@@ -5263,12 +5009,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Meets all requirements: app scrape preserved; Supabase HTTPS scrape uses the required metrics path, Basic Auth with password_file, a valid <project-ref>.supabase.co target, and docker-compose mounts the secrets directory containing that password file."
+        "judgeNotes": "Supabase scrape is deployable: HTTPS, correct metrics path, Basic Auth with password_file, project target on supabase.co, app job preserved, and docker-compose mounts the password file at the referenced path."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, matching secret file placement, project ref replacement, Compose restart/reload, and concrete verification via Prometheus targets and Grafana dashboards. Endpoint/auth and secret handling are consistent and not hardcoded."
+        "judgeNotes": "README includes Secret API key creation, matching secret file placement, Compose start/reload instructions, and concrete verification via Prometheus targets."
       }
     ],
     "skills": {
@@ -5312,7 +5058,7 @@
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/deploy-database-001-prometheus-metrics.json"
@@ -6563,7 +6309,7 @@
       "observability"
     ],
     "suite": "benchmark",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "preserved existing app scrape job",
@@ -6571,13 +6317,13 @@
       },
       {
         "name": "configured the Supabase Metrics API scrape correctly",
-        "passed": true,
-        "judgeNotes": "Prometheus preserves the app job and adds a Supabase scrape using HTTPS, the required /customer/v1/privileged/metrics path, Basic Auth with password_file, and a <project-ref>.supabase.co target. docker-compose mounts the same password file path into Prometheus."
+        "passed": false,
+        "judgeNotes": "Fails: Supabase scrape is not deployable against <project-ref>.supabase.co/red, uses http and host.docker.internal, uses inline basic_auth password instead of password_file, and docker-compose.yml does not mount a password_file via volume or secret."
       },
       {
         "name": "documented live deployment and verification steps",
-        "passed": true,
-        "judgeNotes": "README includes concrete live setup steps: create a Supabase Secret API key, write it to the mounted secret file, replace project ref, restart/recreate or reload Prometheus, and verify via direct metrics curl, Prometheus Status → Targets, and Grafana dashboard."
+        "passed": false,
+        "judgeNotes": "README includes Secret API key creation, reload/restart, and Prometheus target verification, but it does not provide required steps to place a matching secret file; the config uses an inline placeholder instead of a concrete password_file/secret-file setup."
       }
     ],
     "skills": {
@@ -6588,7 +6334,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"metrics prometheus endpoint project observability\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"self-hosted metrics endpoint prometheus\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -6606,19 +6352,15 @@
             {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
               "title": "Metrics API with Grafana Cloud"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas",
-              "title": "Read Replicas"
             }
           ],
-          "resultChars": 32656
+          "resultChars": 23542
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5-no-skills/deploy-database-001-prometheus-metrics.json"
   },
   {
@@ -8209,12 +7951,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Prometheus preserves the app job and uses HTTPS, the required metrics path, and basic_auth with password_file, but docker-compose.yml does not mount or provide the password_file via a volume or Compose secret. The Supabase target is also only referenced via file_sd without shown/mounted target generation wiring, so the project target wiring is incomplete."
+        "judgeNotes": "Fails because Prometheus uses basic_auth.password with an environment variable instead of basic_auth.password_file, and docker-compose.yml does not mount that password_file via a volume or Compose secret. The app scrape is preserved and the endpoint/path/scheme are otherwise correct."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README explains creating a Supabase Secret API key and gives some verification, but it does not require placing the matching secret file used by prometheus.yml (`/tmp/prometheus-secrets/supabase_metrics_secret_key`). Instead it instructs setting an environment variable, which is a mismatched secret setup for the shown config. Deploy/reload steps are also somewhat vague."
+        "judgeNotes": "README explains creating a Supabase Secret API key, placing it in observability/.env, and restarting the Compose stack, but it lacks concrete verification steps such as checking Prometheus targets or running a PromQL/Grafana query to confirm the Supabase scrape is live."
       }
     ],
     "skills": {
@@ -8230,16 +7972,16 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"metrics Prometheus Supabase observability project metrics scrape endpoint\", limit: 10) {\n    nodes {\n      ... on Guide {\n        title\n        href\n        content\n      }\n      ... on TroubleshootingGuide {\n        title\n        href\n        content\n      }\n      ... on CLICommandReference {\n        title\n        href\n        content\n      }\n      ... on ManagementApiReference {\n        title\n        href\n        content\n      }\n      ... on ClientLibraryFunctionReference {\n        title\n        href\n        content\n      }\n    }\n  }\n}",
+          "query": "query {\n  searchDocs(query: \"project metrics observability prometheus metrics endpoint\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
-              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics",
               "title": "Metrics API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
             },
             {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
@@ -8252,21 +7994,13 @@
             {
               "url": "https://supabase.com/docs/guides/platform/read-replicas",
               "title": "Read Replicas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-view-database-metrics-uqf2z_",
-              "title": "How to View Database Metrics"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/connection-management",
-              "title": "Connection management"
             }
           ],
-          "resultChars": 39356
+          "resultChars": 32694
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini/deploy-database-001-prometheus-metrics.json"
@@ -10510,12 +10244,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password with an environment variable instead of basic_auth.password_file, and docker-compose.yml does not mount the password_file via a volume or Compose secret. Existing app scrape and endpoint are present, but secret wiring does not meet rubric."
+        "judgeNotes": "Fails: Supabase scrape uses basic_auth.password instead of password_file, and docker-compose.yml does not mount the password file via a volume or Compose secret. README also instructs hardcoding the Secret API key in prometheus.yml."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": false,
-        "judgeNotes": "README describes creating/reusing a Supabase Secret API key and redeploying Prometheus, and mentions checking Prometheus target health. However it does not require placing a matching secret file, and the setup uses environment variables instead of the required secret-file workflow. Verification is also somewhat vague. Fails the required secret setup criteria."
+        "judgeNotes": "README instructs replacing a placeholder directly in prometheus.yml rather than placing a matching secret file, and the Compose setup does not mount/use a secret file. It also only says restart Prometheus or reload, not restart/reload the Compose stack. Verification is present but secret setup does not meet the rubric."
       }
     ],
     "skills": {
@@ -10525,44 +10259,18 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"metrics prometheus project observability export endpoint\", limit: 10) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } totalCount } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics",
-              "title": "Metrics API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
-              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
-              "title": "Vendor-agnostic Metrics API setup"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
-              "title": "Metrics API with Grafana Cloud"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas",
-              "title": "Read Replicas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-view-database-metrics-uqf2z_",
-              "title": "How to View Database Metrics"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/reports",
-              "title": "Reports"
-            }
-          ],
-          "resultChars": 64725
+          "source": "web_search",
+          "query": "site:supabase.com/docs Supabase Prometheus metrics endpoint observability",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted Supabase Metrics API self-hosted Prometheus Grafana official",
+          "pages": []
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/deploy-database-001-prometheus-metrics.json"
@@ -12852,7 +12560,7 @@
       "agent": "codex",
       "modelProvider": "openai",
       "modelId": "gpt-5.6-sol",
-      "reasoningEffort": "medium"
+      "reasoningEffort": "low"
     },
     "eval": "deploy-database-001-prometheus-metrics",
     "stage": "deploy",
@@ -12872,12 +12580,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Adds Supabase scrape over HTTPS at /customer/v1/privileged/metrics with Basic Auth password_file, preserves app scrape, and docker-compose mounts the matching password_file via a Compose secret."
+        "judgeNotes": "Prometheus preserves the app scrape and adds a deployable Supabase scrape over HTTPS to the correct metrics path using HTTP Basic Auth with password_file. The target is a project ref on supabase.co, and docker-compose wires the matching password file via a Compose secret mounted at /run/secrets/supabase_secret_key."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, matching Docker secret file placement, Compose start/redeploy/restart guidance, and concrete verification via curl, Prometheus targets, and Grafana/PromQL-style filtering."
+        "judgeNotes": "README includes Secret API key creation, matching secret file placement, Compose stack deploy/restart guidance, and concrete verification via Prometheus targets, Grafana/Prometheus labels, and curl."
       }
     ],
     "skills": {
@@ -12893,7 +12601,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase project metrics Prometheus endpoint observability Grafana metrics API authentication\", limit: 8) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Prometheus metrics project endpoint customer v1 privileged metrics service_role authentication hosted Supabase\", limit: 5) { nodes { __typename title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -12905,31 +12613,23 @@
               "title": "Metrics API"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
-              "title": "Metrics API with Grafana Cloud"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
               "title": "Vendor-agnostic Metrics API setup"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/connection-management",
-              "title": "Connection management"
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
+              "title": "Metrics API with Grafana Cloud"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas",
-              "title": "Read Replicas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-view-database-metrics-uqf2z_",
-              "title": "How to View Database Metrics"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
             }
           ],
-          "resultChars": 39356
+          "resultChars": 39702
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.6/deploy-database-001-prometheus-metrics.json"
@@ -15315,7 +15015,7 @@
       "agent": "codex",
       "modelProvider": "openai",
       "modelId": "gpt-5.6-sol",
-      "reasoningEffort": "medium"
+      "reasoningEffort": "low"
     },
     "eval": "deploy-database-001-prometheus-metrics",
     "stage": "deploy",
@@ -15335,12 +15035,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Meets all requirements: preserves app scrape, adds HTTPS Supabase metrics scrape at /customer/v1/privileged/metrics for the project ref, uses basic_auth with password_file, and wires the password file via a Docker Compose secret mounted at the matching path."
+        "judgeNotes": "Meets requirements: app scrape preserved, Supabase HTTPS metrics endpoint configured with Basic Auth password_file, project target present, and docker-compose wires the secret to Prometheus."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, secret file placement, Compose recreate to make changes live, and concrete verification via Prometheus Targets. Endpoint/auth and secret setup match the provided configuration."
+        "judgeNotes": "README includes Secret API key creation, environment-backed Compose secret mounted to the expected password_file path, restart/recreate and reload commands, and concrete verification via Prometheus targets/Grafana/curl."
       }
     ],
     "skills": {
@@ -15351,7 +15051,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Prometheus metrics endpoint customer v1 privileged metrics service_role basic auth hosted project\", limit: 8) { nodes { __typename title href content } } }",
+          "query": "query { searchDocs(query: \"Prometheus metrics hosted project customer v1 privileged metrics service_role Supabase observability\", limit: 8) { nodes { __typename title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -15359,31 +15059,39 @@
               "title": "Metrics API with Prometheus & Grafana (self-hosted)"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
-              "title": "Vendor-agnostic Metrics API setup"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics",
               "title": "Metrics API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
+              "title": "Vendor-agnostic Metrics API setup"
             },
             {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
               "title": "Metrics API with Grafana Cloud"
             },
             {
-              "url": "https://supabase.com/docs/guides/security/security-testing",
-              "title": "Security testing of your Supabase projects"
+              "url": "https://supabase.com/docs/guides/platform/read-replicas",
+              "title": "Read Replicas"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
-              "title": "Envoy API Gateway"
+              "url": "https://supabase.com/docs/guides/database/connection-management",
+              "title": "Connection management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/roles",
+              "title": "Postgres Roles"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/security-testing",
+              "title": "Security testing of your Supabase projects"
             }
           ],
-          "resultChars": 51237
+          "resultChars": 48186
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.6-no-skills/deploy-database-001-prometheus-metrics.json"
@@ -17118,12 +16826,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Meets requirements: app scrape preserved, Supabase job uses HTTPS, correct metrics_path, HTTP Basic Auth with password_file, project target on supabase.co, and docker-compose mounts the secrets directory containing the password_file."
+        "judgeNotes": "Meets all requirements: HTTPS Supabase Metrics API scrape for the project target, correct metrics path, Basic Auth with password_file, app scrape preserved, and docker-compose mounts the secrets directory containing the password file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes clear live setup: create/copy a Supabase Secret API key, place it in the mounted secret file matching Prometheus password_file, set project ref, and restart/reload the Compose/Prometheus stack. It also provides concrete verification via direct curl, Prometheus targets API, PromQL up{job=\"supabase\"}, and Grafana dashboard import."
+        "judgeNotes": "README includes concrete steps to obtain a Secret API key, place it in the mounted secret file, reload/restart the Compose stack, and verify via Prometheus targets plus a Grafana/PromQL query."
       }
     ],
     "skills": {
@@ -17139,7 +16847,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"metrics endpoint prometheus scrape supabase project metrics observability\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"metrics endpoint prometheus scrape project metrics\") { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -17151,23 +16859,43 @@
               "title": "Metrics API"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
-              "title": "Metrics API with Grafana Cloud"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
               "title": "Vendor-agnostic Metrics API setup"
             },
             {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
+              "title": "Metrics API with Grafana Cloud"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-view-database-metrics-uqf2z_",
+              "title": "How to View Database Metrics"
+            },
+            {
               "url": "https://supabase.com/docs/guides/platform/read-replicas",
               "title": "Read Replicas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management",
+              "title": "Connection management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/benchmarks",
+              "title": "Benchmarks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/grafana-not-displaying-data-sXJrMj",
+              "title": "Grafana not displaying data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/reports",
+              "title": "Reports"
             }
           ],
-          "resultChars": 31665
+          "resultChars": 81235
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 1,
     "sourcePath": "opencode-kimi-k3/deploy-database-001-prometheus-metrics.json"
@@ -18481,12 +18209,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Prometheus preserves the app scrape and adds a Supabase scrape over HTTPS to /customer/v1/privileged/metrics using HTTP Basic Auth with password_file. docker-compose mounts the secrets directory so the password_file path is wired correctly. No bearer auth or hardcoded key is present."
+        "judgeNotes": "Supabase scrape is deployable with HTTPS, correct metrics path, Basic Auth using password_file, project target on supabase.co, app job preserved, and docker-compose mounts the password file."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes concrete steps to replace project ref, create/copy a Supabase secret API key, write it to the mounted secret file, restart or reload the Compose/Prometheus stack, and verify via Prometheus targets, raw curl, and Grafana."
+        "judgeNotes": "README includes steps to create an sb_secret Secret API key, place it in the matching observability/secrets/supabase-metrics-key file, restart/reload the Compose/Prometheus stack, and verify via Prometheus targets/API query and Grafana. Endpoint/auth and secret setup match the config."
       }
     ],
     "skills": {
@@ -18497,16 +18225,16 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"monitoring metrics endpoint Prometheus Grafana\") { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"metrics endpoint prometheus scrape project metrics\") { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics",
-              "title": "Metrics API"
-            },
-            {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
               "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics",
+              "title": "Metrics API"
             },
             {
               "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
@@ -18521,79 +18249,205 @@
               "title": "How to View Database Metrics"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
-              "title": "Deleting data and dropping objects safely"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/grafana-not-displaying-data-sXJrMj",
-              "title": "Grafana not displaying data"
+              "url": "https://supabase.com/docs/guides/platform/read-replicas",
+              "title": "Read Replicas"
             },
             {
               "url": "https://supabase.com/docs/guides/database/connection-management",
               "title": "Connection management"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/read-replicas",
-              "title": "Read Replicas"
+              "url": "https://supabase.com/docs/guides/realtime/benchmarks",
+              "title": "Benchmarks"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/replication/pipelines-monitoring",
-              "title": "Monitor pipeline status"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pgaudit",
-              "title": "PGAudit: Postgres Auditing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/monitor-supavisor-postgres-connections",
-              "title": "How to monitor Postgres and Supavisor connections"
+              "url": "https://supabase.com/docs/guides/troubleshooting/grafana-not-displaying-data-sXJrMj",
+              "title": "Grafana not displaying data"
             },
             {
               "url": "https://supabase.com/docs/guides/telemetry/reports",
               "title": "Reports"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/replication/manual-replication-monitoring",
-              "title": "Manual replication monitoring"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/interpreting-supabase-grafana-cpu-charts-9JSlkC",
-              "title": "Interpreting Supabase Grafana CPU charts"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/replication/pipelines",
-              "title": "Set up Pipelines"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/supabase-grafana-memory-charts",
-              "title": "Interpreting Supabase Grafana Memory Charts"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/webhooks",
-              "title": "Database Webhooks"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/egress",
-              "title": "Manage Egress usage"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
-              "title": "Troubleshooting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/log-drains",
-              "title": "Log Drains"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/audit-logs",
-              "title": "Auth Audit Logs"
             }
           ],
-          "resultChars": 185568
+          "resultChars": 81235
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"management api create secret api key sb_secret\") { nodes { title href content methodName language } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"management api create secret api key sb_secret\") { nodes { title href content ... on ManagementApiReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
+              "title": "Build a Product Management Android App with Jetpack Compose"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-angular",
+              "title": "Build a User Management App with Angular"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-angular",
+              "title": "Build a User Management App with Ionic Angular"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
+              "title": "Build a User Management App with Ionic React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-svelte",
+              "title": "Build a User Management App with Svelte"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-vue-3",
+              "title": "Build a User Management App with Vue 3"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-vue",
+              "title": "Build a User Management App with Ionic Vue"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-swift",
+              "title": "Build a User Management App with Swift and SwiftUI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
+              "title": "Build a Social Auth App with Expo React Native"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-solidjs",
+              "title": "Build a User Management App with SolidJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-react",
+              "title": "Build a User Management App with React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native",
+              "title": "Build a User Management App with Expo React Native"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-refine",
+              "title": "Build a User Management App with Refine"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nuxt-3",
+              "title": "Build a User Management App with Nuxt 3"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-flutter",
+              "title": "Build a User Management App with Flutter"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-bulk-create-secrets",
+              "title": "Bulk create secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-create-project-api-key",
+              "title": "Creates a new API key for the project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
+              "title": "Vendor-agnostic Metrics API setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
+              "title": "Metrics API with Grafana Cloud"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            }
+          ],
+          "resultChars": 729739
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"POST api-keys create new secret key management api endpoint\", limit: 8) { nodes { title href content ... on ManagementApiReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
+              "title": "Build a Product Management Android App with Jetpack Compose"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-create-project-api-key",
+              "title": "Creates a new API key for the project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-get-project-api-keys",
+              "title": "Get project api keys"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-get-project-api-key",
+              "title": "Get API key"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-create-project-signing-key",
+              "title": "Create a new signing key for the project in standby status"
+            }
+          ],
+          "resultChars": 99738
         }
       ]
     },
-    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nwhat we need to do to make the config live?",
+    "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
     "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/deploy-database-001-prometheus-metrics.json"
