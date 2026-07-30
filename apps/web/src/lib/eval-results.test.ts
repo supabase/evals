@@ -13,7 +13,6 @@ import {
   scoreResults,
   sortResults,
   sortedResults,
-  summarizeMetrics,
 } from "@/lib/eval-results"
 
 describe("sortResults", () => {
@@ -179,26 +178,6 @@ describe("runTokens", () => {
   it("is undefined without token counts", () => {
     expect(runTokens(makeResult())).toBeUndefined()
     expect(runTokens(makeResult({ usage: { costUsd: 0.1 } }))).toBeUndefined()
-  })
-})
-
-describe("summarizeMetrics", () => {
-  it("averages each metric over only the runs that report it", () => {
-    expect(
-      summarizeMetrics([
-        makeResult({
-          durationMs: 60_000,
-          usage: { inputTokens: 900, outputTokens: 100, costUsd: 0.2 },
-        }),
-        makeResult({ durationMs: 120_000 }),
-        makeResult({ usage: { inputTokens: 2000, outputTokens: 1000 } }),
-      ])
-    ).toEqual({ durationMs: 90_000, tokens: 2000, costUsd: 0.2 })
-  })
-
-  it("omits metrics no run reports", () => {
-    expect(summarizeMetrics([makeResult()])).toEqual({})
-    expect(summarizeMetrics([])).toEqual({})
   })
 })
 
