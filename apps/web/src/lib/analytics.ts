@@ -5,6 +5,8 @@ const POSTHOG_API_HOST = "https://ph.supabase.com"
 const POSTHOG_UI_HOST = "https://eu.posthog.com"
 
 export function initAnalytics() {
+  if (!import.meta.env.PROD) return
+
   posthog.init(POSTHOG_PUBLIC_KEY, {
     api_host: POSTHOG_API_HOST,
     ui_host: POSTHOG_UI_HOST,
@@ -20,4 +22,10 @@ export function initAnalytics() {
     capture_performance: false,
     disable_session_recording: true,
   })
+}
+
+export function track(event: string, properties?: Record<string, unknown>) {
+  if (!import.meta.env.PROD) return
+
+  posthog.capture(event, properties)
 }

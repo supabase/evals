@@ -5,6 +5,7 @@ import { NuqsAdapter } from "nuqs/adapters/react"
 import "./index.css"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
+import { initAnalytics } from "@/lib/analytics.ts"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -16,8 +17,4 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>
 )
 
-if (import.meta.env.PROD) {
-  void import("@/lib/analytics")
-    .then(({ initAnalytics }) => initAnalytics())
-    .catch(() => console.warn("analytics failed to load"))
-}
+initAnalytics()

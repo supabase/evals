@@ -3,6 +3,7 @@ import { CheckIcon, CopyIcon } from "lucide-react"
 
 import { PageContainer } from "@/components/page-container"
 import { Button } from "@/components/ui/button"
+import { track } from "@/lib/analytics"
 import { CLI_COMMAND, DOCS_URL, WEBSITE_URL } from "@/lib/links"
 
 const COPY_FEEDBACK_MS = 2000
@@ -72,6 +73,7 @@ function CopyCommandButton() {
 
   const copyCommand = () => {
     void navigator.clipboard.writeText(CLI_COMMAND)
+    track("evals_cli_command_copied")
     setCopied(true)
 
     if (resetTimeoutRef.current !== null) {
@@ -117,7 +119,12 @@ export function SiteHeader() {
         <div className="hidden items-center gap-2 sm:flex">
           <CopyCommandButton />
           <Button variant="secondary" asChild>
-            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
+            <a
+              href={DOCS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => track("evals_ai_tools_clicked")}
+            >
               AI Tools
             </a>
           </Button>
