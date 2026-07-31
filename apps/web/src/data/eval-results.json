@@ -13275,7 +13275,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "Diagnoses soft-delete-only RPC, implements auth user deletion with cascading session/refresh token/identity removal, adds RLS active-session mitigation and explains JWT stateless expiry caveat consistently. Correctly distinguishes publishable frontend key/RLS from secret server-only RLS-bypassing key."
+        "judgeNotes": "Meets all rubric requirements: diagnoses the soft-delete-only RPC, implements real Auth user deletion with session/refresh-token revocation and RLS session checks, explains JWT expiry vs closed data-path access consistently, and correctly distinguishes publishable vs secret keys and RLS behavior."
       }
     ],
     "skills": {
@@ -13284,14 +13284,15 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user existing access token session revoke refresh token admin deleteUser publishable secret API keys RLS\", limit: 8) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"delete user existing access token sessions sign out revoke session JWT expiry publishable secret keys RLS\", limit: 8) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -13303,93 +13304,141 @@
               "title": "Token Security and Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z",
-              "title": "Why is my service role key client getting RLS errors or not returning data?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
-              "title": "Storage Buckets"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/ownership",
-              "title": "Ownership"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
-              "title": "Getting Started with OAuth 2.1 Server"
-            }
-          ],
-          "resultChars": 95765
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/changelog Supabase auth delete user session API keys publishable secret",
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"auth.sessions session_id JWT claim RLS revoke session access token cannot revoke delete user\", limit: 10) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/ownership",
-              "title": "Ownership"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
-              "title": "Clerk"
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/sessions",
               "title": "User sessions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
-              "title": "Anonymous Sign-Ins"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
-              "title": "RAG with Permissions"
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
               "title": "Getting Started with OAuth 2.1 Server"
             },
             {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/ownership",
+              "title": "Ownership"
+            }
+          ],
+          "resultChars": 114389
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Deleting a user does not automatically sign out access token valid until expiry session_id auth.sessions RLS\", limit: 10) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/ownership",
+              "title": "Ownership"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
+              "title": "Delete Objects"
+            },
+            {
               "url": "https://supabase.com/docs/guides/resources/glossary",
               "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/users",
+              "title": "Users"
+            }
+          ],
+          "resultChars": 106209
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"publishable key secret key frontend RLS bypass service_role apikey Authorization user JWT\", limit: 6) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
             },
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z",
               "title": "Why is my service role key client getting RLS errors or not returning data?"
             },
             {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            }
+          ],
+          "resultChars": 84002
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"delete user directly auth.users SQL delete Admin API existing JWT\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-admin-deleteuser",
+              "title": "deleteUser()"
+            },
+            {
               "url": "https://supabase.com/docs/guides/auth/signing-keys",
               "title": "JWT Signing Keys"
             }
           ],
-          "resultChars": 137238
+          "resultChars": 68408
         }
       ]
     },
