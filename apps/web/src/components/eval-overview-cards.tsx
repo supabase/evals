@@ -1,23 +1,21 @@
-import { BotIcon, CheckIcon, FileTextIcon } from "lucide-react"
-
 const OVERVIEW_CARDS = [
   {
-    title: "Seeded project state",
+    step: "1.",
+    title: "Work in a realistic environment",
     description:
-      "Each eval seeds the project the agent inherits: schema, rows, logs, and deployed functions, plus the local files it starts from.",
-    Icon: FileTextIcon,
+      "Agents get a realistic environment to work in, with project state, context, and access to the development tools they need.",
   },
   {
-    title: "Pinned experiments",
+    step: "2.",
+    title: "Work through a task",
     description:
-      "An experiment fixes the agent, model, reasoning effort, skills, and tools: Supabase MCP, the real CLI in a Docker sandbox, or both.",
-    Icon: BotIcon,
+      "Agents take on a task from somewhere along the Supabase developer journey, from building and deploying to investigating and resolving issues.",
   },
   {
-    title: "Scored on outcomes",
+    step: "3.",
+    title: "Results are evaluated",
     description:
-      "When the agent stops, scorers inspect the state it left with SQL, client calls as real users, and the workspace it built. Report-only tasks get a judge.",
-    Icon: CheckIcon,
+      "Scoring draws on SQL checks, client calls made as real users, and the files the agent creates. When broader assessment is needed, an LLM judge reviews the result.",
   },
 ]
 
@@ -25,12 +23,14 @@ export function EvalOverviewCards() {
   return (
     <section aria-label="How evaluations run">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {OVERVIEW_CARDS.map(({ title, description, Icon }) => (
+        {OVERVIEW_CARDS.map(({ step, title, description }) => (
           <article
             key={title}
             className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6"
           >
-            <Icon className="size-5 text-muted-foreground" aria-hidden />
+            <span className="text-sm text-muted-foreground" aria-hidden>
+              {step}
+            </span>
             <h2 className="text-base font-medium text-foreground">{title}</h2>
             <p className="text-sm leading-6 text-muted-foreground">
               {description}
