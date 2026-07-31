@@ -722,14 +722,14 @@ describe('buildDocsResult', () => {
         query: command,
         hasContent: true,
         pages: [{ url: 'https://supabase.com/changelog.md' }],
-        resultChars: '500 organizations now use Supabase in production'
-          .length,
+        resultChars: '500 organizations now use Supabase in production'.length,
       },
     ]);
   });
 
   it('drops a wget with 404 response', () => {
-    const command = 'wget --quiet --output-document=- https://supabase.com/changelog.md';
+    const command =
+      'wget --quiet --output-document=- https://supabase.com/changelog.md';
     const result = buildDocsResult([
       toolCall(
         'command_execution',
@@ -806,7 +806,7 @@ describe('buildDocsResult', () => {
     expect(result.calls).toEqual([]);
   });
 
-it('ignores WebFetch/WebSearch-shaped calls when the parser never normalized a canonical name', () => {
+  it('ignores WebFetch/WebSearch-shaped calls when the parser never normalized a canonical name', () => {
     const result = buildDocsResult([
       toolCall(
         'WebFetch',

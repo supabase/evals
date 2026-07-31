@@ -42,7 +42,8 @@ const WGET_STDOUT_PATTERN =
 const SHELL_SEGMENT_PATTERN = /(?:&&|\|\||[;|])/;
 const SHELL_COMMAND_LIST_PATTERN = /(?:&&|\|\||;|\r?\n)/;
 // Matches curl's -f/--fail flag.
-const CURL_FAIL_FLAG_PATTERN = /(?:^|\s)(?:-[A-Za-z]*f[A-Za-z]*|--fail\b)(?=\s|$)/;
+const CURL_FAIL_FLAG_PATTERN =
+  /(?:^|\s)(?:-[A-Za-z]*f[A-Za-z]*|--fail\b)(?=\s|$)/;
 // Bare `>`, `1>`, and `&>` redirect stdout away from the pipe. A lone `2>`,
 // or `2>&1` which folds stderr back into stdout, leaves the body on stdout.
 const STDOUT_REDIRECT_PATTERN = /(?:^|[^2])>/;
