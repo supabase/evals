@@ -450,9 +450,6 @@ async function runOne(
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
-      // Must run before session disposes below, see rehydrateTruncatedDocsResults.
-      await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
-
       lastToolCalls = run.toolCalls;
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
@@ -484,6 +481,9 @@ async function runOne(
           return vitestRun(hostWorkspace);
         },
       });
+
+      // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
+      await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
 
       if (STOP_ON_PASS && last.passed) {
         return {
@@ -536,10 +536,6 @@ async function runOne(
       sandbox: cliSandbox?.sandbox,
       timeoutSec: TIMEOUT_SEC,
     });
-    // Must run before cliSandbox disposes below, see rehydrateTruncatedDocsResults.
-    if (cliSandbox)
-      await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
-
     lastToolCalls = run.toolCalls;
     lastTranscript = run.transcript;
     lastAgentReport = run.agentReport;
@@ -550,6 +546,10 @@ async function runOne(
       transcript: run.transcript,
       agentReport: run.agentReport,
     });
+
+    // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
+    if (cliSandbox)
+      await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
 
     if (STOP_ON_PASS && last.passed) {
       return {

@@ -162,15 +162,14 @@ function isDocsRelatedCall(call: ToolCallRecord): boolean {
   );
 }
 
-/** Fetches a truncated docs call's real result back from disk. Must run before the sandbox disposes, the file lives inside that container. */
+/** Fetches a truncated docs call's real result back from disk, so a real page fetch doesn't get counted as just the tiny truncation stub. Must run before the sandbox disposes, the file lives inside that container. */
 export async function rehydrateTruncatedDocsResults(
   sandbox: DocsResultSandbox,
   toolCalls: ToolCallRecord[]
 ): Promise<void> {
   for (const call of toolCalls) {
-    if (!isDocsRelatedCall(call)) continue;
     const path = extractTruncatedResultPath(call.result);
-    if (!path) continue;
+    if (!path || !isDocsRelatedCall(call)) continue;
     try {
       call.result = await sandbox.readFile(path);
     } catch {}
