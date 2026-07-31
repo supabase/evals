@@ -420,6 +420,21 @@ describe('buildDocsResult', () => {
     expect(result.calls).toEqual([]);
   });
 
+  it('drops an open_page action on a supabase service subdomain', () => {
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        {
+          query: 'https://mcp.supabase.com/mcp',
+          action: { type: 'open_page', url: 'https://mcp.supabase.com/mcp' },
+        },
+        { name: 'web_search' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
   it('counts a docs url curled from the shell, sized by what the pipe actually returned', () => {
     const command =
       '/bin/bash -lc "curl -fsSL https://supabase.com/changelog.md | sed -n \'1,160p\'"';

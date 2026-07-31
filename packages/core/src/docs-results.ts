@@ -51,22 +51,12 @@ function extractGraphqlQuery(
   return undefined;
 }
 
-/** True when a URL string points at any supabase.com host. */
-function isSupabaseUrl(value: string): boolean {
-  try {
-    const { hostname } = new URL(value);
-    return hostname === 'supabase.com' || hostname.endsWith('.supabase.com');
-  } catch {
-    return false;
-  }
-}
-
 /**
- * True for a docs page on supabase.com itself. Stricter than `isSupabaseUrl`
- * on purpose: the docs and changelog all live on the apex host, while the
- * subdomains an agent curls (`api.`, `mcp.`) are service endpoints, not reading.
+ * True for the apex supabase.com host. Docs, changelog, and blog all live
+ * there. Subdomains like `api.` and `mcp.` are service endpoints, so they
+ * don't count.
  */
-function isSupabaseDocsUrl(value: string): boolean {
+function isSupabaseApexUrl(value: string): boolean {
   try {
     return new URL(value).hostname === 'supabase.com';
   } catch {
@@ -104,7 +94,7 @@ function shellFetchUrls(command: string | undefined): string[] {
       // Trailing sentence punctuation glues onto a url in prose; a real one
       // never ends in a period or comma.
       const url = match.replace(/[.,]+$/, '');
-      if (isSupabaseDocsUrl(url) && !urls.includes(url)) urls.push(url);
+      if (isSupabaseApexUrl(url) && !urls.includes(url)) urls.push(url);
     }
   }
   return urls;
@@ -204,12 +194,12 @@ function extractPages(result: unknown): DocsCallPage[] {
   const pages: DocsCallPage[] = [];
   const seen = new Set<string>();
   for (const [, title, url] of text.matchAll(TITLED_PAGE_PATTERN)) {
-    if (!isSupabaseUrl(url) || seen.has(url)) continue;
+    if (!isSupabaseApexUrl(url) || seen.has(url)) continue;
     seen.add(url);
     pages.push(title ? { url, title } : { url });
   }
   for (const [, url] of text.matchAll(HREF_PATTERN)) {
-    if (!isSupabaseUrl(url) || seen.has(url)) continue;
+    if (!isSupabaseApexUrl(url) || seen.has(url)) continue;
     seen.add(url);
     pages.push({ url });
   }
@@ -237,7 +227,7 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
     }
 
     if (call.name === 'web_fetch') {
-      if (!call.url || !isSupabaseUrl(call.url)) continue;
+      if (!call.url || !isSupabaseApexUrl(call.url)) continue;
       // WebFetch runs the fetch through an LLM extraction step guided by
       // `prompt`, so that's the meaningful "ask" here (same role `query`
       // plays for search_docs), not the url. Url still recorded, in `pages`.
@@ -271,7 +261,7 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       const action = webSearchAction(body);
 
       if (action?.type === 'open_page' || action?.type === 'find_in_page') {
-        if (!action.url || !isSupabaseUrl(action.url)) continue;
+        if (!action.url || !isSupabaseApexUrl(action.url)) continue;
         calls.push({
           source: 'web_search',
           query,
@@ -301,7 +291,7 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       // No action reported (Claude Code, or an action type we don't know):
       // fall back to the query's shape, which is all there is to go on.
       if (URL_PATTERN.test(query)) {
-        if (!isSupabaseUrl(query)) continue;
+        if (!isSupabaseApexUrl(query)) continue;
         calls.push({
           source: 'web_search',
           query,
