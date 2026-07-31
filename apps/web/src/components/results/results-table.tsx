@@ -1,11 +1,16 @@
-import { useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { useQueryStates } from "nuqs"
 
+import { ExperimentLabel } from "@/components/results/experiment-label"
 import { SelectionSheet } from "@/components/results/selection-sheet"
 import {
   activateOnKeyDown,
   clickableTableItemClassName,
   columnHighlightClassName,
+  hasMoreContentToRight,
+  passFailClassName,
   passRateClassName,
+  scoreLabel,
   tableHeadCellClassName,
 } from "@/components/results/table-shared"
 import { SegmentedControl } from "@/components/ui/segmented-control"
@@ -19,6 +24,7 @@ import {
   DIMENSIONS,
   GROUP_BY_OPTIONS,
   dimensionShortTitle,
+  tableSelection,
   type Dimension,
   type GroupBy,
   type TableSelection,
@@ -30,6 +36,7 @@ import {
   type ExperimentSuite,
   type ParsedResult,
 } from "@/lib/eval-results"
+import { selectionQueryKeys, selectionQueryParsers } from "@/lib/url-state"
 import { cn } from "@/lib/utils"
 
 /** Header text that truncates to its cell, with an optional tooltip for the full story. */
@@ -62,16 +69,21 @@ function ScoreCell({
   passed,
   total,
   isTotal = false,
+  showPassFail = false,
 }: {
   passed: number
   total: number
   isTotal?: boolean
+  showPassFail?: boolean
 }) {
-  if (!total) {
+  const label = scoreLabel(passed, total, showPassFail)
+
+  if (!label) {
     return <span className="text-muted-foreground/50">—</span>
   }
 
   const passRate = Math.round((passed / total) * 100)
+  const isPassFail = showPassFail && total === 1
 
   return (
     <span
@@ -79,10 +91,12 @@ function ScoreCell({
       className={cn(
         "font-mono text-xs",
         isTotal && "font-semibold",
-        passRateClassName(passRate)
+        isPassFail
+          ? passFailClassName(passed === total)
+          : passRateClassName(passRate)
       )}
     >
-      {passRate}%
+      {label}
     </span>
   )
 }
@@ -112,18 +126,60 @@ export function ResultsTable({
   const modelsAsRows = groupBy === "model"
   const rowKeys = rowDimension.keys(sourceResults)
   const columnKeys = columnDimension.keys(sourceResults)
-  const [selection, setSelection] = useState<TableSelection | null>(null)
+  const [selectionQuery, setSelectionQuery] = useQueryStates(
+    selectionQueryParsers,
+    { urlKeys: selectionQueryKeys }
+  )
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [showScrollHint, setShowScrollHint] = useState(false)
+  const updateScrollHint = useCallback(() => {
+    const container = scrollContainerRef.current
+    setShowScrollHint(container ? hasMoreContentToRight(container) : false)
+  }, [])
 
-  const select = (dimension: Dimension, key: string) => {
-    setSelection({ dimension: dimension.id, key })
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    updateScrollHint()
+    const observer = new ResizeObserver(updateScrollHint)
+    observer.observe(container)
+
+    if (container.firstElementChild) {
+      observer.observe(container.firstElementChild)
+    }
+
+    return () => observer.disconnect()
+  }, [experimentSuite, groupBy, updateScrollHint])
+
+  const selection: TableSelection | null =
+    selectionQuery.dimension && selectionQuery.key
+      ? {
+          dimension: selectionQuery.dimension,
+          key: selectionQuery.key,
+        }
+      : null
+
+  const select = (
+    dimension: Dimension,
+    key: string,
+    cellRuns?: ParsedResult[]
+  ) => {
+    const nextSelection = tableSelection(dimension, key, cellRuns)
+
+    void setSelectionQuery({
+      dimension: nextSelection.dimension,
+      key: nextSelection.key,
+      run: nextSelection.expandedRun ?? null,
+    })
   }
 
   return (
     <Sheet
       open={selection !== null}
       onOpenChange={(open) => {
-        if (!open) setSelection(null)
+        if (!open) void setSelectionQuery(null)
       }}
     >
       <section
@@ -150,7 +206,11 @@ export function ResultsTable({
             />
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div
+          ref={scrollContainerRef}
+          className="overflow-x-auto"
+          onScroll={updateScrollHint}
+        >
           {sourceResults.length ? (
             <table
               className={cn(
@@ -195,10 +255,17 @@ export function ResultsTable({
                               : columnDimension.title(columnKey)
                           }
                           onClick={() => select(columnDimension, columnKey)}
-                          className="block w-full cursor-pointer px-2.5 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                          className="flex h-7 w-full cursor-pointer items-center px-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                         >
-                          <TableHeaderLabel tooltip={tooltip}>
-                            {dimensionShortTitle(columnDimension, columnKey)}
+                          <TableHeaderLabel
+                            tooltip={tooltip}
+                            className="leading-none"
+                          >
+                            {columnDimension.id === "model" ? (
+                              <ExperimentLabel experiment={columnKey} compact />
+                            ) : (
+                              dimensionShortTitle(columnDimension, columnKey)
+                            )}
                           </TableHeaderLabel>
                         </button>
                       </th>
@@ -206,8 +273,23 @@ export function ResultsTable({
                   })}
                   <th
                     scope="col"
-                    className={cn(tableHeadCellClassName, "w-20 px-2.5 py-1.5")}
+                    className={cn(
+                      tableHeadCellClassName,
+                      "sticky right-0 z-20 w-20 bg-secondary px-2.5 py-1.5"
+                    )}
                   >
+                    {showScrollHint ? (
+                      <>
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-y-0 -left-6 w-6 bg-[linear-gradient(to_right,transparent,var(--secondary))]"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-y-0 left-0 w-px bg-border"
+                        />
+                      </>
+                    ) : null}
                     Total
                   </th>
                 </tr>
@@ -238,31 +320,61 @@ export function ResultsTable({
                           tooltip={rowDimension.tooltip?.(rowKey)}
                           className="font-medium"
                         >
-                          {rowDimension.title(rowKey)}
+                          {rowDimension.id === "model" ? (
+                            <ExperimentLabel experiment={rowKey} />
+                          ) : (
+                            rowDimension.title(rowKey)
+                          )}
                         </TableHeaderLabel>
                       </th>
                       {columnKeys.map((columnKey) => {
-                        const summary = scoreResults(
-                          columnDimension.filter(columnKey, rowResults)
+                        const cellRuns = columnDimension.filter(
+                          columnKey,
+                          rowResults
                         )
+                        const summary = scoreResults(cellRuns)
 
                         return (
                           <td
                             key={columnKey}
                             className={cn(
-                              "border-r border-b border-border px-2.5 py-2 transition-colors",
+                              "border-r border-b border-border p-0 transition-colors",
                               hoveredColumn === columnKey &&
                                 columnHighlightClassName
                             )}
                           >
-                            <ScoreCell
-                              passed={summary.passed}
-                              total={summary.total}
-                            />
+                            <button
+                              type="button"
+                              aria-label={`Open ${columnDimension.title(columnKey)} results for ${rowDimension.title(rowKey)}`}
+                              className="block w-full cursor-pointer px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                select(rowDimension, rowKey, cellRuns)
+                              }}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              <ScoreCell
+                                passed={summary.passed}
+                                total={summary.total}
+                                showPassFail={groupBy === "eval"}
+                              />
+                            </button>
                           </td>
                         )
                       })}
-                      <td className="border-b border-border px-2.5 py-2">
+                      <td className="sticky right-0 z-10 border-b border-border bg-card px-2.5 py-2">
+                        {showScrollHint ? (
+                          <>
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none absolute inset-y-0 -left-6 w-6 bg-[linear-gradient(to_right,transparent,var(--card))]"
+                            />
+                            <span
+                              aria-hidden="true"
+                              className="absolute inset-y-0 left-0 w-px bg-border"
+                            />
+                          </>
+                        ) : null}
                         <ScoreCell
                           passed={rowTotal.passed}
                           total={rowTotal.total}

@@ -23,7 +23,7 @@ describe('buildSkillResult', () => {
     const result = buildSkillResult(available, [
       {
         ...toolCall('load_skill', { name: 'supabase' }),
-        loadedSkill: 'supabase',
+        loadedSkills: ['supabase'],
       },
     ]);
 
@@ -33,13 +33,30 @@ describe('buildSkillResult', () => {
     });
   });
 
+  it('tracks several skills loaded by one call', () => {
+    const result = buildSkillResult(available, [
+      {
+        ...toolCall('bash', {
+          command:
+            'cat .claude/skills/supabase/SKILL.md .claude/skills/supabase-postgres-best-practices/SKILL.md',
+        }),
+        loadedSkills: ['supabase', 'supabase-postgres-best-practices'],
+      },
+    ]);
+
+    expect(result).toEqual({
+      available,
+      loaded: ['supabase', 'supabase-postgres-best-practices'],
+    });
+  });
+
   it('ignores skills that were not available in the run', () => {
     const result = buildSkillResult(
       ['supabase'],
       [
         {
           ...toolCall('load_skill', { name: 'unknown-skill' }),
-          loadedSkill: 'unknown-skill',
+          loadedSkills: ['unknown-skill'],
         },
       ]
     );

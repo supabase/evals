@@ -140,9 +140,9 @@ describe('claudeCodeParser', () => {
     const adapted = adaptTranscript(
       claudeCodeParser.parseTranscript(transcript).events
     );
-    expect(adapted.toolCalls[0].loadedSkill).toBe(
-      'supabase-postgres-best-practices'
-    );
+    expect(adapted.toolCalls[0].loadedSkills).toEqual([
+      'supabase-postgres-best-practices',
+    ]);
   });
 
   it('still emits the result text when it was never streamed as a message', () => {

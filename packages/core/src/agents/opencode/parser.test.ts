@@ -161,9 +161,9 @@ describe('opencodeParser', () => {
     const adapted = adaptTranscript(
       opencodeParser.parseTranscript(stream).events
     );
-    expect(adapted.toolCalls.map((call) => call.loadedSkill)).toEqual([
-      'supabase',
-      'supabase-postgres-best-practices',
+    expect(adapted.toolCalls.map((call) => call.loadedSkills)).toEqual([
+      ['supabase'],
+      ['supabase-postgres-best-practices'],
     ]);
   });
 

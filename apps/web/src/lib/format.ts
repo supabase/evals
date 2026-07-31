@@ -73,7 +73,7 @@ function formatModel(display: ExperimentDisplay) {
   }
 }
 
-function formatModelWithModifiers(display: ExperimentDisplay) {
+export function formatModelLabel(display: ExperimentDisplay) {
   return [
     formatModel(display),
     display.reasoningEffort ? `(${display.reasoningEffort})` : "",
@@ -91,7 +91,7 @@ export function formatExperimentLabel(
     return fallback
   }
 
-  return `${AGENT_LABELS[display.agent]} / ${formatModelWithModifiers(display)}`
+  return `${AGENT_LABELS[display.agent]} / ${formatModelLabel(display)}`
 }
 
 /** Model alone, for column headers where the agent sits in the caption. */
@@ -103,7 +103,7 @@ export function formatModelColumnLabel(
     return fallback
   }
 
-  return formatModelWithModifiers(display)
+  return formatModelLabel(display)
 }
 
 /** Upper-cases short words so acronyms like "rls" and "api" read correctly. */

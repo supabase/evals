@@ -29,15 +29,67 @@ export const SUPABASE_CLI_VERSION = '2.67.1';
 const SANDBOX_IMAGE_REPOSITORY = 'supabase-evals-sandbox';
 
 /**
- * Backoff schedule for retrying the sandbox image build. The build pulls
- * `node:22-slim` from Docker Hub, which intermittently answers 5xx/429 (and
- * once took out ~130 CI matrix jobs in a single blip); a short outage should
- * cost a delay, not the run. Every failure is retried — the transient
- * registry-error strings come from BuildKit/containerd internals with no
- * stable taxonomy to match against, and a deterministic failure (broken
- * Dockerfile, bad build-arg) merely wastes the ~95s schedule before failing.
+ * Backoff schedule for the registry-touching steps: the sandbox image build
+ * (pulls `node:22-slim`) and `supabase start` (pulls the stack's service
+ * images). Docker Hub intermittently answers 5xx/429 — a 502 blip once took
+ * out ~130 CI matrix jobs, and a wide `run-evals` fan-out can exhaust the
+ * runners' shared anonymous pull quota (`toomanyrequests`) all by itself. A
+ * short outage should cost a delay, not the run. Every failure is retried —
+ * the transient registry-error strings come from BuildKit/containerd/daemon
+ * internals with no stable taxonomy to match against, and a deterministic
+ * failure (broken Dockerfile, bad config) merely wastes the ~95s schedule
+ * before failing with the original error.
  */
-const IMAGE_BUILD_RETRY_DELAYS_MS = [5_000, 30_000, 60_000];
+const REGISTRY_RETRY_DELAYS_MS = [5_000, 30_000, 60_000];
+
+/**
+ * Run a failure-prone step to completion, retrying failed attempts on
+ * {@link REGISTRY_RETRY_DELAYS_MS} and returning the first ok result. On the
+ * final failure the call site's `buildError` is thrown, preserving each
+ * step's established error shape. `beforeRetry` runs between attempts for
+ * steps that must reset partial state first.
+ *
+ * The name is deliberately generic: the schedule was sized for transient
+ * registry errors, but the helper retries *every* non-ok result, not just
+ * registry ones. A caller that can distinguish a terminal failure it should
+ * not keep re-running (e.g. a local-stack timeout, not a Docker Hub blip)
+ * passes `isTerminal` to bail out immediately instead of burning the whole
+ * backoff schedule on it.
+ */
+async function withTransientRetries<R extends { ok: boolean }>(
+  label: string,
+  run: () => Promise<R>,
+  options: {
+    buildError: (result: R) => Error;
+    beforeRetry?: () => Promise<void>;
+    isTerminal?: (result: R) => boolean;
+  }
+): Promise<R> {
+  for (let attempt = 0; ; attempt++) {
+    const result = await run();
+    if (result.ok) return result;
+
+    const delayMs = REGISTRY_RETRY_DELAYS_MS[attempt];
+    if (delayMs === undefined || options.isTerminal?.(result)) {
+      throw options.buildError(result);
+    }
+    console.warn(
+      `[sandbox] ${label} failed ` +
+        `(attempt ${attempt + 1}/${REGISTRY_RETRY_DELAYS_MS.length + 1}), ` +
+        `retrying in ${delayMs / 1000}s`
+    );
+    // Count `beforeRetry` against the backoff so the "retrying in Ns" above
+    // holds regardless of how long the reset (e.g. `supabase stop`) takes:
+    // the next attempt starts ~delayMs after this failure, not delayMs after
+    // the reset finishes.
+    const readyAt = Date.now() + delayMs;
+    await options.beforeRetry?.();
+    const remainingMs = readyAt - Date.now();
+    if (remainingMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remainingMs));
+    }
+  }
+}
 
 /** The sandbox image definition lives in an actual Dockerfile for editability. */
 export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
@@ -58,31 +110,26 @@ export async function ensureSupabaseSandboxImage(): Promise<string> {
   if (existing.ok) return tag;
 
   const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, 'utf8');
-  for (let attempt = 0; ; attempt++) {
-    const build = await dockerCli(
-      [
-        'build',
-        '--build-arg',
-        `SKILLS_CLI_VERSION=${SKILLS_CLI_VERSION}`,
-        '--tag',
-        tag,
-        '-',
-      ],
-      { input: dockerfile }
-    );
-    if (build.ok) return tag;
-
-    const delayMs = IMAGE_BUILD_RETRY_DELAYS_MS[attempt];
-    if (delayMs === undefined) {
-      throw new Error(`failed to build sandbox image ${tag}: ${build.stderr}`);
+  await withTransientRetries(
+    `build ${tag}`,
+    () =>
+      dockerCli(
+        [
+          'build',
+          '--build-arg',
+          `SKILLS_CLI_VERSION=${SKILLS_CLI_VERSION}`,
+          '--tag',
+          tag,
+          '-',
+        ],
+        { input: dockerfile }
+      ),
+    {
+      buildError: (build) =>
+        new Error(`failed to build sandbox image ${tag}: ${build.stderr}`),
     }
-    console.warn(
-      `[sandbox] failed to build ${tag} ` +
-        `(attempt ${attempt + 1}/${IMAGE_BUILD_RETRY_DELAYS_MS.length + 1}), ` +
-        `retrying in ${delayMs / 1000}s`
-    );
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-  }
+  );
+  return tag;
 }
 
 /**
@@ -319,15 +366,47 @@ async function linkSandboxToHostedPlatform(
 /**
  * Start the local Supabase stack, excluding the services the session does not
  * need. Requires a workspace with supabase/config.toml.
+ *
+ * Retried on the shared registry backoff schedule: `supabase start` pulls the
+ * stack's service images, so it fails on the same transient Docker Hub
+ * 5xx/429s as the image build. A local-stack *timeout* is exempt (see
+ * `isTerminal`): it points at a wedged service, not a registry blip, so
+ * re-running it would just burn ~10 minutes per attempt (the CLI's own boot
+ * timeout) for nothing.
  */
 export async function startSupabaseProject(
   sandbox: DockerSandbox,
   includeServices?: readonly string[]
 ): Promise<void> {
-  await runOrThrow(
-    sandbox,
-    buildSupabaseStartCommand(includeServices),
-    'supabase start'
+  const command = buildSupabaseStartCommand(includeServices);
+  await withTransientRetries(
+    'supabase start',
+    () => sandbox.runShell(command),
+    {
+      buildError: (result) =>
+        new Error(`[supabase start] failed: ${result.stderr || result.stdout}`),
+      // A boot timeout (coreutils `timeout` exits 124/137) means a service is
+      // wedged, not that a pull blipped — don't retry it. Each retry would wait
+      // out the full boot timeout again, so a persistently unhealthy stack could
+      // waste the whole backoff schedule (~47 min) before surfacing the failure.
+      isTerminal: (result) =>
+        result.exitCode === 124 || result.exitCode === 137,
+      // A failed start can leave a partial stack behind (some services pulled
+      // and running, others not); reset it so retries start clean. Best-effort,
+      // mirroring teardownSupabaseProject.
+      beforeRetry: async () => {
+        try {
+          await sandbox.runShell('supabase stop --no-backup', {
+            timeoutMs: 120_000,
+          });
+        } catch (err) {
+          console.warn(
+            '[sandbox] supabase stop between start retries failed (continuing):',
+            err instanceof Error ? err.message : err
+          );
+        }
+      },
+    }
   );
 }
 
