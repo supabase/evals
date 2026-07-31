@@ -83,6 +83,78 @@ describe('opencode runner', () => {
   });
 });
 
+describe('opencode runner extractUsage', () => {
+  const extract = createOpencodeRunner('anthropic/claude-sonnet-5')
+    .extractUsage!;
+
+  it('sums step_finish tokens and cost across steps', () => {
+    const raw = [
+      JSON.stringify({
+        type: 'step_finish',
+        part: {
+          type: 'step-finish',
+          reason: 'tool-calls',
+          cost: 0.01,
+          tokens: {
+            input: 100,
+            output: 20,
+            reasoning: 5,
+            cache: { read: 40, write: 10 },
+          },
+        },
+      }),
+      JSON.stringify({ type: 'text', part: { type: 'text', text: 'Done.' } }),
+      JSON.stringify({
+        type: 'step_finish',
+        part: {
+          type: 'step-finish',
+          reason: 'stop',
+          cost: 0.02,
+          tokens: { input: 200, output: 30, reasoning: 0, cache: { read: 90 } },
+        },
+      }),
+    ].join('\n');
+    expect(extract(raw)).toEqual({
+      inputTokens: 300,
+      outputTokens: 50,
+      reasoningTokens: 5,
+      cachedInputTokens: 130,
+      costUsd: 0.03,
+    });
+  });
+
+  it('omits a zero cost total (unknown pricing) but keeps token counts', () => {
+    const raw = JSON.stringify({
+      type: 'step_finish',
+      part: {
+        type: 'step-finish',
+        reason: 'stop',
+        cost: 0,
+        tokens: { input: 10, output: 2, reasoning: 0, cache: { read: 0 } },
+      },
+    });
+    expect(extract(raw)).toEqual({
+      inputTokens: 10,
+      outputTokens: 2,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+    });
+  });
+
+  it('returns undefined without step_finish token payloads', () => {
+    expect(extract(undefined)).toBeUndefined();
+    expect(extract('not json\n')).toBeUndefined();
+    expect(
+      extract(
+        JSON.stringify({
+          type: 'step_finish',
+          part: { type: 'step-finish', reason: 'stop' },
+        })
+      )
+    ).toBeUndefined();
+  });
+});
+
 /** Capture the `--model` flag, run env, and written config from one exec. */
 async function captureExec(
   model: string,

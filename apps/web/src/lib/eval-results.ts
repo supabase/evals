@@ -175,3 +175,17 @@ export function scoreResults(sourceResults: ParsedResult[]) {
     total: sourceResults.length,
   }
 }
+
+/**
+ * Total tokens a run consumed: the harness's own total when it reported one,
+ * else input + output (input already includes cache reads across harnesses).
+ */
+export function runTokens(result: ParsedResult): number | undefined {
+  const usage = result.usage
+  if (!usage) return undefined
+  if (usage.totalTokens !== undefined) return usage.totalTokens
+  if (usage.inputTokens === undefined && usage.outputTokens === undefined) {
+    return undefined
+  }
+  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
+}

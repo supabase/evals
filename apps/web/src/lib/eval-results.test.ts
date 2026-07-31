@@ -9,6 +9,7 @@ import {
   getProductKeys,
   getProductResults,
   getVisibleExperiments,
+  runTokens,
   scoreResults,
   sortResults,
   sortedResults,
@@ -161,6 +162,22 @@ describe("scoreResults", () => {
 
   it("reports zero of zero for an empty selection", () => {
     expect(scoreResults([])).toEqual({ passed: 0, total: 0 })
+  })
+})
+
+describe("runTokens", () => {
+  it("prefers the harness's own total, else sums input and output", () => {
+    expect(
+      runTokens(makeResult({ usage: { totalTokens: 500, inputTokens: 400 } }))
+    ).toBe(500)
+    expect(
+      runTokens(makeResult({ usage: { inputTokens: 400, outputTokens: 50 } }))
+    ).toBe(450)
+  })
+
+  it("is undefined without token counts", () => {
+    expect(runTokens(makeResult())).toBeUndefined()
+    expect(runTokens(makeResult({ usage: { costUsd: 0.1 } }))).toBeUndefined()
   })
 })
 

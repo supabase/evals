@@ -35,6 +35,7 @@ import {
 } from '@supabase-evals/platform-lite';
 import type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalSuite,
   ExperimentDisplayMetadata,
@@ -44,7 +45,7 @@ import type {
 } from './eval-metadata.js';
 import { reasoningEffortSchema } from './eval-metadata.js';
 import type { AgentMetadata, AgentSandbox } from './agents/types.js';
-import { isRecord } from './json.js';
+import { finiteNumber, isRecord } from './json.js';
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -124,6 +125,7 @@ export type {
 } from './transcript/types.js';
 export type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalInterface,
   EvalMetadata,
@@ -379,6 +381,7 @@ export type AgentRunResult = {
   transcript: TranscriptPart[];
   steps: number;
   stoppedReason: string;
+  usage?: AgentUsage;
 };
 
 export type AgentHarness = {
@@ -722,6 +725,27 @@ export function aiSdkAgent(options: {
 
         const agentReport = result.text.trim();
 
+        // Whole-run accounting summed across steps by the AI SDK. Fields the
+        // provider didn't report come back undefined and stay omitted.
+        const totalUsage = result.totalUsage;
+        const usage: AgentUsage = {
+          ...(finiteNumber(totalUsage.inputTokens) !== undefined
+            ? { inputTokens: totalUsage.inputTokens }
+            : {}),
+          ...(finiteNumber(totalUsage.outputTokens) !== undefined
+            ? { outputTokens: totalUsage.outputTokens }
+            : {}),
+          ...(finiteNumber(totalUsage.cachedInputTokens) !== undefined
+            ? { cachedInputTokens: totalUsage.cachedInputTokens }
+            : {}),
+          ...(finiteNumber(totalUsage.reasoningTokens) !== undefined
+            ? { reasoningTokens: totalUsage.reasoningTokens }
+            : {}),
+          ...(finiteNumber(totalUsage.totalTokens) !== undefined
+            ? { totalTokens: totalUsage.totalTokens }
+            : {}),
+        };
+
         return {
           agentReport,
           toolCalls,
@@ -731,6 +755,7 @@ export function aiSdkAgent(options: {
             result.steps.length >= MAX_STEPS
               ? 'max_steps'
               : result.finishReason,
+          ...(Object.keys(usage).length > 0 ? { usage } : {}),
         };
       } finally {
         await closeMcpHandles(mcpHandles);
