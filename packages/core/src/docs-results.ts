@@ -34,6 +34,9 @@ const SHELL_SEGMENT_PATTERN = /(?:&&|\|\||[;|])/;
 const SHELL_COMMAND_LIST_PATTERN = /(?:&&|\|\||;|\r?\n)/;
 // Matches curl's -f/--fail flag.
 const CURL_FAIL_FLAG_PATTERN = /(?:^|\s)(?:-[A-Za-z]*f[A-Za-z]*|--fail\b)(?=\s|$)/;
+// Bare `>`, `1>`, and `&>` redirect stdout away from the pipe. A lone `2>`,
+// or `2>&1` which folds stderr back into stdout, leaves the body on stdout.
+const STDOUT_REDIRECT_PATTERN = /(?:^|[^2])>/;
 // Urls inside a shell command, stopping at the shell metacharacters that can
 // legally follow one (`|`, `>`, quotes, backslash-escapes).
 const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
@@ -79,11 +82,11 @@ function shellFetchUrls(command: string | undefined): string[] {
     const curlToStdout =
       CURL_PATTERN.test(segment) &&
       !CURL_NO_BODY_PATTERN.test(segment) &&
-      !segment.includes('>');
+      !STDOUT_REDIRECT_PATTERN.test(segment);
     const wgetToStdout =
       /\bwget\b/.test(segment) &&
       WGET_STDOUT_PATTERN.test(segment) &&
-      !segment.includes('>');
+      !STDOUT_REDIRECT_PATTERN.test(segment);
     if (!curlToStdout && !wgetToStdout) continue;
 
     const fetcher = segment.match(/\b(?:curl|wget)\b/);

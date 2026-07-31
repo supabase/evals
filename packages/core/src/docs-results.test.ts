@@ -556,6 +556,77 @@ describe('buildDocsResult', () => {
     expect(result.calls).toEqual([]);
   });
 
+  it('counts a curl fetch with stderr redirected to /dev/null', () => {
+    const command =
+      'curl -fsSL https://supabase.com/changelog.md 2>/dev/null | head -50';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: '# Changelog' }
+      ),
+    ]);
+
+    expect(result.calls).toHaveLength(1);
+  });
+
+  it('counts a curl fetch with stderr merged into stdout via 2>&1', () => {
+    const command =
+      'curl -fsSL https://supabase.com/changelog.md 2>&1 | head -50';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: '# Changelog' }
+      ),
+    ]);
+
+    expect(result.calls).toHaveLength(1);
+  });
+
+  it.each(['>out.txt', '1>out.txt', '&>out.txt'])(
+    'drops a curl fetch redirected with %s',
+    (redirect) => {
+      const command = `curl -fsSL https://supabase.com/changelog.md ${redirect}`;
+      const result = buildDocsResult([
+        toolCall(
+          'command_execution',
+          { command },
+          { name: 'shell', command, result: 'download complete' }
+        ),
+      ]);
+
+      expect(result.calls).toEqual([]);
+    }
+  );
+
+  it('drops a curl fetch whose stdout is redirected past a silenced stderr', () => {
+    const command =
+      'curl -fsSL https://supabase.com/changelog.md 2>/dev/null >out.txt';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'download complete' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('drops a curl fetch with stdout swapped onto stderr via >&2', () => {
+    const command = 'curl -fsSL https://supabase.com/changelog.md >&2';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: 'download complete' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
   it('does not attribute an unrelated url elsewhere in a compound command to curl', () => {
     const command =
       'echo https://supabase.com/changelog.md; curl -fsSL https://example.com';
