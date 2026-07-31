@@ -572,6 +572,93 @@ describe('buildDocsResult', () => {
     expect(result.calls).toEqual([]);
   });
 
+  it("marks a bare curl's content as unknown on a real body", () => {
+    // No -f/--fail, so a 0 exit doesn't prove the body is a real page.
+    const command = 'curl https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: '# Changelog\n\nreal content' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'shell_fetch',
+        query: command,
+        pages: [{ url: 'https://supabase.com/changelog.md' }],
+        resultChars: '# Changelog\n\nreal content'.length,
+      },
+    ]);
+    expect(result.calls[0].hasContent).toBeUndefined();
+  });
+
+  it("marks a bare curl's content as unknown on an HTTP-error body", () => {
+    const command = 'curl https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: '404: Not Found' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'shell_fetch',
+        query: command,
+        pages: [{ url: 'https://supabase.com/changelog.md' }],
+        resultChars: '404: Not Found'.length,
+      },
+    ]);
+    expect(result.calls[0].hasContent).toBeUndefined();
+  });
+
+  it("trusts a -f curl's content regardless of body", () => {
+    // A real failure would already be routed to `error` by --fail.
+    const command = 'curl -fsSL https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        {
+          name: 'shell',
+          command,
+          result: '500 organizations now use Supabase in production',
+        }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'shell_fetch',
+        query: command,
+        hasContent: true,
+        pages: [{ url: 'https://supabase.com/changelog.md' }],
+        resultChars: '500 organizations now use Supabase in production'
+          .length,
+      },
+    ]);
+  });
+
+  it('drops a wget with 404 response', () => {
+    const command = 'wget --quiet --output-document=- https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        {
+          name: 'shell',
+          command,
+          error: 'wget: server returned error: HTTP/1.1 404 Not Found',
+        }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
   it('drops a shell fetch of a supabase service endpoint, which is a probe not a read', () => {
     const command = 'curl -s https://mcp.supabase.com/mcp';
     const result = buildDocsResult([

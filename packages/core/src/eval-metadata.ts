@@ -271,7 +271,8 @@ export const docsCallSchema = z.object({
   // for `content`), web_fetch, and an isolated shell_fetch. False for Claude
   // Code's WebSearch, whose results never include page text. Unknown (omitted)
   // when the available trace cannot prove either state, including Codex
-  // web_search and a shell fetch mixed with other commands.
+  // web_search, a shell fetch mixed with other commands, and an unflagged
+  // curl (see docs-results.ts).
   hasContent: z.boolean().optional(),
   pages: z.array(docsCallPageSchema),
   // Size of the result the call actually produced, in characters, an

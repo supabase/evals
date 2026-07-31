@@ -32,6 +32,8 @@ const WGET_STDOUT_PATTERN =
   /(?:^|\s)(?:-[A-Za-z]*O-|-[A-Za-z]*O\s+-|--output-document(?:=|\s+)-)(?=\s|$)/;
 const SHELL_SEGMENT_PATTERN = /(?:&&|\|\||[;|])/;
 const SHELL_COMMAND_LIST_PATTERN = /(?:&&|\|\||;|\r?\n)/;
+// Matches curl's -f/--fail flag.
+const CURL_FAIL_FLAG_PATTERN = /(?:^|\s)(?:-[A-Za-z]*f[A-Za-z]*|--fail\b)(?=\s|$)/;
 // Urls inside a shell command, stopping at the shell metacharacters that can
 // legally follow one (`|`, `>`, quotes, backslash-escapes).
 const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
@@ -327,13 +329,20 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       const command = shellCommand(call);
       const urls = shellFetchUrls(command);
       if (!command || urls.length === 0) continue;
+      // A non-zero exit already proves the fetch failed.
+      if (call.error) continue;
       // With no shell output at all, nothing from the fetch reached the model.
       if (typeof result !== 'string' || result.length === 0) continue;
+      // curl without -f/--fail exits 0 on a 4xx/5xx. wget doesn't need the
+      // check: it already exits non-zero on an HTTP error by default
+      // (https://www.gnu.org/software/wget/manual/html_node/Exit-Status.html).
+      const curlExitUnproven =
+        CURL_PATTERN.test(command) && !CURL_FAIL_FLAG_PATTERN.test(command);
       const ownsResult = shellFetchOwnsResult(command);
       calls.push({
         source: 'shell_fetch',
         query: command,
-        hasContent: ownsResult ? true : undefined,
+        hasContent: !curlExitUnproven && ownsResult ? true : undefined,
         pages: urls.map((url) => ({ url })),
         resultChars: resultCharCount(result),
       });
