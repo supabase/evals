@@ -8309,7 +8309,7 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "victim session active before delete-account",
@@ -8338,8 +8338,8 @@
       },
       {
         "name": "diagnosed and explained session revocation",
-        "passed": false,
-        "judgeNotes": "Mostly correct diagnosis, revocation fix, RLS/session mitigation, and key distinction. However it claims the only remaining post-fix window is in-flight requests and does not clearly caveat that the JWT itself remains valid until expiry for purely local validation such as getClaims/custom middleware, which the rubric requires."
+        "passed": true,
+        "judgeNotes": "Diagnosed soft-delete-only flow, implemented auth user deletion plus RLS that closes the Data API stale-JWT path, explained JWT expiry caveat sufficiently, and correctly distinguished publishable/anon from secret/service_role keys."
       }
     ],
     "skills": {
@@ -8348,15 +8348,42 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user invalidate existing access tokens revoke sessions auth.sessions delete_account\", limit: 5) { nodes { __typename title href content ... on Guide { subsections { nodes { title href content } } } } } }",
+          "query": "query { searchDocs(query: \"publishable secret keys anon service_role frontend RLS\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            }
+          ],
+          "resultChars": 91173
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"delete user revoke sessions auth.admin.deleteUser delete_account sessions invalidation\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -8364,627 +8391,185 @@
               "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data#exporting-users",
-              "title": "Exporting users"
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data#deleting-users",
-              "title": "Deleting users"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data#adding-and-retrieving-user-metadata",
-              "title": "Adding and retrieving user metadata"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data#accessing-user-data-via-api",
-              "title": "Accessing user data via API"
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
               "title": "Multiple SSO Providers"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#next-steps",
-              "title": "Next steps"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#use-case-1-multiple-environments-devstagingprod",
-              "title": "Use case 1: Multiple environments (dev/staging/prod)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#the-challenge",
-              "title": "The challenge"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#the-solution",
-              "title": "The solution"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#in-your-identity-provider-okta-azure-ad-google-workspace",
-              "title": "In your identity provider (Okta, Azure AD, Google Workspace)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#in-each-supabase-organization",
-              "title": "In each Supabase organization"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#why-multiple-sso-providers",
-              "title": "Why multiple SSO providers?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#key-concept-idp-initiated-enables-unlimited-providers-per-domain",
-              "title": "Key concept: IDP-initiated enables unlimited providers per domain"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#result",
-              "title": "Result"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#configuration-example",
-              "title": "Configuration example"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#each-organization",
-              "title": "Each organization"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#use-case-2-different-teams-or-business-units",
-              "title": "Use case 2: Different teams or business units"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#example-scenario",
-              "title": "Example scenario"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#configuration-approach",
-              "title": "Configuration approach"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#option-a-idp-initiated-with-different-app-tiles",
-              "title": "Option A: IDP-initiated with different app tiles"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#option-b-both-idp-and-sp-initiated-with-role-based-routing",
-              "title": "Option B: Both IDP and SP-initiated with role-based routing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#use-case-3-migration-from-one-idp-to-another",
-              "title": "Use case 3: Migration from one IDP to another"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#migration-workflow",
-              "title": "Migration workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-1-dual-configuration",
-              "title": "Phase 1: Dual configuration"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-2-gradual-rollout",
-              "title": "Phase 2: Gradual rollout"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-3-cutover",
-              "title": "Phase 3: Cutover"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-4-cleanup",
-              "title": "Phase 4: Cleanup"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#use-case-4-acquisitions-and-subsidiaries",
-              "title": "Use case 4: Acquisitions and subsidiaries"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#example-scenario-1",
-              "title": "Example scenario"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#configuration-approach-1",
-              "title": "Configuration approach"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#option-a-single-provider-with-multiple-domains-sp-initiated",
-              "title": "Option A: Single provider with multiple domains (SP-initiated)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#option-b-separate-providers-per-subsidiary-idp-initiated",
-              "title": "Option B: Separate providers per subsidiary (IDP-initiated)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#step-by-step-setup-guide",
-              "title": "Step-by-step setup guide"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#for-idp-initiated-multi-environment-pattern",
-              "title": "For IDP-initiated multi-environment pattern"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#step-1-plan-your-environments",
-              "title": "Step 1: Plan your environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#step-2-create-saml-apps-in-your-idp",
-              "title": "Step 2: Create SAML apps in your IDP"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#naming-convention-example",
-              "title": "Naming convention example"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#step-3-configure-each-supabase-organization",
-              "title": "Step 3: Configure each Supabase organization"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#step-4-test-each-environment-separately",
-              "title": "Step 4: Test each environment separately"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#step-5-assign-users-in-your-idp",
-              "title": "Step 5: Assign users in your IDP"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#step-6-document-and-communicate",
-              "title": "Step 6: Document and communicate"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#user-access-management",
-              "title": "User access management"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#idp-app-assignment-strategies",
-              "title": "IDP app assignment strategies"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#per-environment-access-control",
-              "title": "Per-environment access control"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#role-assignment-patterns",
-              "title": "Role assignment patterns"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#option-1-different-default-roles-per-environment",
-              "title": "Option 1: Different default roles per environment"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#option-2-consistent-roles-manual-promotion",
-              "title": "Option 2: Consistent roles, manual promotion"
-            },
+              "url": "https://supabase.com/docs/reference/swift/auth-admin-deleteuser",
+              "title": "deleteUser()"
+            }
+          ],
+          "resultChars": 27499
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"row level security auth.uid deleted flag policy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
             {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#option-3-no-auto-join-explicit-control",
-              "title": "Option 3: No auto-join, explicit control"
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#best-practices",
-              "title": "Best practices"
+              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
+              "title": "Delete Objects"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#naming-conventions",
-              "title": "Naming conventions"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#idp-app-names",
-              "title": "IDP app names"
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
+              "title": "Multi-Factor Authentication"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#supabase-organization-names",
-              "title": "Supabase organization names"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#configuration-synchronization",
-              "title": "Configuration synchronization"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#configuration-drift-checklist",
-              "title": "Configuration drift checklist"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#testing-in-lower-environments-first",
-              "title": "Testing in lower environments first"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#security-considerations",
-              "title": "Security considerations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#environment-isolation",
-              "title": "Environment isolation"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#access-reviews",
-              "title": "Access reviews"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#break-glass-access",
-              "title": "Break-glass access"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#troubleshooting",
-              "title": "Troubleshooting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#users-accessing-the-wrong-environment",
-              "title": "Users accessing the wrong environment"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#symptom",
-              "title": "Symptom"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#causes",
-              "title": "Causes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#solution",
-              "title": "Solution"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#configuration-drift-between-environments",
-              "title": "Configuration drift between environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#symptom-1",
-              "title": "Symptom"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#causes-1",
-              "title": "Causes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#solution-1",
-              "title": "Solution"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#users-dont-see-expected-app-tiles",
-              "title": "Users don't see expected app tiles"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#symptom-2",
-              "title": "Symptom"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#causes-2",
-              "title": "Causes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#solution-2",
-              "title": "Solution"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#auto-join-adding-users-to-wrong-organization",
-              "title": "Auto-join adding users to wrong organization"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#symptom-3",
-              "title": "Symptom"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#cause",
-              "title": "Cause"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#prevention",
-              "title": "Prevention"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#remediation",
-              "title": "Remediation"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#multiple-organizations-with-same-domain-sp-initiated-confusion",
-              "title": "Multiple organizations with same domain (SP-initiated confusion)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#symptom-4",
-              "title": "Symptom"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#cause-1",
-              "title": "Cause"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#solution-3",
-              "title": "Solution"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#migration-from-single-to-multiple-providers",
-              "title": "Migration from single to multiple providers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-1-planning",
-              "title": "Phase 1: Planning"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-2-create-new-organizations",
-              "title": "Phase 2: Create new organizations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-3-configure-sso-providers",
-              "title": "Phase 3: Configure SSO providers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-4-migrate-users",
-              "title": "Phase 4: Migrate users"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers#phase-5-decommission-old-configuration-if-applicable",
-              "title": "Phase 5: Decommission old configuration (if applicable)"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/api/v1-delete-jit-access",
-              "title": "Delete JIT access by user-id"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/sessions",
-              "title": "User sessions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/sessions#access-token-jwt-claims",
-              "title": "Access token (JWT) claims"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/sessions#what-are-recommended-values-for-access-token-jwt-expiration",
-              "title": "What are recommended values for access token (JWT) expiration?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/sessions#what-is-refresh-token-reuse-detection-and-what-does-it-protect-from",
-              "title": "What is refresh token reuse detection and what does it protect from?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/sessions#what-are-the-benefits-of-using-access-and-refresh-tokens-instead-of-traditional-sessions",
-              "title": "What are the benefits of using access and refresh tokens instead of traditional sessions?"
-            },
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
+              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
+            }
+          ],
+          "resultChars": 74757
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth.admin signOut deleteUser revoke refresh token\", limit: 10) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions#how-to-ensure-an-access-token-jwt-cannot-be-used-after-a-user-signs-out",
-              "title": "How to ensure an access token (JWT) cannot be used after a user signs out"
+              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions#using-http-only-cookies-to-store-access-and-refresh-tokens",
-              "title": "Using HTTP-only cookies to store access and refresh tokens"
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions#what-is-a-session",
-              "title": "What is a session?"
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions#initiating-a-session",
-              "title": "Initiating a session"
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions#limiting-session-lifetime-and-number-of-allowed-sessions-per-user",
-              "title": "Limiting session lifetime and number of allowed sessions per user"
+              "url": "https://supabase.com/docs/guides/integrations/build-a-supabase-oauth-integration",
+              "title": "Build a Supabase Integration"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions#frequently-asked-questions",
-              "title": "Frequently asked questions"
+              "url": "https://supabase.com/docs/reference/api/v1-revoke-token",
+              "title": "[Beta] Revoke oauth app authorization and it's corresponding tokens"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
               "title": "OAuth 2.1 Flows"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#standard-oidc-claims",
-              "title": "Standard OIDC claims"
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin",
+              "title": "OAuth Admin"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#example-id-token",
-              "title": "Example ID token"
+              "url": "https://supabase.com/docs/reference/swift/auth-admin-deleteuser",
+              "title": "deleteUser()"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#id-tokens",
-              "title": "ID tokens"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#openid-connect-oidc",
-              "title": "OpenID Connect (OIDC)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#refresh-response",
-              "title": "Refresh response"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#example-in-javascript-1",
-              "title": "Example in JavaScript"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#confidential-clients-token_endpoint_auth_method-client_secret_post-1",
-              "title": "Confidential clients (token_endpoint_auth_method: client_secret_post)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#confidential-clients-token_endpoint_auth_method-client_secret_basic-1",
-              "title": "Confidential clients (token_endpoint_auth_method: client_secret_basic)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#public-clients-token_endpoint_auth_method-none-1",
-              "title": "Public clients (token_endpoint_auth_method: none)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#refresh-request",
-              "title": "Refresh request"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#when-to-refresh",
-              "title": "When to refresh"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#refresh-token-flow",
-              "title": "Refresh token flow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#available-scopes",
-              "title": "Available scopes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#oauth-specific-claims",
-              "title": "OAuth-specific claims"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#access-token-structure",
-              "title": "Access token structure"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#step-6-token-response",
-              "title": "Step 6: Token response"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#example-in-javascript",
-              "title": "Example in JavaScript"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#confidential-clients-token_endpoint_auth_method-client_secret_post",
-              "title": "Confidential clients (token_endpoint_auth_method: client_secret_post)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#supported-grant-types",
-              "title": "Supported grant types"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#authorization-code-flow-with-pkce",
-              "title": "Authorization code flow with PKCE"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#how-it-works",
-              "title": "How it works"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#flow-diagram",
-              "title": "Flow diagram"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#step-1-generate-pkce-parameters",
-              "title": "Step 1: Generate PKCE parameters"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#step-2-authorization-request",
-              "title": "Step 2: Authorization request"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#required-parameters",
-              "title": "Required parameters"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#optional-parameters",
-              "title": "Optional parameters"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#step-3-user-authentication-and-consent",
-              "title": "Step 3: User authentication and consent"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#step-4-authorization-code-issued",
-              "title": "Step 4: Authorization code issued"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#step-5-token-exchange",
-              "title": "Step 5: Token exchange"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#public-clients-token_endpoint_auth_method-none",
-              "title": "Public clients (token_endpoint_auth_method: none)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#confidential-clients-token_endpoint_auth_method-client_secret_basic",
-              "title": "Confidential clients (token_endpoint_auth_method: client_secret_basic)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#next-steps",
-              "title": "Next steps"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#revoking-access",
-              "title": "Revoking access"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#viewing-authorized-applications",
-              "title": "Viewing authorized applications"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#managing-user-grants",
-              "title": "Managing user grants"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#what-to-validate",
-              "title": "What to validate"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#validating-tokens",
-              "title": "Validating tokens"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#jwks-endpoint",
-              "title": "JWKS endpoint"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#token-validation",
-              "title": "Token validation"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#oidc-discovery",
-              "title": "OIDC discovery"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows#userinfo-endpoint",
-              "title": "UserInfo endpoint"
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-signout"
             }
           ],
-          "resultChars": 229306
+          "resultChars": 56854
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"auth.jwt session_id auth.sessions RLS strict guarantees\", limit: 5) { nodes { __typename title href content } } }",
+          "query": "query { searchDocs(query: \"revoke sessions delete user auth.sessions revoke refresh tokens\", limit: 10) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
+            },
             {
               "url": "https://supabase.com/docs/guides/resources/glossary",
               "title": "Glossary"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
-              "title": "Clerk"
+              "url": "https://supabase.com/docs/reference/javascript/oauth-server-revokegrant"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-revoke-token",
+              "title": "[Beta] Revoke oauth app authorization and it's corresponding tokens"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            }
+          ],
+          "resultChars": 160501
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"sign out all sessions delete user auth admin revoke\", limit: 10) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signout"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signout",
+              "title": "Signing out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-signout"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/sessions",
               "title": "User sessions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
-              "title": "Anonymous Sign-Ins"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            }
-          ],
-          "resultChars": 56630
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"request.jwt.claims auth.uid postgres set_config testing RLS\", limit: 5) { nodes { __typename title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
-              "title": "RAG with Permissions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
-              "title": "Clerk"
-            },
-            {
               "url": "https://supabase.com/docs/guides/resources/glossary",
               "title": "Glossary"
             },
             {
-              "url": "https://supabase.com/docs/guides/realtime/authorization",
-              "title": "Realtime Authorization"
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deletefactor"
             }
           ],
-          "resultChars": 54603
+          "resultChars": 108752
         }
       ]
     },
@@ -10971,7 +10556,8 @@
       },
       {
         "name": "deleted user cannot sign back in",
-        "passed": true
+        "passed": false,
+        "notes": "deleted account can still sign in"
       },
       {
         "name": "other users keep their sessions and access",
@@ -10980,7 +10566,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": false,
-        "judgeNotes": "It correctly diagnosed the soft-delete-only bug, implemented auth user deletion/session revocation via cascading auth rows, hardened RLS, and explained publishable vs secret keys correctly. However, it did not clearly state that existing stateless JWT access tokens remain cryptographically valid until expiry for purely local validation such as getClaims() or custom middleware, which the rubric requires even when the Data API window is closed by RLS."
+        "judgeNotes": "The answer correctly diagnoses the soft-delete-only bug, revokes auth sessions by deleting auth.sessions (cascading refresh tokens), adds RLS checks against deleted profiles, and correctly distinguishes publishable vs secret keys. However, it says 'deleting a user does not automatically sign them out' even though its implemented fix does not delete the auth user, only sessions, and the rubric requires fixing the flow so the auth user is deleted or equivalently identity and sessions are removed. The implemented fix leaves identities/auth user intact, so future sign-in may still be possible; it does not fully satisfy real account deletion/removal of identity. It also overstates 'no database-access window' based on a deleted profile RLS check, which is acceptable for the shown data path, but the missing identity/user deletion is a failing issue."
       }
     ],
     "skills": {
@@ -10991,14 +10577,19 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs publishable secret keys Supabase anon service_role frontend RLS",
+          "query": "site:supabase.com/docs publishable key secret key anon service_role RLS Supabase",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs migrating to new API keys publishable secret keys Supabase docs",
           "pages": []
         }
       ]
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/investigate-auth-001-deleted-user-access.json"
   },
   {
@@ -13275,7 +12866,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "Meets all rubric requirements: diagnoses the soft-delete-only RPC, implements real Auth user deletion with session/refresh-token revocation and RLS session checks, explains JWT expiry vs closed data-path access consistently, and correctly distinguishes publishable vs secret keys and RLS behavior."
+        "judgeNotes": "Diagnoses soft-delete-only RPC, implements auth user deletion with cascading session/refresh token/identity removal, adds RLS active-session mitigation and explains JWT stateless expiry caveat consistently. Correctly distinguishes publishable frontend key/RLS from secret server-only RLS-bypassing key."
       }
     ],
     "skills": {
@@ -13284,15 +12875,14 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user existing access token sessions sign out revoke session JWT expiry publishable secret keys RLS\", limit: 8) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"delete user existing access token session revoke refresh token admin deleteUser publishable secret API keys RLS\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -13304,141 +12894,93 @@
               "title": "Token Security and Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z",
+              "title": "Why is my service role key client getting RLS errors or not returning data?"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions",
-              "title": "User sessions"
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
             },
             {
               "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
               "title": "Storage Buckets"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
-              "title": "Getting Started with OAuth 2.1 Server"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
             },
             {
               "url": "https://supabase.com/docs/guides/storage/security/ownership",
               "title": "Ownership"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
+              "title": "Getting Started with OAuth 2.1 Server"
             }
           ],
-          "resultChars": 114389
+          "resultChars": 95765
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog Supabase auth delete user session API keys publishable secret",
+          "pages": []
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Deleting a user does not automatically sign out access token valid until expiry session_id auth.sessions RLS\", limit: 10) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"auth.sessions session_id JWT claim RLS revoke session access token cannot revoke delete user\", limit: 10) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/sessions",
-              "title": "User sessions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
               "url": "https://supabase.com/docs/guides/storage/security/ownership",
               "title": "Ownership"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
-              "title": "Delete Objects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/should-i-set-a-shorter-max-age-parameter-on-the-cookies-8sbF4V",
-              "title": "Should I set a shorter Max-Age parameter on the cookies?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
-              "title": "Creating a Supabase client for SSR"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
               "title": "Token Security and Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/users",
-              "title": "Users"
-            }
-          ],
-          "resultChars": 106209
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"publishable key secret key frontend RLS bypass service_role apikey Authorization user JWT\", limit: 6) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z",
-              "title": "Why is my service role key client getting RLS errors or not returning data?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            }
-          ],
-          "resultChars": 84002
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"delete user directly auth.users SQL delete Admin API existing JWT\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
               "title": "Anonymous Sign-Ins"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
-              "title": "JWT Claims Reference"
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
             },
             {
-              "url": "https://supabase.com/docs/reference/dart/auth-admin-deleteuser"
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
+              "title": "Getting Started with OAuth 2.1 Server"
             },
             {
-              "url": "https://supabase.com/docs/reference/swift/auth-admin-deleteuser",
-              "title": "deleteUser()"
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z",
+              "title": "Why is my service role key client getting RLS errors or not returning data?"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/signing-keys",
               "title": "JWT Signing Keys"
             }
           ],
-          "resultChars": 68408
+          "resultChars": 137238
         }
       ]
     },
