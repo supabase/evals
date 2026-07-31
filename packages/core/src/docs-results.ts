@@ -26,6 +26,15 @@ const TITLED_PAGE_PATTERN =
   /"title":"([^"]*)"\s*,?\s*"(?:href|url)":"([^"]+)"/g;
 const HREF_PATTERN = /"(?:href|url)":"([^"]+)"/g;
 const CURL_PATTERN = /\bcurl\b/;
+// curl/wget as a segment's actual command, not merely mentioned somewhere in
+// another command's arguments (e.g. `echo curl ...`). Allows leading env
+// assignments (`FOO=bar curl ...`).
+const FETCHER_COMMAND_PATTERN = /^\s*(?:[A-Za-z_]\w*=\S*\s+)*(curl|wget)\b/;
+// A `bash/sh/zsh -c "..."` wrapper, how agents commonly run a whole piped
+// command in one shell call. Unwrapped first, so a pipe inside the quotes
+// doesn't get split as if it belonged to the outer command.
+const SHELL_WRAPPER_PATTERN =
+  /^\s*(?:\S*\/)?(?:bash|sh|zsh)\s+-\S*c\S*\s+(['"])([\s\S]*)\1\s*$/;
 const CURL_NO_BODY_PATTERN =
   /(?:^|\s)(?:-[^-\s]*[oOI]\S*|--(?:output|remote-name|head)(?:=\S*)?)(?=\s|$)/;
 const WGET_STDOUT_PATTERN =
@@ -77,22 +86,27 @@ function shellCommand(call: ToolCallRecord): string | undefined {
 /** The docs urls a shell command writes to stdout, empty when page text won't reach the model. */
 function shellFetchUrls(command: string | undefined): string[] {
   if (!command) return [];
+  const wrapped = command.match(SHELL_WRAPPER_PATTERN);
+  if (wrapped) return shellFetchUrls(wrapped[2]);
+
   const urls: string[] = [];
   for (const segment of command.split(SHELL_SEGMENT_PATTERN)) {
+    const fetcherMatch = segment.match(FETCHER_COMMAND_PATTERN);
+    if (!fetcherMatch || fetcherMatch.index === undefined) continue;
+    const fetcher = fetcherMatch[1];
+
     const curlToStdout =
-      CURL_PATTERN.test(segment) &&
+      fetcher === 'curl' &&
       !CURL_NO_BODY_PATTERN.test(segment) &&
       !STDOUT_REDIRECT_PATTERN.test(segment);
     const wgetToStdout =
-      /\bwget\b/.test(segment) &&
+      fetcher === 'wget' &&
       WGET_STDOUT_PATTERN.test(segment) &&
       !STDOUT_REDIRECT_PATTERN.test(segment);
     if (!curlToStdout && !wgetToStdout) continue;
 
-    const fetcher = segment.match(/\b(?:curl|wget)\b/);
-    if (!fetcher || fetcher.index === undefined) continue;
     for (const match of segment
-      .slice(fetcher.index + fetcher[0].length)
+      .slice(fetcherMatch.index + fetcherMatch[0].length)
       .match(URL_IN_COMMAND_PATTERN) ?? []) {
       // Trailing sentence punctuation glues onto a url in prose; a real one
       // never ends in a period or comma.

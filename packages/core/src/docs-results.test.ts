@@ -789,7 +789,24 @@ describe('buildDocsResult', () => {
     expect(result.calls).toEqual([]);
   });
 
-  it('ignores WebFetch/WebSearch-shaped calls when the parser never normalized a canonical name', () => {
+  it('drops an echo that merely mentions curl rather than invoking it', () => {
+    const command = 'echo curl https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        {
+          name: 'shell',
+          command,
+          result: 'curl https://supabase.com/changelog.md',
+        }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+it('ignores WebFetch/WebSearch-shaped calls when the parser never normalized a canonical name', () => {
     const result = buildDocsResult([
       toolCall(
         'WebFetch',
