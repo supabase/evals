@@ -9,10 +9,28 @@ interface SpanCardConnectorProps {
   type: SpanCardConnectorType
 }
 
-// ponytail: connector types are still passed through from getConnectorsLayout
-// (SpanCard.tsx) to preserve indentation spacing, but the lines themselves are
-// no longer drawn — removed per feedback that the tree guide lines were more
-// visual noise than signal.
-export const SpanCardConnector = (_props: SpanCardConnectorProps) => {
-  return <div className="w-5 shrink-0 grow" />
+export const SpanCardConnector = ({ type }: SpanCardConnectorProps) => {
+  if (type === "empty") return <div className="w-5 shrink-0 grow" />
+
+  return (
+    <div className="relative w-5 shrink-0 grow">
+      {(type === "vertical" || type === "t-right") && (
+        <div className="absolute inset-y-0 left-1/2 z-10 w-0.5 -translate-x-1/2 bg-agentprism-secondary" />
+      )}
+
+      {type === "t-right" && (
+        <div className="absolute top-2.5 left-2.5 h-0.5 w-2.5 translate-y-[-3px] bg-agentprism-secondary" />
+      )}
+
+      {type === "corner-top-right" && (
+        <>
+          <div className="absolute top-2 left-1/2 size-0.5 -translate-x-1/2 -translate-y-px bg-agentprism-secondary" />
+
+          <div className="absolute top-2.5 left-1/2 h-0.5 w-2.5 translate-y-[-3px] bg-agentprism-secondary" />
+
+          <div className="absolute top-0 left-1/2 h-[7px] w-0.5 -translate-x-px bg-agentprism-secondary" />
+        </>
+      )}
+    </div>
+  )
 }
