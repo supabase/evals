@@ -54,6 +54,17 @@ export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
   });
 }
 
+/**
+ * Predicate for a repeated-filter flag: no filters means include everything,
+ * otherwise the value must be present (and match one of them).
+ */
+export function makeFilterPredicate<T>(
+  filters: readonly T[],
+): (value: T | undefined) => boolean {
+  return (value) =>
+    filters.length === 0 || (value !== undefined && filters.includes(value));
+}
+
 export function readExperimentSuiteFilters(
   rawArgs: string[]
 ): ExperimentSuite[] {

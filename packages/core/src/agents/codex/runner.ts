@@ -8,8 +8,8 @@
  */
 
 import type { ChatModel } from 'openai/resources/shared';
-import type { McpServerConfig } from '../../index.js';
-import { parseJsonlRecords } from '../../json.js';
+import type { AgentUsage, McpServerConfig } from '../../index.js';
+import { finiteNumber, isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
@@ -114,6 +114,28 @@ export const codexRunner: AgentRunner<CodexModel> = {
       default:
         return processStopReason(command);
     }
+  },
+
+  extractUsage(raw) {
+    // Each `turn.completed` carries `usage: { input_tokens,
+    // cached_input_tokens, output_tokens }`. `codex exec` runs a single turn,
+    // but sum across all of them to stay correct if that ever changes.
+    if (!raw) return undefined;
+    const { records } = parseJsonlRecords(raw);
+    let sawUsage = false;
+    let inputTokens = 0;
+    let cachedInputTokens = 0;
+    let outputTokens = 0;
+    for (const record of records) {
+      if (record.type !== 'turn.completed' || !isRecord(record.usage)) continue;
+      sawUsage = true;
+      inputTokens += finiteNumber(record.usage.input_tokens) ?? 0;
+      cachedInputTokens += finiteNumber(record.usage.cached_input_tokens) ?? 0;
+      outputTokens += finiteNumber(record.usage.output_tokens) ?? 0;
+    }
+    if (!sawUsage) return undefined;
+    const usage: AgentUsage = { inputTokens, cachedInputTokens, outputTokens };
+    return usage;
   },
 };
 

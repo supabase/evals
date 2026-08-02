@@ -12,7 +12,7 @@ on:
         required: false
         default: ""
       suite:
-        description: "Comma-separated eval suites to run"
+        description: "Comma-separated eval suites to run, or 'custom' to run the exact eval/experiments pairs below regardless of each eval's own suite (blocked on main)"
         required: true
         default: "benchmark"
       experiment_suite:
@@ -106,6 +106,25 @@ jobs:
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
           experiment_suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiment_suite")"
+
+          # custom bypasses suite-based discovery entirely and runs the exact
+          # eval/experiments pairs given, so it needs both explicit and is
+          # restricted to branches — it's meant for ad hoc, in-progress work,
+          # never for main's tracked benchmark/regression results.
+          if jq -e 'index("custom") != null' <<< "$suite_json" > /dev/null 2>&1; then
+            if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+              echo "::error::suite=custom is only supported for manual workflow_dispatch runs." >&2
+              exit 1
+            fi
+            if [ "${{ github.ref_name }}" = "main" ]; then
+              echo "::error::suite=custom is not allowed on main — dispatch this workflow from a branch." >&2
+              exit 1
+            fi
+            if [ -z "$eval_id" ] || [ -z "$experiments_override" ]; then
+              echo "::error::suite=custom requires both the 'eval' and 'experiments' inputs to be set." >&2
+              exit 1
+            fi
+          fi
 
           # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
           # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
@@ -209,37 +228,57 @@ jobs:
 
           pairs='[]'
           experiments_override="${{ steps.inputs.outputs.experiments_override }}"
-          for id in "${matching[@]}"; do
-            eval_suite=$(sed -n 's/^suite:[[:space:]]*//p' "evals/$id/PROMPT.md" | head -n 1)
-            case "$eval_suite" in
-              benchmark) experiment_suites=(benchmark no-skills) ;;
-              regression) experiment_suites=(regression) ;;
-              *) continue ;;
-            esac
 
-            for experiment_suite in "${experiment_suites[@]}"; do
-              if ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
-                <<< '${{ steps.inputs.outputs.experiment_suite }}' > /dev/null; then
-                continue
-              fi
-
-              if [ -n "$experiments_override" ]; then
-                experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
-              else
-                experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite")"
-              fi
-
+          if jq -e 'index("custom") != null' <<< "$suite_json" > /dev/null 2>&1; then
+            # Custom mode: cross-product the explicit --eval and --experiments
+            # lists directly, ignoring each eval's own suite: field and the
+            # experiment_suite input entirely. eval_suite is tagged "custom"
+            # here only for CI routing (publish step below) — it never
+            # overrides the real suite metadata Braintrust/exports read from
+            # each eval's PROMPT.md.
+            experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
+            for id in "${matching[@]}"; do
               while IFS= read -r experiment; do
                 pairs="$(jq -c \
                   --arg eval_id "$id" \
                   --arg experiment "$experiment" \
-                  --arg experiment_suite "$experiment_suite" \
-                  --arg eval_suite "$eval_suite" \
-                  '. + [{eval_id: $eval_id, experiment: $experiment, experiment_suite: $experiment_suite, eval_suite: $eval_suite}]' \
+                  '. + [{eval_id: $eval_id, experiment: $experiment, experiment_suite: "", eval_suite: "custom"}]' \
                   <<< "$pairs")"
               done < <(jq -r '.[]' <<< "$experiments_json")
             done
-          done
+          else
+            for id in "${matching[@]}"; do
+              eval_suite=$(sed -n 's/^suite:[[:space:]]*//p' "evals/$id/PROMPT.md" | head -n 1)
+              case "$eval_suite" in
+                benchmark) experiment_suites=(benchmark no-skills) ;;
+                regression) experiment_suites=(regression) ;;
+                *) continue ;;
+              esac
+
+              for experiment_suite in "${experiment_suites[@]}"; do
+                if ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
+                  <<< '${{ steps.inputs.outputs.experiment_suite }}' > /dev/null; then
+                  continue
+                fi
+
+                if [ -n "$experiments_override" ]; then
+                  experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
+                else
+                  experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite")"
+                fi
+
+                while IFS= read -r experiment; do
+                  pairs="$(jq -c \
+                    --arg eval_id "$id" \
+                    --arg experiment "$experiment" \
+                    --arg experiment_suite "$experiment_suite" \
+                    --arg eval_suite "$eval_suite" \
+                    '. + [{eval_id: $eval_id, experiment: $experiment, experiment_suite: $experiment_suite, eval_suite: $eval_suite}]' \
+                    <<< "$pairs")"
+                done < <(jq -r '.[]' <<< "$experiments_json")
+              done
+            done
+          fi
 
           if [ "$(jq 'length' <<< "$pairs")" -eq 0 ]; then
             echo "No experiment and eval pairs matched" >&2
@@ -295,12 +334,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          pnpm eval -- \
-            --experiment "${{ matrix.experiment }}" \
-            --experiment-suite "${{ matrix.experiment_suite }}" \
-            --eval "${{ matrix.eval_id }}" \
-            --runs "${{ needs.prepare.outputs.runs }}" \
+          args=(
+            --experiment "${{ matrix.experiment }}"
+            --eval "${{ matrix.eval_id }}"
+            --runs "${{ needs.prepare.outputs.runs }}"
             --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
+          )
+          # Custom-mode pairs carry no experiment_suite (it's not required to
+          # target an exact --experiment/--eval pair) — omit the flag rather
+          # than pass an empty value the schema would reject.
+          if [ -n "${{ matrix.experiment_suite }}" ]; then
+            args+=(--experiment-suite "${{ matrix.experiment_suite }}")
+          fi
+
+          pnpm eval -- "${args[@]}"
 
           # A skipped experiment (e.g. missing API key) exits 0 without writing results.
           if [ ! -f "results/${{ matrix.experiment }}/${{ matrix.eval_id }}.json" ]; then
@@ -398,6 +445,82 @@ jobs:
               export_args+=(--merge)
             fi
             pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
+          fi
+
+      - name: Upload benchmark results to Braintrust
+        # Additive dual-write next to eval-results.json; never blocks the
+        # export/commit path (continue-on-error + the script itself exits 0
+        # when credentials are missing).
+        continue-on-error: true
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          BRAINTRUST_PROJECT_ID: ${{ secrets.BRAINTRUST_PROJECT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pairs='${{ needs.prepare.outputs.pairs }}'
+          summary_md="$RUNNER_TEMP/braintrust-summary.md"
+
+          # Only a FULL benchmark refresh on main may become the latest-main
+          # baseline PRs compare against — never PR runs, never dispatches
+          # that filtered to a subset of evals/experiments.
+          baseline_args=()
+          if [ "${{ github.event_name }}" != "pull_request" ] && \
+             [ "${{ github.ref_name }}" = "main" ] && \
+             [ -z "${{ inputs.experiments }}" ] && [ -z "${{ inputs.eval }}" ]; then
+            baseline_args+=(--set-baseline)
+          fi
+
+          if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
+            pnpm --filter @supabase-evals/framework upload-braintrust -- \
+              --suite benchmark --summary-md "$summary_md" \
+              ${baseline_args[@]+"${baseline_args[@]}"}
+          fi
+
+          # Custom-mode pairs aren't tagged benchmark/regression (that field
+          # is CI-routing-only, see the discover step), so route by the exact
+          # eval/experiment pairs instead of --suite, and suffix the
+          # Braintrust experiment name with the branch so these ad hoc runs
+          # are never mistaken for tracked benchmark/regression results.
+          if jq -e 'any(.[]; .eval_suite == "custom")' <<< "$pairs" > /dev/null; then
+            custom_evals="$(jq -r '[.[] | select(.eval_suite == "custom") | .eval_id] | unique | join(",")' <<< "$pairs")"
+            custom_experiments="$(jq -r '[.[] | select(.eval_suite == "custom") | .experiment] | unique | join(",")' <<< "$pairs")"
+            pnpm --filter @supabase-evals/framework upload-braintrust -- \
+              --eval "$custom_evals" \
+              --experiment "$custom_experiments" \
+              --name-suffix "-custom-${{ github.ref_name }}" \
+              --summary-md "$summary_md"
+          fi
+
+          if [ -f "$summary_md" ]; then
+            cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Comment Braintrust results on PR
+        # Single auto-updating comment (matched by the hidden marker), same
+        # reviewer experience as braintrustdata/eval-action but fed by our
+        # own uploader. Never blocks the publish path.
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          summary="$RUNNER_TEMP/braintrust-summary.md"
+          if [ ! -f "$summary" ]; then
+            echo "no Braintrust summary to post"
+            exit 0
+          fi
+          marker='<!-- braintrust-eval-results -->'
+          comment_id=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --paginate -q ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$comment_id" -F body=@"$summary"
+          else
+            gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" -F body=@"$summary"
           fi
 
       - name: Upload exported results

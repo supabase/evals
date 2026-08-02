@@ -26,6 +26,7 @@ import {
   extractLoadedSkillsFromText,
   type ArgFieldMap,
 } from '../../parsers/shared/extract.js';
+import { anthropicUsage } from './usage.js';
 
 /** Claude Code's tool names → canonical names (case-sensitive). Owned here, not in shared. */
 const CLAUDE_CODE_TOOLS: AgentToolMap = {
@@ -165,6 +166,34 @@ function loadedSkillsFromClaudeCodeCall(
   return [];
 }
 
+/**
+ * Per-API-call context stamped onto every event a line produces, so the
+ * trace assembler can group a line's message/thinking/tool_use blocks into
+ * one step, attach the call's own token usage, and nest subagent sidechains
+ * (`parent_tool_use_id`) under their Task call.
+ */
+function lineContext(
+  data: Record<string, unknown>,
+  lineIndex: number,
+): Pick<TranscriptEvent, "stepKey" | "messageId" | "usage" | "parentToolUseId"> {
+  const context: ReturnType<typeof lineContext> = {};
+  const parent = data.parent_tool_use_id;
+  if (typeof parent === "string") context.parentToolUseId = parent;
+
+  if (data.type !== "assistant" && data.role !== "assistant") return context;
+  const message = isRecord(data.message) ? data.message : undefined;
+  const messageId = typeof message?.id === "string" ? message.id : undefined;
+  // One assistant stream-json line = one API message; the id groups a
+  // message's blocks (and any continuation lines for the same id) into one
+  // step. Lines without an id still get a unique per-line key.
+  context.stepKey = messageId ?? `line-${lineIndex}`;
+  if (messageId) context.messageId = messageId;
+
+  const usage = anthropicUsage(message?.usage);
+  if (usage) context.usage = usage;
+  return context;
+}
+
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   const events: TranscriptEvent[] = [];
   const timestamp =
@@ -289,9 +318,11 @@ export const claudeCodeParser: AgentTranscriptParser = {
     const { records, errors } = parseJsonlRecords(raw);
     const events: TranscriptEvent[] = [];
     let lastAssistantText: string | undefined;
-    for (const record of records) {
+    for (const [lineIndex, record] of records.entries()) {
       try {
-        for (const event of recordToEvents(record)) {
+        const context = lineContext(record, lineIndex);
+        for (const bare of recordToEvents(record)) {
+          const event: TranscriptEvent = { ...context, ...bare };
           const isAssistantMessage =
             event.type === 'message' && event.role === 'assistant';
           // The terminal `result` line repeats the final assistant message that

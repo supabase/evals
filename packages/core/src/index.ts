@@ -9,6 +9,13 @@ import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import type { ToolName } from './transcript/types.js';
+import type {
+  AgentStep,
+  AgentTrace,
+  AgentTurn,
+  ToolExecution,
+} from './transcript/agent-trace.js';
+import { recordJudgeCall } from './judge-recorder.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
@@ -116,12 +123,29 @@ export type {
 export { createParser, supportedParsers } from './agents/registry.js';
 export { adaptTranscript } from './parsers/adapt.js';
 export type { AdaptedTranscript } from './parsers/adapt.js';
+export {
+  buildEvalTrace,
+  uploadableEvalResultSchema,
+} from './braintrust-spans.js';
+export type {
+  BraintrustEvalTrace,
+  UploadableEvalResult,
+} from './braintrust-spans.js';
 export type { AgentTranscriptParser } from './parsers/types.js';
 export type {
   ToolName,
   TranscriptEvent,
   ParsedTranscript,
 } from './transcript/types.js';
+export { assembleAgentTrace } from './transcript/agent-trace.js';
+export type {
+  AgentStep,
+  AgentTrace,
+  AgentTurn,
+  ToolExecution,
+} from './transcript/agent-trace.js';
+export { collectJudgeCalls } from './judge-recorder.js';
+export type { JudgeCallRecord } from './judge-recorder.js';
 export type {
   AgentHarnessId,
   CheckResult,
@@ -373,12 +397,44 @@ export type AgentRunArgs = {
   timeoutSec: number;
 };
 
+/**
+ * Whole-run token/cost usage, when the agent's harness reports it (Claude
+ * Code's terminal `result` line, Codex's `turn.completed`, ai-sdk's
+ * `totalUsage`). All fields optional — absent means the harness didn't say.
+ */
+export interface AgentUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  /** Prompt tokens served from cache (cache reads). */
+  cachedInputTokens?: number;
+  /** Prompt tokens written to cache (Claude Code only). */
+  cacheCreationInputTokens?: number;
+  reasoningTokens?: number;
+  totalTokens?: number;
+  /** Run cost in USD, when the harness reports one (Claude Code only). */
+  costUsd?: number;
+}
+
 export type AgentRunResult = {
   agentReport: string;
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   steps: number;
   stoppedReason: string;
+  usage?: AgentUsage;
+  /**
+   * Structured view of the same run — turns with nested tool executions
+   * (see transcript/agent-trace.ts). Additive: the flat transcript/toolCalls
+   * surface scorers consume is unchanged.
+   */
+  trace?: AgentTrace;
+  /**
+   * The agent CLI's own transcript, verbatim (stream-json / exec-json
+   * JSONL). Absent for in-process agents (ai-sdk), which have no CLI
+   * transcript. The runner persists it as a sibling file next to the result
+   * JSON, never inside it.
+   */
+  rawTranscript?: string;
 };
 
 export type AgentHarness = {
@@ -519,7 +575,7 @@ export type ExperimentConfig = {
 export function getExperimentDisplayMetadata(
   config: ExperimentConfig
 ): ExperimentDisplayMetadata {
-  return config.agent.metadata;
+  return { ...config.agent.metadata, skills: config.skills };
 }
 
 export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
@@ -573,7 +629,8 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
   const providerOptions =
     args.providerOptions ?? DEFAULT_JUDGE_PROVIDER_OPTIONS;
   assertProviderReady(model.provider);
-  const { output } = await generateText({
+  const startedAt = Date.now();
+  const result = await generateText({
     model,
     system:
       'You are a strict eval judge. Return only the requested structured judgment.',
@@ -581,6 +638,28 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
     output: Output.object({ schema: judgeOutputSchema }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     providerOptions: withProviderDefaults(model.provider, providerOptions),
+  });
+  const output = result.output;
+
+  // Evidence trail for the Braintrust upload: what this judge actually saw
+  // and what the verdict cost. No-op unless a collector is active.
+  const judgeUsage: AgentUsage = {
+    inputTokens: result.totalUsage.inputTokens,
+    outputTokens: result.totalUsage.outputTokens,
+    cachedInputTokens: result.totalUsage.cachedInputTokens,
+    reasoningTokens: result.totalUsage.reasoningTokens,
+    totalTokens: result.totalUsage.totalTokens,
+  };
+  recordJudgeCall({
+    rubric: args.rubric,
+    input: args.input,
+    passed: output.passed,
+    notes: output.notes,
+    modelId: model.modelId,
+    durationMs: Date.now() - startedAt,
+    ...(Object.values(judgeUsage).some((v) => v !== undefined)
+      ? { usage: judgeUsage }
+      : {}),
   });
 
   return {
@@ -722,6 +801,64 @@ export function aiSdkAgent(options: {
 
         const agentReport = result.text.trim();
 
+        const usage: AgentUsage = {
+          inputTokens: result.totalUsage.inputTokens,
+          outputTokens: result.totalUsage.outputTokens,
+          cachedInputTokens: result.totalUsage.cachedInputTokens,
+          reasoningTokens: result.totalUsage.reasoningTokens,
+          totalTokens: result.totalUsage.totalTokens,
+        };
+
+        // Structured trace straight from the steps: one model call per step,
+        // tool executions paired within it (`toolOutputs` above), per-step
+        // usage. One prompt in, everything autonomous → a single turn.
+        const traceSteps: AgentStep[] = result.steps.map((step, index) => {
+          const traceStep: AgentStep = { index, toolCalls: [] };
+          for (const part of step.content) {
+            if (part.type === "text") {
+              const content = part.text.trim();
+              if (content) {
+                traceStep.text = traceStep.text
+                  ? `${traceStep.text}\n${content}`
+                  : content;
+              }
+            } else if (part.type === "reasoning") {
+              const content = part.text.trim();
+              if (content) {
+                traceStep.thinking = traceStep.thinking
+                  ? `${traceStep.thinking}\n${content}`
+                  : content;
+              }
+            } else if (part.type === "tool-call") {
+              const resolved = toolOutputs.get(part.toolCallId);
+              const execution: ToolExecution = {
+                id: part.toolCallId,
+                name: part.toolName,
+                canonicalName: "tool_use",
+                args: isRecord(part.input) ? part.input : {},
+                ...(resolved?.error === undefined
+                  ? { output: resolved?.output }
+                  : { error: resolved.error }),
+              };
+              traceStep.toolCalls.push(execution);
+            }
+          }
+          if (step.usage) {
+            traceStep.usage = {
+              inputTokens: step.usage.inputTokens,
+              outputTokens: step.usage.outputTokens,
+              cachedInputTokens: step.usage.cachedInputTokens,
+              reasoningTokens: step.usage.reasoningTokens,
+              totalTokens: step.usage.totalTokens,
+            };
+          }
+          return traceStep;
+        });
+        const trace: AgentTrace = {
+          turns: [{ index: 0, steps: traceSteps }],
+          errors: [],
+        };
+
         return {
           agentReport,
           toolCalls,
@@ -731,6 +868,8 @@ export function aiSdkAgent(options: {
             result.steps.length >= MAX_STEPS
               ? 'max_steps'
               : result.finishReason,
+          usage,
+          trace,
         };
       } finally {
         await closeMcpHandles(mcpHandles);

@@ -25,15 +25,20 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import { rawTranscriptPathFor } from '../lib/result-files.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
 import {
   buildDocsResult,
   buildSkillResult,
+  collectJudgeCalls,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
 } from '@supabase-evals/core';
+import type { JudgeCallRecord } from '@supabase-evals/core';
 import type {
+  AgentTrace,
+  AgentUsage,
   ExperimentConfig,
   EvalInterface,
   EvalManifest,
@@ -360,6 +365,11 @@ async function runOne(
     transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
+    steps: number;
+    usage?: AgentUsage;
+    trace?: AgentTrace;
+    judgeCalls?: JudgeCallRecord[];
+    rawTranscript?: string;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -388,6 +398,11 @@ async function runOne(
   let lastTranscript: TranscriptPart[] = [];
   let lastAgentReport = '';
   let lastStoppedReason = 'not_started';
+  let lastSteps = 0;
+  let lastUsage: AgentUsage | undefined;
+  let lastTrace: AgentTrace | undefined;
+  let lastJudgeCalls: JudgeCallRecord[] = [];
+  let lastRawTranscript: string | undefined;
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === 'local-stack') {
@@ -457,6 +472,10 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
+      lastSteps = run.steps;
+      lastUsage = run.usage;
+      lastTrace = run.trace;
+      lastRawTranscript = run.rawTranscript;
 
       // Export the agent's workspace to the host so scorers can run host
       // tooling (vite/vitest from the repo root) against the produced files
@@ -472,18 +491,22 @@ async function runOne(
         copiedWithheldTests = true;
       };
 
-      last = await (scorer as LocalStackScorer)({
-        ...session.scoringContext,
-        toolCalls: run.toolCalls,
-        transcript: run.transcript,
-        agentReport: run.agentReport,
-        hostWorkspace,
-        runViteBuild: () => viteBuild(hostWorkspace),
-        runVitest: () => {
-          ensureWithheldTests();
-          return vitestRun(hostWorkspace);
-        },
-      });
+      const scored = await collectJudgeCalls(() =>
+        (scorer as LocalStackScorer)({
+          ...session.scoringContext,
+          toolCalls: run.toolCalls,
+          transcript: run.transcript,
+          agentReport: run.agentReport,
+          hostWorkspace,
+          runViteBuild: () => viteBuild(hostWorkspace),
+          runVitest: () => {
+            ensureWithheldTests();
+            return vitestRun(hostWorkspace);
+          },
+        }),
+      );
+      last = scored.result;
+      lastJudgeCalls = scored.judgeCalls;
 
       if (STOP_ON_PASS && last.passed) {
         return {
@@ -495,6 +518,11 @@ async function runOne(
           transcript: run.transcript,
           agentReport: run.agentReport,
           stoppedReason: run.stoppedReason,
+          steps: run.steps,
+          usage: run.usage,
+          trace: run.trace,
+          judgeCalls: lastJudgeCalls,
+          rawTranscript: run.rawTranscript,
         };
       }
       logRetryAttempt(expName, ev, attempt, last);
@@ -544,12 +572,20 @@ async function runOne(
     lastTranscript = run.transcript;
     lastAgentReport = run.agentReport;
     lastStoppedReason = run.stoppedReason;
-    last = await (scorer as ToolScorer)({
-      ...session.scoringContext,
-      toolCalls: run.toolCalls,
-      transcript: run.transcript,
-      agentReport: run.agentReport,
-    });
+    lastSteps = run.steps;
+    lastUsage = run.usage;
+    lastTrace = run.trace;
+    lastRawTranscript = run.rawTranscript;
+    const scored = await collectJudgeCalls(() =>
+      (scorer as ToolScorer)({
+        ...session.scoringContext,
+        toolCalls: run.toolCalls,
+        transcript: run.transcript,
+        agentReport: run.agentReport,
+      }),
+    );
+    last = scored.result;
+    lastJudgeCalls = scored.judgeCalls;
 
     if (STOP_ON_PASS && last.passed) {
       return {
@@ -561,6 +597,11 @@ async function runOne(
         transcript: run.transcript,
         agentReport: run.agentReport,
         stoppedReason: run.stoppedReason,
+        steps: run.steps,
+        usage: run.usage,
+        trace: run.trace,
+        judgeCalls: lastJudgeCalls,
+        rawTranscript: run.rawTranscript,
       };
     }
     logRetryAttempt(expName, ev, attempt, last);
@@ -575,6 +616,11 @@ async function runOne(
     transcript: lastTranscript,
     agentReport: lastAgentReport,
     stoppedReason: lastStoppedReason,
+    steps: lastSteps,
+    usage: lastUsage,
+    trace: lastTrace,
+    judgeCalls: lastJudgeCalls,
+    rawTranscript: lastRawTranscript,
   };
 }
 
@@ -765,8 +811,17 @@ async function main() {
     console.log(`⏳ RUN  ${name} x ${ev.id}`);
     const run = async () => {
       try {
-        const res = await runOne(name, config, ev);
+        const { rawTranscript, ...res } = await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
+        // The CLI's verbatim transcript is a sibling file, never part of the
+        // result JSON (it can be megabytes); the Braintrust upload attaches
+        // it. Remove any stale sibling on runs that produce none, so a
+        // re-run can't pair an old transcript with a new result.
+        if (rawTranscript) {
+          writeFileSync(rawTranscriptPathFor(out), rawTranscript);
+        } else {
+          rmSync(rawTranscriptPathFor(out), { force: true });
+        }
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
           out,
@@ -778,6 +833,11 @@ async function main() {
               eval: ev.id,
               ...ev.metadata,
               ...res,
+              // Wall-clock timing across all attempts. Extra keys on the raw
+              // file only: the export schema is loose and drops them, so
+              // eval-results.json is unaffected.
+              startedAt: new Date(start).toISOString(),
+              durationMs: Date.now() - start,
             },
             null,
             2
