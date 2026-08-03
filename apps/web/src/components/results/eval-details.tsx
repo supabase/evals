@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import {
   CheckIcon,
   ChevronRightIcon,
+  CircleHelpIcon,
   FileTextIcon,
   SearchIcon,
   XIcon,
@@ -16,6 +17,7 @@ const DOCS_CALL_SOURCE_LABEL: Record<DocsCall["source"], string> = {
   search_docs: "MCP",
   web_fetch: "Web Fetch",
   web_search: "Web Search",
+  shell_fetch: "Shell",
 }
 
 // Cool color for MCP (our own docs tool), warm for the agent going around it onto the open web.
@@ -23,6 +25,7 @@ const DOCS_CALL_SOURCE_CHIP_CLASS: Record<DocsCall["source"], string> = {
   search_docs: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
   web_fetch: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
   web_search: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  shell_fetch: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
 }
 
 const docsSourceChipClassName =
@@ -31,9 +34,10 @@ const docsSourceChipClassName =
 const evalMetaGridClassName =
   "grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-x-4 gap-y-4 text-xs"
 
-/** Search icon for a bare hit, file icon for a call that actually pulled in page text. */
+/** Shows whether page content was read, not read, or cannot be determined. */
 function docsCallIcon(call: DocsCall) {
-  return call.hasContent === false ? SearchIcon : FileTextIcon
+  if (call.hasContent === undefined) return CircleHelpIcon
+  return call.hasContent ? FileTextIcon : SearchIcon
 }
 
 /** Pulls the quoted search term out of search_docs's raw GraphQL query for display, else returns the query as-is. */
@@ -120,6 +124,7 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
     <div className="flex flex-col gap-1.5 leading-relaxed text-foreground">
       {calls.map((call, index) => {
         const searchOnly = call.hasContent === false
+        const contentUnknown = call.hasContent === undefined
         const Icon = docsCallIcon(call)
         const queryLabel = docsCallQueryLabel(call)
         const sizeLabel = docsCallSizeLabel(call)
@@ -132,24 +137,29 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
                   className="size-4 shrink-0 text-muted-foreground/50 transition-transform group-open:rotate-90"
                   aria-hidden
                 />
-                <Icon
-                  className={cn(
-                    "size-4 shrink-0",
-                    searchOnly
-                      ? "text-muted-foreground/60"
-                      : "text-muted-foreground"
-                  )}
-                  aria-hidden
-                />
+                <span
+                  title={contentUnknown ? "Content unknown" : undefined}
+                  className="shrink-0"
+                >
+                  <Icon
+                    className={cn(
+                      "size-4",
+                      searchOnly || contentUnknown
+                        ? "text-muted-foreground/60"
+                        : "text-muted-foreground"
+                    )}
+                    aria-hidden
+                  />
+                </span>
                 <span
                   title={queryLabel}
-                  className={cn(
-                    "min-w-0 truncate",
-                    searchOnly ? "text-muted-foreground" : "text-foreground"
-                  )}
+                  className="min-w-0 truncate text-foreground"
                 >
                   {queryLabel}
                 </span>
+                {contentUnknown ? (
+                  <span className="sr-only">Content unknown</span>
+                ) : null}
                 {sizeLabel ? (
                   <span className="shrink-0 font-mono text-xs tracking-wide text-muted-foreground">
                     {sizeLabel}

@@ -243,10 +243,13 @@ export type SkillResult = z.infer<typeof skillResultSchema>;
 // tool vocabulary). `web_fetch`/`web_search` are the harness's own normalized
 // name, so Claude Code's `WebSearch` and Codex's `web_search` (the same
 // action, spelled differently per harness) collapse into one value here.
+// `shell_fetch` is a docs url fetched to shell stdout, which is how an agent
+// with no fetch tool of its own reads a page (Codex curls the changelog).
 export const docsPageSourceSchema = z.enum([
   'search_docs',
   'web_fetch',
   'web_search',
+  'shell_fetch',
 ]);
 export type DocsPageSource = z.infer<typeof docsPageSourceSchema>;
 
@@ -261,14 +264,15 @@ export type DocsCallPage = z.infer<typeof docsCallPageSchema>;
 
 export const docsCallSchema = z.object({
   source: docsPageSourceSchema,
-  // Whichever field is the meaningful "ask" for that source: search term, GraphQL query, WebFetch's extraction prompt, or target URL.
+  // Whichever field is the meaningful "ask" for that source: search term, GraphQL query, WebFetch's extraction prompt, or shell command.
   query: z.string(),
   // Whether the call's results included page text, not just a title/url hit.
   // Known for search_docs (whether the agent's own GraphQL selection asked
-  // for `content`) and web_fetch (always true, that's what fetching is).
-  // False for Claude Code's WebSearch (its results never include page text,
-  // only title/url). Unknown (omitted) for a Codex web_search used as a
-  // fetch: no result payload is ever exposed on that tool.
+  // for `content`), web_fetch, and an isolated shell_fetch. False for Claude
+  // Code's WebSearch, whose results never include page text. Unknown (omitted)
+  // when the available trace cannot prove either state, including Codex
+  // web_search, a shell fetch mixed with other commands, and an unflagged
+  // curl (see docs-results.ts).
   hasContent: z.boolean().optional(),
   pages: z.array(docsCallPageSchema),
   // Size of the result the call actually produced, in characters, an
@@ -277,7 +281,8 @@ export const docsCallSchema = z.object({
   // rehydrated file when the CLI truncated the result, or parsed out of the
   // truncation message's own reported size when rehydration wasn't
   // possible or wasn't attempted (e.g. no sandbox, ai-sdk/Codex which don't
-  // truncate this way). Omitted only when there's no result at all.
+  // truncate this way). Omitted when the trace exposes no result, including
+  // Codex web_search and failed calls whose output is recorded as an error.
   resultChars: z.number().optional(),
 });
 export type DocsCall = z.infer<typeof docsCallSchema>;
