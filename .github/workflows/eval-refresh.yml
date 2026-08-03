@@ -16,7 +16,7 @@ on:
         required: true
         default: "benchmark"
       experiment_suite:
-        description: "Comma-separated experiment suites to run"
+        description: "Comma-separated experiment suites to run when experiments is blank"
         required: true
         default: "benchmark,no-skills"
       runs:
@@ -211,21 +211,24 @@ jobs:
           experiments_override="${{ steps.inputs.outputs.experiments_override }}"
           for id in "${matching[@]}"; do
             eval_suite=$(sed -n 's/^suite:[[:space:]]*//p' "evals/$id/PROMPT.md" | head -n 1)
-            case "$eval_suite" in
-              benchmark) experiment_suites=(benchmark no-skills) ;;
-              regression) experiment_suites=(regression) ;;
-              *) continue ;;
-            esac
+            if [ -n "$experiments_override" ]; then
+              experiment_suites=("")
+              experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
+            else
+              case "$eval_suite" in
+                benchmark) experiment_suites=(benchmark no-skills) ;;
+                regression) experiment_suites=(regression) ;;
+                *) continue ;;
+              esac
+            fi
 
             for experiment_suite in "${experiment_suites[@]}"; do
-              if ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
+              if [ -z "$experiments_override" ] && ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
                 <<< '${{ steps.inputs.outputs.experiment_suite }}' > /dev/null; then
                 continue
               fi
 
-              if [ -n "$experiments_override" ]; then
-                experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
-              else
+              if [ -z "$experiments_override" ]; then
                 experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite")"
               fi
 
@@ -295,12 +298,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          pnpm eval -- \
-            --experiment "${{ matrix.experiment }}" \
-            --experiment-suite "${{ matrix.experiment_suite }}" \
-            --eval "${{ matrix.eval_id }}" \
-            --runs "${{ needs.prepare.outputs.runs }}" \
+          args=(
+            --experiment "${{ matrix.experiment }}"
+            --eval "${{ matrix.eval_id }}"
+            --runs "${{ needs.prepare.outputs.runs }}"
             --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
+          )
+          if [ -n "${{ matrix.experiment_suite }}" ]; then
+            args+=(--experiment-suite "${{ matrix.experiment_suite }}")
+          fi
+
+          pnpm eval -- "${args[@]}"
 
           # A skipped experiment (e.g. missing API key) exits 0 without writing results.
           if [ ! -f "results/${{ matrix.experiment }}/${{ matrix.eval_id }}.json" ]; then
@@ -339,6 +347,23 @@ jobs:
           submodules: recursive
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
           token: ${{ steps.generate-token.outputs.token || github.token }}
+
+      - name: Checkout existing results pull request branch
+        id: refresh-branch
+        if: github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch
+        env:
+          BRANCH: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+            git fetch origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -416,7 +441,8 @@ jobs:
         # main's branch protection rejects a direct push.
         if: >-
           github.event_name == 'pull_request' ||
-          (github.event_name == 'workflow_dispatch' && inputs.commit_to_branch)
+          (github.event_name == 'workflow_dispatch' &&
+            (inputs.commit_to_branch || steps.refresh-branch.outputs.exists == 'true'))
         shell: bash
         run: |
           set -euo pipefail
@@ -440,7 +466,8 @@ jobs:
       - name: Create results pull request
         if: >-
           github.event_name == 'schedule' ||
-          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch)
+          (github.event_name == 'workflow_dispatch' &&
+            !inputs.commit_to_branch && steps.refresh-branch.outputs.exists != 'true')
         id: cpr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
