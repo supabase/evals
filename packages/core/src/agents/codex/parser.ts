@@ -14,6 +14,10 @@
  * handled best-effort. Each tool item yields a paired tool_call + tool_result
  * (correlated by the item id) so the adapter can attach the output.
  *
+ * `turn.completed.usage` covers the whole turn, not one message, so it's
+ * attached to the turn's last assistant `message` event rather than emitting
+ * its own event (see `parseTranscript`).
+ *
  * NB: this is the `--json` event schema, NOT the `~/.codex/sessions` rollout
  * format (event_msg/response_item) that older parsers targeted.
  */
@@ -21,6 +25,7 @@
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  TokenUsage,
   TranscriptEvent,
 } from '../../transcript/types.js';
 import type { AgentTranscriptParser } from '../../parsers/types.js';
@@ -198,6 +203,42 @@ function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
   }
 }
 
+/**
+ * Token usage from a `turn.completed` record: raw Codex `usage` shape
+ * (`input_tokens`, `output_tokens`, optionally `cached_input_tokens`).
+ * Undefined when absent or unparseable.
+ */
+function extractTurnUsage(
+  data: Record<string, unknown>
+): TokenUsage | undefined {
+  const usage = isRecord(data.usage) ? data.usage : undefined;
+  if (!usage) return undefined;
+  const inputTokens =
+    typeof usage.input_tokens === 'number' ? usage.input_tokens : undefined;
+  const outputTokens =
+    typeof usage.output_tokens === 'number' ? usage.output_tokens : undefined;
+  const cacheReadTokens =
+    typeof usage.cached_input_tokens === 'number'
+      ? usage.cached_input_tokens
+      : undefined;
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    cacheReadTokens === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    totalTokens:
+      inputTokens !== undefined && outputTokens !== undefined
+        ? inputTokens + outputTokens
+        : undefined,
+  };
+}
+
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   switch (data.type) {
     case 'item.completed':
@@ -208,7 +249,7 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
         (isRecord(data.error) && str(data.error.message)) || str(data.message);
       return [{ type: 'error', content: message ?? JSON.stringify(data) }];
     }
-    // thread.started / turn.started / item.started / turn.completed: no event.
+    // thread.started / turn.started / item.started: no event.
     default:
       return [];
   }
@@ -218,9 +259,31 @@ export const codexParser: AgentTranscriptParser = {
   parseTranscript(raw: string): ParsedTranscript {
     const { records, errors } = parseJsonlRecords(raw);
     const events: TranscriptEvent[] = [];
+    // `turn.completed.usage` covers the whole turn (every item since the last
+    // turn boundary), not one message — attach it to the turn's LAST
+    // message/tool_call event (the closest analogue to ai-sdk's per-step
+    // usage). A turn is often tool-call-only (e.g. loading a skill produces no
+    // text), so this must track the last transcript-emitting event of either
+    // kind, not just the last assistant message.
+    let lastTurnEventIndex = -1;
     for (const record of records) {
       try {
-        events.push(...recordToEvents(record));
+        if (record.type === 'turn.completed') {
+          const usage = extractTurnUsage(record);
+          if (usage && lastTurnEventIndex >= 0) {
+            events[lastTurnEventIndex] = {
+              ...events[lastTurnEventIndex],
+              usage,
+            };
+          }
+          continue;
+        }
+        for (const event of recordToEvents(record)) {
+          events.push(event);
+          if (event.type === 'message' || event.type === 'tool_call') {
+            lastTurnEventIndex = events.length - 1;
+          }
+        }
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
       }

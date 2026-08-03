@@ -13,9 +13,12 @@
  *   {"type":"step_finish","part":{"type":"step-finish","reason":"stop","tokens":{…}}}
  *
  * A `tool_use` record is self-contained (input + output + status), so it yields
- * a paired tool_call + tool_result correlated by `part.callID`. Step records
- * carry token/finish info and produce no transcript event (the runner reads the
- * terminal `step_finish` reason for the stop reason).
+ * a paired tool_call + tool_result correlated by `part.callID`. `step_start`
+ * produces no event; `step_finish.part.tokens` covers the whole step (not one
+ * message), so it's attached to the step's LAST `message`/`tool_call` event
+ * (a step is often tool-call-only) rather than emitted as its own event (see
+ * `parseTranscript`). The runner reads the terminal `step_finish` reason for
+ * the stop reason.
  *
  * Adapted from `@supabase/agent-evals` (packages/agent-eval/src/parsers).
  */
@@ -23,6 +26,7 @@
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  TokenUsage,
   TranscriptEvent,
 } from '../../transcript/types.js';
 import type { AgentTranscriptParser } from '../../parsers/types.js';
@@ -197,6 +201,41 @@ function loadedSkillsFromOpencodeCall(
   return [];
 }
 
+/**
+ * Token usage from a `step_finish` record's `part.tokens` (raw opencode shape:
+ * `{ input, output, reasoning, cache: { read, write } }`). Undefined when
+ * absent or unparseable.
+ */
+function extractStepUsage(
+  part: Record<string, unknown>
+): TokenUsage | undefined {
+  const tokens = isRecord(part.tokens) ? part.tokens : undefined;
+  if (!tokens) return undefined;
+  const inputTokens =
+    typeof tokens.input === 'number' ? tokens.input : undefined;
+  const outputTokens =
+    typeof tokens.output === 'number' ? tokens.output : undefined;
+  const cache = isRecord(tokens.cache) ? tokens.cache : undefined;
+  const cacheReadTokens =
+    typeof cache?.read === 'number' ? cache.read : undefined;
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    cacheReadTokens === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    totalTokens:
+      inputTokens !== undefined && outputTokens !== undefined
+        ? inputTokens + outputTokens
+        : undefined,
+  };
+}
+
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   const type = str(data.type);
   if (!type) return [];
@@ -215,8 +254,9 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
         : (detail ?? name ?? JSON.stringify(data));
     return [{ timestamp, type: 'error', content: message, raw: data }];
   }
-  // step_start / step_finish carry no transcript content (tokens + finish reason
-  // only; the runner reads the terminal step_finish reason for the stop reason).
+  // step_start carries no transcript content. step_finish carries tokens +
+  // finish reason, handled in parseTranscript (attached to the step's last
+  // assistant message rather than emitted as its own event).
   if (type === 'step_start' || type === 'step_finish') return [];
 
   const part = isRecord(data.part) ? data.part : undefined;
@@ -228,9 +268,32 @@ export const opencodeParser: AgentTranscriptParser = {
   parseTranscript(raw: string): ParsedTranscript {
     const { records, errors } = parseJsonlRecords(raw);
     const events: TranscriptEvent[] = [];
+    // `step_finish.part.tokens` covers the whole step, not one message —
+    // attach it to the step's LAST message/tool_call event (the closest
+    // analogue to ai-sdk's per-step usage). A step is often tool-call-only
+    // (e.g. loading a skill produces no text), so this must track the last
+    // transcript-emitting event of either kind, not just the last assistant
+    // message.
+    let lastStepEventIndex = -1;
     for (const record of records) {
       try {
-        events.push(...recordToEvents(record));
+        if (str(record.type) === 'step_finish') {
+          const part = isRecord(record.part) ? record.part : undefined;
+          const usage = part ? extractStepUsage(part) : undefined;
+          if (usage && lastStepEventIndex >= 0) {
+            events[lastStepEventIndex] = {
+              ...events[lastStepEventIndex],
+              usage,
+            };
+          }
+          continue;
+        }
+        for (const event of recordToEvents(record)) {
+          events.push(event);
+          if (event.type === 'message' || event.type === 'tool_call') {
+            lastStepEventIndex = events.length - 1;
+          }
+        }
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
       }

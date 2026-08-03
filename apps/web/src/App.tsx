@@ -1,4 +1,5 @@
-import { useQueryStates } from "nuqs"
+import { lazy, Suspense } from "react"
+import { useQueryState, useQueryStates } from "nuqs"
 
 import { EvalOverviewCards } from "@/components/eval-overview-cards"
 import { PageContainer } from "@/components/page-container"
@@ -8,7 +9,18 @@ import { SiteHeader } from "@/components/site-header"
 import { SiteHero } from "@/components/site-hero"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { sortedResults } from "@/lib/eval-results"
-import { resultsQueryKeys, resultsQueryParsers } from "@/lib/url-state"
+import {
+  resultsQueryKeys,
+  resultsQueryParsers,
+  traceEvalParser,
+  TRACE_EVAL_QUERY_KEY,
+} from "@/lib/url-state"
+
+// Lazy so the AgentPrism component tree stays out of the main bundle; the
+// trace panel is only mounted when a run is opened.
+const TracePanel = lazy(() =>
+  import("@/components/trace-panel").then((m) => ({ default: m.TracePanel }))
+)
 
 export function App() {
   const [{ groupBy, experimentSuite }, setResultsQuery] = useQueryStates(
@@ -17,6 +29,10 @@ export function App() {
       urlKeys: resultsQueryKeys,
       clearOnDefault: false,
     }
+  )
+  const [traceEval, setTraceEval] = useQueryState(
+    TRACE_EVAL_QUERY_KEY,
+    traceEvalParser
   )
   const suiteResults = sortedResults.filter(
     (result) => result.experimentSuite === experimentSuite
@@ -55,6 +71,14 @@ export function App() {
             No result files found in the repo results directory.
           </div>
         )}
+        {traceEval ? (
+          <Suspense fallback={null}>
+            <TracePanel
+              evalId={traceEval}
+              onClose={() => void setTraceEval(null)}
+            />
+          </Suspense>
+        ) : null}
       </main>
     </TooltipProvider>
   )
