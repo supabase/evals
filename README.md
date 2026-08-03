@@ -78,6 +78,65 @@ Start the web app development server:
 pnpm web
 ```
 
+## Local development loop (`pnpm local`)
+
+Testing a change to an agent input — a skill, a local build of
+[`mcp-server-supabase`](https://github.com/supabase/mcp), or an edited docs
+page — against the evals, without touching git state:
+
+```bash
+pnpm local run <eval-id> [--experiment <id>] [--mcp <path>] [--content-api <url>]
+pnpm local compare <eval-id> [same flags]   # + diff vs the latest published result on main
+pnpm local experiments                      # list experiments + published-baseline availability
+```
+
+- **Skills**: edit the skills tree in this repo and just `run` — the harness
+  reads it as-is.
+- **MCP**: clone + build the mcp repo anywhere, then `--mcp <path-to-checkout>`
+  (sets `SUPABASE_MCP_SERVER_PATH`, so `search_docs` and friends run your build).
+- **Docs**: serve a local docs content API from your own supabase/supabase
+  checkout, then point runs at it:
+
+  ```bash
+  pnpm local docs up --docs <path-to-supabase-monorepo>
+  pnpm local docs seed        # full embed via the docs app's pipeline (~$0.12 OpenAI; asks first)
+  pnpm local docs api         # keep running in a separate terminal
+  # --content-api needs a local mcp build too: SUPABASE_CONTENT_API_URL support
+  # is merged (supabase/mcp#343) but unreleased, so the published server ignores
+  # it and search_docs would silently hit production docs. Refused pre-spend.
+  pnpm local run <eval-id> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>
+  ```
+
+  **Known limitation — `docs seed` needs a docs checkout containing
+  [supabase/supabase#48364](https://github.com/supabase/supabase/pull/48364).**
+  Without it, `fetchAllSources()` unconditionally awaits the lint warnings source,
+  whose loader requires the docs GitHub App, and one shared `Promise.all` turns
+  that into a full abort before any embedding (so it costs nothing). That PR adds
+  a token rung below the App, `GH_TOKEN` then `GITHUB_TOKEN`, which is all a
+  contributor needs: `export GH_TOKEN=$(gh auth token)`. Until it merges, check
+  that branch out in the checkout you pass to `--docs`.
+
+  Verified end to end against a checkout carrying it, with the `NEXT_PUBLIC_MISC_*`
+  wiring `docs seed` supplies: the seed completes (1901 sources, 7890 sections) and
+  a tools-mode eval's `search_docs` returns content that exists only in the local
+  index. Two rough edges to expect, both upstream: the seed exits 0 while silently
+  failing 22 `/reference/{javascript,dart}` pages whose sections exceed the
+  embedding model's 8192-token limit, and a local index has no partner-integration
+  pages, since that source reads the hosted misc project. Neither blocked the
+  tested guide-page eval, but an eval whose answer lives in those reference pages
+  would find them missing from the index.
+
+Every run writes a provenance receipt to `results-local/` (host SHA + dirty
+state, override paths and their git state). `compare` records the published
+arm's result commit, parent, and age — and a pass/fail flip against published
+is a **screen**, not causal proof: the published run happened in the scheduled
+CI world (published mcp package, prod docs index, model state at refresh time).
+
+Keys go in `.env` at the repo root: `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY`
+for the docs loop and for judge-scored evals (the LLM judge is an OpenAI
+grader model, regardless of the agent under test). Zero-cost self-test: `pnpm --filter
+@supabase-evals/framework test:local`.
+
 ## Eval Shape
 
 Every eval contains:
