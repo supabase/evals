@@ -18,5 +18,6 @@ export default defineExperiment({
   }),
   localStack: localStackRuntime(),
   skills: [],
+  // Evals that override `skills: []` already run under the baseline experiment. Skip them from running again here.
   skipEval: (ev) => ev.metadata.skills?.length === 0,
 });
