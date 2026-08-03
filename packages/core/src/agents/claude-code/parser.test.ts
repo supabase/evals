@@ -145,6 +145,74 @@ describe('claudeCodeParser', () => {
     ]);
   });
 
+  it('extracts token usage from an assistant message.usage block', () => {
+    const transcript = JSON.stringify({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Reading the skill file.' }],
+        usage: {
+          input_tokens: 500,
+          output_tokens: 42,
+          cache_read_input_tokens: 300,
+        },
+      },
+    });
+
+    const { events } = claudeCodeParser.parseTranscript(transcript);
+    const message = events.find(
+      (e) => e.type === 'message' && e.role === 'assistant'
+    );
+    expect(message?.usage).toEqual({
+      inputTokens: 500,
+      outputTokens: 42,
+      cacheReadTokens: 300,
+      totalTokens: 542,
+    });
+  });
+
+  it('attaches usage to a tool_use when the line has no text (e.g. a skill load)', () => {
+    const transcript = JSON.stringify({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_skill',
+            name: 'Skill',
+            input: { skill: 'supabase' },
+          },
+        ],
+        usage: { input_tokens: 800, output_tokens: 8 },
+      },
+    });
+
+    const { events } = claudeCodeParser.parseTranscript(transcript);
+    const toolCall = events.find((e) => e.type === 'tool_call');
+    expect(toolCall?.usage).toEqual({
+      inputTokens: 800,
+      outputTokens: 8,
+      cacheReadTokens: undefined,
+      totalTokens: 808,
+    });
+  });
+
+  it('leaves usage undefined when the assistant line carries none', () => {
+    const transcript = JSON.stringify({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'No usage block here.' }],
+      },
+    });
+    const { events } = claudeCodeParser.parseTranscript(transcript);
+    const message = events.find(
+      (e) => e.type === 'message' && e.role === 'assistant'
+    );
+    expect(message?.usage).toBeUndefined();
+  });
+
   it('still emits the result text when it was never streamed as a message', () => {
     // Plain `--print` (no stream-json) yields only the terminal result line.
     const transcript = JSON.stringify({
@@ -203,14 +271,21 @@ describe('adaptTranscript', () => {
   });
 
   it('renders a scorer-facing transcript (messages + tool calls, raw args preserved)', () => {
+    const ts = Date.parse('2026-06-18T10:00:00.000Z');
     expect(adapted.transcript).toEqual([
-      { type: 'message', role: 'assistant', content: 'Let me list the files.' },
+      {
+        type: 'message',
+        role: 'assistant',
+        content: 'Let me list the files.',
+        ts,
+      },
       {
         type: 'tool_call',
         name: 'Bash',
         input: { command: 'ls -la' },
         output: 'file1\nfile2',
         error: undefined,
+        ts,
       },
       {
         type: 'tool_call',

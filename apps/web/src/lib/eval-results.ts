@@ -43,13 +43,14 @@ export type JourneyStage = (typeof JOURNEY_STAGES)[number]["id"]
 /** Bucket key for runs whose eval declares no product. */
 export const UNASSIGNED_PRODUCT = "__unassigned_product__"
 
-export const EXPERIMENT_SUITES = ["benchmark", "no-skills"] as const
+export const EXPERIMENT_SUITES = ["benchmark", "no-skills", "trigger"] as const
 
 export type ExperimentSuite = (typeof EXPERIMENT_SUITES)[number]
 
 export const EXPERIMENT_SUITE_LABELS = {
   benchmark: "Benchmark",
   "no-skills": "Without skills",
+  trigger: "Skill triggers",
 } satisfies Record<ExperimentSuite, string>
 
 export type ExperimentDisplay = NonNullable<EvalResult["experimentDisplay"]>

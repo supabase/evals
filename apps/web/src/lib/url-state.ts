@@ -16,9 +16,15 @@ const experimentSuiteParser = createParser<ExperimentSuite>({
   parse: (value) => {
     if (value === "with" || value === "benchmark") return "benchmark"
     if (value === "without" || value === "no-skills") return "no-skills"
+    if (value === "trigger") return "trigger"
     return null
   },
-  serialize: (value) => (value === "benchmark" ? "with" : "without"),
+  serialize: (value) =>
+    value === "benchmark"
+      ? "with"
+      : value === "no-skills"
+        ? "without"
+        : "trigger",
 })
 
 export const resultsQueryParsers = {
@@ -42,3 +48,10 @@ export const selectionQueryKeys = {
   key: "item",
   run: "run",
 } satisfies UrlKeys<typeof selectionQueryParsers>
+
+/**
+ * The trace viewer overlay. Set to an eval id to open that run's span tree
+ * (lazily fetched from /data/traces/<evalId>.json); empty clears the overlay.
+ */
+export const traceEvalParser = parseAsString.withDefault("")
+export const TRACE_EVAL_QUERY_KEY = "trace"
