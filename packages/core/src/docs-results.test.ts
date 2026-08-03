@@ -483,6 +483,57 @@ describe('buildDocsResult', () => {
     expect(result.calls[0].hasContent).toBeUndefined();
   });
 
+  it('finds a curl fetch on its own line in a multi-line script', () => {
+    const command =
+      'echo starting\ncurl -fsSL https://supabase.com/changelog.md';
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: '# Changelog' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'shell_fetch',
+        query: command,
+        pages: [{ url: 'https://supabase.com/changelog.md' }],
+        resultChars: '# Changelog'.length,
+      },
+    ]);
+    // Result shared with other command(s) means we can't be certain about content attribution.
+    expect(result.calls[0].hasContent).toBeUndefined();
+  });
+
+  it('records each curl fetch in a multi-line script', () => {
+    const command =
+      'set -e\n' +
+      "curl -fsSL https://supabase.com/docs/guides/functions/auth.md | sed -n '1,280p'\n" +
+      "curl -fsSL https://supabase.com/docs/guides/functions/auth-headers.md | sed -n '1,260p'";
+    const result = buildDocsResult([
+      toolCall(
+        'command_execution',
+        { command },
+        { name: 'shell', command, result: '# Auth\n\n# Auth headers' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'shell_fetch',
+        query: command,
+        pages: [
+          { url: 'https://supabase.com/docs/guides/functions/auth.md' },
+          { url: 'https://supabase.com/docs/guides/functions/auth-headers.md' },
+        ],
+        resultChars: '# Auth\n\n# Auth headers'.length,
+      },
+    ]);
+    // Result shared with other command(s) means we can't be certain about content attribution.
+    expect(result.calls[0].hasContent).toBeUndefined();
+  });
+
   it('still attributes a fetch pipeline whose only command-list operator is a trailing fallback', () => {
     const command =
       'curl -fsSL https://supabase.com/changelog.md | rg breaking || true';

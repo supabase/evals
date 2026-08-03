@@ -39,7 +39,7 @@ const CURL_NO_BODY_PATTERN =
   /(?:^|\s)(?:-[^-\s]*[oOI]\S*|--(?:output|remote-name|head)(?:=\S*)?)(?=\s|$)/;
 const WGET_STDOUT_PATTERN =
   /(?:^|\s)(?:-[A-Za-z]*O-|-[A-Za-z]*O\s+-|--output-document(?:=|\s+)-)(?=\s|$)/;
-const SHELL_SEGMENT_PATTERN = /(?:&&|\|\||[;|])/;
+const SHELL_SEGMENT_PATTERN = /(?:&&|\|\||[;|]|\r?\n)/;
 const SHELL_COMMAND_LIST_PATTERN = /(?:&&|\|\||;|\r?\n)/;
 // Matches curl's -f/--fail flag.
 const CURL_FAIL_FLAG_PATTERN =
