@@ -23,7 +23,7 @@ import {
 } from '../../parsers/shared/normalize.js';
 import {
   extractArgs,
-  extractLoadedSkillFromText,
+  extractLoadedSkillsFromText,
   type ArgFieldMap,
 } from '../../parsers/shared/extract.js';
 
@@ -148,20 +148,21 @@ function enrich(event: TranscriptEvent): TranscriptEvent {
   if (path) event.tool.path = path;
   if (command) event.tool.command = command;
   if (url) event.tool.url = url;
-  event.tool.loadedSkill = loadedSkillFromClaudeCodeCall(event.tool);
+  const loadedSkills = loadedSkillsFromClaudeCodeCall(event.tool);
+  if (loadedSkills.length > 0) event.tool.loadedSkills = loadedSkills;
   return event;
 }
 
 /** Identifies Claude Code skill loads from tool-specific args or file reads. */
-function loadedSkillFromClaudeCodeCall(
+function loadedSkillsFromClaudeCodeCall(
   tool: NonNullable<TranscriptEvent['tool']>
-): string | undefined {
+): string[] {
   if (tool.originalName === 'Skill' && typeof tool.args?.skill === 'string') {
-    return tool.args.skill;
+    return [tool.args.skill];
   }
-  if (tool.path) return extractLoadedSkillFromText(tool.path);
-  if (tool.command) return extractLoadedSkillFromText(tool.command);
-  return undefined;
+  if (tool.path) return extractLoadedSkillsFromText(tool.path);
+  if (tool.command) return extractLoadedSkillsFromText(tool.command);
+  return [];
 }
 
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {

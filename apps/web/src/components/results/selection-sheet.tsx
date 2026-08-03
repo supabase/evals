@@ -1,6 +1,8 @@
-import { Fragment, useState } from "react"
+import { Fragment } from "react"
+import { useQueryState } from "nuqs"
 
 import { EvalDetails } from "@/components/results/eval-details"
+import { ExperimentLabel } from "@/components/results/experiment-label"
 import {
   activateOnKeyDown,
   clickableTableItemClassName,
@@ -24,11 +26,8 @@ import {
   type TableSelection,
 } from "@/lib/dimensions"
 import { scoreResults, type ParsedResult } from "@/lib/eval-results"
+import { selectionQueryKeys, selectionQueryParsers } from "@/lib/url-state"
 import { cn } from "@/lib/utils"
-
-function runKey(result: ParsedResult) {
-  return `${result.experiment}::${result.eval}`
-}
 
 /**
  * Detail view for a clicked row or column, listing the runs behind it. Every
@@ -50,10 +49,13 @@ export function SelectionSheet({
   const orderedRuns = orderRuns(runs, columns, sourceResults)
   const { passed, total } = scoreResults(runs)
   const passRate = total ? Math.round((passed / total) * 100) : null
-  const [expandedRun, setExpandedRun] = useState<string | null>(null)
+  const [expandedRun, setExpandedRun] = useQueryState(
+    selectionQueryKeys.run,
+    selectionQueryParsers.run
+  )
 
   const toggleRun = (key: string) => {
-    setExpandedRun((current) => (current === key ? null : key))
+    void setExpandedRun((current) => (current === key ? null : key))
   }
 
   return (
@@ -110,7 +112,7 @@ export function SelectionSheet({
             </thead>
             <tbody>
               {orderedRuns.map((run) => {
-                const key = runKey(run)
+                const key = run.sourcePath
                 const expanded = expandedRun === key
 
                 return (
@@ -131,14 +133,22 @@ export function SelectionSheet({
                             scope="row"
                             className="border-r border-b border-border py-2.5 pr-3 pl-6 text-left font-normal text-foreground"
                           >
-                            {dimensionCell(facet, run)}
+                            {facet.id === "model" ? (
+                              <ExperimentLabel experiment={run.experiment} />
+                            ) : (
+                              dimensionCell(facet, run)
+                            )}
                           </th>
                         ) : (
                           <td
                             key={facet.id}
                             className="border-r border-b border-border px-3 py-2.5 text-muted-foreground"
                           >
-                            {dimensionCell(facet, run)}
+                            {facet.id === "model" ? (
+                              <ExperimentLabel experiment={run.experiment} />
+                            ) : (
+                              dimensionCell(facet, run)
+                            )}
                           </td>
                         )
                       )}

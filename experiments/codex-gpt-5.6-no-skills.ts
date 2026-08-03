@@ -10,7 +10,7 @@ export default defineExperiment({
   suite: ['no-skills'],
   agent: codexAgent({
     model: 'gpt-5.6-sol',
-    reasoningEffort: 'low',
+    reasoningEffort: 'medium',
   }),
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useQueryStates } from "nuqs"
 
 import { EvalOverviewCards } from "@/components/eval-overview-cards"
 import { PageContainer } from "@/components/page-container"
@@ -7,13 +7,17 @@ import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 import { SiteHero } from "@/components/site-hero"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import type { GroupBy } from "@/lib/dimensions"
-import { sortedResults, type ExperimentSuite } from "@/lib/eval-results"
+import { sortedResults } from "@/lib/eval-results"
+import { resultsQueryKeys, resultsQueryParsers } from "@/lib/url-state"
 
 export function App() {
-  const [groupBy, setGroupBy] = useState<GroupBy>("model")
-  const [experimentSuite, setExperimentSuite] =
-    useState<ExperimentSuite>("benchmark")
+  const [{ groupBy, experimentSuite }, setResultsQuery] = useQueryStates(
+    resultsQueryParsers,
+    {
+      urlKeys: resultsQueryKeys,
+      clearOnDefault: false,
+    }
+  )
   const suiteResults = sortedResults.filter(
     (result) => result.experimentSuite === experimentSuite
   )
@@ -25,14 +29,20 @@ export function App() {
           <>
             <SiteHeader />
             <SiteHero />
-            {/* Pulled up so the table overlaps the hero's bottom edge. */}
-            <PageContainer className="relative z-20 -mt-10 pb-8 md:-mt-16 md:pb-10">
+            {/* Overlap the table with the hero while preserving its content spacing. */}
+            <PageContainer className="relative z-20 -mt-6 pb-8 md:-mt-8 md:pb-10">
               <ResultsTable
                 sourceResults={suiteResults}
                 groupBy={groupBy}
                 experimentSuite={experimentSuite}
-                onGroupByChange={setGroupBy}
-                onExperimentSuiteChange={setExperimentSuite}
+                onGroupByChange={(nextGroupBy) => {
+                  void setResultsQuery({ groupBy: nextGroupBy })
+                }}
+                onExperimentSuiteChange={(nextExperimentSuite) => {
+                  void setResultsQuery({
+                    experimentSuite: nextExperimentSuite,
+                  })
+                }}
               />
             </PageContainer>
             <PageContainer className="pb-24 md:pb-28">

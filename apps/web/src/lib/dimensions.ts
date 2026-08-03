@@ -24,8 +24,15 @@ import {
 
 export type GroupBy = "model" | "stage" | "product" | "eval"
 
-/** What the user clicked: a key on one of the axes, whichever axis it came from. */
-export type TableSelection = { dimension: GroupBy; key: string }
+/**
+ * What the user clicked: a key on one of the axes, whichever axis it came
+ * from, and optionally the single run identified by a score cell.
+ */
+export type TableSelection = {
+  dimension: GroupBy
+  key: string
+  expandedRun?: string
+}
 
 const experimentLabel = new Map(
   getVisibleExperiments(sortedResults).map((experiment) => [
@@ -89,7 +96,7 @@ export type Dimension = {
 export const DIMENSIONS: Record<GroupBy, Dimension> = {
   model: {
     id: "model",
-    label: "Model",
+    label: "Agent",
     keys: getRankedExperiments,
     filter: getExperimentResults,
     keyOf: (result) => result.experiment,
@@ -160,6 +167,23 @@ export function dimensionCell(dimension: Dimension, result: ParsedResult) {
 
 export function dimensionShortTitle(dimension: Dimension, key: string) {
   return dimension.shortTitle?.(key) ?? dimension.title(key)
+}
+
+/**
+ * Builds a sheet selection from any table axis. A score cell only points all
+ * the way to a run when its row/column intersection is unambiguous; aggregate
+ * cells still open the row's complete sheet.
+ */
+export function tableSelection(
+  dimension: Dimension,
+  key: string,
+  cellRuns: ParsedResult[] = []
+): TableSelection {
+  return {
+    dimension: dimension.id,
+    key,
+    ...(cellRuns.length === 1 ? { expandedRun: cellRuns[0].sourcePath } : {}),
+  }
 }
 
 /**

@@ -124,7 +124,7 @@ describe('codexParser', () => {
     });
 
     const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
-    expect(adapted.toolCalls[0].loadedSkill).toBe('supabase');
+    expect(adapted.toolCalls[0].loadedSkills).toEqual(['supabase']);
   });
 
   it('marks a non-zero exit code as a failed shell call (error surfaced via adapter)', () => {
