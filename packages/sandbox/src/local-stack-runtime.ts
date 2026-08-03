@@ -79,10 +79,8 @@ export function localStackRuntime(
       projectRunning,
       hosted,
       skills,
+      skipCliInstall,
     }) {
-      // Local-stack mode = the shared agent environment with the Supabase local
-      // stack started. Everything else (image, tooling, skills) is identical to
-      // tools mode; only the `localStack` component differs.
       const env = await createAgentEnvironment({
         cliVersion: cliVersion ?? options.cliVersion,
         localDir,
@@ -98,17 +96,23 @@ export function localStackRuntime(
                 accessToken: hosted.accessToken,
               }
             : undefined,
+          skipCliInstall,
         },
       });
       const sandbox = env.sandbox;
 
       const mcpServers = await resolveMcpServers(options, hosted);
 
-      const baseAddendum =
-        'The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. ' +
+      let baseAddendum =
+        'docker, psql, git, and curl are installed in the workspace. ' +
         'Use the bash tool to run commands (the working directory is always the workspace root) ' +
-        'and the files tools to inspect and modify files. ' +
-        'Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
+        'and the files tools to inspect and modify files.';
+
+      if (!skipCliInstall) {
+        baseAddendum = 'The Supabase CLI (`supabase`), ' + baseAddendum;
+        baseAddendum +=
+          ' Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
+      }
 
       return {
         tools: buildLocalStackTools(sandbox),

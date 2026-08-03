@@ -129,6 +129,22 @@ export type EvalMetadata = {
    * evals only). Defaults to false.
    */
   hostedProject?: boolean;
+  /**
+   * Overrides the experiment's `skills` list for this eval only. An empty
+   * list (`skills: []`) tests an agent with no pre-installed Supabase
+   * skills, regardless of which experiment runs it — for a scenario where
+   * the prompt asks the agent to install skills itself. Omit the key
+   * entirely to use the experiment's own skill list.
+   */
+  skills?: string[];
+  /**
+   * Skips installing the real Supabase CLI into the sandbox before the agent
+   * starts (sandbox evals only). Defaults to false. Set true only for
+   * scenarios whose prompt has the agent install the CLI itself — the
+   * harness itself never invokes `supabase` when this is set, so pair it
+   * with `projectRunning: false`.
+   */
+  skipCliInstall?: boolean;
 };
 
 export type ParsedEvalMarkdown = {
@@ -149,6 +165,8 @@ export const evalMetadataSchema = z.object({
   // non-empty string as true.
   projectRunning: z.union([z.boolean(), z.stringbool()]).optional(),
   hostedProject: z.union([z.boolean(), z.stringbool()]).optional(),
+  skills: z.array(z.string().min(1)).optional(),
+  skipCliInstall: z.union([z.boolean(), z.stringbool()]).optional(),
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
@@ -180,12 +198,14 @@ const toTokenList = (value: unknown): unknown => {
     .filter((item) => typeof item === 'string' && item.length > 0);
 };
 
-// `services` are real Supabase CLI service identifiers (e.g. `postgres-meta`,
-// `storage-api`, `edge-runtime`), matched verbatim against ALL_SUPABASE_SERVICES
-// in @supabase-evals/sandbox. They must NOT go through normalizeToken: folding
-// hyphens to underscores would turn `postgres-meta` into `postgres_meta` and
-// fail that match. Only trim + lowercase; preserve hyphens. Blanks are dropped.
-const toServiceList = (value: unknown): unknown =>
+// `services` and `skills` are literal identifiers (Supabase CLI service names
+// like `postgres-meta`, or skill directory names like
+// `supabase-postgres-best-practices`), not enum tokens. They must NOT go
+// through normalizeToken: folding hyphens to underscores would turn
+// `postgres-meta` into `postgres_meta` and fail the verbatim match against
+// ALL_SUPABASE_SERVICES (services) or the skills/ directory (skills). Only
+// trim + lowercase; preserve hyphens. Blanks are dropped.
+const toIdentifierList = (value: unknown): unknown =>
   (Array.isArray(value) ? value : [value])
     .map((item) =>
       typeof item === 'string' ||
@@ -215,10 +235,17 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     // `services: []` means database only; an omitted key means the full stack.
     // Only an explicit list is honored — any other value is treated as absent.
     services: Array.isArray(data.services)
-      ? toServiceList(data.services)
+      ? toIdentifierList(data.services)
       : undefined,
     projectRunning: data.projectRunning,
     hostedProject: data.hostedProject,
+    // `skills: []` means no pre-installed skills for this eval; an omitted
+    // key means "use the experiment's own skill list" (see resolveSkillSources
+    // in apps/framework/harness/run-eval.ts).
+    skills: Array.isArray(data.skills)
+      ? toIdentifierList(data.skills)
+      : undefined,
+    skipCliInstall: data.skipCliInstall,
   };
 }, evalMetadataSchema);
 

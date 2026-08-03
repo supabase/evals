@@ -58,6 +58,7 @@ export const SANDBOX_CONTAINER_LABEL = 'supabase-evals-sandbox';
 const CLIENT_TIMEOUT_HEADROOM_MS = 20_000;
 
 const SANDBOX_PATH = [
+  '/home/node/.npm-global/bin',
   '/usr/local/sbin',
   '/usr/local/bin',
   '/usr/sbin',

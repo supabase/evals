@@ -113,6 +113,58 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
     );
 
     it(
+      "skipCliInstall leaves the CLI absent, and the wrapper doesn't crash setup",
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        const image = await ensureSupabaseSandboxImage();
+        const sandbox = await DockerSandbox.create({ image, network: 'host' });
+        try {
+          await setupSupabaseSandbox(sandbox, {
+            projectRunning: false,
+            skipCliInstall: true,
+          });
+
+          const version = await sandbox.runShell('supabase --version');
+          expect(version.ok).toBe(false);
+
+          // The agent installs it itself; the harness never touched the CLI.
+          const install = await sandbox.runShellAsRoot(
+            `ARCH="$(dpkg --print-architecture)" && ` +
+              `curl -fsSL "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_${SUPABASE_CLI_VERSION}_linux_$ARCH.deb" -o /tmp/supabase.deb && ` +
+              `dpkg -i /tmp/supabase.deb && rm /tmp/supabase.deb`
+          );
+          expect(install.ok).toBe(true);
+
+          const versionAfter = await sandbox.runShell('supabase --version');
+          expect(versionAfter.ok).toBe(true);
+          expect(versionAfter.stdout.trim()).toBe(SUPABASE_CLI_VERSION);
+        } finally {
+          await sandbox.stop();
+        }
+      }
+    );
+
+    it(
+      'npm install -g lands on PATH without sudo/workarounds',
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        const image = await ensureSupabaseSandboxImage();
+        const sandbox = await DockerSandbox.create({ image, network: 'host' });
+        try {
+          const install = await sandbox.runShell(
+            'npm install -g supabase 2>&1'
+          );
+          expect(install.ok).toBe(true);
+
+          const version = await sandbox.runShell('supabase --version');
+          expect(version.ok).toBe(true);
+        } finally {
+          await sandbox.stop();
+        }
+      }
+    );
+
+    it(
       'installs a local skill into the workspace with the skills CLI',
       { timeout: TEST_TIMEOUT_MS },
       async () => {

@@ -36,6 +36,7 @@ import {
 import type {
   AgentHarnessId,
   CheckResult,
+  EvalMetadata,
   EvalSuite,
   ExperimentDisplayMetadata,
   ExperimentSuite,
@@ -438,6 +439,13 @@ export type LocalStackSessionArgs = {
    * instead, so they ignore this.
    */
   skills?: readonly SkillSource[];
+  /**
+   * Skip installing the real Supabase CLI into the sandbox (from
+   * `skipCliInstall:` frontmatter), for scenarios whose prompt has the agent
+   * install the CLI itself. Also skips the CLI shim that enforces
+   * `includeServices`, since there's no real binary yet to resolve and wrap.
+   */
+  skipCliInstall?: boolean;
 };
 
 /** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */
@@ -514,6 +522,13 @@ export type ExperimentConfig = {
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
   localStack?: LocalStackRuntime;
   skills: string[];
+  /**
+   * Skip running specific evals against this experiment, e.g. a `*-no-skills`
+   * experiment skipping evals whose per-eval `skills` override is already
+   * `[]` — running those would just duplicate what this experiment's own
+   * empty skill list already covers.
+   */
+  skipEval?: (ev: { id: string; metadata: EvalMetadata }) => boolean;
 };
 
 export function getExperimentDisplayMetadata(
