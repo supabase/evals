@@ -228,6 +228,81 @@ describe('codexParser', () => {
     });
   });
 
+  it('attaches turn.completed.usage to the last assistant message of that turn', () => {
+    const stream = [
+      JSON.stringify({ type: 'turn.started' }),
+      JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'm1', type: 'agent_message', text: 'First reply.' },
+      }),
+      JSON.stringify({
+        type: 'turn.completed',
+        usage: { input_tokens: 120, output_tokens: 15 },
+      }),
+      JSON.stringify({ type: 'turn.started' }),
+      JSON.stringify({
+        type: 'item.completed',
+        item: { id: 'm2', type: 'agent_message', text: 'Second reply.' },
+      }),
+      JSON.stringify({
+        type: 'turn.completed',
+        usage: {
+          input_tokens: 200,
+          output_tokens: 30,
+          cached_input_tokens: 80,
+        },
+      }),
+    ].join('\n');
+
+    const { events } = codexParser.parseTranscript(stream);
+    const messages = events.filter((e) => e.type === 'message');
+    expect(messages).toHaveLength(2);
+    expect(messages[0].usage).toEqual({
+      inputTokens: 120,
+      outputTokens: 15,
+      cacheReadTokens: undefined,
+      totalTokens: 135,
+    });
+    expect(messages[1].usage).toEqual({
+      inputTokens: 200,
+      outputTokens: 30,
+      cacheReadTokens: 80,
+      totalTokens: 230,
+    });
+  });
+
+  it('attaches turn.completed.usage to a tool call when the turn produced no text', () => {
+    // Loading a skill is exactly this shape: a turn that's a single tool call
+    // with no assistant text before turn.completed.
+    const stream = [
+      JSON.stringify({ type: 'turn.started' }),
+      JSON.stringify({
+        type: 'item.completed',
+        item: {
+          id: 'skill_1',
+          type: 'command_execution',
+          command: 'cat .agents/skills/supabase/SKILL.md',
+          aggregated_output: '# Supabase',
+          exit_code: 0,
+          status: 'completed',
+        },
+      }),
+      JSON.stringify({
+        type: 'turn.completed',
+        usage: { input_tokens: 1000, output_tokens: 5 },
+      }),
+    ].join('\n');
+
+    const { events } = codexParser.parseTranscript(stream);
+    const toolCall = events.find((e) => e.type === 'tool_call');
+    expect(toolCall?.usage).toEqual({
+      inputTokens: 1000,
+      outputTokens: 5,
+      cacheReadTokens: undefined,
+      totalTokens: 1005,
+    });
+  });
+
   it('emits an error event for a failed turn', () => {
     const stream = [
       JSON.stringify({ type: 'turn.started' }),

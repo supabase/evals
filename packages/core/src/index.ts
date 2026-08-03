@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import type { ToolCall, ToolName } from './transcript/types.js';
+import type { ToolCall, ToolName, TokenUsage } from './transcript/types.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
@@ -37,11 +37,9 @@ import type {
   AgentHarnessId,
   CheckResult,
   EvalMetadata,
-  EvalSuite,
   ExperimentDisplayMetadata,
   ExperimentSuite,
   ModelProvider,
-  ReasoningEffortLevel,
 } from './eval-metadata.js';
 import { reasoningEffortSchema } from './eval-metadata.js';
 import type { AgentMetadata, AgentSandbox } from './agents/types.js';
@@ -117,9 +115,17 @@ export type {
 export { createParser, supportedParsers } from './agents/registry.js';
 export { adaptTranscript } from './parsers/adapt.js';
 export type { AdaptedTranscript } from './parsers/adapt.js';
+// Eval run → AgentPrism trace tree (used by the web viewer's trace panel).
+export { evalResultToTraceSpans } from './trace-viewer.js';
+export type {
+  EvalResultTraceInput,
+  TraceBadge,
+  TraceViewerData,
+} from './trace-viewer.js';
 export type { AgentTranscriptParser } from './parsers/types.js';
 export type {
   ToolName,
+  TokenUsage,
   TranscriptEvent,
   ParsedTranscript,
 } from './transcript/types.js';
@@ -154,6 +160,23 @@ export type TranscriptPart =
       type: 'message';
       role: 'system' | 'user' | 'assistant';
       content: string;
+      /**
+       * Token usage for the turn that closed with this message, when it's an
+       * assistant message. Set only on whichever transcript part (message or
+       * tool_call) is the LAST one a turn produced — a turn is often
+       * tool-call-only (e.g. loading a skill), so usage isn't always on text.
+       */
+      usage?: TokenUsage;
+      /**
+       * Real wall-clock epoch ms when this part was recorded, when the agent
+       * exposes one — ai-sdk's `onStepFinish` (per-step, not per-part: a step
+       * with multiple parts only carries ts on its last one, mirroring
+       * `usage`) or a CLI agent's own JSONL timestamp. Absent for synthetic
+       * parts (the seeded system/user prompt) and for agents that don't
+       * timestamp events (Codex's `--json` stream has none). Used to compute
+       * real per-span duration in trace-viewer.ts — never fabricated.
+       */
+      ts?: number;
     }
   | {
       type: 'tool_call';
@@ -161,6 +184,10 @@ export type TranscriptPart =
       input: Record<string, unknown>;
       output?: unknown;
       error?: string;
+      /** Token usage, when this tool call is the turn's last part (see above). */
+      usage?: TokenUsage;
+      /** Real wall-clock epoch ms this call finished, when known (see above). */
+      ts?: number;
     };
 
 export type TranscriptSerializationOptions = {
@@ -609,6 +636,21 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
   };
 }
 
+/** ai-sdk's `LanguageModelUsage` (per-step) → the shared `TokenUsage` shape. */
+function toTokenUsage(usage: {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  inputTokenDetails?: { cacheReadTokens?: number };
+}): TokenUsage {
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    cacheReadTokens: usage.inputTokenDetails?.cacheReadTokens,
+  };
+}
+
 function getModelProvider(provider: string, modelId: string): ModelProvider {
   if (provider.startsWith('anthropic') || modelId.startsWith('claude-')) {
     return 'anthropic';
@@ -666,6 +708,12 @@ export function aiSdkAgent(options: {
       ]);
 
       try {
+        // Real wall-clock time each step finished, captured live as
+        // generateText runs (index i matches result.steps[i]) — the only
+        // per-step timing ai-sdk exposes; a step with multiple parts (e.g.
+        // text then a tool call) can't be split finer than this, same
+        // granularity limit as step.usage.
+        const stepTimestamps: number[] = [];
         const result = await generateText({
           model: options.model,
           system: args.systemPrompt,
@@ -674,6 +722,9 @@ export function aiSdkAgent(options: {
           stopWhen: stepCountIs(MAX_STEPS),
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           timeout: { totalMs: args.timeoutSec * 1000 },
+          onStepFinish: () => {
+            stepTimestamps.push(Date.now());
+          },
           providerOptions: withProviderDefaults(
             options.model.provider,
             options.providerOptions
@@ -728,7 +779,16 @@ export function aiSdkAgent(options: {
           }
         }
 
-        for (const step of result.steps) {
+        for (const [stepIndex, step] of result.steps.entries()) {
+          const usage = toTokenUsage(step.usage);
+          const ts = stepTimestamps[stepIndex];
+          // A step's usage covers everything it produced, but a step is often
+          // tool-call-only (no text) — e.g. the turn that loads a skill. Attach
+          // usage to whichever transcript-emitting part is LAST in the step
+          // (text or tool-call), not unconditionally to the first text part,
+          // so a tool-call-only step's cost isn't silently dropped. Same for
+          // `ts` — it's the whole step's timestamp, not a per-part one.
+          const pushed: number[] = [];
           for (const part of step.content) {
             if (part.type === 'text') {
               const content = part.text.trim();
@@ -738,6 +798,7 @@ export function aiSdkAgent(options: {
                   role: 'assistant',
                   content,
                 });
+                pushed.push(transcript.length - 1);
               }
             } else if (part.type === 'tool-call') {
               const resolved = toolOutputs.get(part.toolCallId);
@@ -748,7 +809,12 @@ export function aiSdkAgent(options: {
                 output: resolved?.output,
                 error: resolved?.error,
               });
+              pushed.push(transcript.length - 1);
             }
+          }
+          const lastIdx = pushed[pushed.length - 1];
+          if (lastIdx !== undefined) {
+            transcript[lastIdx] = { ...transcript[lastIdx], usage, ts };
           }
         }
 

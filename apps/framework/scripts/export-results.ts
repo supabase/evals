@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
 import {
+  evalResultToTraceSpans,
   getExperimentDisplayMetadata,
+  type EvalResultTraceInput,
   type ExperimentConfig,
   type ExperimentDisplayMetadata,
 } from '@supabase-evals/core';
@@ -16,6 +18,7 @@ import type {
   EvalSuite,
   ExperimentSuite,
 } from '@supabase-evals/core/eval-metadata';
+import type { ToolCallRecord, TranscriptPart } from '@supabase-evals/core';
 import {
   normalizeExperimentName,
   readExperimentSuiteFilters,
@@ -36,6 +39,7 @@ const OUTPUT_PATH = join(
   'data',
   'eval-results.json'
 );
+const TRACES_DIR = join(ROOT, 'apps', 'web', 'src', 'data', 'traces');
 
 type ExperimentExportMetadata = {
   display: ExperimentDisplayMetadata;
@@ -66,6 +70,10 @@ const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const MERGE = rawArgs.includes('--merge');
+// Per-eval trace JSON for the web viewer's TracePanel. On by default; flip with
+// `--no-traces`. Written lazily (one file per evalId) so the aggregate bundle
+// stays lean — the web app fetches a trace only when a row is selected.
+const WRITE_TRACES = !rawArgs.includes('--no-traces');
 
 const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
@@ -98,7 +106,7 @@ async function readResultFile(
   filePath: string,
   sourcePath: string,
   experimentMetadata: Map<string, ExperimentExportMetadata>
-): Promise<EvalResult | null> {
+): Promise<{ result: EvalResult; traceInput: EvalResultTraceInput } | null> {
   const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'));
   const result = rawEvalResultSchema.safeParse(parsed);
   if (!result.success) {
@@ -113,7 +121,7 @@ async function readResultFile(
     parsedResult.profile ??
     experimentData?.experimentSuite;
 
-  return {
+  const evalResult: EvalResult = {
     experiment: parsedResult.experiment,
     experimentSuite,
     experimentDisplay:
@@ -134,6 +142,23 @@ async function readResultFile(
     attempts: parsedResult.attempts,
     sourcePath,
   };
+
+  // rawEvalResultSchema is loose, so the transcript/toolCalls/agentReport the
+  // strict evalResultSchema drops are still here — that's what the trace
+  // adapter consumes.
+  const traceInput: EvalResultTraceInput = {
+    evalId: parsedResult.eval,
+    passed: parsedResult.passed === true,
+    transcript: parsedResult.transcript as TranscriptPart[] | undefined,
+    toolCalls: parsedResult.toolCalls as ToolCallRecord[] | undefined,
+    agentReport: parsedResult.agentReport as string | undefined,
+    skills: parsedResult.skills,
+    checks: parsedResult.checks,
+    experimentDisplay: parsedResult.experimentDisplay,
+    attempts: parsedResult.attempts,
+  };
+
+  return { result: evalResult, traceInput };
 }
 
 function shouldIncludeExperiment(experiment: string): boolean {
@@ -173,14 +198,29 @@ function shouldIncludeExperimentSuite(
   );
 }
 
-async function loadEvalResults(): Promise<EvalResult[]> {
+async function loadEvalResults(): Promise<{
+  results: EvalResult[];
+  traceInputs: Map<string, EvalResultTraceInput>;
+}> {
+  const traceInputs = new Map<string, EvalResultTraceInput>();
   if (!existsSync(RESULTS_DIR)) {
-    return [];
+    return { results: [], traceInputs };
   }
 
   const experimentMetadata = await loadExperimentMetadata();
   const results: EvalResult[] = [];
   const experiments = await readdir(RESULTS_DIR);
+
+  // Same evalId may run under several experiments (different agents/models).
+  // Prefer a run that actually recorded a transcript over one that didn't, so
+  // the trace viewer shows a real span tree rather than an empty no-skills run.
+  const upsertTrace = (input: EvalResultTraceInput) => {
+    const existing = traceInputs.get(input.evalId);
+    const hasTranscript = (input.transcript?.length ?? 0) > 0;
+    if (!existing || (hasTranscript && !existing.transcript?.length)) {
+      traceInputs.set(input.evalId, input);
+    }
+  };
 
   for (const experiment of experiments) {
     if (experiment.startsWith('.') || experiment.startsWith('_')) {
@@ -209,17 +249,18 @@ async function loadEvalResults(): Promise<EvalResult[]> {
           continue;
         }
 
-        const result = await readResultFile(
+        const read = await readResultFile(
           entryPath,
           relativeEntryPath,
           experimentMetadata
         );
         if (
-          result &&
-          shouldIncludeSuite(result.suite) &&
-          shouldIncludeExperimentSuite(result.experimentSuite)
+          read &&
+          shouldIncludeSuite(read.result.suite) &&
+          shouldIncludeExperimentSuite(read.result.experimentSuite)
         ) {
-          results.push(result);
+          results.push(read.result);
+          upsertTrace(read.traceInput);
         }
         continue;
       }
@@ -237,29 +278,48 @@ async function loadEvalResults(): Promise<EvalResult[]> {
         continue;
       }
 
-      const result = await readResultFile(
+      const read = await readResultFile(
         summaryPath,
         `${relativeEntryPath}/summary.json`,
         experimentMetadata
       );
       if (
-        result &&
-        shouldIncludeSuite(result.suite) &&
-        shouldIncludeExperimentSuite(result.experimentSuite)
+        read &&
+        shouldIncludeSuite(read.result.suite) &&
+        shouldIncludeExperimentSuite(read.result.experimentSuite)
       ) {
-        results.push(result);
+        results.push(read.result);
+        upsertTrace(read.traceInput);
       }
     }
   }
 
-  return results.sort(
+  results.sort(
     (a, b) =>
       a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval)
   );
+  return { results, traceInputs };
+}
+
+async function writeTraces(
+  traceInputs: Map<string, EvalResultTraceInput>
+): Promise<number> {
+  if (!WRITE_TRACES) return 0;
+  await mkdir(TRACES_DIR, { recursive: true });
+  let written = 0;
+  for (const [evalId, input] of traceInputs) {
+    const data = evalResultToTraceSpans(input);
+    await writeFile(
+      join(TRACES_DIR, `${evalId}.json`),
+      `${JSON.stringify(data, null, 2)}\n`
+    );
+    written += 1;
+  }
+  return written;
 }
 
 async function main() {
-  const newResults = await loadEvalResults();
+  const { results: newResults, traceInputs } = await loadEvalResults();
   const hasFilters =
     EXPERIMENT_FILTERS.length > 0 ||
     EVAL_FILTERS.length > 0 ||
@@ -295,6 +355,13 @@ async function main() {
     `Exported ${results.length} result(s) to ${relative(ROOT, outputPath)} ` +
       `(${passed} pass, ${results.length - passed} fail)`
   );
+
+  const tracesWritten = await writeTraces(traceInputs);
+  if (WRITE_TRACES) {
+    console.log(
+      `Exported ${tracesWritten} trace(s) to ${relative(ROOT, TRACES_DIR)}`
+    );
+  }
 }
 
 main().catch((error: unknown) => {

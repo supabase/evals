@@ -78,6 +78,14 @@ Start the web app development server:
 pnpm web
 ```
 
+### Trace viewer
+
+Every row in the results table has a "View span tree" link that opens an [AgentPrism](https://github.com/evilmartians/agent-prism)-based trace panel: the full span tree for that run — system/user messages, each tool call with its input/output, the assistant's turns, and check results — with per-span duration, token usage, and status.
+
+`pnpm export-results` writes these lazily: alongside the aggregate `eval-results.json`, it emits one `apps/web/src/data/traces/<evalId>.json` per eval (via `evalResultToTraceSpans` in `packages/core/src/trace-viewer.ts`, which adapts a run's raw transcript into AgentPrism's span format). The web app fetches a trace only when its row is opened, so the aggregate bundle stays lean. Pass `--no-traces` to `export-results` to skip writing them.
+
+Tool call input/output defaults to a human-readable "Plain" view with real line breaks — multi-line shell commands and command output are unreadable as JSON's escaped `\n` form. Switch to the "JSON" tab for exact, copy-pasteable JSON.
+
 ## Eval Shape
 
 Every eval contains:

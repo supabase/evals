@@ -144,6 +144,92 @@ describe('opencodeParser', () => {
     ]);
   });
 
+  it("attaches step_finish.part.tokens to the step's last assistant message", () => {
+    const { events } = opencodeParser.parseTranscript(SESSION);
+    const messages = events.filter(
+      (e) => e.type === 'message' && e.role === 'assistant'
+    );
+    // SESSION has one step (one step_finish) with two assistant text parts;
+    // only the last ('Done.') gets the step's usage.
+    expect(messages.map((m) => m.content)).toEqual(['Listing files.', 'Done.']);
+    expect(messages[0].usage).toBeUndefined();
+    expect(messages[1].usage).toEqual({
+      inputTokens: 3,
+      outputTokens: 6,
+      cacheReadTokens: undefined,
+      totalTokens: 9,
+    });
+  });
+
+  it('reads cache.read tokens when the step reports them', () => {
+    const stream = [
+      JSON.stringify({
+        type: 'text',
+        part: { type: 'text', text: 'Loaded a skill.' },
+      }),
+      JSON.stringify({
+        type: 'step_finish',
+        part: {
+          type: 'step-finish',
+          reason: 'stop',
+          tokens: {
+            input: 50,
+            output: 10,
+            reasoning: 0,
+            cache: { read: 400, write: 0 },
+          },
+        },
+      }),
+    ].join('\n');
+    const { events } = opencodeParser.parseTranscript(stream);
+    const message = events.find(
+      (e) => e.type === 'message' && e.role === 'assistant'
+    );
+    expect(message?.usage).toEqual({
+      inputTokens: 50,
+      outputTokens: 10,
+      cacheReadTokens: 400,
+      totalTokens: 60,
+    });
+  });
+
+  it('attaches step_finish tokens to a tool call when the step produced no text', () => {
+    // Loading a skill is exactly this shape: a step that's a single tool call
+    // with no assistant text before step_finish.
+    const stream = [
+      JSON.stringify({
+        type: 'tool_use',
+        part: {
+          type: 'tool',
+          tool: 'skill',
+          callID: 's1',
+          state: {
+            status: 'completed',
+            input: { name: 'supabase' },
+            output: '# Supabase',
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'step_finish',
+        part: {
+          type: 'step-finish',
+          reason: 'stop',
+          tokens: { input: 900, output: 3 },
+        },
+      }),
+    ].join('\n');
+
+    const { events } = opencodeParser.parseTranscript(stream);
+    const toolCall = events.find((e) => e.type === 'tool_call');
+    expect(toolCall?.usage).toEqual({
+      inputTokens: 900,
+      outputTokens: 3,
+      cacheReadTokens: undefined,
+      totalTokens: 903,
+    });
+  });
+
   it('surfaces skill loads from the skill tool and from SKILL.md reads', () => {
     const stream = [
       JSON.stringify({
