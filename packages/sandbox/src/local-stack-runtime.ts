@@ -103,14 +103,16 @@ export function localStackRuntime(
 
       const mcpServers = await resolveMcpServers(options, hosted);
 
-      const baseAddendum = skipCliInstall
-        ? 'docker, psql, git, and curl are installed in the workspace, but the Supabase CLI is not — install it yourself. ' +
-          'Use the bash tool to run commands (the working directory is always the workspace root) ' +
-          'and the files tools to inspect and modify files.'
-        : 'The Supabase CLI (`supabase`), docker, psql, git, and curl are installed in the workspace. ' +
-          'Use the bash tool to run commands (the working directory is always the workspace root) ' +
-          'and the files tools to inspect and modify files. ' +
-          'Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
+      let baseAddendum =
+        'docker, psql, git, and curl are installed in the workspace. ' +
+        'Use the bash tool to run commands (the working directory is always the workspace root) ' +
+        'and the files tools to inspect and modify files.';
+
+      if (!skipCliInstall) {
+        baseAddendum = 'The Supabase CLI (`supabase`), ' + baseAddendum;
+        baseAddendum +=
+          ' Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
+      }
 
       return {
         tools: buildLocalStackTools(sandbox),
