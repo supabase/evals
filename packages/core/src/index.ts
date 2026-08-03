@@ -12,13 +12,14 @@ import type { ToolName } from './transcript/types.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
-import { openai } from '@ai-sdk/openai';
+import { createOpenAI, openai } from '@ai-sdk/openai';
 import {
   Output,
   generateText,
   stepCountIs,
   type JSONValue,
   type LanguageModel,
+  type ModelMessage,
   type ToolSet,
 } from 'ai';
 import ts from 'typescript';
@@ -36,11 +37,9 @@ import {
 import type {
   AgentHarnessId,
   CheckResult,
-  EvalSuite,
   ExperimentDisplayMetadata,
   ExperimentSuite,
   ModelProvider,
-  ReasoningEffortLevel,
 } from './eval-metadata.js';
 import { reasoningEffortSchema } from './eval-metadata.js';
 import type { AgentMetadata, AgentSandbox } from './agents/types.js';
@@ -117,6 +116,12 @@ export { createParser, supportedParsers } from './agents/registry.js';
 export { adaptTranscript } from './parsers/adapt.js';
 export type { AdaptedTranscript } from './parsers/adapt.js';
 export type { AgentTranscriptParser } from './parsers/types.js';
+// Deterministic scorer factory for skill-trigger-quality evals (the trigger
+// suite): compares loaded skills vs a hand-authored expected set.
+export {
+  createSkillTriggerScorer,
+  loadedSkillsFromToolCalls,
+} from './skill-trigger-scorer.js';
 export type {
   ToolName,
   TranscriptEvent,
@@ -364,6 +369,14 @@ export type AgentRunArgs = {
   tools?: ToolSet;
   mcpServers?: Record<string, McpServerConfig>;
   /**
+   * Prior conversation injected before `userPrompt` to simulate a half-full,
+   * noisy context window (the trigger suite's `--noisy-context` mode). Only
+   * `aiSdkAgent` honors this: it sends `system` + `messages: [...priorMessages,
+   * {user}]` instead of `system` + `prompt`. CLI agents are one-shot and ignore
+   * it (the harness prepends a text block to their prompt instead).
+   */
+  priorMessages?: ModelMessage[];
+  /**
    * Execution environment for CLI agents (Claude Code, Codex, …). In-process
    * agents like `aiSdkAgent` ignore it; CLI agents need it to run their binary,
    * edit the workspace, and read back their transcript. Provided by the
@@ -560,7 +573,12 @@ const judgeOutputSchema = z.object({
   notes: z.string(),
 });
 
-const DEFAULT_JUDGE_MODEL = openai('gpt-5.5');
+const DEFAULT_JUDGE_MODEL = process.env.OPENROUTER_API_KEY
+  ? createOpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY,
+    })('openai/gpt-5.5')
+  : openai('gpt-5.5');
 const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   openai: {
     reasoningEffort: 'low',
@@ -590,11 +608,11 @@ export async function judge(args: JudgeInput): Promise<JudgeResult> {
 }
 
 function getModelProvider(provider: string, modelId: string): ModelProvider {
-  if (provider.startsWith('anthropic') || modelId.startsWith('claude-')) {
+  if (provider.startsWith('anthropic') || modelId.includes('claude-')) {
     return 'anthropic';
   }
 
-  if (provider.startsWith('openai') || modelId.startsWith('gpt-')) {
+  if (provider.startsWith('openai') || modelId.includes('gpt-')) {
     return 'openai';
   }
 
@@ -609,7 +627,12 @@ export function aiSdkAgent(options: {
   const configuredEffort = po?.anthropic?.effort ?? po?.openai?.reasoningEffort;
   const reasoningEffort =
     reasoningEffortSchema.safeParse(configuredEffort).data;
-  const modelId = options.model.modelId;
+  // OpenRouter-routed models carry a vendor-prefixed slug (e.g.
+  // "anthropic/claude-sonnet-5") required on the wire, but that's a transport
+  // detail — direct-provider runs of the same model report the bare id (e.g.
+  // "claude-sonnet-5"). Normalize so results/labels for one experiment don't
+  // fork depending on which transport happened to run them.
+  const modelId = options.model.modelId.replace(/^[\w-]+\//, '');
   return {
     id: 'ai-sdk',
     modelId,
@@ -628,8 +651,24 @@ export function aiSdkAgent(options: {
         ? await createAiSdkTools(args.mcpServers)
         : [];
       const toolCalls: ToolCallRecord[] = [];
+      // Seed the transcript with the system prompt, then any prior conversation
+      // (trigger suite noisy-context mode), then the user prompt. priorMessages
+      // are {user|assistant, string} from the distractor templates — non-string
+      // content is stringified defensively; a 'system' role would fold to 'user',
+      // but the templates never emit one.
+      const priorTranscript: TranscriptPart[] = (args.priorMessages ?? []).map(
+        (m) => ({
+          type: 'message' as const,
+          role: m.role === 'assistant' ? 'assistant' : ('user' as 'user'),
+          content:
+            typeof m.content === 'string'
+              ? m.content
+              : JSON.stringify(m.content),
+        })
+      );
       const transcript: TranscriptPart[] = [
         { type: 'message', role: 'system', content: args.systemPrompt },
+        ...priorTranscript,
         { type: 'message', role: 'user', content: args.userPrompt },
       ];
       const tools = mergeToolSets([
@@ -638,11 +677,16 @@ export function aiSdkAgent(options: {
       ]);
 
       try {
-        const result = await generateText({
+        // When prior context is supplied, send it as real turns before the user
+        // prompt; otherwise the plain one-shot prompt. `tools` and the
+        // discriminating prompt/messages key stay inline so generateText's
+        // overloaded generics resolve; the rest is shared boilerplate. Two
+        // calls because prompt and messages are mutually exclusive on the
+        // options union — a conditional spread would leave both optional and
+        // match no overload.
+        const common = {
           model: options.model,
           system: args.systemPrompt,
-          prompt: args.userPrompt,
-          tools,
           stopWhen: stepCountIs(MAX_STEPS),
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           timeout: { totalMs: args.timeoutSec * 1000 },
@@ -650,7 +694,10 @@ export function aiSdkAgent(options: {
             options.model.provider,
             options.providerOptions
           ),
-          experimental_onToolCallFinish: (event) => {
+          experimental_onToolCallFinish: (event: {
+            toolCall: { toolName: string; input: unknown };
+            output?: unknown;
+          }) => {
             const input = isRecord(event.toolCall.input)
               ? event.toolCall.input
               : {};
@@ -673,7 +720,17 @@ export function aiSdkAgent(options: {
               ts: Date.now(),
             });
           },
-        });
+        };
+        const result = args.priorMessages
+          ? await generateText({
+              ...common,
+              tools,
+              messages: [
+                ...args.priorMessages,
+                { role: 'user' as const, content: args.userPrompt },
+              ],
+            })
+          : await generateText({ ...common, tools, prompt: args.userPrompt });
 
         // Build the transcript from every step's content so the judge sees
         // all user-facing assistant text, not just the final step's text.
@@ -1196,7 +1253,11 @@ const MAX_OUTPUT_TOKENS = 4096;
 const RUNTIME_URL = 'http://supabase-evals.local';
 
 function assertProviderReady(provider: string): void {
-  if (provider.startsWith('openai') && !process.env.OPENAI_API_KEY) {
+  if (
+    provider.startsWith('openai') &&
+    !process.env.OPENAI_API_KEY &&
+    !process.env.OPENROUTER_API_KEY
+  ) {
     throw new Error(
       'Missing OpenAI credentials. Set OPENAI_API_KEY before running OpenAI evals.'
     );

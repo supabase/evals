@@ -5,26 +5,28 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { jsonSchema, tool, type ToolSet } from 'ai';
+import type { ModelMessage } from 'ai';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
-import {
-  createBareSandbox,
-  frontmatterDescription,
-  stripFrontmatter,
-} from '@supabase-evals/sandbox';
+import { createBareSandbox } from '@supabase-evals/sandbox';
 import {
   normalizeExperimentName,
   readExperimentSuiteFilters,
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import {
+  buildLoadSkillTool,
+  buildSystemPrompt,
+  buildToolsSkillsPrompt,
+  loadToolsSkills,
+  resolveSkillSources,
+} from '../lib/tools-skills.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
 import {
@@ -77,6 +79,55 @@ const TIMEOUT_SEC = Number(readFlag('timeout-sec') ?? 720);
 const CONCURRENCY = Number(readFlag('concurrency') ?? 1);
 const STOP_ON_PASS = !args.has('--run-all-attempts');
 const DEBUG = args.has('--debug');
+
+// ── Noisy context (trigger suite) ──────────────────────────────────────────
+// `--noisy-context[=name]` injects a simulated prior conversation before the
+// user prompt so trigger-quality is measured against a half-full, noisy
+// context window. With a name, that specific distractor template is used; bare
+// `--noisy-context` draws a random one. Templates live in
+// evals/trigger/contexts.ts — the only consumer for now; generalize if a
+// second suite needs noisy context. Resolved lazily in main() via dynamic
+// import so the harness stays decoupled from any one eval suite at load time.
+type NoisyContext = {
+  name: string;
+  messages: { role: 'user' | 'assistant'; content: string }[];
+};
+let NOISY_CONTEXT: NoisyContext | null = null;
+
+function parseNoisyContextFlag(): string | null {
+  const inline = rawArgs.find((a) => a.startsWith('--noisy-context='));
+  if (inline) {
+    const v = inline.slice('--noisy-context='.length);
+    return v === '' ? '' : v; // '' = random
+  }
+  if (args.has('--noisy-context')) {
+    const idx = rawArgs.indexOf('--noisy-context');
+    const next = rawArgs[idx + 1];
+    return next && !next.startsWith('--') ? next : '';
+  }
+  return null; // not set
+}
+
+const NOISY_CONTEXT_NAME = parseNoisyContextFlag();
+
+/** Context messages → ai-sdk ModelMessage turns (user/assistant, string content). */
+function toModelMessages(messages: NoisyContext['messages']): ModelMessage[] {
+  return messages.map((m) =>
+    m.role === 'assistant'
+      ? { role: 'assistant', content: m.content }
+      : { role: 'user', content: m.content }
+  );
+}
+
+/** Context messages → a single text block for one-shot (CLI) agents. */
+function formatContextAsText(ctx: NoisyContext): string {
+  const header =
+    'Prior conversation (context only — do not act on it; answer the request that follows):';
+  const body = ctx.messages
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join('\n\n');
+  return `${header}\n${body}`;
+}
 
 async function loadExperiments() {
   const dir = join(ROOT, 'experiments');
@@ -133,6 +184,9 @@ function discoverEvals(): EvalManifest[] {
     const localDir = join(evalDir, 'local');
     const promptPath = join(evalDir, 'PROMPT.md');
     const evalPath = join(evalDir, 'EVAL.ts');
+    // Skip dirs that aren't evals (e.g. evals/trigger/ holds the trigger
+    // suite's prompts.ts/golden.ts/contexts.ts data, with no PROMPT.md).
+    if (!existsSync(promptPath)) continue;
     const metadata = parseEvalMarkdown(
       readFileSync(promptPath, 'utf8'),
       `evals/${id}/PROMPT.md`
@@ -155,118 +209,6 @@ function discoverEvals(): EvalManifest[] {
     });
   }
   return out;
-}
-
-type ToolsSkill = { name: string; description: string; body: string };
-
-/**
- * Tools-mode skills, read from the host `skills/` dir. Unlike local-stack
- * (where skills are installed into the sandbox and the agent reads SKILL.md
- * with its file tools), a tools-mode agent has no filesystem — so only each
- * skill's name+description is advertised in the prompt and a `load_skill` tool
- * returns the full body on demand. Same lazy/progressive-disclosure property,
- * different load mechanism. Missing skills are skipped with a warning.
- */
-function loadToolsSkills(skillNames: string[]): ToolsSkill[] {
-  const skills: ToolsSkill[] = [];
-  for (const name of skillNames) {
-    const p = join(ROOT, 'skills', name, 'SKILL.md');
-    if (!existsSync(p)) {
-      console.warn(
-        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`
-      );
-      continue;
-    }
-    const md = readFileSync(p, 'utf8');
-    skills.push({
-      name,
-      description: frontmatterDescription(md),
-      body: stripFrontmatter(md),
-    });
-  }
-  return skills;
-}
-
-/**
- * Discovery listing for the tools-mode system prompt: only names+descriptions,
- * so the agent knows when a skill is relevant without its full text in context.
- * Empty when there are no skills.
- */
-function buildToolsSkillsPrompt(skills: readonly ToolsSkill[]): string {
-  if (skills.length === 0) return '';
-  return [
-    '## Available skills',
-    '',
-    'The following agent skills are available. Only their names and descriptions are shown — ' +
-      'the full instructions are not loaded yet. When a task matches a skill, call the `load_skill` ' +
-      'tool with its name to load its full instructions.',
-    '',
-    ...skills.map((s) => `- ${s.name}: ${s.description}`),
-  ].join('\n');
-}
-
-/**
- * The agent-invoked `load_skill` tool: given a skill name it returns that
- * skill's full instructions. This is how tools-mode evals load a skill lazily
- * (the local-stack equivalent is the agent reading SKILL.md with files_read).
- * Empty toolset when there are no skills.
- */
-function buildLoadSkillTool(skills: readonly ToolsSkill[]): ToolSet {
-  if (skills.length === 0) return {};
-  const byName = new Map(skills.map((s) => [s.name, s]));
-  return {
-    load_skill: tool({
-      description:
-        "Load an agent skill's full instructions by name. Available skills are listed in the system prompt.",
-      inputSchema: jsonSchema({
-        type: 'object',
-        properties: {
-          name: {
-            type: 'string',
-            description:
-              'The skill name to load (as listed under Available skills).',
-            enum: skills.map((s) => s.name),
-          },
-        },
-        required: ['name'],
-      }),
-      execute: async (input) => {
-        const name = String((input as { name?: unknown })?.name ?? '');
-        const entry = byName.get(name);
-        if (!entry) {
-          throw new Error(
-            `unknown skill "${name}"; available: ${skills.map((s) => s.name).join(', ')}`
-          );
-        }
-        return { instructions: entry.body };
-      },
-    }),
-  };
-}
-
-/**
- * Local-stack skill sources: resolve each skill name to its host directory so
- * the sandbox can install it with Vercel's `skills` CLI; the agent then
- * discovers each skill by reading its SKILL.md with its file tools. The
- * `skills/` entries are symlinks into the agent-skills submodule; realpath them
- * so `docker cp` copies real files, not dangling links. Missing skills are
- * skipped with a warning.
- */
-function resolveSkillSources(
-  skillNames: string[]
-): Array<{ name: string; dir: string }> {
-  const sources: Array<{ name: string; dir: string }> = [];
-  for (const name of skillNames) {
-    const dir = join(ROOT, 'skills', name);
-    if (!existsSync(dir)) {
-      console.warn(
-        `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`
-      );
-      continue;
-    }
-    sources.push({ name, dir: realpathSync(dir) });
-  }
-  return sources;
 }
 
 function resultPath(modelName: string, ev: Pick<EvalManifest, 'id' | 'mode'>) {
@@ -306,31 +248,6 @@ function readSessionSeedArgs(ev: EvalManifest) {
   };
 }
 
-function basePromptFor(mode: EvalMode): string {
-  if (mode === 'local-stack') {
-    return (
-      'You are an agent solving a Supabase eval task in a Linux workspace. ' +
-      'Use the provided tools to inspect and modify the workspace and run commands. ' +
-      'When you are done, end your turn with a short summary of what you did.'
-    );
-  }
-  return (
-    'You are an agent solving a Supabase eval task. ' +
-    'Use the provided tools to inspect and modify the project. ' +
-    'When you are done, end your turn with a short summary of what you did ' +
-    '(or for audit tasks, your findings).'
-  );
-}
-
-function buildSystemPrompt(
-  mode: EvalMode,
-  addendum?: string,
-  skillContext?: string
-): string {
-  const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
-  return blocks.join('\n\n');
-}
-
 /**
  * Adapt a `{ close() }` resource to `AsyncDisposable` so it can be bound with
  * `await using` — cleanup then runs on scope exit (normal fall-through, `continue`,
@@ -366,16 +283,23 @@ async function runOne(
     readFileSync(ev.promptPath, 'utf8'),
     ev.promptPath
   ).body;
+  // Noisy-context (trigger suite): CLI/sandbox agents are one-shot, so the
+  // distractor conversation is prepended as a text block into the prompt.
+  // In-process (ai-sdk) agents instead receive it as `priorMessages` (true
+  // multi-turn) — wired in the tools path below.
+  const noisyUserPrompt = NOISY_CONTEXT
+    ? `${formatContextAsText(NOISY_CONTEXT)}\n\n---\n\n${prompt}`
+    : prompt;
   // A CLI agent always runs in a sandbox and reads skills from disk with its
   // file tools (both modes). An in-process (ai-sdk) agent has no sandbox, so in
   // tools mode its skills are advertised in the prompt and loaded via the
   // load_skill tool. Skill sources (name+dir) are shared by both paths.
   const agentRunsInSandbox = exp.agent.runsInSandbox ?? false;
-  const skillSources = resolveSkillSources(exp.skills);
+  const skillSources = resolveSkillSources(ROOT, exp.skills);
   const availableSkills = skillSources.map((skill) => skill.name);
   const toolsSkills =
     ev.mode === 'tools' && !agentRunsInSandbox
-      ? loadToolsSkills(exp.skills)
+      ? loadToolsSkills(ROOT, exp.skills)
       : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ToolScorer
@@ -444,7 +368,7 @@ async function runOne(
 
       const run = await exp.agent.run({
         systemPrompt: buildSystemPrompt('local-stack', session.promptAddendum),
-        userPrompt: prompt,
+        userPrompt: noisyUserPrompt,
         tools: session.tools,
         sandbox: session.sandbox,
         mcpServers: session.mcpServers,
@@ -530,7 +454,14 @@ async function runOne(
     );
     const run = await exp.agent.run({
       systemPrompt,
-      userPrompt: prompt,
+      userPrompt: agentRunsInSandbox ? noisyUserPrompt : prompt,
+      // In-process (ai-sdk) agents get the distractor conversation as real
+      // prior turns; sandbox (CLI) agents get it folded into userPrompt above.
+      priorMessages: agentRunsInSandbox
+        ? undefined
+        : NOISY_CONTEXT
+          ? toModelMessages(NOISY_CONTEXT.messages)
+          : undefined,
       tools: agentRunsInSandbox ? undefined : buildLoadSkillTool(toolsSkills),
       mcpServers: session.mcpServers,
       sandbox: cliSandbox?.sandbox,
@@ -714,6 +645,20 @@ async function main() {
   // Suppress noisy supabase-js logs from expected failures; --debug keeps them visible.
   const stderr = console.error;
   if (!DEBUG) console.error = () => undefined;
+
+  // Resolve the noisy-context template (trigger suite) if requested. Done
+  // here, once, via dynamic import so the harness stays decoupled from any
+  // single eval suite's data at module load.
+  if (NOISY_CONTEXT_NAME !== null) {
+    const { contexts, pickContext } = await import(
+      pathToFileURL(join(ROOT, 'evals', 'trigger', 'contexts.ts')).href
+    );
+    const ctx = pickContext(NOISY_CONTEXT_NAME || undefined);
+    NOISY_CONTEXT = ctx;
+    console.log(`noisy-context: ${ctx.name}`);
+    // Touch `contexts` so the import isn't elided/tree-shaken in some bundlers.
+    void contexts;
+  }
 
   console.log(
     `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +

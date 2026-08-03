@@ -40,7 +40,12 @@ export const evalTopicSchema = z.enum([
 export const EVAL_TOPICS = evalTopicSchema.options;
 export type EvalTopic = z.infer<typeof evalTopicSchema>;
 
-export const evalSuiteSchema = z.enum(['benchmark', 'regression', 'other']);
+export const evalSuiteSchema = z.enum([
+  'benchmark',
+  'regression',
+  'other',
+  'trigger',
+]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
@@ -48,6 +53,7 @@ export const experimentSuiteSchema = z.enum([
   'benchmark',
   'no-skills',
   'regression',
+  'trigger',
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;

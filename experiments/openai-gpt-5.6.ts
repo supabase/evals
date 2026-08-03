@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { createOpenAI } from '@ai-sdk/openai';
 import {
   aiSdkAgent,
   defineExperiment,
@@ -7,12 +7,18 @@ import {
 } from '@supabase-evals/core';
 import { localStackRuntime } from '@supabase-evals/sandbox';
 
+// Routed through OpenRouter (BYOK'd with the OpenAI key) for the gpt-5.6-terra
+// discount — OpenRouter namespaces model ids by provider, hence "openai/...".
+const model = createOpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
+})('openai/gpt-5.6-terra');
+
 export default defineExperiment({
   agent: aiSdkAgent({
-    model: openai('gpt-5.6'),
+    model,
     providerOptions: {
       openai: {
-        reasoningEffort: 'medium',
         textVerbosity: 'low',
       },
     },
