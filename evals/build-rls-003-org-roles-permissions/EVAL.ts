@@ -1,4 +1,5 @@
 import type { CheckResult, ToolScorer } from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 
 const ORG_A = '11111111-1111-1111-1111-111111111111';
 const ORG_B = '22222222-2222-2222-2222-222222222222';
@@ -120,24 +121,56 @@ RETURNING id;
       passed: editorUpdatesAdmin.length === 0,
     });
 
-    await q(
-      asUser(
-        ADMIN_A,
-        `
-DELETE FROM documents
-WHERE id = '10000000-0000-0000-0000-000000000001';
-        `
-      )
-    );
-    const { rows: adminSoftDelete } = await q(
-      `SELECT id, deleted_at FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`
-    );
-    checks.push({
-      name: 'admin delete soft-deletes document in org',
-      passed:
+    // A too-strict WITH CHECK is a known RLS soft-delete footgun. Treat it
+    // as a failed check instead of crashing the run.
+    let adminSoftDeletePassed = false;
+    try {
+      const { rows: adminSoftDelete } = await q(
+        asUser(
+          ADMIN_A,
+          stripIndent`
+            UPDATE documents
+            SET deleted_at = now()
+            WHERE id = '10000000-0000-0000-0000-000000000001'
+            RETURNING id, deleted_at;
+          `
+        )
+      );
+      adminSoftDeletePassed =
         adminSoftDelete.length === 1 &&
         adminSoftDelete[0]?.id === '10000000-0000-0000-0000-000000000001' &&
-        Boolean(adminSoftDelete[0]?.deleted_at),
+        Boolean(adminSoftDelete[0]?.deleted_at);
+    } catch {
+      await resetTx();
+    }
+    checks.push({
+      name: 'admin can mark a document deleted in their org',
+      passed: adminSoftDeletePassed,
+    });
+
+    // Agents either block hard deletes via grants/RLS or intercept DELETE
+    // with a trigger that soft-deletes instead. Accept either as long as
+    // the row is never actually removed.
+    let hardDeletePrevented = false;
+    try {
+      await q(
+        asUser(
+          ADMIN_A,
+          `DELETE FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`,
+          'ROLLBACK'
+        )
+      );
+      const { rows: stillThere } = await q(
+        `SELECT id FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`
+      );
+      hardDeletePrevented = stillThere.length === 1;
+    } catch {
+      hardDeletePrevented = true;
+      await resetTx();
+    }
+    checks.push({
+      name: 'documents are never hard-deleted',
+      passed: hardDeletePrevented,
     });
 
     const { rows: adminCrossOrg } = await q(

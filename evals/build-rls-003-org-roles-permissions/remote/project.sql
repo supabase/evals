@@ -26,6 +26,12 @@ GRANT SELECT ON memberships TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON documents TO authenticated;
 GRANT SELECT, INSERT ON document_audit TO authenticated;
 
+-- Mimics someone accepting Studio's default read-access policy template
+-- without customizing it. Permissive policies OR together in Postgres RLS,
+-- so this stays a live hole unless the agent notices and drops it.
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read access for all users" ON documents FOR SELECT USING (true);
+
 INSERT INTO memberships (user_id, org_id, role) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'admin'),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111', 'editor'),
