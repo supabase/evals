@@ -44,25 +44,15 @@ const scorer: ToolScorer = async (ctx) => {
 
 export default scorer;
 
-/** Builds the SQL to run a query as a given user. Same technique as Supabase's own RLS testing guide (https://supabase.com/docs/guides/local-development/testing/overview). */
-function asUser(
-  sub: string,
-  body: string,
-  finish: 'COMMIT' | 'ROLLBACK' = 'COMMIT'
-): string {
-  return stripIndent`
-    BEGIN;
-    SET LOCAL ROLE authenticated;
-    SET LOCAL request.jwt.claim.sub = '${sub}';
-    SET LOCAL request.jwt.claim.role = 'authenticated';
-    ${body}
-    ${finish};
-  `;
-}
-
 type UserQueryResult = { rows: Record<string, unknown>[]; error: Error | null };
 
-/** Runs a query as a user without throwing. RLS-blocked writes (WITH CHECK violations, revoked grants) become a value each check judges, so one blocked write can't abort every later check. */
+/**
+ * Runs a query as a given user, via the request.jwt.claim.sub/role
+ * technique shown in RLS testing guide:
+ * (https://supabase.com/docs/guides/local-development/testing/overview).
+ *
+ * Returns errors (incl. RLS-blocked writes) as values instead of throwing.
+ */
 async function runAsUser(
   ctx: ToolEvalContext,
   sub: string,
@@ -70,7 +60,14 @@ async function runAsUser(
   finish: 'COMMIT' | 'ROLLBACK' = 'COMMIT'
 ): Promise<UserQueryResult> {
   try {
-    const { rows } = await ctx.query(asUser(sub, body, finish));
+    const { rows } = await ctx.query(stripIndent`
+      BEGIN;
+      SET LOCAL ROLE authenticated;
+      SET LOCAL request.jwt.claim.sub = '${sub}';
+      SET LOCAL request.jwt.claim.role = 'authenticated';
+      ${body}
+      ${finish};
+    `);
     return { rows, error: null };
   } catch (error) {
     await ctx.query('ROLLBACK;').catch(() => {});
@@ -81,7 +78,6 @@ async function runAsUser(
   }
 }
 
-/** Checks that RLS is turned on for the documents table. */
 async function checkRlsEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
   const { rows } = await ctx.query(
     `SELECT relrowsecurity FROM pg_class WHERE relname = 'documents';`
@@ -92,7 +88,6 @@ async function checkRlsEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
   };
 }
 
-/** Checks that a viewer only sees documents in their own org. */
 async function checkViewerSeesOnlyOwnOrgDocuments(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -111,7 +106,6 @@ async function checkViewerSeesOnlyOwnOrgDocuments(
   };
 }
 
-/** Checks that a viewer cannot insert a new document. */
 async function checkViewerCannotInsert(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -126,7 +120,6 @@ async function checkViewerCannotInsert(
   return { name: 'viewer cannot insert', passed: Boolean(result.error) };
 }
 
-/** Checks that an editor can insert a document they own in their org. */
 async function checkEditorCanInsertOwnOrgDocument(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -146,7 +139,6 @@ async function checkEditorCanInsertOwnOrgDocument(
   };
 }
 
-/** Checks that an editor can update a document they own. */
 async function checkEditorCanUpdateOwnDocument(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -167,7 +159,6 @@ async function checkEditorCanUpdateOwnDocument(
   };
 }
 
-/** Checks that an editor cannot update a document owned by someone else. */
 async function checkEditorCannotUpdateAnotherUsersDocument(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -188,7 +179,6 @@ async function checkEditorCannotUpdateAnotherUsersDocument(
   };
 }
 
-/** Checks that an editor cannot delete a document owned by someone else. */
 async function checkEditorCannotDeleteAnotherUsersDocument(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -204,7 +194,6 @@ async function checkEditorCannotDeleteAnotherUsersDocument(
   };
 }
 
-/** Checks that an admin can update any document in their org, not just their own. */
 async function checkAdminCanUpdateAnyDocumentInOrg(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -225,7 +214,6 @@ async function checkAdminCanUpdateAnyDocumentInOrg(
   };
 }
 
-/** Checks that an admin can delete any document in their org, not just their own. */
 async function checkAdminCanDeleteAnyDocumentInOrg(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -241,7 +229,6 @@ async function checkAdminCanDeleteAnyDocumentInOrg(
   };
 }
 
-/** Checks that an admin cannot affect documents in a different org. */
 async function checkAdminCannotAffectAnotherOrg(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -262,7 +249,6 @@ async function checkAdminCannotAffectAnotherOrg(
   };
 }
 
-/** Checks that WITH CHECK blocks an editor from moving a document to another org. */
 async function checkWithCheckBlocksOrgReassignment(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -283,7 +269,6 @@ async function checkWithCheckBlocksOrgReassignment(
   };
 }
 
-/** Checks that a member of one org cannot see another org's membership roster. */
 async function checkCannotSeeAnotherOrgsMembershipRoster(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -298,7 +283,13 @@ async function checkCannotSeeAnotherOrgsMembershipRoster(
   };
 }
 
-/** Checks that a user's admin role in org B doesn't leak into org A, where they're only a viewer. Role lives on the (user_id, org_id) row, not the user, so this only holds if policies actually join on org_id. */
+/**
+ * Checks that a user's admin role in org B doesn't leak into org A, where
+ * they're only a viewer. In the memberships table, role is a column on the
+ * (user_id, org_id) row, not the user, so the same user can hold a
+ * different role per org. This checks if policies actually join on
+ * org_id instead of just checking the user's role anywhere.
+ */
 async function checkOtherOrgRoleDoesNotLeakIn(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -319,7 +310,6 @@ async function checkOtherOrgRoleDoesNotLeakIn(
   };
 }
 
-/** Checks that the same multi-org user's admin role still works in the org where they hold it. */
 async function checkOwnOrgAdminRoleStillWorks(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
