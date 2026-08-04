@@ -90,6 +90,95 @@ CREATE TABLE IF NOT EXISTS storage_logs (
   level text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+
+-- Unified ClickHouse-shaped stream: the hosted /analytics/endpoints/logs
+-- endpoint exposes one 'logs' relation with a 'source' discriminator and a
+-- log_attributes map. Mirror it so ClickHouse-dialect SQL from current mcp
+-- (get_logs presets) and from mcp#333's query_logs runs with minimal
+-- translation. Column-backed
+-- attributes win over seeded metadata; nulls fall back to metadata keys.
+--
+-- Provenance (hand-modeled; nothing usable is importable):
+--   * The 'logs' relation shape is the hosted platform's Logflare/ClickHouse
+--     contract. Hosted serves the /analytics/endpoints/logs route today; the
+--     capabilities are landing per-PR (both in review as of 2026-07-21):
+--       - supabase/platform#35096: logs.all.otel unified stream + ClickHouse
+--         dialect for the getLogs PRESETS - what mcp main (post-#326) emits.
+--       - supabase/platform#35970: custom-SQL passthrough (timestamps
+--         normalized platform-side) - what mcp#333's query_logs (still open)
+--         targets; current mcp main does not depend on it.
+--     The fixture models both current main and the #333 validation branch
+--     against that contract. It is
+--     platform-internal either way: no npm package exports the schema, so
+--     fixtures must model it by hand, exactly like every other platform-lite
+--     emulation in this package.
+--   * The 'source' names are the unified-stream sources referenced by mcp's
+--     preset SQL and the query_logs sql description - not exported as data.
+--     (mcp's /platform entrypoint DOES export logsServiceSchema, but that
+--     enumerates service PRESETS, a different namespace; and the resolved
+--     package (^0.8.1) can drift ahead of the MCP_SERVER_VERSION pin the
+--     harness actually runs, so importing it would track the wrong artifact.)
+--     Resync this view when the pinned MCP_SERVER_VERSION moves.
+--   * UNMODELED preset sources: workflow_run_logs (branch-action) and
+--     realtime_logs (realtime) have no backing table in platform-lite.
+--     compileClickHouseLogsSql (debugging.ts) rejects queries naming them so
+--     they error loudly instead of silently returning 0 rows; model them with
+--     real tables + seeds before running a branch-action/realtime logs eval.
+CREATE VIEW logs AS
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level AS severity_text, 'edge_logs'::text AS source,
+    metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'request.method', method, 'request.path', path, 'response.status_code', status_code)) AS log_attributes
+  FROM edge_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'function_edge_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('response.status_code', status_code, 'request.method', method, 'function_id', function_id, 'execution_time_ms', execution_time_ms, 'deployment_id', deployment_id, 'version', version))
+  FROM function_edge_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'function_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('level', level, 'function_id', function_id, 'deployment_id', deployment_id, 'version', version))
+  FROM function_edge_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'postgres_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'parsed.error_severity', error_severity))
+  FROM postgres_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'auth_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('level', level, 'status', status, 'path', path, 'msg', msg, 'error', error))
+  FROM auth_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'storage_logs', metadata
+  FROM storage_logs;
+
+-- Enforcement of "only the unified stream is queryable" lives HERE, not in a
+-- regex: the ClickHouse route's transaction runs SET LOCAL ROLE logs_reader,
+-- and this role can SELECT only the logs view. The view executes with its
+-- owner's privileges, so the backing tables stay readable THROUGH it while
+-- direct access — however spelled (edge_logs, public.edge_logs,
+-- "edge_logs") — is denied by postgres name resolution, which no regex can
+-- reliably reproduce. The legacy logs.all route sets no role and keeps full
+-- table access for its BigQuery-era dialect.
+CREATE ROLE logs_reader;
+GRANT SELECT ON logs TO logs_reader;
+
+-- ClickHouse numeric-cast family, as models genuinely emit it in query_logs
+-- SQL (e.g. countIf(toInt32OrZero(log_attributes['status']) >= 400)).
+-- These are pg reimplementations of ClickHouse BUILTINS (also not importable
+-- from anywhere); signatures follow clickhouse.com/docs/sql-reference:
+-- each *OrZero takes a String ONLY — no numeric overloads, so a bare
+-- toInt32OrZero(42) errors here exactly as it does on hosted ClickHouse.
+-- Map access always compiles to text (debugging.ts translator), which is the
+-- only argument form observed from models. toString is anyelement because
+-- ClickHouse's toString accepts any type.
+-- Grown strictly from observed model output - see debugging.ts translator note.
+CREATE FUNCTION toInt32OrZero(v text) RETURNS numeric AS $ch$
+BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
+$ch$ LANGUAGE plpgsql IMMUTABLE;
+CREATE FUNCTION toInt64OrZero(v text) RETURNS numeric AS $ch$
+BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
+$ch$ LANGUAGE plpgsql IMMUTABLE;
+CREATE FUNCTION toUInt32OrZero(v text) RETURNS numeric AS $ch$
+BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
+$ch$ LANGUAGE plpgsql IMMUTABLE;
+CREATE FUNCTION toString(v anyelement) RETURNS text AS $ch$ SELECT v::text $ch$ LANGUAGE sql IMMUTABLE;
 `;
 
 export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
@@ -125,7 +214,20 @@ export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
 
   if (normalizedSource === 'auth') {
     await seedAuthLog(logsDb, log);
+    return;
   }
+
+  if (normalizedSource === 'storage' || normalizedSource === 'storage_logs') {
+    await seedStorageLog(logsDb, log);
+    return;
+  }
+
+  // Loud failure over a silent no-op: a dropped seed surfaces later as a false
+  // "no logs" query result, which reads as a passing scenario. Same doctrine as
+  // the unmodeled-source guard in debugging.ts.
+  throw new Error(
+    `unknown log seed source '${row.source}' — expected edge-function, edge, postgres/database, auth, or storage`
+  );
 }
 
 type NormalizedLogSeed = {
@@ -255,6 +357,26 @@ async function seedAuthLog(
       metadataText(log.metadata, ['status']),
       metadataText(log.metadata, ['path']),
       metadataText(log.metadata, ['error']),
+    ]
+  );
+}
+
+async function seedStorageLog(
+  logsDb: PGlite,
+  log: NormalizedLogSeed
+): Promise<void> {
+  await logsDb.query(
+    `INSERT INTO storage_logs
+      (id, identifier, timestamp, ts, event_message, message, source, level, metadata)
+     VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7::jsonb)`,
+    [
+      log.id,
+      metadataText(log.metadata, ['identifier']),
+      log.ts,
+      log.message,
+      log.source,
+      log.level,
+      log.metadataJson,
     ]
   );
 }

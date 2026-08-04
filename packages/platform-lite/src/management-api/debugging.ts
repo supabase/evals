@@ -41,6 +41,55 @@ export function createDebuggingRoutes(
     }
   });
 
+  // Current mcp (>= the #326 ClickHouse migration): GET /analytics/endpoints/logs
+  // with ClickHouse-dialect sql over the unified 'logs' stream. The 'logs' VIEW
+  // (log-seeding.ts) provides the shape; only map access and countIf need
+  // translating. iso_timestamp_start/end are accepted but IGNORED on purpose:
+  // scenario seeds carry fixed dates, while mcp defaults the window from the
+  // current clock — a faithful filter would empty every scenario (the legacy
+  // logs.all route makes the same choice).
+  routes.get('/v1/projects/:ref/analytics/endpoints/logs', async (c) => {
+    const { ref } = c.req.param();
+    const project = store.get(ref);
+    if (!project) return c.json({ message: 'Project not found' }, 404);
+
+    const sql =
+      c.req.query('sql') ??
+      "select id, timestamp, event_message from logs where source = 'edge_logs' order by timestamp desc limit 100";
+
+    // The hosted endpoint is read-only server-side; enforce the same contract on
+    // model-authored SQL. The prefix check only shapes the error message — the
+    // REAL enforcement is the read-only transaction below, which postgres applies
+    // to every statement including data-modifying CTEs. The 400 body carries
+    // `message` because mcp's assertSuccess parses non-2xx bodies as {message}
+    // (the management-API error envelope) — without it the model only sees the
+    // generic "Failed to fetch logs" fallback; `error` kept for shape
+    // consistency with the 200 SQL-error path.
+    const stmt = sql.trim().replace(/;+\s*$/, '');
+    if (stmt.includes(';') || !/^\s*(select|with)\b/i.test(stmt)) {
+      const message = 'only a single read-only SELECT statement is supported';
+      return c.json({ result: [], error: message, message }, 400);
+    }
+
+    try {
+      const compiled = compileClickHouseLogsSql(stmt);
+      const result = await project.logsDb.transaction(async (tx) => {
+        await tx.exec('SET TRANSACTION READ ONLY');
+        // logs_reader may SELECT only the unified 'logs' view (grant in
+        // LOGS_BASE_SQL) — postgres name resolution denies the backing tables
+        // under ANY spelling (edge_logs, public.edge_logs, "edge_logs"),
+        // which the best-effort regex in compileClickHouseLogsSql cannot.
+        // SET LOCAL reverts with the transaction.
+        await tx.exec('SET LOCAL ROLE logs_reader');
+        return tx.query<Record<string, unknown>>(compiled);
+      });
+      return c.json({ result: result.rows });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ result: [], error: message });
+    }
+  });
+
   routes.get('/v1/projects/:ref/advisors/security', async (c) => {
     const { ref } = c.req.param();
     const project = store.get(ref);
@@ -82,6 +131,74 @@ export function createDebuggingRoutes(
   });
 
   return routes;
+}
+
+/**
+ * Translate ClickHouse-dialect SQL (as current mcp emits for the unified logs
+ * stream) into PGlite SQL against the 'logs' VIEW. The supported surface is
+ * DELIBERATELY partial — exactly what models have been observed to emit:
+ *   log_attributes['k']  ->  (log_attributes->>'k')   (always text — hosted
+ *     ClickHouse map values are String too, so a bare numeric comparison like
+ *     log_attributes['status'] >= 400 errors here exactly as it does there;
+ *     models adapt by wrapping in toInt32OrZero, as observed)
+ *   countIf(cond)        ->  count(*) FILTER (WHERE cond)
+ *   toInt32OrZero/toInt64OrZero/toUInt32OrZero/toString -> SQL shims in
+ *     LOGS_BASE_SQL (log-seeding.ts)
+ * Anything else surfaces the raw SQL error to the model, which adapts — fine
+ * for exploration, but remember: a query that only works here (postgres-isms)
+ * would FAIL against the hosted ClickHouse endpoint, and vice versa. Extend
+ * only from observed model output, never speculatively.
+ *
+ * UNMODELED sources error loudly: workflow_run_logs (branch-action preset) and
+ * realtime_logs (realtime preset) have no backing table in platform-lite, so a
+ * query naming them throws here instead of silently returning 0 rows — an
+ * empty result would read as "no logs", green-lighting an eval the fixture
+ * cannot actually serve. The error surfaces to the model like any other.
+ *
+ * ONLY the unified 'logs' relation is queryable, matching mcp's contract
+ * (nothing else is described); locally the backing tables share the PGlite
+ * db, so a direct `from edge_logs` would succeed here while failing hosted.
+ * ENFORCEMENT is the logs_reader role in the route's transaction (postgres
+ * resolves every spelling — qualified, quoted). The FROM/JOIN regex below is
+ * best-effort message shaping for the common unqualified form, pointing the
+ * model at the source-filter idiom; bypassing it just yields the role's
+ * "permission denied" instead. Source names remain valid as string literals
+ * (where source = 'edge_logs').
+ *
+ * PROVENANCE: none of this is importable. The real dialect boundary lives in
+ * the hosted platform's Logflare/ClickHouse backend (supabase/platform#35096,
+ * platform-internal); mcp ships only tool descriptions, and ClickHouse
+ * builtins have no npm artifact. The verbatim SQL in debugging.test.ts is
+ * deliberately FROZEN observed output (regression fixtures) - importing live
+ * definitions would make those contract tests follow the thing they test.
+ *
+ * KNOWN LIMITATION (time semantics): iso_timestamp_start/end are ignored
+ * (fixed-date seeds), so window-correctness of model queries is NOT exercised
+ * locally. A time-window-discriminating eval needs relative-time seeding.
+ */
+const UNMODELED_SOURCES = /\b(workflow_run_logs|realtime_logs)\b/i;
+const PHYSICAL_RELATIONS =
+  /\b(?:from|join)\s+(edge_logs|function_edge_logs|function_logs|postgres_logs|auth_logs|storage_logs)\b/i;
+
+export function compileClickHouseLogsSql(sql: string): string {
+  const unmodeled = UNMODELED_SOURCES.exec(sql);
+  if (unmodeled) {
+    throw new Error(
+      `source '${unmodeled[1]}' is not modeled by platform-lite — no backing table, so results would be silently empty`
+    );
+  }
+  const physical = PHYSICAL_RELATIONS.exec(sql);
+  if (physical) {
+    throw new Error(
+      `relation '${physical[1]}' is not queryable on this endpoint — query the unified 'logs' stream and filter with where source = '${physical[1]}'`
+    );
+  }
+  return sql
+    .replace(
+      /\blog_attributes\['([^']+)'\]/gi,
+      (_m, key: string) => `(log_attributes->>'${key}')`
+    )
+    .replace(/\bcountIf\s*\(/gi, 'count(*) FILTER (WHERE ');
 }
 
 function compileLogsSql(sql: string): string {
