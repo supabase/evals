@@ -10,6 +10,7 @@ const ORG_B = '22222222-2222-2222-2222-222222222222';
 const ADMIN_A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const EDITOR_A = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const VIEWER_A = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+const MULTI_ORG_USER = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 
 const scorer: ToolScorer = async (ctx) => {
   try {
@@ -26,6 +27,8 @@ const scorer: ToolScorer = async (ctx) => {
       await checkAdminCannotAffectAnotherOrg(ctx),
       await checkWithCheckBlocksOrgReassignment(ctx),
       await checkCannotSeeAnotherOrgsMembershipRoster(ctx),
+      await checkOtherOrgRoleDoesNotLeakIn(ctx),
+      await checkOwnOrgAdminRoleStillWorks(ctx),
     ];
     return { passed: checks.every((c) => c.passed), checks };
   } catch (error) {
@@ -292,5 +295,47 @@ async function checkCannotSeeAnotherOrgsMembershipRoster(
   return {
     name: "cannot see another org's membership roster",
     passed: Boolean(result.error) || result.rows.length === 0,
+  };
+}
+
+/** Checks that a user who is admin in org B can't use that role to write in org A, where they're only a viewer. Role lives on the (user_id, org_id) row, not the user, so this only holds if the org_id join was actually applied. */
+async function checkOtherOrgRoleDoesNotLeakIn(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
+  const result = await runAsUser(
+    ctx,
+    MULTI_ORG_USER,
+    stripIndent`
+      UPDATE documents
+      SET body = 'multi-org user tried to act as admin here'
+      WHERE id = '10000000-0000-0000-0000-000000000001'
+      RETURNING id;
+    `,
+    'ROLLBACK'
+  );
+  return {
+    name: "a viewer role in one org doesn't grant admin power in another org",
+    passed: Boolean(result.error) || result.rows.length === 0,
+  };
+}
+
+/** Checks that the same multi-org user's admin role still works normally in the org where they actually hold it. */
+async function checkOwnOrgAdminRoleStillWorks(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
+  const result = await runAsUser(
+    ctx,
+    MULTI_ORG_USER,
+    stripIndent`
+      UPDATE documents
+      SET body = 'multi-org user acting as admin in their own org'
+      WHERE id = '20000000-0000-0000-0000-000000000001'
+      RETURNING id;
+    `,
+    'ROLLBACK'
+  );
+  return {
+    name: 'multi-org user can act as admin in the org where they hold that role',
+    passed: !result.error && result.rows.length === 1,
   };
 }
