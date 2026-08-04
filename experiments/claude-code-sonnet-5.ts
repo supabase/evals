@@ -13,7 +13,13 @@ export default defineExperiment({
     reasoningEffort: 'high',
   }),
   runtime: platformLiteRuntime({
-    mcpServers: [supabaseMcpServer()],
+    mcpServers: [
+      // mcp#333 / mcp#341 (query_logs) preview build via pkg.pr.new, per
+      // https://github.com/supabase/mcp/pull/333#issuecomment-5004663705
+      supabaseMcpServer({
+        version: 'https://pkg.pr.new/@supabase/mcp-server-supabase@0f27120',
+      }),
+    ],
   }),
   localStack: localStackRuntime(),
   skills: ['supabase', 'supabase-postgres-best-practices'],
