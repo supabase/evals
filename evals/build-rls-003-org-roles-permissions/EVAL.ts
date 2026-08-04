@@ -11,13 +11,13 @@ const asUser = (
   sub: string,
   body: string,
   finish: 'COMMIT' | 'ROLLBACK' = 'COMMIT'
-) => `
-BEGIN;
-SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claim.sub = '${sub}';
-SET LOCAL request.jwt.claim.role = 'authenticated';
-${body}
-${finish};
+) => stripIndent`
+  BEGIN;
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claim.sub = '${sub}';
+  SET LOCAL request.jwt.claim.role = 'authenticated';
+  ${body}
+  ${finish};
 `;
 
 const scorer: ToolScorer = async (ctx) => {
@@ -34,20 +34,18 @@ const scorer: ToolScorer = async (ctx) => {
 
   try {
     const { rows: rls } = await q(
-      `SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('documents', 'document_audit');`
+      `SELECT relrowsecurity FROM pg_class WHERE relname = 'documents';`
     );
     checks.push({
       name: 'RLS enabled on documents',
-      passed: rls.some(
-        (row) => row.relname === 'documents' && row.relrowsecurity === true
-      ),
+      passed: rls[0]?.relrowsecurity === true,
     });
 
     const { rows: viewerReads } = await q(
       asUser(VIEWER_A, `SELECT title FROM documents ORDER BY title;`)
     );
     checks.push({
-      name: 'viewer sees active org documents only',
+      name: 'viewer sees only documents in their org',
       passed:
         viewerReads.length === 2 &&
         viewerReads.map((row) => row.title).join(',') ===
@@ -59,9 +57,9 @@ const scorer: ToolScorer = async (ctx) => {
       await q(
         asUser(
           VIEWER_A,
-          `
-INSERT INTO documents (org_id, owner_id, title, body)
-VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
+          stripIndent`
+            INSERT INTO documents (org_id, owner_id, title, body)
+            VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
           `
         )
       );
@@ -74,10 +72,10 @@ VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
     const { rows: editorInsert } = await q(
       asUser(
         EDITOR_A,
-        `
-INSERT INTO documents (org_id, owner_id, title, body)
-VALUES ('${ORG_A}', '${EDITOR_A}', 'editor insert', 'allowed')
-RETURNING id;
+        stripIndent`
+          INSERT INTO documents (org_id, owner_id, title, body)
+          VALUES ('${ORG_A}', '${EDITOR_A}', 'editor insert', 'allowed')
+          RETURNING id;
         `,
         'ROLLBACK'
       )
@@ -90,11 +88,11 @@ RETURNING id;
     const { rows: editorOwnUpdate } = await q(
       asUser(
         EDITOR_A,
-        `
-UPDATE documents
-SET body = 'editor changed own document'
-WHERE id = '10000000-0000-0000-0000-000000000002'
-RETURNING id;
+        stripIndent`
+          UPDATE documents
+          SET body = 'editor changed own document'
+          WHERE id = '10000000-0000-0000-0000-000000000002'
+          RETURNING id;
         `,
         'ROLLBACK'
       )
@@ -107,11 +105,11 @@ RETURNING id;
     const { rows: editorUpdatesAdmin } = await q(
       asUser(
         EDITOR_A,
-        `
-UPDATE documents
-SET body = 'editor changed admin document'
-WHERE id = '10000000-0000-0000-0000-000000000001'
-RETURNING id;
+        stripIndent`
+          UPDATE documents
+          SET body = 'editor changed admin document'
+          WHERE id = '10000000-0000-0000-0000-000000000001'
+          RETURNING id;
         `,
         'ROLLBACK'
       )
@@ -121,66 +119,62 @@ RETURNING id;
       passed: editorUpdatesAdmin.length === 0,
     });
 
-    // A too-strict WITH CHECK is a known RLS soft-delete footgun. Treat it
-    // as a failed check instead of crashing the run.
-    let adminSoftDeletePassed = false;
+    let editorDeleteBlocked = false;
     try {
-      const { rows: adminSoftDelete } = await q(
+      const { rows } = await q(
         asUser(
-          ADMIN_A,
-          stripIndent`
-            UPDATE documents
-            SET deleted_at = now()
-            WHERE id = '10000000-0000-0000-0000-000000000001'
-            RETURNING id, deleted_at;
-          `
-        )
-      );
-      adminSoftDeletePassed =
-        adminSoftDelete.length === 1 &&
-        adminSoftDelete[0]?.id === '10000000-0000-0000-0000-000000000001' &&
-        Boolean(adminSoftDelete[0]?.deleted_at);
-    } catch {
-      await resetTx();
-    }
-    checks.push({
-      name: 'admin can mark a document deleted in their org',
-      passed: adminSoftDeletePassed,
-    });
-
-    // Agents either block hard deletes via grants/RLS or intercept DELETE
-    // with a trigger that soft-deletes instead. Accept either as long as
-    // the row is never actually removed.
-    let hardDeletePrevented = false;
-    try {
-      await q(
-        asUser(
-          ADMIN_A,
-          `DELETE FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`,
+          EDITOR_A,
+          `DELETE FROM documents WHERE id = '10000000-0000-0000-0000-000000000001' RETURNING id;`,
           'ROLLBACK'
         )
       );
-      const { rows: stillThere } = await q(
-        `SELECT id FROM documents WHERE id = '10000000-0000-0000-0000-000000000001';`
-      );
-      hardDeletePrevented = stillThere.length === 1;
+      editorDeleteBlocked = rows.length === 0;
     } catch {
-      hardDeletePrevented = true;
+      editorDeleteBlocked = true;
       await resetTx();
     }
     checks.push({
-      name: 'documents are never hard-deleted',
-      passed: hardDeletePrevented,
+      name: "editor cannot delete another user's document",
+      passed: editorDeleteBlocked,
+    });
+
+    const { rows: adminUpdate } = await q(
+      asUser(
+        ADMIN_A,
+        stripIndent`
+          UPDATE documents
+          SET body = 'admin changed editor document'
+          WHERE id = '10000000-0000-0000-0000-000000000002'
+          RETURNING id;
+        `,
+        'ROLLBACK'
+      )
+    );
+    checks.push({
+      name: 'admin can update any document in their org',
+      passed: adminUpdate.length === 1,
+    });
+
+    const { rows: adminDelete } = await q(
+      asUser(
+        ADMIN_A,
+        `DELETE FROM documents WHERE id = '10000000-0000-0000-0000-000000000002' RETURNING id;`,
+        'ROLLBACK'
+      )
+    );
+    checks.push({
+      name: 'admin can delete any document in their org',
+      passed: adminDelete.length === 1,
     });
 
     const { rows: adminCrossOrg } = await q(
       asUser(
         ADMIN_A,
-        `
-UPDATE documents
-SET deleted_at = now()
-WHERE id = '20000000-0000-0000-0000-000000000001'
-RETURNING id;
+        stripIndent`
+          UPDATE documents
+          SET body = 'admin touched another org'
+          WHERE id = '20000000-0000-0000-0000-000000000001'
+          RETURNING id;
         `,
         'ROLLBACK'
       )
@@ -195,11 +189,11 @@ RETURNING id;
       const { rows } = await q(
         asUser(
           EDITOR_A,
-          `
-UPDATE documents
-SET org_id = '${ORG_B}'
-WHERE id = '10000000-0000-0000-0000-000000000002'
-RETURNING id;
+          stripIndent`
+            UPDATE documents
+            SET org_id = '${ORG_B}'
+            WHERE id = '10000000-0000-0000-0000-000000000002'
+            RETURNING id;
           `,
           'ROLLBACK'
         )
@@ -212,31 +206,6 @@ RETURNING id;
     checks.push({
       name: 'WITH CHECK blocks editor from moving document to another org',
       passed: orgReassignmentBlocked,
-    });
-
-    const { rows: auditedUpdate } = await q(
-      asUser(
-        EDITOR_A,
-        `
-UPDATE documents
-SET body = 'audit verifier'
-WHERE id = '10000000-0000-0000-0000-000000000002'
-RETURNING id;
-        `
-      )
-    );
-    const { rows: auditRows } = await q(
-      `SELECT actor_id, document_id FROM document_audit WHERE document_id = '10000000-0000-0000-0000-000000000002';`
-    );
-    checks.push({
-      name: 'write creates audit row with acting user',
-      passed:
-        auditedUpdate.length === 1 &&
-        auditRows.some(
-          (row) =>
-            row.actor_id === EDITOR_A &&
-            row.document_id === '10000000-0000-0000-0000-000000000002'
-        ),
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
