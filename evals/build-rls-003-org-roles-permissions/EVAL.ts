@@ -44,7 +44,7 @@ const scorer: ToolScorer = async (ctx) => {
 
 export default scorer;
 
-/** Builds the SQL to run a query as a given user via forged JWT claims, the same session state PostgREST sets for a real request. */
+/** Builds the SQL to run a query as a given user. Same technique as Supabase's own RLS testing guide (https://supabase.com/docs/guides/local-development/testing/overview). */
 function asUser(
   sub: string,
   body: string,
@@ -62,7 +62,7 @@ function asUser(
 
 type UserQueryResult = { rows: Record<string, unknown>[]; error: Error | null };
 
-/** Runs a query as a user without throwing, so RLS-blocked writes (WITH CHECK violations, revoked grants) are a value each check can judge, not an exception that aborts every check after it. */
+/** Runs a query as a user without throwing. RLS-blocked writes (WITH CHECK violations, revoked grants) become a value each check judges, so one blocked write can't abort every later check. */
 async function runAsUser(
   ctx: ToolEvalContext,
   sub: string,
@@ -81,7 +81,7 @@ async function runAsUser(
   }
 }
 
-/** Checks that RLS is turned on for the documents table at all. */
+/** Checks that RLS is turned on for the documents table. */
 async function checkRlsEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
   const { rows } = await ctx.query(
     `SELECT relrowsecurity FROM pg_class WHERE relname = 'documents';`
@@ -92,7 +92,7 @@ async function checkRlsEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
   };
 }
 
-/** Checks that a viewer only sees active documents in their own org. */
+/** Checks that a viewer only sees documents in their own org. */
 async function checkViewerSeesOnlyOwnOrgDocuments(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -298,7 +298,7 @@ async function checkCannotSeeAnotherOrgsMembershipRoster(
   };
 }
 
-/** Checks that a user who is admin in org B can't use that role to write in org A, where they're only a viewer. Role lives on the (user_id, org_id) row, not the user, so this only holds if the org_id join was actually applied. */
+/** Checks that a user's admin role in org B doesn't leak into org A, where they're only a viewer. Role lives on the (user_id, org_id) row, not the user, so this only holds if policies actually join on org_id. */
 async function checkOtherOrgRoleDoesNotLeakIn(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
@@ -319,7 +319,7 @@ async function checkOtherOrgRoleDoesNotLeakIn(
   };
 }
 
-/** Checks that the same multi-org user's admin role still works normally in the org where they actually hold it. */
+/** Checks that the same multi-org user's admin role still works in the org where they hold it. */
 async function checkOwnOrgAdminRoleStillWorks(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
