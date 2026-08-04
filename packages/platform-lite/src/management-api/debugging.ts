@@ -58,15 +58,23 @@ export function createDebuggingRoutes(
       "select id, timestamp, event_message from logs where source = 'edge_logs' order by timestamp desc limit 100";
 
     // The hosted endpoint is read-only server-side; enforce the same contract on
-    // model-authored SQL. The prefix check only shapes the error message — the
-    // REAL enforcement is the read-only transaction below, which postgres applies
-    // to every statement including data-modifying CTEs. The 400 body carries
+    // model-authored SQL. This check only shapes the error message — the REAL
+    // enforcement is the read-only transaction below, which postgres applies to
+    // every statement including data-modifying CTEs. The 400 body carries
     // `message` because mcp's assertSuccess parses non-2xx bodies as {message}
     // (the management-API error envelope) — without it the model only sees the
     // generic "Failed to fetch logs" fallback; `error` kept for shape
     // consistency with the 200 SQL-error path.
+    //
+    // Because it is only message shaping, it must not 400 SQL that hosted
+    // accepts, or the model is failed by a fixture artifact and burns turns
+    // rewriting valid SQL. Both tests read the blanked form, so a leading `--`
+    // explanation (models write them) becomes whitespace the prefix test skips,
+    // and `like '%;%'` is not read as a second statement. A leading paren is
+    // tolerated too. postgres still sees the ORIGINAL sql.
     const stmt = sql.trim().replace(/;+\s*$/, '');
-    if (stmt.includes(';') || !/^\s*(select|with)\b/i.test(stmt)) {
+    const code = blankNonCode(stmt);
+    if (code.includes(';') || !/^[\s(]*(?:select|with)\b/i.test(code)) {
       const message = 'only a single read-only SELECT statement is supported';
       return c.json({ result: [], error: message, message }, 400);
     }
@@ -175,12 +183,73 @@ export function createDebuggingRoutes(
  * KNOWN LIMITATION (time semantics): iso_timestamp_start/end are ignored
  * (fixed-date seeds), so window-correctness of model queries is NOT exercised
  * locally. A time-window-discriminating eval needs relative-time seeding.
+ * The same hole is reachable through the SQL itself, where it used to fail
+ * SILENTLY: seeds carry fixed past dates while now() is real wall-clock, so
+ * `where timestamp > now() - interval '24 hours'` returned 200 {result: []} and
+ * the model concluded "no errors occurred". Wall-clock functions therefore
+ * reject loudly, the same doctrine as the unmodeled sources. Drop the guard
+ * once relative-time seeding lands.
  */
 const UNMODELED_SOURCES = /\b(workflow_run_logs|realtime_logs)\b/i;
 const PHYSICAL_RELATIONS =
   /\b(?:from|join)\s+(edge_logs|function_edge_logs|function_logs|postgres_logs|auth_logs|storage_logs)\b/i;
+const WALL_CLOCK_FNS =
+  /\b(now|now64|today|yesterday|current_timestamp|current_date|localtimestamp)\b/i;
+
+/**
+ * Blank everything that is not executable SQL — single-quoted literals, `--`
+ * line comments and block comments — preserving length and newlines. Syntax
+ * guards read this instead of the raw sql so payload and prose never trip them:
+ * `like '%;%'` is not a second statement, and `-- as of now` is not a
+ * wall-clock read. Doubled quotes are the SQL escape and stay in the literal.
+ */
+export function blankNonCode(sql: string): string {
+  let out = '';
+  let inLiteral = false;
+  for (let i = 0; i < sql.length; i += 1) {
+    const ch = sql[i]!;
+    if (inLiteral) {
+      if (ch === "'") {
+        if (sql[i + 1] === "'") {
+          out += '  ';
+          i += 1;
+          continue;
+        }
+        inLiteral = false;
+        out += ch;
+        continue;
+      }
+      out += ch === '\n' ? ch : ' ';
+      continue;
+    }
+    if (ch === "'") {
+      inLiteral = true;
+      out += ch;
+      continue;
+    }
+    if (ch === '-' && sql[i + 1] === '-') {
+      while (i < sql.length && sql[i] !== '\n') {
+        out += ' ';
+        i += 1;
+      }
+      if (i < sql.length) out += '\n';
+      continue;
+    }
+    if (ch === '/' && sql[i + 1] === '*') {
+      const end = sql.indexOf('*/', i + 2);
+      const stop = end === -1 ? sql.length : end + 2;
+      for (; i < stop; i += 1) out += sql[i] === '\n' ? '\n' : ' ';
+      i -= 1;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
 
 export function compileClickHouseLogsSql(sql: string): string {
+  // Source names arrive as string literals (where source = 'realtime_logs'), so
+  // this guard reads the RAW sql on purpose — blanking literals would hide it.
   const unmodeled = UNMODELED_SOURCES.exec(sql);
   if (unmodeled) {
     throw new Error(
@@ -193,10 +262,25 @@ export function compileClickHouseLogsSql(sql: string): string {
       `relation '${physical[1]}' is not queryable on this endpoint — query the unified 'logs' stream and filter with where source = '${physical[1]}'`
     );
   }
+  // Literals blanked here: `event_message like '%now()%'` is payload, not a
+  // wall-clock read.
+  const wallClock = WALL_CLOCK_FNS.exec(blankNonCode(sql));
+  if (wallClock) {
+    throw new Error(
+      `'${wallClock[1]}' is not supported against platform-lite log seeds — seeds carry fixed past timestamps, so a wall-clock window silently matches 0 rows; drop the time filter, or use an absolute range covering the seeded dates (select min(timestamp), max(timestamp) from logs)`
+    );
+  }
   return sql
     .replace(
-      /\blog_attributes\['([^']+)'\]/gi,
-      (_m, key: string) => `(log_attributes->>'${key}')`
+      // Whitespace-tolerant: log_attributes[ 'k' ] would otherwise fall through
+      // to pg jsonb subscripting, which stays jsonb and renders quote-wrapped
+      // ("stripe-webhook"), so an equality against a text literal throws
+      // "invalid input syntax for type json".
+      /\blog_attributes\[\s*'([^']+)'\s*\]/gi,
+      // coalesce to '' because a ClickHouse Map returns '' for an absent key
+      // while ->> returns NULL: without it `log_attributes['error'] = ''`
+      // matches every row hosted and nothing here.
+      (_m, key: string) => `coalesce(log_attributes->>'${key}', '')`
     )
     .replace(/\bcountIf\s*\(/gi, 'count(*) FILTER (WHERE ');
 }

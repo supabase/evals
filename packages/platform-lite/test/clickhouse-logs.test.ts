@@ -39,6 +39,25 @@ await seedLogRow(logsDb, {
   message: 'upload failed: object too large',
   metadata: { identifier: 'avatars-bucket' },
 });
+// The runtime console stream is seeded on its own source, so it is provably not
+// a by-product of the edge-function request rows above.
+for (const [id, functionId] of [
+  ['c1', 'stripe-webhook'],
+  ['c2', 'send-email'],
+] as const) {
+  await seedLogRow(logsDb, {
+    id,
+    ts: new Date('2026-04-28T10:00:00Z'),
+    source: 'edge-function-runtime',
+    level: 'info',
+    message: `console.log from ${functionId}`,
+    metadata: {
+      function_id: functionId,
+      event_type: 'Log',
+      execution_id: `exec-${id}`,
+    },
+  });
+}
 afterAll(() => logsDb.close());
 
 // verbatim from mcp getClickHouseLogQuery('edge-function')
@@ -174,28 +193,149 @@ limit 100`
     ).rejects.toThrow(/unknown log seed source/i);
   });
 
-  it('runs the runtime (function_logs) preset source', async () => {
+  // verbatim from mcp 0.9.0 getClickHouseLogQuery('edge-function-runtime'),
+  // limit interpolated to 100. This preset is why function_logs must stay
+  // queryable: the pin (0.8.1) predates it, 0.9.0 ships it, and rejecting the
+  // source would turn it into a hard error the moment the pin moves.
+  it('runs the mcp 0.9.0 edge-function-runtime preset against its own rows', async () => {
     const result = await logsDb.query<{
       function_id: string;
       level: string;
+      event_type: string;
+      execution_id: string;
       severity_text: string;
     }>(
       compileClickHouseLogsSql(
-        `select id, timestamp, event_message, severity_text, log_attributes['level'] as level, log_attributes['function_id'] as function_id from logs where source = 'function_logs' order by timestamp desc limit 10`
+        `select id, timestamp, event_message, severity_text, log_attributes['level'] as level, log_attributes['event_type'] as event_type, log_attributes['function_id'] as function_id, log_attributes['execution_id'] as execution_id, log_attributes['deployment_id'] as deployment_id, log_attributes['version'] as version
+from logs
+where source = 'function_logs'
+order by timestamp desc
+limit 100`
       )
     );
+    // Exactly the two rows seeded as 'edge-function-runtime' — NOT the five
+    // edge-function request rows, which is what the relabelled union served.
+    expect(result.rows).toHaveLength(2);
     expect(result.rows.map((r) => r.function_id).sort()).toEqual([
       'send-email',
-      'send-email',
-      'stripe-webhook',
-      'stripe-webhook',
       'stripe-webhook',
     ]);
     for (const row of result.rows) {
-      expect(['error', 'info']).toContain(row.level);
+      expect(row.event_type).toBe('Log');
+      expect(row.execution_id).toMatch(/^exec-c[12]$/);
       expect(row.severity_text).toBe(row.level);
     }
   });
+
+  it('counts each seeded row once per real source', async () => {
+    // Guards the fan-out directly: one `edge-function` seed writes an edge_logs
+    // row AND a function_edge_logs row (two real streams, by design) and nothing
+    // else, so function_logs holds only the 2 rows seeded on its own source.
+    // The relabelled union made it 5 and inflated the total by 5.
+    const bySource = await logsDb.query<{ source: string; n: string }>(
+      compileClickHouseLogsSql(
+        'select source, count(*) as n from logs group by source order by source'
+      )
+    );
+    expect(bySource.rows.map((r) => [r.source, Number(r.n)])).toEqual([
+      ['edge_logs', 5],
+      ['function_edge_logs', 5],
+      ['function_logs', 2],
+      ['storage_logs', 1],
+    ]);
+    const total = await logsDb.query<{ n: string }>(
+      compileClickHouseLogsSql('select count(*) as n from logs')
+    );
+    expect(Number(total.rows[0]!.n)).toBe(13);
+  });
+
+  it('matches an absent map key against the empty string, as a ClickHouse Map does', async () => {
+    // Hosted Map access yields '' for a missing key while ->> yields NULL, so
+    // without the coalesce `log_attributes['x'] = ''` matched every row hosted
+    // and none here — a silent divergence inside a WHERE clause.
+    const result = await logsDb.query<{ n: string }>(
+      compileClickHouseLogsSql(
+        "select count(*) as n from logs where log_attributes['nonexistent'] = ''"
+      )
+    );
+    expect(Number(result.rows[0]!.n)).toBe(13);
+  });
+
+  it('translates map access with whitespace inside the subscript', async () => {
+    // Untranslated, `[ 'k' ]` fell through to pg jsonb subscripting: the value
+    // stayed jsonb and rendered quote-wrapped, so comparing it to a text
+    // literal threw "invalid input syntax for type json".
+    const compiled = compileClickHouseLogsSql(
+      "select count(*) as n from logs where log_attributes[ 'function_id' ] = 'stripe-webhook'"
+    );
+    expect(compiled).toContain("coalesce(log_attributes->>'function_id', '')");
+    const result = await logsDb.query<{ n: string }>(compiled);
+    // 3 edge-function seeds x 2 request streams, plus 1 runtime console row.
+    expect(Number(result.rows[0]!.n)).toBe(7);
+  });
+
+  it.each([
+    'now',
+    'now64',
+    'today',
+    'yesterday',
+    'current_timestamp',
+    'current_date',
+  ])('rejects the wall-clock function %s instead of matching 0 rows', (fn) => {
+    // Seeds carry fixed past dates, so a wall-clock window returned
+    // 200 {result: []} and the model concluded "no errors occurred".
+    expect(() =>
+      compileClickHouseLogsSql(
+        `select count(*) as n from logs where timestamp > ${fn} - interval '24 hours'`
+      )
+    ).toThrow(/fixed past timestamps/i);
+  });
+
+  it('does not mistake literal or comment text for a wall-clock read', async () => {
+    // The guard reads the blanked form, so payload and prose are not SQL.
+    const compiled = compileClickHouseLogsSql(
+      "-- errors as of now\nselect count(*) as n from logs where event_message like '%now()%'"
+    );
+    await expect(logsDb.query(compiled)).resolves.toBeDefined();
+  });
+
+  // Every expectation below is the value real ClickHouse returns, captured from
+  // play.clickhouse.com (user=explorer) rather than read off the docs. Worth
+  // being precise about the overflow note in those docs: out-of-range WRAPPING
+  // applies to the numeric overload (toInt32(2147483648::Int64) is
+  // -2147483648), while an out-of-range STRING is a parse error, so *OrZero
+  // yields 0 — toInt32OrZero('2147483648') is 0, not -2147483648. These shims
+  // are text-only on purpose, so the 0 branch is the only reachable one.
+  it.each<[string, string, number]>([
+    ['toInt32OrZero', '42', 42],
+    ['toInt32OrZero', '+42', 42],
+    ['toInt32OrZero', '10.5', 0],
+    ['toInt32OrZero', 'abc', 0],
+    ['toInt32OrZero', '', 0],
+    ['toInt32OrZero', ' 42', 0],
+    ['toInt32OrZero', '0x10', 0],
+    ['toInt32OrZero', '2147483647', 2147483647],
+    ['toInt32OrZero', '2147483648', 0],
+    ['toInt32OrZero', '-2147483648', -2147483648],
+    ['toInt32OrZero', '-2147483649', 0],
+    ['toInt64OrZero', '10.5', 0],
+    ['toInt64OrZero', '9007199254740991', 9007199254740991],
+    ['toUInt32OrZero', '7', 7],
+    ['toUInt32OrZero', '-5', 0],
+    ['toUInt32OrZero', '4294967295', 4294967295],
+    ['toUInt32OrZero', '4294967296', 0],
+  ])(
+    'parses %s(%s) as %d, matching ClickHouse OrZero semantics',
+    async (fn, input, expected) => {
+      // OrZero parses the WHOLE string as that integer type or yields 0. A plain
+      // v::numeric accepted '10.5' as 10.5 and a negative as unsigned, either of
+      // which shifts an aggregate with no error to show for it.
+      const result = await logsDb.query<{ v: string }>(
+        `select ${fn}('${input}') as v`
+      );
+      expect(Number(result.rows[0]!.v)).toBe(expected);
+    }
+  );
 
   // Both cases are verbatim model output from the PR-333 A/B
   // (results-ab/investigate-logs-001-top-error-function.treatment.json):
@@ -360,5 +500,71 @@ describe('/v1/projects/:ref/analytics/endpoints/logs route', () => {
     );
     const body = (await res.json()) as { result: unknown[] };
     expect(body.result).toHaveLength(2);
+  });
+
+  it.each([
+    [
+      'a leading line comment',
+      '-- top errors by function\nselect id from logs',
+    ],
+    ['a leading block comment', '/* preset */ select id from logs'],
+    [
+      'a semicolon inside a string literal',
+      "select id from logs where event_message like '%;%'",
+    ],
+    ['a parenthesised select', '(select id from logs limit 1)'],
+  ])('accepts %s, which hosted accepts too', async (_label, sql) => {
+    await ready;
+    // The gate only shapes the error message; the role and the read-only
+    // transaction do the enforcing. 400ing these failed the model for a fixture
+    // artifact and burned turns rewriting valid SQL.
+    const res = await app.request(url(sql));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { result: unknown[]; error?: string };
+    expect(body.error).toBeUndefined();
+  });
+
+  it('still rejects a genuine second statement', async () => {
+    await ready;
+    const before = await countRows();
+    // Blanking literals must not blind the multi-statement scan to a real `;`.
+    const res = await app.request(
+      url('select id from logs; drop table function_edge_logs')
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toMatch(/read-only SELECT/i);
+    expect(await countRows()).toBe(before);
+  });
+
+  it('ignores iso_timestamp_start/end and still returns fixed-date seeds', async () => {
+    await ready;
+    // Pins the documented choice. mcp defaults this window from the current
+    // clock while seeds carry fixed past dates, so a future change that starts
+    // honouring the window would empty every scenario — and would otherwise
+    // pass this suite untouched.
+    const now = new Date();
+    const start = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+    const res = await app.request(
+      `${url("select id from logs where source = 'function_edge_logs'")}` +
+        `&iso_timestamp_start=${encodeURIComponent(start)}` +
+        `&iso_timestamp_end=${encodeURIComponent(now.toISOString())}`
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { result: unknown[] };
+    expect(body.result).toHaveLength(2);
+  });
+
+  it('returns an empty result with no error for a modeled but unseeded source', async () => {
+    await ready;
+    // auth_logs has a table and no seeds here, so empty is the honest answer and
+    // stays distinguishable from the unmodeled sources, which carry an `error`.
+    const res = await app.request(
+      url("select id from logs where source = 'auth_logs' limit 10")
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { result: unknown[]; error?: string };
+    expect(body.result).toEqual([]);
+    expect(body.error).toBeUndefined();
   });
 });

@@ -77,7 +77,29 @@ CREATE TABLE IF NOT EXISTS function_edge_logs (
   pathname text
 );
 
-CREATE VIEW function_logs AS SELECT * FROM function_edge_logs;
+-- The runtime console/stdout stream, a SEPARATE stream from the
+-- request/response one in function_edge_logs. mcp 0.9.0 gives it its own
+-- preset ('edge-function-runtime' selects severity_text, level, event_type,
+-- function_id, execution_id, deployment_id, version), so it needs its own rows:
+-- it was a view over function_edge_logs, which made every seeded edge-function
+-- request appear again as a phantom console line. Seed it with source
+-- 'edge-function-runtime'.
+CREATE TABLE IF NOT EXISTS function_logs (
+  id text PRIMARY KEY,
+  identifier text,
+  timestamp timestamptz NOT NULL DEFAULT now(),
+  ts timestamptz,
+  event_message text,
+  message text,
+  source text,
+  level text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  function_id text,
+  event_type text,
+  execution_id text,
+  deployment_id text,
+  version text
+);
 
 CREATE TABLE IF NOT EXISTS storage_logs (
   id text PRIMARY KEY,
@@ -124,6 +146,14 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --     compileClickHouseLogsSql (debugging.ts) rejects queries naming them so
 --     they error loudly instead of silently returning 0 rows; model them with
 --     real tables + seeds before running a branch-action/realtime logs eval.
+--   * function_logs IS modeled, from its own table, and is unioned exactly
+--     once. It used to be a second union over function_edge_logs, so a single
+--     seeded edge-function row appeared 3x (edge_logs + function_edge_logs +
+--     function_logs): count(*) and "group by source" over-reported and the
+--     console stream showed request rows. It has a real consumer, so rejecting
+--     the source was not an option: mcp 0.9.0 adds an 'edge-function-runtime'
+--     preset that reads exactly this source. Seed it with source
+--     'edge-function-runtime'; an 'edge-function' seed no longer writes here.
 CREATE VIEW logs AS
   SELECT id, identifier, timestamp, ts, event_message, message, level, level AS severity_text, 'edge_logs'::text AS source,
     metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'request.method', method, 'request.path', path, 'response.status_code', status_code)) AS log_attributes
@@ -134,8 +164,8 @@ CREATE VIEW logs AS
   FROM function_edge_logs
   UNION ALL
   SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'function_logs',
-    metadata || jsonb_strip_nulls(jsonb_build_object('level', level, 'function_id', function_id, 'deployment_id', deployment_id, 'version', version))
-  FROM function_edge_logs
+    metadata || jsonb_strip_nulls(jsonb_build_object('level', level, 'event_type', event_type, 'function_id', function_id, 'execution_id', execution_id, 'deployment_id', deployment_id, 'version', version))
+  FROM function_logs
   UNION ALL
   SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'postgres_logs',
     metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'parsed.error_severity', error_severity))
@@ -169,15 +199,34 @@ GRANT SELECT ON logs TO logs_reader;
 -- only argument form observed from models. toString is anyelement because
 -- ClickHouse's toString accepts any type.
 -- Grown strictly from observed model output - see debugging.ts translator note.
+--
+-- OrZero means "parse the WHOLE string as this integer type, else 0". A plain
+-- v::numeric was too permissive and diverged from hosted in two ways that
+-- silently change an aggregate: '10.5' yielded 10.5 where ClickHouse yields 0
+-- (it parses integers only), and toUInt32OrZero('-5') yielded -5 where an
+-- unsigned parse yields 0. An out-of-range STRING yields 0 as well: the
+-- overflow-wrapping note in the ClickHouse docs is about the numeric overload
+-- (toInt32(2147483648::Int64) is -2147483648), while a too-large string is a
+-- parse error, so toInt32OrZero('2147483648') is 0. Verified against
+-- play.clickhouse.com rather than inferred; the cases are pinned in
+-- clickhouse-logs.test.ts. The nested CASE keeps the cast unreachable unless
+-- the pattern already matched, since postgres does not promise AND
+-- short-circuits.
 CREATE FUNCTION toInt32OrZero(v text) RETURNS numeric AS $ch$
-BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
-$ch$ LANGUAGE plpgsql IMMUTABLE;
+  SELECT CASE WHEN v ~ '^[+-]?[0-9]+$' THEN
+    CASE WHEN v::numeric BETWEEN -2147483648 AND 2147483647 THEN v::numeric ELSE 0 END
+  ELSE 0 END
+$ch$ LANGUAGE sql IMMUTABLE;
 CREATE FUNCTION toInt64OrZero(v text) RETURNS numeric AS $ch$
-BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
-$ch$ LANGUAGE plpgsql IMMUTABLE;
+  SELECT CASE WHEN v ~ '^[+-]?[0-9]+$' THEN
+    CASE WHEN v::numeric BETWEEN -9223372036854775808 AND 9223372036854775807 THEN v::numeric ELSE 0 END
+  ELSE 0 END
+$ch$ LANGUAGE sql IMMUTABLE;
 CREATE FUNCTION toUInt32OrZero(v text) RETURNS numeric AS $ch$
-BEGIN RETURN coalesce(v::numeric, 0); EXCEPTION WHEN others THEN RETURN 0; END
-$ch$ LANGUAGE plpgsql IMMUTABLE;
+  SELECT CASE WHEN v ~ '^[0-9]+$' THEN
+    CASE WHEN v::numeric <= 4294967295 THEN v::numeric ELSE 0 END
+  ELSE 0 END
+$ch$ LANGUAGE sql IMMUTABLE;
 CREATE FUNCTION toString(v anyelement) RETURNS text AS $ch$ SELECT v::text $ch$ LANGUAGE sql IMMUTABLE;
 `;
 
@@ -199,6 +248,18 @@ export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
   ) {
     await seedFunctionLog(logsDb, log);
     await seedEdgeLog(logsDb, log);
+    return;
+  }
+
+  // The runtime console stream is its own source, never a by-product of an
+  // 'edge-function' seed: writing both from one row is what made a single
+  // request show up as a phantom console line.
+  if (
+    normalizedSource === 'edge-function-runtime' ||
+    normalizedSource === 'edge_function_runtime' ||
+    normalizedSource === 'function-runtime'
+  ) {
+    await seedFunctionRuntimeLog(logsDb, log);
     return;
   }
 
@@ -226,7 +287,7 @@ export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
   // "no logs" query result, which reads as a passing scenario. Same doctrine as
   // the unmodeled-source guard in debugging.ts.
   throw new Error(
-    `unknown log seed source '${row.source}' — expected edge-function, edge, postgres/database, auth, or storage`
+    `unknown log seed source '${row.source}' — expected edge-function, edge-function-runtime, edge, postgres/database, auth, or storage`
   );
 }
 
@@ -297,6 +358,35 @@ async function seedFunctionLog(
       metadataNumber(log.metadata, ['status_code', 'status']),
       metadataText(log.metadata, ['method']),
       metadataText(log.metadata, ['pathname', 'path']),
+    ]
+  );
+}
+
+async function seedFunctionRuntimeLog(
+  logsDb: PGlite,
+  log: NormalizedLogSeed
+): Promise<void> {
+  const functionId = metadataText(log.metadata, ['function_id']);
+  await logsDb.query(
+    `INSERT INTO function_logs
+      (
+        id, identifier, timestamp, ts, event_message, message, source, level, metadata,
+        function_id, event_type, execution_id, deployment_id, version
+      )
+     VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12)`,
+    [
+      log.id,
+      metadataText(log.metadata, ['identifier']) ?? functionId,
+      log.ts,
+      log.message,
+      log.source,
+      log.level,
+      log.metadataJson,
+      functionId,
+      metadataText(log.metadata, ['event_type']),
+      metadataText(log.metadata, ['execution_id']),
+      metadataText(log.metadata, ['deployment_id']),
+      metadataText(log.metadata, ['version']),
     ]
   );
 }
