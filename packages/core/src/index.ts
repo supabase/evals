@@ -100,10 +100,11 @@ export {
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';
 export type { DocsResultSandbox } from './docs-results.js';
-// CLI agent harnesses (Claude Code, Codex, OpenCode, and the framework for adding more).
+// CLI agent harnesses (Claude Code, Codex, Cursor, OpenCode, and the framework for adding more).
 export { createCliAgent } from './agents/engine.js';
 export { claudeCodeAgent } from './agents/claude-code/index.js';
 export { codexAgent } from './agents/codex/index.js';
+export { cursorAgent } from './agents/cursor/index.js';
 export { opencodeAgent } from './agents/opencode/index.js';
 export type {
   AgentMetadata,

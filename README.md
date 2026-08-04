@@ -23,7 +23,7 @@ pnpm install
 cp .env.example .env
 ```
 
-Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
+Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `CURSOR_API_KEY`). Rubric/judge checks also need `OPENAI_API_KEY` regardless of harness.
 
 ## Concepts
 

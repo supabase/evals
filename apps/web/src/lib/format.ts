@@ -6,6 +6,7 @@ export const AGENT_LABELS = {
   "ai-sdk": "AI SDK",
   "claude-code": "Claude Code",
   codex: "Codex",
+  cursor: "Cursor",
   opencode: "OpenCode",
 } satisfies Record<ExperimentDisplay["agent"], string>
 

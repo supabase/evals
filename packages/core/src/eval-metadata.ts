@@ -56,6 +56,7 @@ export const agentHarnessIdSchema = z.enum([
   'ai-sdk',
   'claude-code',
   'codex',
+  'cursor',
   'opencode',
 ]);
 export type AgentHarnessId = z.infer<typeof agentHarnessIdSchema>;
@@ -64,6 +65,7 @@ export const modelProviderSchema = z.enum([
   'anthropic',
   'openai',
   'moonshotai',
+  'cursor',
 ]);
 export type ModelProvider = z.infer<typeof modelProviderSchema>;
 
