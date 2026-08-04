@@ -189,12 +189,20 @@ export function createDebuggingRoutes(
  * the model concluded "no errors occurred". Wall-clock functions therefore
  * reject loudly, the same doctrine as the unmodeled sources. Drop the guard
  * once relative-time seeding lands.
+ *
+ * The guard fires only on a statement that READS 'logs'. A bare `select now()`
+ * is an orientation probe: it touches no seeded row, so it cannot report a
+ * false "no logs", and models were observed opening with exactly that before
+ * building a window (the mcp#333 A/B). Rejecting the probe would cost a turn
+ * and teach nothing; rejecting the FILTER is the part that matters.
  */
 const UNMODELED_SOURCES = /\b(workflow_run_logs|realtime_logs)\b/i;
 const PHYSICAL_RELATIONS =
   /\b(?:from|join)\s+(edge_logs|function_edge_logs|function_logs|postgres_logs|auth_logs|storage_logs)\b/i;
 const WALL_CLOCK_FNS =
   /\b(now|now64|today|yesterday|current_timestamp|current_date|localtimestamp)\b/i;
+// 'logs' as a relation; log_attributes and other log_* identifiers do not match.
+const READS_LOGS = /\blogs\b/i;
 
 /**
  * Blank everything that is not executable SQL — single-quoted literals, `--`
@@ -262,9 +270,12 @@ export function compileClickHouseLogsSql(sql: string): string {
       `relation '${physical[1]}' is not queryable on this endpoint — query the unified 'logs' stream and filter with where source = '${physical[1]}'`
     );
   }
-  // Literals blanked here: `event_message like '%now()%'` is payload, not a
-  // wall-clock read.
-  const wallClock = WALL_CLOCK_FNS.exec(blankNonCode(sql));
+  // Literals and comments blanked: `event_message like '%now()%'` is payload and
+  // `-- as of now` is prose, neither is a wall-clock read. Only a statement that
+  // reads 'logs' can report a false empty, so a bare `select now()` probe is let
+  // through.
+  const code = blankNonCode(sql);
+  const wallClock = READS_LOGS.test(code) ? WALL_CLOCK_FNS.exec(code) : null;
   if (wallClock) {
     throw new Error(
       `'${wallClock[1]}' is not supported against platform-lite log seeds — seeds carry fixed past timestamps, so a wall-clock window silently matches 0 rows; drop the time filter, or use an absolute range covering the seeded dates (select min(timestamp), max(timestamp) from logs)`

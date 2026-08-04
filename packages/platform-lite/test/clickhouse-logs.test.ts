@@ -299,6 +299,30 @@ limit 100`
     await expect(logsDb.query(compiled)).resolves.toBeDefined();
   });
 
+  it.each([
+    ['a bare clock read', 'select now()'],
+    ['a clock read with an alias', 'select now() as current_time'],
+    [
+      'a clock read outside any logs query',
+      "select current_timestamp - interval '15 minutes' as window_start",
+    ],
+  ])('allows %s as an orientation probe', async (_label, sql) => {
+    // Models open with a clock probe before building a window (observed in the
+    // mcp#333 A/B). It reads no seeded row, so it cannot report a false "no
+    // logs" — the FILTER over seeds is the failure mode, not reading the clock.
+    const compiled = compileClickHouseLogsSql(sql);
+    await expect(logsDb.query(compiled)).resolves.toBeDefined();
+  });
+
+  it('still rejects a wall-clock filter once the statement reads logs', () => {
+    // The narrowing must not reopen the silent-empty hole.
+    expect(() =>
+      compileClickHouseLogsSql(
+        "with w as (select now() - interval '24 hours' as since) select count(*) as n from logs, w where timestamp > w.since"
+      )
+    ).toThrow(/fixed past timestamps/i);
+  });
+
   // Every expectation below is the value real ClickHouse returns, captured from
   // play.clickhouse.com (user=explorer) rather than read off the docs. Worth
   // being precise about the overflow note in those docs: out-of-range WRAPPING
