@@ -1,87 +1,5 @@
 [
   {
-    "experiment": "claude-code-opus-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-opus-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "build-auth-001-email-password-flow",
-    "stage": "build",
-    "product": [
-      "auth",
-      "database"
-    ],
-    "topic": [
-      "sdk",
-      "rls"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "cliVersion": "2.109.1",
-    "passed": true,
-    "checks": [
-      {
-        "name": "auth module loads and the driver completes",
-        "passed": true,
-        "notes": "driver produced a result"
-      },
-      {
-        "name": "signUp creates the account and returns its user id",
-        "passed": true,
-        "notes": "db user ddc094bb-448a-4f43-a5c3-7a5b7bebc8e5, signUp returned {\"userId\":\"ddc094bb-448a-4f43-a5c3-7a5b7bebc8e5\"}"
-      },
-      {
-        "name": "signup metadata reaches the profile (display name)",
-        "passed": true,
-        "notes": "profiles.display_name = \"Alex Doe\""
-      },
-      {
-        "name": "wrong password is rejected gracefully (no throw, no session)",
-        "passed": true,
-        "notes": "{\"error\":\"Invalid login credentials\"}"
-      },
-      {
-        "name": "signIn with the right password returns the user id",
-        "passed": true,
-        "notes": "{\"userId\":\"ddc094bb-448a-4f43-a5c3-7a5b7bebc8e5\"}"
-      },
-      {
-        "name": "getMyProfile returns the signed-in user's profile",
-        "passed": true,
-        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
-      },
-      {
-        "name": "app code does not use the secret / service-role key",
-        "passed": true,
-        "notes": "no secret-key references found"
-      },
-      {
-        "name": "implementation uses @supabase/supabase-js",
-        "passed": true,
-        "notes": "imports found in: app/src/auth.mjs"
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
-    "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-opus-4.8/build-auth-001-email-password-flow.json"
-  },
-  {
     "experiment": "claude-code-opus-4.8",
     "experimentSuite": "benchmark",
     "experimentDisplay": {
@@ -175,6 +93,366 @@
     "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-5/build-cli-001-bootstrap-app.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-database-001-migrate-postgres-to-supabase",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "all 3 tables exist (teams, members, tasks)",
+        "passed": true
+      },
+      {
+        "name": "row counts match (teams=5, members=10, tasks=13)",
+        "passed": true
+      },
+      {
+        "name": "foreign key constraints survived the restore",
+        "passed": true
+      },
+      {
+        "name": "tasks_team_status_idx index survived the restore",
+        "passed": true
+      },
+      {
+        "name": "sequences synced (next insert won't conflict with existing IDs)",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"restore pg_dump custom format dump into Supabase migrate existing postgres database\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/vercel-postgres",
+              "title": "Migrate from Vercel Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/neon",
+              "title": "Migrate from Neon to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/heroku",
+              "title": "Migrate from Heroku to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 78095
+        },
+        {
+          "source": "web_fetch",
+          "query": "What are the exact recommended commands and flags for restoring a pg_dump dump into a Supabase Postgres database? Include any notes about roles, ownership, privileges, extensions, schemas to exclude, and disabling triggers.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres.md"
+            }
+          ],
+          "resultChars": 1424
+        },
+        {
+          "source": "web_fetch",
+          "query": "List any recent entries tagged breaking-change, especially anything related to the CLI, local development, `supabase start`, `supabase db` commands, database restores/migrations, or Postgres major versions.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1248
+        }
+      ]
+    },
+    "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
+    "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5/build-database-001-migrate-postgres-to-supabase.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-cli-001-bootstrap-app",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "todos table is created by a migration file",
+        "passed": true
+      },
+      {
+        "name": "todos table exists with at least 2 seeded rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "row level security is enabled on todos",
+        "passed": true
+      },
+      {
+        "name": "a SELECT policy targets the authenticated role",
+        "passed": true
+      },
+      {
+        "name": "REST API returns no todos to anonymous requests",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "REST API returns the todos to authenticated requests",
+        "passed": true,
+        "notes": "2 rows"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
+    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5-no-skills/build-cli-001-bootstrap-app.json"
+  },
+  {
+    "experiment": "claude-code-opus-4.8-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-4-8",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-database-001-migrate-postgres-to-supabase",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "all 3 tables exist (teams, members, tasks)",
+        "passed": true
+      },
+      {
+        "name": "row counts match (teams=5, members=10, tasks=13)",
+        "passed": true
+      },
+      {
+        "name": "foreign key constraints survived the restore",
+        "passed": true
+      },
+      {
+        "name": "tasks_team_status_idx index survived the restore",
+        "passed": true
+      },
+      {
+        "name": "sequences synced (next insert won't conflict with existing IDs)",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
+    "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5-no-skills/build-database-001-migrate-postgres-to-supabase.json"
+  },
+  {
+    "experiment": "claude-code-opus-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-auth-001-email-password-flow",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "auth module loads and the driver completes",
+        "passed": true,
+        "notes": "driver produced a result"
+      },
+      {
+        "name": "signUp creates the account and returns its user id",
+        "passed": true,
+        "notes": "db user d720a18b-4270-462b-bc8d-62f6f9792f54, signUp returned {\"userId\":\"d720a18b-4270-462b-bc8d-62f6f9792f54\"}"
+      },
+      {
+        "name": "signup metadata reaches the profile (display name)",
+        "passed": true,
+        "notes": "profiles.display_name = \"Alex Doe\""
+      },
+      {
+        "name": "wrong password is rejected gracefully (no throw, no session)",
+        "passed": true,
+        "notes": "{\"error\":\"Invalid login credentials\"}"
+      },
+      {
+        "name": "signIn with the right password returns the user id",
+        "passed": true,
+        "notes": "{\"userId\":\"d720a18b-4270-462b-bc8d-62f6f9792f54\"}"
+      },
+      {
+        "name": "getMyProfile returns the signed-in user's profile",
+        "passed": true,
+        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
+      },
+      {
+        "name": "app code does not use the secret / service-role key",
+        "passed": true,
+        "notes": "no secret-key references found"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/src/auth.mjs"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "curl -s https://supabase.com/changelog.md 2>&1 | head -60",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3161
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -s https://supabase.com/changelog.md | grep -n -i -B2 'Breaking Change · .*\\(Auth\\|auth\\)' | head -60",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1353
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"signUp email password options data user metadata javascript\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
+              "title": "Customizing Emails by Language"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
+              "title": "Multi-Factor Authentication"
+            }
+          ],
+          "resultChars": 22309
+        }
+      ]
+    },
+    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
+    "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5/build-auth-001-email-password-flow.json"
   },
   {
     "experiment": "claude-code-opus-5",
@@ -436,53 +714,88 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"secret key service_role server-side createClient node backend persistSession\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/performing-administration-tasks-on-the-server-side-with-the-servicerole-secret-BYM4Fa",
+              "title": "Performing administration tasks on the server side with a secret key"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            }
+          ],
+          "resultChars": 45578
+        }
+      ]
     },
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "claude-code-opus-4.8/build-dataapi-001-relational-report.json"
+    "sourcePath": "claude-code-opus-5/build-dataapi-001-relational-report.json"
   },
   {
-    "experiment": "claude-code-opus-4.8",
+    "experiment": "claude-code-opus-5",
     "experimentSuite": "benchmark",
     "experimentDisplay": {
       "agent": "claude-code",
       "modelProvider": "anthropic",
-      "modelId": "claude-opus-4-8",
+      "modelId": "claude-opus-5",
       "reasoningEffort": "high"
     },
-    "eval": "build-database-001-migrate-postgres-to-supabase",
+    "eval": "build-dataapi-002-restock-alert-report",
     "stage": "build",
     "product": [
+      "data-api",
       "database"
     ],
     "topic": [
-      "migrations"
+      "sdk"
     ],
     "suite": "benchmark",
     "interface": "cli",
+    "cliVersion": "2.109.1",
     "passed": true,
     "checks": [
       {
-        "name": "all 3 tables exist (teams, members, tasks)",
-        "passed": true
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
       },
       {
-        "name": "row counts match (teams=5, members=10, tasks=13)",
-        "passed": true
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
       },
       {
-        "name": "foreign key constraints survived the restore",
-        "passed": true
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
       },
       {
-        "name": "tasks_team_status_idx index survived the restore",
-        "passed": true
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/restock.mjs"
       },
       {
-        "name": "sequences synced (next insert won't conflict with existing IDs)",
-        "passed": true
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -495,67 +808,12 @@
       ]
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"restore pg_dump custom format dump into Supabase migrate existing postgres database\", limit: 6) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
-              "title": "Migrate from Postgres to Supabase"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/vercel-postgres",
-              "title": "Migrate from Vercel Postgres to Supabase"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/neon",
-              "title": "Migrate from Neon to Supabase"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
-              "title": "Restore a Platform Project to Self-Hosted"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/heroku",
-              "title": "Migrate from Heroku to Supabase"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
-              "title": "Backup and Restore using the CLI"
-            }
-          ],
-          "resultChars": 78095
-        },
-        {
-          "source": "web_fetch",
-          "query": "What are the exact recommended commands and flags for restoring a pg_dump dump into a Supabase Postgres database? Include any notes about roles, ownership, privileges, extensions, schemas to exclude, and disabling triggers.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres.md"
-            }
-          ],
-          "resultChars": 1424
-        },
-        {
-          "source": "web_fetch",
-          "query": "List any recent entries tagged breaking-change, especially anything related to the CLI, local development, `supabase start`, `supabase db` commands, database restores/migrations, or Postgres major versions.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 1248
-        }
-      ]
+      "calls": []
     },
-    "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
-    "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "claude-code-opus-5/build-database-001-migrate-postgres-to-supabase.json"
+    "sourcePath": "claude-code-opus-5/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "claude-code-opus-5",
@@ -2426,7 +2684,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user db370024-8f1e-4509-836e-53f273ac466c, signUp returned {\"userId\":\"db370024-8f1e-4509-836e-53f273ac466c\"}"
+        "notes": "db user 6b4b33dc-03b1-440f-b7d8-0c2eaf088d50, signUp returned {\"userId\":\"6b4b33dc-03b1-440f-b7d8-0c2eaf088d50\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -2441,7 +2699,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"db370024-8f1e-4509-836e-53f273ac466c\"}"
+        "notes": "{\"userId\":\"6b4b33dc-03b1-440f-b7d8-0c2eaf088d50\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -2469,74 +2727,7 @@
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
     "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "claude-code-opus-4.8-no-skills/build-auth-001-email-password-flow.json"
-  },
-  {
-    "experiment": "claude-code-opus-4.8-no-skills",
-    "experimentSuite": "no-skills",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-opus-4-8",
-      "reasoningEffort": "high"
-    },
-    "eval": "build-cli-001-bootstrap-app",
-    "stage": "build",
-    "product": [
-      "database",
-      "data-api"
-    ],
-    "topic": [
-      "migrations",
-      "rls"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "todos table is created by a migration file",
-        "passed": true
-      },
-      {
-        "name": "todos table exists with at least 2 seeded rows",
-        "passed": true,
-        "notes": "found 2 rows"
-      },
-      {
-        "name": "row level security is enabled on todos",
-        "passed": true
-      },
-      {
-        "name": "a SELECT policy targets the authenticated role",
-        "passed": true
-      },
-      {
-        "name": "REST API returns no todos to anonymous requests",
-        "passed": true,
-        "notes": "0 rows"
-      },
-      {
-        "name": "REST API returns the todos to authenticated requests",
-        "passed": true,
-        "notes": "2 rows"
-      }
-    ],
-    "skills": {
-      "available": [],
-      "loaded": []
-    },
-    "docs": {
-      "calls": []
-    },
-    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
-    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-opus-5-no-skills/build-cli-001-bootstrap-app.json"
+    "sourcePath": "claude-code-opus-5-no-skills/build-auth-001-email-password-flow.json"
   },
   {
     "experiment": "claude-code-opus-5-no-skills",
@@ -2755,48 +2946,55 @@
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "claude-code-opus-4.8-no-skills/build-dataapi-001-relational-report.json"
+    "sourcePath": "claude-code-opus-5-no-skills/build-dataapi-001-relational-report.json"
   },
   {
-    "experiment": "claude-code-opus-4.8-no-skills",
+    "experiment": "claude-code-opus-5-no-skills",
     "experimentSuite": "no-skills",
     "experimentDisplay": {
       "agent": "claude-code",
       "modelProvider": "anthropic",
-      "modelId": "claude-opus-4-8",
+      "modelId": "claude-opus-5",
       "reasoningEffort": "high"
     },
-    "eval": "build-database-001-migrate-postgres-to-supabase",
+    "eval": "build-dataapi-002-restock-alert-report",
     "stage": "build",
     "product": [
+      "data-api",
       "database"
     ],
     "topic": [
-      "migrations"
+      "sdk"
     ],
     "suite": "benchmark",
     "interface": "cli",
+    "cliVersion": "2.109.1",
     "passed": true,
     "checks": [
       {
-        "name": "all 3 tables exist (teams, members, tasks)",
-        "passed": true
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
       },
       {
-        "name": "row counts match (teams=5, members=10, tasks=13)",
-        "passed": true
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
       },
       {
-        "name": "foreign key constraints survived the restore",
-        "passed": true
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
       },
       {
-        "name": "tasks_team_status_idx index survived the restore",
-        "passed": true
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/restock.mjs"
       },
       {
-        "name": "sequences synced (next insert won't conflict with existing IDs)",
-        "passed": true
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
       }
     ],
     "skills": {
@@ -2806,10 +3004,10 @@
     "docs": {
       "calls": []
     },
-    "prompt": "I have an existing Postgres database I want to migrate to Supabase. There's a binary dump at `source.dump` in the current directory.\n\nCan you set up a local Supabase project and restore the dump into it?",
-    "promptSourcePath": "evals/build-database-001-migrate-postgres-to-supabase/PROMPT.md",
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "claude-code-opus-5-no-skills/build-database-001-migrate-postgres-to-supabase.json"
+    "sourcePath": "claude-code-opus-5-no-skills/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "claude-code-opus-5-no-skills",
@@ -3989,7 +4187,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user d85c49f2-9854-4de0-9395-9b4048713489, signUp returned {\"userId\":\"d85c49f2-9854-4de0-9395-9b4048713489\"}"
+        "notes": "db user 00a4b125-5d0f-4e3e-96a8-7df8041aa694, signUp returned {\"userId\":\"00a4b125-5d0f-4e3e-96a8-7df8041aa694\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -4004,7 +4202,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"d85c49f2-9854-4de0-9395-9b4048713489\"}"
+        "notes": "{\"userId\":\"00a4b125-5d0f-4e3e-96a8-7df8041aa694\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -4348,7 +4546,9 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase"
+      ]
     },
     "docs": {
       "calls": []
@@ -4357,6 +4557,70 @@
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-dataapi-001-relational-report.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-002-restock-alert-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/restock.mjs"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -6163,7 +6427,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 175ffe86-cecb-4504-b9b2-843114d08b2c, signUp returned {\"userId\":\"175ffe86-cecb-4504-b9b2-843114d08b2c\"}"
+        "notes": "db user af7cdf33-fe1f-4c8a-9285-3691de4a9062, signUp returned {\"userId\":\"af7cdf33-fe1f-4c8a-9285-3691de4a9062\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -6178,7 +6442,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"175ffe86-cecb-4504-b9b2-843114d08b2c\"}"
+        "notes": "{\"userId\":\"af7cdf33-fe1f-4c8a-9285-3691de4a9062\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -6439,6 +6703,67 @@
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-dataapi-001-relational-report.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-002-restock-alert-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/restock.mjs"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
@@ -7512,7 +7837,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 3251eadd-3f5a-452a-9085-d7e690fac0df, signUp returned {\"userId\":\"3251eadd-3f5a-452a-9085-d7e690fac0df\"}"
+        "notes": "db user eae71afb-4f4b-42c1-9749-cf6007ba7c10, signUp returned {\"userId\":\"eae71afb-4f4b-42c1-9749-cf6007ba7c10\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -7527,7 +7852,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"3251eadd-3f5a-452a-9085-d7e690fac0df\"}"
+        "notes": "{\"userId\":\"eae71afb-4f4b-42c1-9749-cf6007ba7c10\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -7551,19 +7876,15 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
-          "source": "web_search",
-          "query": "site:supabase.com/changelog.md Supabase changelog.md breaking-change auth supabase-js",
-          "pages": []
-        },
-        {
           "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"supabase-js signUp signInWithPassword getUser getSession createClient auth local storage browser client\", limit: 5) {\n    nodes {\n      ... on ClientLibraryFunctionReference {\n        title\n        href\n        content\n        language\n        methodName\n      }\n      ... on Guide {\n        title\n        href\n        content\n      }\n    }\n  }\n}",
+          "query": "query {\n  searchDocs(query: \"supabase-js signUp signInWithPassword getUser getSession authenticated profile table select\", limit: 5) {\n    nodes {\n      ... on Guide { title href content }\n      ... on ClientLibraryFunctionReference { title href content language methodName }\n      ... on TroubleshootingGuide { title href content }\n      ... on ManagementApiReference { title href content }\n    }\n    totalCount\n  }\n}",
           "hasContent": true,
           "pages": [
             {
@@ -7571,38 +7892,8 @@
               "title": "Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-bitbucket",
-              "title": "Login with Bitbucket"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
-              "title": "Login with Figma"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-github",
-              "title": "Login with GitHub"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-twitter",
-              "title": "Login with X / Twitter"
-            }
-          ],
-          "resultChars": 74654
-        },
-        {
-          "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"supabase-js auth.signUp signInWithPassword getUser select profile from table reference javascript\", limit: 10) {\n    nodes {\n      ... on ClientLibraryFunctionReference {\n        title\n        href\n        content\n        language\n        methodName\n      }\n      ... on Guide {\n        title\n        href\n        content\n      }\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
-            {
               "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
               "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/passwords",
@@ -7613,52 +7904,59 @@
               "title": "Login with Google"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth",
-              "title": "Auth"
+              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
+            }
+          ],
+          "resultChars": 116820
+        },
+        {
+          "source": "search_docs",
+          "query": "query {\n  searchDocs(query: \"site: supabase.com/docs/reference/javascript auth signUp signInWithPassword user_metadata display_name\", limit: 10) {\n    nodes {\n      ... on ClientLibraryFunctionReference { title href content language methodName }\n      ... on Guide { title href content }\n    }\n    totalCount\n  }\n}",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/reference/dart/auth-signup"
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-apple",
+              "title": "Login with Apple"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
             },
             {
               "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
               "title": "Configure SAML SSO"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
-              "title": "Login with Figma"
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-identity-linking",
+              "title": "Identity Linking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/quickstarts/astrojs",
+              "title": "Use Supabase Auth with Astro"
             }
           ],
-          "resultChars": 163499
-        },
-        {
-          "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"reference javascript auth signInWithPassword\", limit: 5) {\n    nodes {\n      ... on ClientLibraryFunctionReference {\n        title\n        href\n        content\n        language\n        methodName\n      }\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
-              "title": "signInWithPassword()"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpasskey"
-            }
-          ],
-          "resultChars": 3390
+          "resultChars": 186803
         }
       ]
     },
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
     "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/build-auth-001-email-password-flow.json"
   },
   {
@@ -8016,7 +8314,8 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
@@ -8026,6 +8325,73 @@
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini/build-dataapi-001-relational-report.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-002-restock-alert-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "codex-gpt-5.4-mini/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -10350,7 +10716,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 40f508e4-cd55-4379-9f5a-3c9392f94902, signUp returned {\"userId\":\"40f508e4-cd55-4379-9f5a-3c9392f94902\"}"
+        "notes": "db user 31f642a8-b8cb-4a51-9506-fd7e53e58b4f, signUp returned {\"userId\":\"31f642a8-b8cb-4a51-9506-fd7e53e58b4f\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -10365,7 +10731,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"40f508e4-cd55-4379-9f5a-3c9392f94902\"}"
+        "notes": "{\"userId\":\"31f642a8-b8cb-4a51-9506-fd7e53e58b4f\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -10388,157 +10754,7 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"auth sign up with metadata password grant profiles row level security local supabase auth\", limit: 5) {\n    nodes {\n      ... on Guide { title href content }\n      ... on ClientLibraryFunctionReference { title href content language methodName }\n      ... on TroubleshootingGuide { title href content }\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/passwords",
-              "title": "Password-based Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth",
-              "title": "Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/enterprise-sso",
-              "title": "Enterprise Single Sign-On"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-apple",
-              "title": "Login with Apple"
-            }
-          ],
-          "resultChars": 117348
-        },
-        {
-          "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"auth signup options data signInWithPassword access token refresh token user endpoint REST\", limit: 10) {\n    nodes {\n      ... on Guide { title href content }\n      ... on ClientLibraryFunctionReference { title href content language methodName }\n      ... on TroubleshootingGuide { title href content }\n      ... on ManagementApiReference { title href content }\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth",
-              "title": "Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/integrations/build-a-supabase-oauth-integration",
-              "title": "Build a Supabase Integration"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/sessions/implicit-flow",
-              "title": "Implicit flow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
-              "title": "Passwordless email logins"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passkeys",
-              "title": "Passkey authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passwords",
-              "title": "Password-based Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
-              "title": "signInWithPassword()"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            }
-          ],
-          "resultChars": 104157
-        },
-        {
-          "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"JavaScript reference get user current session auth user endpoint\", limit: 10) {\n    nodes {\n      ... on ClientLibraryFunctionReference { title href content language methodName }\n      ... on Guide { title href content }\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
-              "title": "OAuth 2.1 Flows"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-getsession"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-apple",
-              "title": "Login with Apple"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
-              "title": "Multi-Factor Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-updateuser"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-listusers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/integrations/build-a-supabase-oauth-integration",
-              "title": "Build a Supabase Integration"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/egress",
-              "title": "Manage Egress usage"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-currentuser"
-            }
-          ],
-          "resultChars": 130065
-        },
-        {
-          "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"refresh token grant_type refresh_token supabase auth v1 token json body\", limit: 10) {\n    nodes {\n      ... on Guide { title href content }\n      ... on ClientLibraryFunctionReference { title href content language methodName }\n      ... on TroubleshootingGuide { title href content }\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
-              "title": "OAuth 2.1 Flows"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/integrations/build-a-supabase-oauth-integration",
-              "title": "Build a Supabase Integration"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
-              "title": "JWT Claims Reference"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login",
-              "title": "Social Login"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide",
-              "title": "Advanced guide"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            }
-          ],
-          "resultChars": 86530
-        }
-      ]
+      "calls": []
     },
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
     "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
@@ -10812,6 +11028,67 @@
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/build-dataapi-001-relational-report.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-002-restock-alert-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini-no-skills",
@@ -12095,7 +12372,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 58379f63-4af9-429b-9ea2-ba595cbb73a8, signUp returned {\"userId\":\"58379f63-4af9-429b-9ea2-ba595cbb73a8\"}"
+        "notes": "db user ed685aae-6c81-43fd-b019-bcf3b9bfc3a5, signUp returned {\"userId\":\"ed685aae-6c81-43fd-b019-bcf3b9bfc3a5\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -12110,7 +12387,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"58379f63-4af9-429b-9ea2-ba595cbb73a8\"}"
+        "notes": "{\"userId\":\"ed685aae-6c81-43fd-b019-bcf3b9bfc3a5\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -12134,79 +12411,57 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase javascript auth signUp options data user metadata signInWithPassword getUser select profile RLS\", limit: 6) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"JavaScript signUp email password options data user metadata signInWithPassword getUser profile table RLS auth.uid trigger new user\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
-              "title": "Customizing Emails by Language"
+              "url": "https://supabase.com/docs/reference/swift/auth-signup",
+              "title": "signUp()"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
+              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
+              "title": "signInWithPassword()"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
               "title": "Migrate from Auth0 to Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/users",
-              "title": "Users"
+              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
+              "title": "Customizing Emails by Language"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
-              "title": "Integrating With Supabase Auth"
+              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-signup"
             }
           ],
-          "resultChars": 55094
+          "resultChars": 24252
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"JavaScript createClient signUp signInWithPassword select single auth session browser persistSession current\", limit: 8) { nodes { title href content } } }",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- CHANGELOG AUTH HITS ---'; curl -fsSL https://supabase.com/changelog.md | rg -i -C 2 'breaking-change|auth|signup|sign.?in' | head -n 120 || true; printf '%s\\\\n' '--- WORKSPACE FILES ---'; rg --files -g '\"'!node_modules'\"' | sort; printf '%s\\\\n' '--- AUTH ---'; sed -n '1,240p' app/src/auth.mjs; printf '%s\\\\n' '--- PACKAGE ---'; cat app/package.json; printf '%s\\\\n' '--- SUPABASE CONFIG ---'; sed -n '1,260p' supabase/config.toml; printf '%s\\\\n' '--- MIGRATIONS ---'; find supabase -maxdepth 3 -type f -print -exec sh -c 'case \\\"\"'$1\" in *.sql) echo \"--- $1\"; sed -n \"1,260p\" \"$1\";; esac'\"' sh {} \\\\;; printf '%s\\\\n' '--- STATUS ---'; supabase status\"",
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpasskey"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-twitter",
-              "title": "Login with X / Twitter"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
-              "title": "Login with Figma"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-zoom",
-              "title": "Login with Zoom"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-kakao",
-              "title": "Login with Kakao"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-initialize"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-bitbucket",
-              "title": "Login with Bitbucket"
+              "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 93981
+          "resultChars": 1467
         }
       ]
     },
@@ -13082,66 +13337,49 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase javascript select nested relationships aggregate count sum foreign tables\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "query": "query { searchDocs(query: \"supabase-js select nested relationships foreign key alias service role server Node\", limit: 5) { nodes { ... on ClientLibraryFunctionReference { title href content language methodName } ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
-              "title": "Querying Joins and Nested tables"
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
             },
             {
-              "url": "https://supabase.com/docs/guides/api/sql-to-api",
-              "title": "Converting SQL to JavaScript API"
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless Drivers"
             },
             {
               "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
               "title": "Engineering for Scale"
             },
             {
-              "url": "https://supabase.com/docs/guides/api/automatic-retries-in-supabase-js",
-              "title": "How to do automatic retries with `supabase-js`"
+              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
+              "title": "Querying Joins and Nested tables"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
-              "title": "Serverless Drivers"
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
             }
           ],
-          "resultChars": 42632
+          "resultChars": 47636
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"secret key backend Data API apikey Authorization header Supabase REST\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '---CHANGELOG---'; curl -fsSL https://supabase.com/changelog.md | head -n 120; printf '%s\\\\n' '---AGENTS---'; find .. -name AGENTS.md -print; printf '%s\\\\n' '---REPORT---'; sed -n '1,260p' app/report.mjs; printf '%s\\\\n' '---PACKAGE---'; for f in package.json app/package.json; do if [ -f \\\"\"'$f\" ]; then echo \"### $f\"; cat \"$f\"; fi; done; printf '\"'%s\\\\n' '---SUPABASE FILES---'; find supabase -maxdepth 3 -type f \"'! -path '\"'*/.temp/*' -print | sort; printf '%s\\\\n' '---SQL---'; for f in \"'$(find supabase -maxdepth 3 -type f '\"\\\\( -name '*.sql' -o -name 'config.toml' \\\\) \"'! -path '\"'*/.temp/*' | sort); do echo \\\"### \"'$f\"; sed -n '\"'1,300p' \\\"\"'$f\"; done'",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
+              "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 65167
+          "resultChars": 6428
         }
       ]
     },
@@ -13149,6 +13387,108 @@
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.6/build-dataapi-001-relational-report.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-002-restock-alert-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- app/restock.mjs ---' && sed -n '1,240p' app/restock.mjs && printf '%s\\\\n' '--- app/package.json ---' && cat app/package.json && printf '%s\\\\n' '--- migration ---' && sed -n '1,320p' supabase/migrations/0000_inventory_schema.sql && printf '%s\\\\n' '--- config ---' && sed -n '1,220p' supabase/config.toml && printf '%s\\\\n' '--- status ---' && supabase status && printf '%s\\\\n' '--- changelog relevant lines ---' && curl -fsSL https://supabase.com/changelog.md | rg -i -m 20 'breaking-change|postgrest|supabase-js|javascript'\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5661
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase JavaScript select foreign tables nested relationships createClient secret key backend Node\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless Drivers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/creating-routes",
+              "title": "Creating API Routes"
+            }
+          ],
+          "resultChars": 24344
+        }
+      ]
+    },
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "codex-gpt-5.6/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "codex-gpt-5.6",
@@ -14960,7 +15300,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user b72ca89c-acb9-48dc-9a16-80af3c5b09ca, signUp returned {\"userId\":\"b72ca89c-acb9-48dc-9a16-80af3c5b09ca\"}"
+        "notes": "db user c8115185-6cf0-4a18-9a3f-b354212375ca, signUp returned {\"userId\":\"c8115185-6cf0-4a18-9a3f-b354212375ca\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -14975,7 +15315,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"b72ca89c-acb9-48dc-9a16-80af3c5b09ca\"}"
+        "notes": "{\"userId\":\"c8115185-6cf0-4a18-9a3f-b354212375ca\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -15001,7 +15341,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js signUp user metadata signInWithPassword auth getUser select profiles RLS\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase-js createClient signUp email password user metadata signInWithPassword getUser select single profiles browser client\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -15009,23 +15349,67 @@
               "title": "Migrate from Auth0 to Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
-              "title": "Integrating With Supabase Auth"
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/users",
-              "title": "Users"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
+              "title": "Login with Azure (Microsoft)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-bitbucket",
+              "title": "Login with Bitbucket"
             }
           ],
-          "resultChars": 53768
+          "resultChars": 130679
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"JavaScript auth signUp options data metadata signInWithPassword select maybeSingle\", limit: 10) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/using-modifiers-maybesingle"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpasskey"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
+              "title": "signInWithPassword()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithsso"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/using-modifiers-maybesingle"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinanonymously"
+            }
+          ],
+          "resultChars": 19708
         }
       ]
     },
@@ -15861,31 +16245,31 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase REST API JavaScript fetch apikey Authorization service role secret key Range header pagination PostgREST\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase-js Node select nested relationships service role key local development\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
-              "title": "Serverless Drivers"
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/api/handling-errors-in-supabase-js",
-              "title": "Handling errors in `supabase-js`"
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
             }
           ],
-          "resultChars": 39367
+          "resultChars": 67379
         }
       ]
     },
@@ -15893,6 +16277,96 @@
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
     "attempts": 2,
     "sourcePath": "codex-gpt-5.6-no-skills/build-dataapi-001-relational-report.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-002-restock-alert-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase-js select foreign table relationships environment variables service role Node.js\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless Drivers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/vercel-marketplace",
+              "title": "Vercel Marketplace"
+            }
+          ],
+          "resultChars": 70905
+        }
+      ]
+    },
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "codex-gpt-5.6-no-skills/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "codex-gpt-5.6-no-skills",
@@ -17454,6 +17928,87 @@
       "modelProvider": "moonshotai",
       "modelId": "moonshotai/kimi-k3"
     },
+    "eval": "build-auth-001-email-password-flow",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "auth module loads and the driver completes",
+        "passed": true,
+        "notes": "driver produced a result"
+      },
+      {
+        "name": "signUp creates the account and returns its user id",
+        "passed": true,
+        "notes": "db user 78735a72-891a-4831-b74d-a7eacd855314, signUp returned {\"userId\":\"78735a72-891a-4831-b74d-a7eacd855314\"}"
+      },
+      {
+        "name": "signup metadata reaches the profile (display name)",
+        "passed": true,
+        "notes": "profiles.display_name = \"Alex Doe\""
+      },
+      {
+        "name": "wrong password is rejected gracefully (no throw, no session)",
+        "passed": true,
+        "notes": "{\"error\":\"Invalid login credentials\"}"
+      },
+      {
+        "name": "signIn with the right password returns the user id",
+        "passed": true,
+        "notes": "{\"userId\":\"78735a72-891a-4831-b74d-a7eacd855314\"}"
+      },
+      {
+        "name": "getMyProfile returns the signed-in user's profile",
+        "passed": true,
+        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
+      },
+      {
+        "name": "app code does not use the secret / service-role key",
+        "passed": true,
+        "notes": "no secret-key references found"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/src/auth.mjs"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
+    "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3/build-auth-001-email-password-flow.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
     "eval": "build-cli-001-bootstrap-app",
     "stage": "build",
     "product": [
@@ -17706,6 +18261,136 @@
     "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "attempts": 1,
     "sourcePath": "opencode-kimi-k3/build-cli-003-pg-cron-queue-workflow.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-001-relational-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "opencode-kimi-k3/build-dataapi-001-relational-report.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-002-restock-alert-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "opencode-kimi-k3/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "opencode-kimi-k3",
@@ -19126,6 +19811,82 @@
       "modelProvider": "moonshotai",
       "modelId": "moonshotai/kimi-k3"
     },
+    "eval": "build-auth-001-email-password-flow",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "auth module loads and the driver completes",
+        "passed": true,
+        "notes": "driver produced a result"
+      },
+      {
+        "name": "signUp creates the account and returns its user id",
+        "passed": true,
+        "notes": "db user 2629a92e-db2f-495e-b419-0010702fc708, signUp returned {\"userId\":\"2629a92e-db2f-495e-b419-0010702fc708\"}"
+      },
+      {
+        "name": "signup metadata reaches the profile (display name)",
+        "passed": true,
+        "notes": "profiles.display_name = \"Alex Doe\""
+      },
+      {
+        "name": "wrong password is rejected gracefully (no throw, no session)",
+        "passed": true,
+        "notes": "{\"error\":\"Invalid login credentials\"}"
+      },
+      {
+        "name": "signIn with the right password returns the user id",
+        "passed": true,
+        "notes": "{\"userId\":\"2629a92e-db2f-495e-b419-0010702fc708\"}"
+      },
+      {
+        "name": "getMyProfile returns the signed-in user's profile",
+        "passed": true,
+        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
+      },
+      {
+        "name": "app code does not use the secret / service-role key",
+        "passed": true,
+        "notes": "no secret-key references found"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/src/auth.mjs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
+    "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3-no-skills/build-auth-001-email-password-flow.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
     "eval": "build-cli-001-bootstrap-app",
     "stage": "build",
     "product": [
@@ -19314,6 +20075,126 @@
     "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-003-pg-cron-queue-workflow.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-001-relational-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table customers"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "opencode-kimi-k3-no-skills/build-dataapi-001-relational-report.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-002-restock-alert-report",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "alerts match the database (below threshold, sorted)",
+        "passed": true,
+        "notes": "expected [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}], got [{\"warehouse\":\"North DC\",\"product\":\"Gizmo\",\"quantity\":3,\"reorderThreshold\":10,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"North DC\",\"product\":\"Widget\",\"quantity\":5,\"reorderThreshold\":20,\"supplierEmail\":\"acme@example.com\"},{\"warehouse\":\"South DC\",\"product\":\"Gadget\",\"quantity\":2,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"},{\"warehouse\":\"West DC\",\"product\":\"Gadget\",\"quantity\":0,\"reorderThreshold\":15,\"supplierEmail\":\"parts@example.com\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read errored: permission denied for table inventory"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
+    "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "opencode-kimi-k3-no-skills/build-dataapi-002-restock-alert-report.json"
   },
   {
     "experiment": "opencode-kimi-k3-no-skills",
