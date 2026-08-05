@@ -361,7 +361,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user d720a18b-4270-462b-bc8d-62f6f9792f54, signUp returned {\"userId\":\"d720a18b-4270-462b-bc8d-62f6f9792f54\"}"
+        "notes": "db user a71b8f5f-f48f-424d-9f63-39951eef350a, signUp returned {\"userId\":\"a71b8f5f-f48f-424d-9f63-39951eef350a\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -376,7 +376,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"d720a18b-4270-462b-bc8d-62f6f9792f54\"}"
+        "notes": "{\"userId\":\"a71b8f5f-f48f-424d-9f63-39951eef350a\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -406,28 +406,8 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "curl -s https://supabase.com/changelog.md 2>&1 | head -60",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 3161
-        },
-        {
-          "source": "shell_fetch",
-          "query": "curl -s https://supabase.com/changelog.md | grep -n -i -B2 'Breaking Change · .*\\(Auth\\|auth\\)' | head -60",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 1353
-        },
-        {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"signUp email password options data user metadata javascript\", limit: 4) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"signUp email password user metadata options data javascript\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -446,6 +426,26 @@
             }
           ],
           "resultChars": 22309
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -s https://supabase.com/changelog.md 2>/dev/null | head -60",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3161
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -s https://supabase.com/changelog.md | grep -iE \"^## |Breaking Change\" | grep -iE \"auth|supabase-js|signup|session|key\" | head -30",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2427
         }
       ]
     },
@@ -716,31 +716,53 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"secret key service_role server-side createClient node backend persistSession\", limit: 5) { nodes { title href content } } }",
+          "source": "web_fetch",
+          "query": "List any entries tagged breaking-change, and any entries about API keys (publishable/secret keys), supabase-js releases, or PostgREST behavior changes. Include dates and links.",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/performing-administration-tasks-on-the-server-side-with-the-servicerole-secret-BYM4Fa",
-              "title": "Performing administration tasks on the server side with a secret key"
-            },
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3218
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"server-side supabase-js secret key service role createClient node\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
-              "title": "Configure SAML SSO"
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
             },
             {
               "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
-              "title": "Which package to use"
+              "url": "https://supabase.com/docs/guides/troubleshooting/performing-administration-tasks-on-the-server-side-with-the-servicerole-secret-BYM4Fa",
+              "title": "Performing administration tasks on the server side with a secret key"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/astrojs",
+              "title": "Use Supabase with Astro"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
             }
           ],
-          "resultChars": 45578
+          "resultChars": 54410
+        },
+        {
+          "source": "web_fetch",
+          "query": "How should the new secret key (sb_secret_...) be used from server-side code with supabase-js? Does it go in the createClient key argument? Any notes about it bypassing RLS, and about not using it in browsers?",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/api-keys.md"
+            }
+          ],
+          "resultChars": 1176
         }
       ]
     },
@@ -808,7 +830,36 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"secret key service_role server-side createClient API keys sb_secret\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/performing-administration-tasks-on-the-server-side-with-the-servicerole-secret-BYM4Fa",
+              "title": "Performing administration tasks on the server side with a secret key"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            }
+          ],
+          "resultChars": 95806
+        }
+      ]
     },
     "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
     "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
@@ -2684,7 +2735,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 6b4b33dc-03b1-440f-b7d8-0c2eaf088d50, signUp returned {\"userId\":\"6b4b33dc-03b1-440f-b7d8-0c2eaf088d50\"}"
+        "notes": "db user e7a03db9-3c5a-4ddf-a197-00b92683665a, signUp returned {\"userId\":\"e7a03db9-3c5a-4ddf-a197-00b92683665a\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -2699,7 +2750,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"6b4b33dc-03b1-440f-b7d8-0c2eaf088d50\"}"
+        "notes": "{\"userId\":\"e7a03db9-3c5a-4ddf-a197-00b92683665a\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -4187,7 +4238,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 00a4b125-5d0f-4e3e-96a8-7df8041aa694, signUp returned {\"userId\":\"00a4b125-5d0f-4e3e-96a8-7df8041aa694\"}"
+        "notes": "db user eb698502-60bc-40af-bc9d-e1d8bd7185b6, signUp returned {\"userId\":\"eb698502-60bc-40af-bc9d-e1d8bd7185b6\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -4202,7 +4253,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"00a4b125-5d0f-4e3e-96a8-7df8041aa694\"}"
+        "notes": "{\"userId\":\"eb698502-60bc-40af-bc9d-e1d8bd7185b6\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -4546,16 +4597,14 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": [
-        "supabase"
-      ]
+      "loaded": []
     },
     "docs": {
       "calls": []
     },
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5/build-dataapi-001-relational-report.json"
   },
   {
@@ -4612,7 +4661,9 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase"
+      ]
     },
     "docs": {
       "calls": []
@@ -6427,7 +6478,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user af7cdf33-fe1f-4c8a-9285-3691de4a9062, signUp returned {\"userId\":\"af7cdf33-fe1f-4c8a-9285-3691de4a9062\"}"
+        "notes": "db user ae26a6fb-04fb-47ad-aa91-e1289c754f86, signUp returned {\"userId\":\"ae26a6fb-04fb-47ad-aa91-e1289c754f86\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -6442,7 +6493,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"af7cdf33-fe1f-4c8a-9285-3691de4a9062\"}"
+        "notes": "{\"userId\":\"ae26a6fb-04fb-47ad-aa91-e1289c754f86\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -6725,7 +6776,7 @@
     "suite": "benchmark",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "report runs and prints JSON",
@@ -6744,8 +6795,8 @@
       },
       {
         "name": "implementation uses @supabase/supabase-js",
-        "passed": true,
-        "notes": "imports found in: app/restock.mjs"
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
       },
       {
         "name": "report queries via the Data API, not raw SQL",
@@ -6762,7 +6813,7 @@
     },
     "prompt": "Purchasing needs a restock alert. `app/restock.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON list of what\nneeds reordering, with who to email about it.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right alerts.",
     "promptSourcePath": "evals/build-dataapi-002-restock-alert-report/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-dataapi-002-restock-alert-report.json"
   },
   {
@@ -7827,7 +7878,7 @@
     "suite": "benchmark",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "auth module loads and the driver completes",
@@ -7837,7 +7888,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user eae71afb-4f4b-42c1-9749-cf6007ba7c10, signUp returned {\"userId\":\"eae71afb-4f4b-42c1-9749-cf6007ba7c10\"}"
+        "notes": "db user e669932c-47e9-48f1-bc47-b48321540cb8, signUp returned {\"userId\":\"e669932c-47e9-48f1-bc47-b48321540cb8\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -7852,12 +7903,12 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"eae71afb-4f4b-42c1-9749-cf6007ba7c10\"}"
+        "notes": "{\"userId\":\"e669932c-47e9-48f1-bc47-b48321540cb8\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
-        "passed": true,
-        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
+        "passed": false,
+        "notes": "{\"error\":\"No user is signed in.\"}"
       },
       {
         "name": "app code does not use the secret / service-role key",
@@ -7866,8 +7917,8 @@
       },
       {
         "name": "implementation uses @supabase/supabase-js",
-        "passed": true,
-        "notes": "imports found in: app/src/auth.mjs"
+        "passed": false,
+        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
       }
     ],
     "skills": {
@@ -7876,21 +7927,44 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"supabase-js signUp signInWithPassword getUser getSession authenticated profile table select\", limit: 5) {\n    nodes {\n      ... on Guide { title href content }\n      ... on ClientLibraryFunctionReference { title href content language methodName }\n      ... on TroubleshootingGuide { title href content }\n      ... on ManagementApiReference { title href content }\n    }\n    totalCount\n  }\n}",
+          "query": "query { searchDocs(query: \"sign up email password auth/v1 token grant_type password profiles select authenticated REST current user session\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } totalCount } }",
           "hasContent": true,
           "pages": [
             {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
+              "title": "Passwordless email logins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
               "url": "https://supabase.com/docs/guides/auth",
               "title": "Auth"
-            },
+            }
+          ],
+          "resultChars": 89847
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth signup email password user_metadata display_name signInWithPassword getUser supabase-js\", limit: 10) { nodes { __typename ... on ClientLibraryFunctionReference { title href content language methodName } ... on Guide { title href content } } totalCount } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
               "title": "Migrate from Auth0 to Supabase Auth"
@@ -7898,65 +7972,43 @@
             {
               "url": "https://supabase.com/docs/guides/auth/passwords",
               "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native",
+              "title": "Build a User Management App with Expo React Native"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
               "title": "Login with Google"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
-            }
-          ],
-          "resultChars": 116820
-        },
-        {
-          "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"site: supabase.com/docs/reference/javascript auth signUp signInWithPassword user_metadata display_name\", limit: 10) {\n    nodes {\n      ... on ClientLibraryFunctionReference { title href content language methodName }\n      ... on Guide { title href content }\n    }\n    totalCount\n  }\n}",
-          "hasContent": true,
-          "pages": [
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-refine",
+              "title": "Build a User Management App with Refine"
+            },
             {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/managing-user-data",
               "title": "User Management"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/passwords",
-              "title": "Password-based Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-apple",
-              "title": "Login with Apple"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            },
-            {
               "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
               "title": "Configure SAML SSO"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth",
-              "title": "Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-identity-linking",
-              "title": "Identity Linking"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/quickstarts/astrojs",
-              "title": "Use Supabase Auth with Astro"
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
+              "title": "Login with Azure (Microsoft)"
             }
           ],
-          "resultChars": 186803
+          "resultChars": 249983
         }
       ]
     },
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
     "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "codex-gpt-5.4-mini/build-auth-001-email-password-flow.json"
   },
   {
@@ -8319,7 +8371,19 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,120p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6745
+        }
+      ]
     },
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
@@ -10716,7 +10780,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 31f642a8-b8cb-4a51-9506-fd7e53e58b4f, signUp returned {\"userId\":\"31f642a8-b8cb-4a51-9506-fd7e53e58b4f\"}"
+        "notes": "db user 8bd4dfe4-46d9-4631-8e00-f9d3972f1d91, signUp returned {\"userId\":\"8bd4dfe4-46d9-4631-8e00-f9d3972f1d91\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -10731,7 +10795,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"31f642a8-b8cb-4a51-9506-fd7e53e58b4f\"}"
+        "notes": "{\"userId\":\"8bd4dfe4-46d9-4631-8e00-f9d3972f1d91\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -12372,7 +12436,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user ed685aae-6c81-43fd-b019-bcf3b9bfc3a5, signUp returned {\"userId\":\"ed685aae-6c81-43fd-b019-bcf3b9bfc3a5\"}"
+        "notes": "db user d6d4378b-47b7-404d-9832-307530f2207f, signUp returned {\"userId\":\"d6d4378b-47b7-404d-9832-307530f2207f\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -12387,7 +12451,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"ed685aae-6c81-43fd-b019-bcf3b9bfc3a5\"}"
+        "notes": "{\"userId\":\"d6d4378b-47b7-404d-9832-307530f2207f\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -12418,50 +12482,97 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"JavaScript signUp email password options data user metadata signInWithPassword getUser profile table RLS auth.uid trigger new user\", limit: 8) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-signup",
-              "title": "signUp()"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
-              "title": "signInWithPassword()"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
-              "title": "Customizing Emails by Language"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signup"
-            }
-          ],
-          "resultChars": 24252
-        },
-        {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- CHANGELOG AUTH HITS ---'; curl -fsSL https://supabase.com/changelog.md | rg -i -C 2 'breaking-change|auth|signup|sign.?in' | head -n 120 || true; printf '%s\\\\n' '--- WORKSPACE FILES ---'; rg --files -g '\"'!node_modules'\"' | sort; printf '%s\\\\n' '--- AUTH ---'; sed -n '1,240p' app/src/auth.mjs; printf '%s\\\\n' '--- PACKAGE ---'; cat app/package.json; printf '%s\\\\n' '--- SUPABASE CONFIG ---'; sed -n '1,260p' supabase/config.toml; printf '%s\\\\n' '--- MIGRATIONS ---'; find supabase -maxdepth 3 -type f -print -exec sh -c 'case \\\"\"'$1\" in *.sql) echo \"--- $1\"; sed -n \"1,260p\" \"$1\";; esac'\"' sh {} \\\\;; printf '%s\\\\n' '--- STATUS ---'; supabase status\"",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- auth.mjs ---' && sed -n '1,240p' app/src/auth.mjs && printf '%s\\\\n' '--- package.json ---' && cat app/package.json && printf '%s\\\\n' '--- migration ---' && cat supabase/migrations/0000_profiles_schema.sql && printf '%s\\\\n' '--- config relevant ---' && rg -n 'email|confirm|site_url|api|db' supabase/config.toml | sed -n '1,160p' && printf '%s\\\\n' '--- changelog auth hits ---' && curl -fsSL https://supabase.com/changelog.md | rg -i -n 'breaking-change|auth|signInWithPassword|signUp' | sed -n '1,100p'\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 1467
+          "resultChars": 22069
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase-js createClient signUp user metadata signInWithPassword select single auth getUser current session\", limit: 8) { nodes { title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
+              "title": "Login with Figma"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-slack",
+              "title": "Login with Slack"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-github",
+              "title": "Login with GitHub"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-zoom",
+              "title": "Login with Zoom"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-gitlab",
+              "title": "Login with GitLab"
+            }
+          ],
+          "resultChars": 121357
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"JavaScript signUp email password options data user_metadata\", limit: 5) { nodes { title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
+              "title": "Customizing Emails by Language"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
+              "title": "Passwordless email logins"
+            }
+          ],
+          "resultChars": 24012
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"JavaScript auth signInWithPassword email password\", limit: 3) { nodes { title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
+            }
+          ],
+          "resultChars": 49059
         }
       ]
     },
@@ -13345,41 +13456,41 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js select nested relationships foreign key alias service role server Node\", limit: 5) { nodes { ... on ClientLibraryFunctionReference { title href content language methodName } ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"supabase javascript nested relationships select foreign key joins order customer service role backend\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
-              "title": "Integrating with Supabase Database (Postgres)"
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
             },
             {
               "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
               "title": "Serverless Drivers"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
-              "title": "Engineering for Scale"
-            },
-            {
               "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
               "title": "Querying Joins and Nested tables"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
-              "title": "Integrating With Supabase Auth"
+              "url": "https://supabase.com/docs/guides/integrations",
+              "title": "Integrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
             }
           ],
-          "resultChars": 47636
+          "resultChars": 37732
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '---CHANGELOG---'; curl -fsSL https://supabase.com/changelog.md | head -n 120; printf '%s\\\\n' '---AGENTS---'; find .. -name AGENTS.md -print; printf '%s\\\\n' '---REPORT---'; sed -n '1,260p' app/report.mjs; printf '%s\\\\n' '---PACKAGE---'; for f in package.json app/package.json; do if [ -f \\\"\"'$f\" ]; then echo \"### $f\"; cat \"$f\"; fi; done; printf '\"'%s\\\\n' '---SUPABASE FILES---'; find supabase -maxdepth 3 -type f \"'! -path '\"'*/.temp/*' -print | sort; printf '%s\\\\n' '---SQL---'; for f in \"'$(find supabase -maxdepth 3 -type f '\"\\\\( -name '*.sql' -o -name 'config.toml' \\\\) \"'! -path '\"'*/.temp/*' | sort); do echo \\\"### \"'$f\"; sed -n '\"'1,300p' \\\"\"'$f\"; done'",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- changelog relevant tags ---'; curl -fsSL https://supabase.com/changelog.md | rg -i -m 20 'breaking-change|postgrest|supabase-js|data api' || true; printf '%s\\\\n' '--- app/report.mjs ---'; sed -n '1,240p' app/report.mjs; printf '%s\\\\n' '--- app/package.json ---'; cat app/package.json; printf '%s\\\\n' '--- migration ---'; sed -n '1,300p' supabase/migrations/0000_orders_schema.sql; printf '%s\\\\n' '--- config ---'; sed -n '1,240p' supabase/config.toml; printf '%s\\\\n' '--- status ---'; supabase status\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 6428
+          "resultChars": 1507
         }
       ]
     },
@@ -13450,38 +13561,35 @@
     "docs": {
       "calls": [
         {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase javascript select nested foreign tables service role secret key createClient server backend\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-regenerateclientsecret"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-updateclient"
+            }
+          ],
+          "resultChars": 14444
+        },
+        {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- app/restock.mjs ---' && sed -n '1,240p' app/restock.mjs && printf '%s\\\\n' '--- app/package.json ---' && cat app/package.json && printf '%s\\\\n' '--- migration ---' && sed -n '1,320p' supabase/migrations/0000_inventory_schema.sql && printf '%s\\\\n' '--- config ---' && sed -n '1,220p' supabase/config.toml && printf '%s\\\\n' '--- status ---' && supabase status && printf '%s\\\\n' '--- changelog relevant lines ---' && curl -fsSL https://supabase.com/changelog.md | rg -i -m 20 'breaking-change|postgrest|supabase-js|javascript'\"",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- app/package.json ---'; cat app/package.json; printf '%s\\\\n' '--- migration ---'; cat supabase/migrations/0000_inventory_schema.sql; printf '%s\\\\n' '--- git status ---'; git status --short; printf '%s\\\\n' '--- supabase status ---'; supabase status -o env; printf '%s\\\\n' '--- relevant changelog lines ---'; curl -fsSL https://supabase.com/changelog.md | rg -n -i \\\"breaking-change|javascript|api key|secret key|postgrest\\\" | head -80\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 5661
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase JavaScript select foreign tables nested relationships createClient secret key backend Node\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
-              "title": "Serverless Drivers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
-              "title": "Engineering for Scale"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
-              "title": "Integrating with Supabase Database (Postgres)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/api/creating-routes",
-              "title": "Creating API Routes"
-            }
-          ],
-          "resultChars": 24344
+          "resultChars": 8069
         }
       ]
     },
@@ -15300,7 +15408,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user c8115185-6cf0-4a18-9a3f-b354212375ca, signUp returned {\"userId\":\"c8115185-6cf0-4a18-9a3f-b354212375ca\"}"
+        "notes": "db user 4c1f81ac-8d75-4942-a45c-acaba38a767c, signUp returned {\"userId\":\"4c1f81ac-8d75-4942-a45c-acaba38a767c\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -15315,7 +15423,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"c8115185-6cf0-4a18-9a3f-b354212375ca\"}"
+        "notes": "{\"userId\":\"4c1f81ac-8d75-4942-a45c-acaba38a767c\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -15341,75 +15449,80 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js createClient signUp email password user metadata signInWithPassword getUser select single profiles browser client\", limit: 6) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase-js createClient auth signUp email password options data signInWithPassword getUser select single browser session persistence\", limit: 6) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passwords",
-              "title": "Password-based Auth"
-            },
             {
               "url": "https://supabase.com/docs/guides/auth",
               "title": "Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
-              "title": "Configure SAML SSO"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
-              "title": "Login with Azure (Microsoft)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-bitbucket",
-              "title": "Login with Bitbucket"
-            }
-          ],
-          "resultChars": 130679
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"JavaScript auth signUp options data metadata signInWithPassword select maybeSingle\", limit: 10) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/using-modifiers-maybesingle"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpasskey"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
-              "title": "signInWithPassword()"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/passkeys",
               "title": "Passkey authentication"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithsso"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
             },
             {
-              "url": "https://supabase.com/docs/reference/dart/using-modifiers-maybesingle"
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinanonymously"
+              "url": "https://supabase.com/docs/guides/auth/server-side",
+              "title": "Server-Side Rendering"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
             }
           ],
-          "resultChars": 19708
+          "resultChars": 136587
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"JavaScript signUp email password options data signInWithPassword select maybeSingle single auth getUser\", limit: 10) { nodes { ... on ClientLibraryFunctionReference { title href content language methodName } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
+              "title": "signInWithPassword()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-identity-linking",
+              "title": "Identity Linking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
+              "title": "Passwordless email logins"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/csharp/auth-signinwithpassword",
+              "title": "SignIn(email, password)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            }
+          ],
+          "resultChars": 102688
         }
       ]
     },
@@ -16245,31 +16358,30 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js Node select nested relationships service role key local development\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase javascript service role select related tables pagination range\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
-              "title": "Building an MCP Server with mcp-lite"
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-listclients"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless Drivers"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
+              "url": "https://supabase.com/docs/guides/api/creating-routes",
+              "title": "Creating API Routes"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
-              "title": "Integrating with Supabase Database (Postgres)"
+              "url": "https://supabase.com/docs/guides/database/postgres/roles",
+              "title": "Postgres Roles"
             }
           ],
-          "resultChars": 67379
+          "resultChars": 21553
         }
       ]
     },
@@ -16335,31 +16447,27 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js select foreign table relationships environment variables service role Node.js\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"JavaScript supabase-js select nested relationships service role Node createClient\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
-              "title": "Self-Hosted Functions"
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
-              "title": "Serverless Drivers"
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-updateclient"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-deleteclient"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-listclients"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
               "title": "Integrating with Supabase Database (Postgres)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
-              "title": "Build a User Management App with Next.js"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/integrations/vercel-marketplace",
-              "title": "Vercel Marketplace"
             }
           ],
-          "resultChars": 70905
+          "resultChars": 8566
         }
       ]
     },
@@ -17951,7 +18059,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 78735a72-891a-4831-b74d-a7eacd855314, signUp returned {\"userId\":\"78735a72-891a-4831-b74d-a7eacd855314\"}"
+        "notes": "db user 9d354523-f72e-4ae3-818b-97124b969105, signUp returned {\"userId\":\"9d354523-f72e-4ae3-818b-97124b969105\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -17966,7 +18074,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"78735a72-891a-4831-b74d-a7eacd855314\"}"
+        "notes": "{\"userId\":\"9d354523-f72e-4ae3-818b-97124b969105\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -17994,7 +18102,46 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "curl -s https://supabase.com/changelog.md | head -c 4000",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3973
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"supabase-js auth signUp with email password user metadata display name signInWithPassword getSession\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
+              "title": "Login with Google"
+            }
+          ],
+          "resultChars": 123195
+        }
+      ]
     },
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
     "promptSourcePath": "evals/build-auth-001-email-password-flow/PROMPT.md",
@@ -18282,7 +18429,7 @@
     "suite": "benchmark",
     "interface": "cli",
     "cliVersion": "2.109.1",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "report runs and prints JSON",
@@ -18301,8 +18448,8 @@
       },
       {
         "name": "implementation uses @supabase/supabase-js",
-        "passed": false,
-        "notes": "no @supabase/supabase-js import found — this eval requires the SDK"
+        "passed": true,
+        "notes": "imports found in: app/report.mjs"
       },
       {
         "name": "report queries via the Data API, not raw SQL",
@@ -18324,7 +18471,7 @@
     },
     "prompt": "We need the nightly sales report working. `app/report.mjs` has the spec in a\ncomment — it runs in our Node backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
     "promptSourcePath": "evals/build-dataapi-001-relational-report/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3/build-dataapi-001-relational-report.json"
   },
   {
@@ -19834,7 +19981,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 2629a92e-db2f-495e-b419-0010702fc708, signUp returned {\"userId\":\"2629a92e-db2f-495e-b419-0010702fc708\"}"
+        "notes": "db user 1d1b3e06-0667-40d6-b4b2-eb0a732941dd, signUp returned {\"userId\":\"1d1b3e06-0667-40d6-b4b2-eb0a732941dd\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -19849,7 +19996,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"2629a92e-db2f-495e-b419-0010702fc708\"}"
+        "notes": "{\"userId\":\"1d1b3e06-0667-40d6-b4b2-eb0a732941dd\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
