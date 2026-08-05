@@ -1,5 +1,6 @@
 import {
   type CheckResult,
+  type CommandResult,
   type LocalStackEvalContext,
   type LocalStackScorer,
 } from '@supabase-evals/core';
@@ -35,10 +36,16 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     // Be generous about a missing install step; the eval is about the keys,
     // not npm. A no-op when the agent already installed dependencies.
-    await ctx.exec(
-      `cd ${APP_DIR} && [ -d node_modules ] || npm install --no-audit --no-fund --silent || true`,
+    const install = await ctx.exec(
+      `cd ${APP_DIR} && [ -d node_modules ] || npm install --no-audit --no-fund --silent`,
       { timeoutMs: 180_000 }
     );
+    if (!install.ok) {
+      return fail(
+        'installed app dependencies',
+        install.stderr.trim() || install.stdout.trim()
+      );
+    }
 
     // Ground truth from the seeded database.
     const { rows: publishedRows } = await ctx.query(
@@ -96,6 +103,18 @@ const scorer: LocalStackScorer = async (ctx) => {
     // neither as a literal nor via an env var that resolves to it.
     checks.push(await publicScriptKeyCheck(ctx));
 
+    // 5. Prove both scripts actually depend on the keys, not just that their
+    // output happens to match: corrupt the live key value on disk and
+    // confirm the same script now breaks. Without this, a stub that already
+    // knows the expected titles/count — with no real Supabase call at all —
+    // would pass checks 1-4 for free.
+    checks.push(
+      await keyDependencyCheck(ctx, 'posts', publishableKey, 'publishable key')
+    );
+    checks.push(
+      await keyDependencyCheck(ctx, 'stats', secretKey, 'secret key')
+    );
+
     return { passed: checks.every((c) => c.passed), checks };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -149,6 +168,73 @@ async function publicScriptKeyCheck(
       ? `${entry} references secret-key env var(s): ${leaked.join(', ')}`
       : `${entry} holds no secret-key reference`,
   };
+}
+
+/**
+ * Corrupts the on-disk copy of `keyValue` (in `.env`, or in the script's
+ * source if it's hardcoded there instead) and re-runs the given npm script,
+ * expecting it to break — proving the script reads the key at call time
+ * rather than being hardcoded or key-agnostic. Restores the original
+ * content afterward either way.
+ */
+async function keyDependencyCheck(
+  ctx: LocalStackEvalContext,
+  script: 'posts' | 'stats',
+  keyValue: string,
+  label: string
+): Promise<CheckResult> {
+  const NAME = `${script} script actually depends on its ${label}`;
+  const envPath = `${APP_DIR}/.env`;
+  const entry = await resolveScriptEntry(ctx, script);
+  const entryPath = `${APP_DIR}/${entry}`;
+
+  const env = await ctx.readFile(envPath).catch(() => undefined);
+  const targetPath = env?.includes(keyValue)
+    ? envPath
+    : await ctx
+        .readFile(entryPath)
+        .then((source) => (source.includes(keyValue) ? entryPath : undefined))
+        .catch(() => undefined);
+  if (targetPath === undefined) {
+    return {
+      name: NAME,
+      passed: false,
+      notes: `could not find the live ${label} on disk (checked ${envPath} and ${entryPath}) to corrupt`,
+    };
+  }
+
+  const original = await ctx.readFile(targetPath);
+  const corrupted = original.replaceAll(
+    keyValue,
+    `${keyValue}-corrupted-by-eval`
+  );
+  await writeFile(ctx, targetPath, corrupted);
+  const run = await ctx
+    .exec(`cd ${APP_DIR} && npm run -s ${script}`, { timeoutMs: 60_000 })
+    .finally(() => writeFile(ctx, targetPath, original));
+
+  const stillLooksValid =
+    script === 'posts'
+      ? parseJson(run.stdout, '[', ']') !== undefined
+      : (parseJson(run.stdout, '{', '}') as { drafts?: unknown } | undefined)
+          ?.drafts !== undefined;
+  return {
+    name: NAME,
+    passed: !run.ok || !stillLooksValid,
+    notes:
+      !run.ok || !stillLooksValid
+        ? `broke as expected with a corrupted ${label}`
+        : `still produced ${preview(run.stdout)} with a corrupted ${label} — looks hardcoded or key-agnostic`,
+  };
+}
+
+function writeFile(
+  ctx: LocalStackEvalContext,
+  path: string,
+  content: string
+): Promise<CommandResult> {
+  const encoded = Buffer.from(content, 'utf-8').toString('base64');
+  return ctx.exec(`echo ${encoded} | base64 -d > ${path}`);
 }
 
 /** File the given npm script runs, e.g. `posts` → `posts.mjs`. */

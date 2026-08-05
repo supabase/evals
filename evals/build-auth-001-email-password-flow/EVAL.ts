@@ -68,6 +68,19 @@ const scorer: LocalStackScorer = async (ctx) => {
       );
     }
 
+    // Be generous about a missing install step; the eval is about auth,
+    // not npm. A no-op when the agent already installed dependencies.
+    const install = await ctx.exec(
+      `cd ${APP_DIR} && [ -d node_modules ] || npm install --no-audit --no-fund --silent`,
+      { timeoutMs: 180_000 }
+    );
+    if (!install.ok) {
+      return fail(
+        'installed app dependencies',
+        install.stderr.trim() || install.stdout.trim()
+      );
+    }
+
     const written = await writeDriver(ctx);
     if (!written.ok) {
       return fail(
@@ -189,21 +202,34 @@ function parseDriverOutput(
 
 /**
  * GATING: some app code file must genuinely import @supabase/supabase-js —
- * we match the quoted module specifier, not a bare mention in a comment.
+ * the specifier must be closed by a matching quote (so `-not-real` doesn't
+ * match) and sit on a `from`/`require(`/`import(` line that isn't commented
+ * out. Multi-line named imports still match: the closing `} from '…'` line
+ * always carries `from` alongside the specifier.
  */
 async function sdkUsageCheck(ctx: LocalStackEvalContext): Promise<CheckResult> {
   const NAME = 'implementation uses @supabase/supabase-js';
   const scan = await ctx.exec(
-    `grep -rlE --exclude-dir=node_modules --include='*.mjs' --include='*.js' --include='*.cjs' --include='*.ts' ` +
-      `"['\\"](npm:)?@supabase/supabase-js" ${APP_DIR} || true`
+    `grep -rnE --exclude-dir=node_modules --include='*.mjs' --include='*.js' --include='*.cjs' --include='*.ts' ` +
+      `"(from|require\\(|import\\()\\s*['\\"](npm:)?@supabase/supabase-js['\\"]" ${APP_DIR} ` +
+      `| grep -vE ':[0-9]+:\\s*(//|\\*)' || true`
   );
-  const files = scan.stdout.trim();
+  const files = [
+    ...new Set(
+      scan.stdout
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => line.slice(0, line.indexOf(':')))
+    ),
+  ];
   return {
     name: NAME,
-    passed: files !== '',
-    notes: files
-      ? `imports found in: ${files.replace(/\s+/g, ', ')}`
-      : 'no @supabase/supabase-js import found — this eval requires the SDK',
+    passed: files.length > 0,
+    notes:
+      files.length > 0
+        ? `imports found in: ${files.join(', ')}`
+        : 'no @supabase/supabase-js import found — this eval requires the SDK',
   };
 }
 

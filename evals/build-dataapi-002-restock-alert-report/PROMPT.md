@@ -22,6 +22,11 @@ motivation: >-
   scenario keeps the same "unnamed SDK, empty package.json, backend worker
   script" shape but swaps in an unrelated schema and aggregation (inventory
   restock alerts vs. sales report) to check whether the pattern generalizes.
+  Agents defaulting to the wrong data-access path on a backend task is a
+  real, documented failure beyond this pair of evals too
+  (supabase/agent-skills#173: a Codex session reached for raw PostgREST
+  credentials and an admin browser instead of the intended tool for a data
+  read/update task).
 ---
 
 Purchasing needs a restock alert. `app/restock.mjs` has the spec in a
