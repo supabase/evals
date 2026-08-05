@@ -55,7 +55,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     // Be generous about a missing install step; the eval is about the report,
     // not npm. A no-op when the agent already installed dependencies.
     const install = await ctx.exec(
-      `cd ${APP_DIR} && [ -d node_modules ] || npm install --no-audit --no-fund --silent`,
+      `cd ${APP_DIR} && npm install --no-audit --no-fund --silent`,
       { timeoutMs: 180_000 }
     );
     if (!install.ok) {

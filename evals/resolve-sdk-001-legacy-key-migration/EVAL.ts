@@ -25,19 +25,20 @@ const scorer: LocalStackScorer = async (ctx) => {
   const checks: CheckResult[] = [];
   try {
     const status = await readStatus(ctx);
+    const apiUrl = str(status.API_URL);
     const publishableKey = str(status.PUBLISHABLE_KEY);
     const secretKey = str(status.SECRET_KEY);
-    if (!publishableKey || !secretKey) {
+    if (!apiUrl || !publishableKey || !secretKey) {
       return fail(
         'read stack config from `supabase status`',
-        `missing PUBLISHABLE_KEY/SECRET_KEY — is the stack running on a new-enough CLI? got keys: ${Object.keys(status).join(', ')}`
+        `missing API_URL/PUBLISHABLE_KEY/SECRET_KEY — is the stack running on a new-enough CLI? got keys: ${Object.keys(status).join(', ')}`
       );
     }
 
     // Be generous about a missing install step; the eval is about the keys,
     // not npm. A no-op when the agent already installed dependencies.
     const install = await ctx.exec(
-      `cd ${APP_DIR} && [ -d node_modules ] || npm install --no-audit --no-fund --silent`,
+      `cd ${APP_DIR} && npm install --no-audit --no-fund --silent`,
       { timeoutMs: 180_000 }
     );
     if (!install.ok) {
@@ -103,16 +104,26 @@ const scorer: LocalStackScorer = async (ctx) => {
     // neither as a literal nor via an env var that resolves to it.
     checks.push(await publicScriptKeyCheck(ctx));
 
-    // 5. Prove both scripts actually depend on the keys, not just that their
-    // output happens to match: corrupt the live key value on disk and
-    // confirm the same script now breaks. Without this, a stub that already
-    // knows the expected titles/count — with no real Supabase call at all —
-    // would pass checks 1-4 for free.
+    // 5. Prove both scripts actually call the project, not just that their
+    // output happens to match: corrupt the project URL on disk and confirm
+    // the same script now stops matching the real data. Without this, a
+    // stub that already knows the expected titles/count — with no real
+    // Supabase call at all — would pass checks 1-4 for free.
     checks.push(
-      await keyDependencyCheck(ctx, 'posts', publishableKey, 'publishable key')
+      await networkDependencyCheck(ctx, 'posts', apiUrl, (run) => {
+        const titles = parseJson(run.stdout, '[', ']');
+        return (
+          JSON.stringify(titles ?? null) === JSON.stringify(expectedTitles)
+        );
+      })
     );
     checks.push(
-      await keyDependencyCheck(ctx, 'stats', secretKey, 'secret key')
+      await networkDependencyCheck(ctx, 'stats', apiUrl, (run) => {
+        const out = parseJson(run.stdout, '{', '}') as
+          | { drafts?: unknown }
+          | undefined;
+        return out?.drafts === expectedDrafts;
+      })
     );
 
     return { passed: checks.every((c) => c.passed), checks };
@@ -171,61 +182,90 @@ async function publicScriptKeyCheck(
 }
 
 /**
- * Corrupts the on-disk copy of `keyValue` (in `.env`, or in the script's
- * source if it's hardcoded there instead) and re-runs the given npm script,
- * expecting it to break — proving the script reads the key at call time
- * rather than being hardcoded or key-agnostic. Restores the original
- * content afterward either way.
+ * Corrupts every on-disk occurrence of `url` under `APP_DIR` — `.env`, a
+ * script, or a shared helper module, wherever the migration put it — to a
+ * guaranteed-unreachable address, re-runs the given npm script, and checks
+ * whether its output still matches the real data.
+ *
+ * This corrupts the URL rather than the key on purpose: locally, Kong /
+ * PostgREST don't reject an unrecognized `sb_publishable_`/`sb_secret_` key
+ * outright, they just fail to resolve it to an elevated role, so a read RLS
+ * already allows for the downgraded role (like `posts`, which reads only
+ * published rows) keeps returning correct data even with a corrupted key.
+ * An unreachable URL always breaks a genuine network call, independent of
+ * RLS or key-recognition nuances, so it isolates "did this script call
+ * Supabase at all" — which is the thing a hardcoded stub fails.
+ *
+ * Restores the original content of every corrupted file afterward either
+ * way.
  */
-async function keyDependencyCheck(
+async function networkDependencyCheck(
   ctx: LocalStackEvalContext,
   script: 'posts' | 'stats',
-  keyValue: string,
-  label: string
+  url: string,
+  stillMatchesExpected: (run: CommandResult) => boolean
 ): Promise<CheckResult> {
-  const NAME = `${script} script actually depends on its ${label}`;
-  const envPath = `${APP_DIR}/.env`;
-  const entry = await resolveScriptEntry(ctx, script);
-  const entryPath = `${APP_DIR}/${entry}`;
-
-  const env = await ctx.readFile(envPath).catch(() => undefined);
-  const targetPath = env?.includes(keyValue)
-    ? envPath
-    : await ctx
-        .readFile(entryPath)
-        .then((source) => (source.includes(keyValue) ? entryPath : undefined))
-        .catch(() => undefined);
-  if (targetPath === undefined) {
+  const NAME = `${script} script actually calls the project (not a stub)`;
+  const targets = await findFilesContaining(ctx, url);
+  if (targets.length === 0) {
     return {
       name: NAME,
       passed: false,
-      notes: `could not find the live ${label} on disk (checked ${envPath} and ${entryPath}) to corrupt`,
+      notes: `could not find the live project URL on disk under ${APP_DIR} to corrupt`,
     };
   }
 
-  const original = await ctx.readFile(targetPath);
-  const corrupted = original.replaceAll(
-    keyValue,
-    `${keyValue}-corrupted-by-eval`
+  const originals = new Map<string, string>(
+    await Promise.all(
+      targets.map(
+        async (path) => [path, await ctx.readFile(path)] as [string, string]
+      )
+    )
   );
-  await writeFile(ctx, targetPath, corrupted);
+  const restoreAll = () =>
+    Promise.all(
+      targets.map((path) => writeFile(ctx, path, originals.get(path)!))
+    );
+
+  const corruptions = await Promise.all(
+    targets.map((path) =>
+      writeFile(ctx, path, originals.get(path)!.replaceAll(url, BROKEN_URL))
+    )
+  );
+  const failedWrite = corruptions.find((result) => !result.ok);
+  if (failedWrite) {
+    await restoreAll();
+    return {
+      name: NAME,
+      passed: false,
+      notes: `could not corrupt the project URL for this check: ${failedWrite.stderr.trim() || failedWrite.stdout.trim()}`,
+    };
+  }
+
   const run = await ctx
     .exec(`cd ${APP_DIR} && npm run -s ${script}`, { timeoutMs: 60_000 })
-    .finally(() => writeFile(ctx, targetPath, original));
+    .finally(restoreAll);
 
-  const stillLooksValid =
-    script === 'posts'
-      ? parseJson(run.stdout, '[', ']') !== undefined
-      : (parseJson(run.stdout, '{', '}') as { drafts?: unknown } | undefined)
-          ?.drafts !== undefined;
+  const stillCorrect = run.ok && stillMatchesExpected(run);
   return {
     name: NAME,
-    passed: !run.ok || !stillLooksValid,
-    notes:
-      !run.ok || !stillLooksValid
-        ? `broke as expected with a corrupted ${label}`
-        : `still produced ${preview(run.stdout)} with a corrupted ${label} — looks hardcoded or key-agnostic`,
+    passed: !stillCorrect,
+    notes: stillCorrect
+      ? `still produced ${preview(run.stdout)} against an unreachable project URL — looks hardcoded or not actually calling Supabase`
+      : 'broke as expected against an unreachable project URL',
   };
+}
+
+const BROKEN_URL = 'http://127.0.0.1:1';
+
+async function findFilesContaining(
+  ctx: LocalStackEvalContext,
+  value: string
+): Promise<string[]> {
+  const scan = await ctx.exec(
+    `grep -rlF --exclude-dir=node_modules -- '${value}' ${APP_DIR} || true`
+  );
+  return scan.stdout.trim().split('\n').filter(Boolean);
 }
 
 function writeFile(
