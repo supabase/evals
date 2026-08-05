@@ -1,37 +1,51 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import type { CommandResult, VitestResult } from '@supabase-evals/core';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '..');
+const nodeRequire = createRequire(import.meta.url);
 
-// Vite/vitest resolve their own package (and the workspace's deps, e.g. react)
-// by walking up from the workspace looking for a node_modules dir. Workspaces
-// live under results/, outside ROOT, so link ROOT's node_modules in directly.
-function linkNodeModules(workspace: string) {
-  const link = join(workspace, 'node_modules');
-  if (!existsSync(link)) symlinkSync(join(ROOT, 'node_modules'), link, 'dir');
+/**
+ * Resolve a dependency's bundled entry script. pnpm's isolated layout never
+ * creates a hoisted `<repo>/node_modules/<pkg>`, so anchoring on the repo root
+ * misses every time. Anchor on the `package.json` each package exports instead
+ * of requesting a deep subpath, which `exports` may stop publishing on a bump.
+ */
+export function resolvePackageBin(pkg: string, entry: string): string {
+  return join(dirname(nodeRequire.resolve(`${pkg}/package.json`)), entry);
 }
 
+/**
+ * The mock project the generated vitest setup serves. Evals instruct agents to
+ * read `import.meta.env.VITE_SUPABASE_URL` / `_ANON_KEY`, so the harness has to
+ * supply them or every correct solution throws at import.
+ */
+const PROJECT_DB_URL = 'http://supabase-evals.local';
+const PROJECT_DB_ANON_KEY = 'supabase-evals-anon-key';
+const PROJECT_DB_JWT_SECRET = 'supabase-evals-dev-secret';
+
+/**
+ * Handed to both tools the same way, as process env. Vite exposes
+ * `VITE_`-prefixed variables that already exist in the environment on
+ * `import.meta.env`, and Vitest inherits that behaviour, so neither the build
+ * nor the test run needs this injected through generated config.
+ */
+const PROJECT_ENV: Record<string, string> = {
+  VITE_SUPABASE_URL: PROJECT_DB_URL,
+  VITE_SUPABASE_ANON_KEY: PROJECT_DB_ANON_KEY,
+};
+
 export async function viteBuild(workspace: string): Promise<CommandResult> {
-  linkNodeModules(workspace);
   return runNodeBin(
-    join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'),
+    resolvePackageBin('vite', 'bin/vite.js'),
     ['build'],
-    workspace
+    workspace,
+    PROJECT_ENV
   );
 }
 
 export async function vitestRun(workspace: string): Promise<VitestResult> {
-  linkNodeModules(workspace);
   const reportPath = join(workspace, 'vitest-report.json');
   const configPath = join(workspace, 'vitest.evals.config.ts');
   const setupDir = join(workspace, '.evals');
@@ -54,7 +68,7 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
     ].join('\n')
   );
   const result = await runNodeBin(
-    join(ROOT, 'node_modules', 'vitest', 'vitest.mjs'),
+    resolvePackageBin('vitest', 'vitest.mjs'),
     [
       'run',
       '--config',
@@ -63,7 +77,7 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
       `--outputFile=${reportPath}`,
     ],
     workspace,
-    { SUPABASE_EVALS_WORKSPACE: workspace }
+    { ...PROJECT_ENV, SUPABASE_EVALS_WORKSPACE: workspace }
   );
   const parsed = existsSync(reportPath)
     ? parseVitestReport(reportPath)
@@ -79,9 +93,9 @@ import { afterAll } from "vitest";
 import { App, getAuthSchemaSql, SUPABASE_AUTH_HELPERS_SQL } from "@supabase/lite";
 import { createPgliteConnection } from "@supabase/lite/pglite";
 
-const PROJECT_DB_URL = "http://supabase-evals.local";
-const PROJECT_DB_ANON_KEY = "supabase-evals-anon-key";
-const PROJECT_DB_JWT_SECRET = "supabase-evals-dev-secret";
+const PROJECT_DB_URL = ${JSON.stringify(PROJECT_DB_URL)};
+const PROJECT_DB_ANON_KEY = ${JSON.stringify(PROJECT_DB_ANON_KEY)};
+const PROJECT_DB_JWT_SECRET = ${JSON.stringify(PROJECT_DB_JWT_SECRET)};
 const AUTH_SQL = \`
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
