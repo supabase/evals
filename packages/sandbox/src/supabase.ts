@@ -156,6 +156,13 @@ export interface SetupSupabaseSandboxOptions {
   /** Supabase CLI version to install into the sandbox (pinned default). */
   cliVersion?: string;
   /**
+   * Skip installing the real Supabase CLI, for scenarios whose prompt has the
+   * agent install it itself. Also skips the CLI shim (there's no real binary
+   * to resolve and wrap yet), so service exclusion isn't enforced — pair with
+   * an eval that omits `services` (full stack) or accepts that limitation.
+   */
+  skipCliInstall?: boolean;
+  /**
    * Local-stack services this session needs; every other service is excluded
    * from `supabase start` to keep boots fast. Omitted means the full stack.
    */
@@ -221,8 +228,10 @@ export async function setupSupabaseSandbox(
 ): Promise<void> {
   // The Supabase CLI is a local-stack component: install it here (not in the
   // base image) so tools-mode sandboxes don't have it. Everything below needs
-  // the CLI, so it goes first.
-  await installSupabaseCli(sandbox, options.cliVersion);
+  // the CLI, so it goes first — unless the scenario has the agent install it.
+  if (!options.skipCliInstall) {
+    await installSupabaseCli(sandbox, options.cliVersion);
+  }
 
   // Let the non-root sandbox user talk to the mounted Docker socket by
   // joining the socket's group. chmod would also work but mutates the host
@@ -276,13 +285,16 @@ export async function setupSupabaseSandbox(
   // linked DB commands at the hosted wire endpoint, and appends `-x` to any
   // `supabase start` the agent runs itself (so service exclusions hold even when
   // the stack is already up and the agent restarts it). No-op when there's
-  // nothing to exclude and no hosted wire endpoint.
-  await installSupabaseCliWrapper(
-    sandbox,
-    options.includeServices,
-    poolerUrlPath,
-    options.hosted !== undefined
-  );
+  // nothing to exclude and no hosted wire endpoint. Skipped when there's no CLI
+  // installed yet to resolve and wrap (skipCliInstall).
+  if (!options.skipCliInstall) {
+    await installSupabaseCliWrapper(
+      sandbox,
+      options.includeServices,
+      poolerUrlPath,
+      options.hosted !== undefined
+    );
+  }
 }
 
 /**

@@ -226,7 +226,7 @@ jobs:
               if [ -n "$experiments_override" ]; then
                 experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
               else
-                experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite")"
+                experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite" --eval "$id")"
               fi
 
               while IFS= read -r experiment; do
