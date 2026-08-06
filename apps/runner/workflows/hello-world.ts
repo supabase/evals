@@ -1,4 +1,6 @@
-export async function helloWorldWorkflow(): Promise<{ message: 'Hello, world!' }> {
+export async function helloWorldWorkflow(): Promise<{
+  message: 'Hello, world!';
+}> {
   'use workflow';
 
   return helloWorldStep();
