@@ -20281,11 +20281,11 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "supabase db diff used to generate the migration",
-        "passed": false
+        "passed": true
       },
       {
         "name": "schema file updated to include description column",
@@ -20293,12 +20293,11 @@
       },
       {
         "name": "a new migration was generated for the change",
-        "passed": false,
-        "notes": "found 1 migration file(s)"
+        "passed": true
       },
       {
         "name": "description column exists in the live database",
-        "passed": false
+        "passed": true
       }
     ],
     "skills": {
@@ -20310,7 +20309,7 @@
     },
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-002-declarative-schema.json"
   },
   {
@@ -20335,22 +20334,22 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": false,
-        "notes": "job not found in cron.job"
+        "passed": true,
+        "notes": "schedule='* * * * *', active=true"
       },
       {
         "name": "cron command enqueues to the 'tasks' queue",
-        "passed": false,
-        "notes": "job not found, so its command can't run"
+        "passed": true,
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "couldn't enqueue a test message. Is the 'tasks' queue created? query failed: ERROR:  relation \"pgmq.q_tasks\" does not exist\nLINE 2:         INSERT INTO pgmq.q_tasks (vt, message, headers)\n                            ^\nQUERY:  \n        INSERT INTO pgmq.q_tasks (vt, message, headers)\n        VALUES ($2, $1, $3)\n        RETURNING msg_id;\n        \nCONTEXT:  PL/pgSQL function pgmq.send(text,jsonb,jsonb,timestamp with time zone) line 14 at RETURN QUERY\nSQL function \"send\" statement 1\n"
+        "passed": true,
+        "notes": "function removed the seeded message (id 40) from the queue"
       }
     ],
     "skills": {
@@ -20362,7 +20361,7 @@
     },
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-cli-003-pg-cron-queue-workflow.json"
   },
   {
@@ -20513,42 +20512,42 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 404: Function not found"
+        "notes": "status 401: {\"error\":\"Missing authorization\"}"
       },
       {
         "name": "user with JWT reads only their own rows",
-        "passed": false,
-        "notes": "status 404: Function not found"
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"02ee4120-0600-44a0-8d6d-dddb8c511eef\",\"metric\":\"steps_a_mshnyknt\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
-        "passed": false,
-        "notes": "status 404: Function not found"
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"02ee4120-0600-44a0-8d6d-dddb8c511eef\",\"metric\":\"steps_a_mshnyknt\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
-        "passed": false,
-        "notes": "status 404: Function not found"
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"1d5e3014-2b4a-4998-81c9-1a88be3f26b7\",\"metric\":\"steps_b_mshnyknt\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 404: Function not found"
+        "notes": "status 401: {\"error\":\"Missing authorization\"}"
       },
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 404: Function not found"
+        "notes": "status 401: {\"error\":\"Invalid or expired access token\"}"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 404: Function not found"
+        "notes": "status 401: {\"error\":\"Missing authorization\"}"
       },
       {
         "name": "implementation uses @supabase/server",
         "passed": false,
-        "notes": "could not locate function source to inspect"
+        "notes": "hand-rolled (raw supabase-js or other) — this eval requires @supabase/server"
       }
     ],
     "skills": {
@@ -20655,22 +20654,22 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": false,
-        "notes": "no .sql files found under supabase/tests/"
+        "passed": true,
+        "notes": "1 file(s): supabase/tests/database/rls_tenant_isolation.test.sql"
       },
       {
         "name": "pgTAP isolation tests ran and pass",
-        "passed": false,
-        "notes": "no test summary found; exit 0; output: Connecting to local database...\nFiles=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nA new version of Supabase CLI is available: v2.111.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
+        "passed": true,
+        "notes": "8 passed, 1 failed"
       },
       {
         "name": "agent correctly identifies the posts isolation bug from test results",
         "passed": true,
-        "judgeNotes": "The agent correctly identified the broken tenant isolation policy on the `posts` table, specifically that authenticated members can read posts from organizations they do not belong to, and grounded the conclusion in the pgTAP test results rather than migration comments. It did not incorrectly blame `notes` or dismiss the tests."
+        "judgeNotes": "Correctly identifies `posts` as the broken tenant isolation policy, explains authenticated members can read other organizations' posts, and grounds the conclusion in the pgTAP failure (test 5 have 1 want 0)."
       }
     ],
     "skills": {
@@ -20682,7 +20681,7 @@
     },
     "prompt": "Can you audit the tenant isolation on our tables? Write some database tests covering both the happy path and the negative case, run them, and share the results.",
     "promptSourcePath": "evals/build-tests-001-rls-tenant-isolation/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/build-tests-001-rls-tenant-isolation.json"
   },
   {
@@ -20806,12 +20805,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": false,
-        "judgeNotes": "prometheus.yml does not add any Supabase Metrics API scrape target. It lacks the required HTTPS /customer/v1/privileged/metrics endpoint, HTTP Basic Auth with password_file, project-ref target, and docker-compose.yml secret/volume wiring for the password_file. Existing app scrape is preserved, but required Supabase scrape is missing."
+        "judgeNotes": "Supabase scrape preserves the app job and uses the correct metrics_path and basic_auth password_file with a mounted secrets directory, but it is not deployable for a hosted Supabase project: scheme is http instead of required https, and the target is host.docker.internal:36721 rather than <project-ref>.supabase.co or <project-ref>.supabase.red."
       },
       {
         "name": "documented live deployment and verification steps",
-        "passed": false,
-        "judgeNotes": "README lacks required steps to create a Secret API key, place the matching secret file, restart/reload the Compose stack, and concretely verify the integration via Prometheus targets/PromQL/Grafana. It only documents local startup and the scrape target."
+        "passed": true,
+        "judgeNotes": "README includes creating/using a Supabase Secret API key, writing it to the configured password_file path, restarting or reloading the Compose/Prometheus stack, and concrete verification via Prometheus targets/API plus Grafana guidance."
       }
     ],
     "skills": {
@@ -20819,7 +20818,32 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"metrics endpoint prometheus scrape project metrics\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics",
+              "title": "Metrics API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/vendor-agnostic",
+              "title": "Vendor-agnostic Metrics API setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/grafana-cloud",
+              "title": "Metrics API with Grafana Cloud"
+            }
+          ],
+          "resultChars": 19334
+        }
+      ]
     },
     "prompt": "Can you wire my Supabase project metrics into our existing observability stack and document\nin the observability README what we need to do to make the config live?",
     "promptSourcePath": "evals/deploy-database-001-prometheus-metrics/PROMPT.md",
