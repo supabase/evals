@@ -581,6 +581,117 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "resolve-sdk-001-legacy-key-migration",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "posts script still lists published posts",
+        "passed": true,
+        "notes": "got [\"Announcing vector buckets\",\"Realtime broadcast tips\",\"Row level security explained\"]"
+      },
+      {
+        "name": "stats script still counts drafts (secret key bypasses RLS)",
+        "passed": true,
+        "notes": "got {\"drafts\":2}, expected 2 drafts"
+      },
+      {
+        "name": "legacy anon/service_role JWTs removed from the app",
+        "passed": true,
+        "notes": "no legacy JWTs found"
+      },
+      {
+        "name": "public script does not hold the secret key",
+        "passed": true,
+        "notes": "posts.mjs holds no secret-key reference"
+      },
+      {
+        "name": "posts script actually calls the project (not a stub)",
+        "passed": true,
+        "notes": "broke as expected against an unreachable project URL"
+      },
+      {
+        "name": "stats script actually calls the project (not a stub)",
+        "passed": true,
+        "notes": "broke as expected against an unreachable project URL"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "curl -s https://supabase.com/changelog.md | head -100",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5516
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"publishable key secret key migrate anon service_role\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            }
+          ],
+          "resultChars": 107177
+        }
+      ]
+    },
+    "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
+    "promptSourcePath": "evals/resolve-sdk-001-legacy-key-migration/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/resolve-sdk-001-legacy-key-migration.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "resolve-storage-001-upsert-missing-update-policy",
     "stage": "resolve",
     "product": [
@@ -1055,6 +1166,73 @@
     "promptSourcePath": "evals/resolve-reliability-001-unhealthy-project-recovery/PROMPT.md",
     "attempts": 2,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-reliability-001-unhealthy-project-recovery.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-sdk-001-legacy-key-migration",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "posts script still lists published posts",
+        "passed": true,
+        "notes": "got [\"Announcing vector buckets\",\"Realtime broadcast tips\",\"Row level security explained\"]"
+      },
+      {
+        "name": "stats script still counts drafts (secret key bypasses RLS)",
+        "passed": true,
+        "notes": "got {\"drafts\":2}, expected 2 drafts"
+      },
+      {
+        "name": "legacy anon/service_role JWTs removed from the app",
+        "passed": true,
+        "notes": "no legacy JWTs found"
+      },
+      {
+        "name": "public script does not hold the secret key",
+        "passed": true,
+        "notes": "posts.mjs holds no secret-key reference"
+      },
+      {
+        "name": "posts script actually calls the project (not a stub)",
+        "passed": true,
+        "notes": "broke as expected against an unreachable project URL"
+      },
+      {
+        "name": "stats script actually calls the project (not a stub)",
+        "passed": true,
+        "notes": "broke as expected against an unreachable project URL"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
+    "promptSourcePath": "evals/resolve-sdk-001-legacy-key-migration/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/resolve-sdk-001-legacy-key-migration.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
