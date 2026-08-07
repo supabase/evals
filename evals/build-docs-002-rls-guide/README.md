@@ -22,9 +22,13 @@ The weather feed is the only place `anon` has to be granted something deliberate
 
 `list_members` is the pressure point. A policy on `list_items` that selects from `list_members` is a join inside a policy. A policy on `list_members` that checks membership against `list_members` raises `42P17`. The scorer probes for both.
 
-Membership has more than one safe implementation, so the scorer does not require any particular one. It proves the outcome through the access probes, and separately fails a `security definer` function created in a schema the API exposes.
+Membership has more than one safe implementation, so the scorer does not require any particular one. It proves the outcome through the access probes, and separately fails a `security definer` function that the API exposes or that leaves `search_path` unpinned.
 
-Every check has to trace to something the guide covers. A check that tests good practice the guide is silent on measures the model's background knowledge, not the guide, and belongs in a doc recommendation instead.
+## What belongs in a check
+
+The test is whether something is the guide's job, not whether the guide currently says it. A gap counts as a failure, because the question is whether the document does its job. Teaching a pattern includes teaching it safely, and telling a reader to write policies includes telling them how to prove the policies work.
+
+What does not belong is anything outside that job. A check on good practice the guide has no business covering measures the model's background knowledge instead.
 
 Nothing in the migration says who may read or write what.
 

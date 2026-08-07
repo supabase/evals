@@ -260,27 +260,46 @@ export function checkListItemsAvoidsJoin(policies: PolicyRow[]): CheckResult {
   };
 }
 
-// The guide cautions against creating a security definer function in an exposed
-// schema, and that is the whole of what it asks for. Requiring a helper at all,
-// or requiring a pinned search_path, would test beyond the guide. Whether
-// membership actually holds is proven by the access probes.
+// Scoped to the two ways a security definer function is unsafe, not to any
+// particular design. Membership has more than one safe implementation, and
+// whether it holds is proven by the access probes.
 export function checkSecurityDefinersAreSafe(
   functions: FunctionRow[]
 ): CheckResult {
-  const name = 'no security definer function is created in an exposed schema';
+  const name =
+    'any security definer function is out of the exposed schemas and pins search_path';
   const secdef = functions.filter((fn) => fn.prosecdef);
   const exposed = secdef.filter((fn) => EXPOSED_SCHEMAS.has(fn.schema_name));
+  const unpinned = secdef.filter((fn) => !hasEmptySearchPath(fn));
 
   return {
     name,
-    passed: exposed.length === 0,
+    passed: exposed.length === 0 && unpinned.length === 0,
     notes:
-      exposed.length > 0
-        ? `callable over the API: ${exposed.map(describeFunction).join(', ')}`
-        : secdef.length > 0
+      exposed.length === 0 && unpinned.length === 0
+        ? secdef.length > 0
           ? `verified ${secdef.map(describeFunction).join(', ')}`
-          : 'no security definer function was created',
+          : 'no security definer function was created'
+        : [
+            exposed.length > 0
+              ? `callable over the API: ${exposed.map(describeFunction).join(', ')}`
+              : null,
+            unpinned.length > 0
+              ? `search_path not pinned: ${unpinned.map(describeFunction).join(', ')}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('; '),
   };
+}
+
+function hasEmptySearchPath(fn: FunctionRow): boolean {
+  const setting = (fn.proconfig ?? []).find((entry) =>
+    entry.startsWith('search_path=')
+  );
+  if (setting === undefined) return false;
+  const value = setting.slice('search_path='.length).trim();
+  return value === '' || value === '""' || value === "''";
 }
 
 export async function checkGrants(
