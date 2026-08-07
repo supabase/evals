@@ -2,36 +2,28 @@
 
 The subject under test is the [Row Level Security guide](https://supabase.com/docs/guides/database/postgres/row-level-security), not the agent. The prompt hands over a normal feature request and the guide's url. The scorer asks what the guide got the agent to build.
 
+A check belongs here if it tests something the guide should do. A gap counts as a failure.
+
 ## The persona is a vibe coder
 
-The user describes the app in product terms. They expect the agent to work out the database consequences. They never say RLS, policy, security, role, tenant, or test. They pasted a doc link because they found one, not because they know what is in it.
+The user describes the app in product terms. They expect the agent to work out the database consequences. They never say RLS, policy, security, role, tenant, or test.
 
 Stripping that vocabulary is the measurement. An agent that writes secure policies only when the prompt says "security" has not been served by the guide. Do not reintroduce those terms when editing `PROMPT.md`.
 
 ## Eval coverage for RLS
 
-Three access shapes, which cover most of what applications need.
+Two separate apps, so one access pattern cannot be applied to everything.
 
-- Owner-private. `todos`. Per-user scoping, and denial of cross-user reads and writes.
-- Shared. `lists`, `list_members`, `list_items`. Membership without a join.
-- Public read. `weather_stations`, `weather_readings`. A deliberate `anon` grant, and no client writes.
+- Owner-private. `todos`.
+- Shared through membership. `lists`, `list_members`, `list_items`.
+- Public read, no client writes. `weather_stations`, `weather_readings`.
 
-The prompt lists two separate apps so the agent cannot apply one pattern to everything. `using (true)` is correct on the weather tables and catastrophic on todos. `auth.uid() = user_id` is correct on todos and leaves the dashboard empty for signed-out visitors.
+`using (true)` is correct on the weather feed and catastrophic on todos. The feed is also the only place `anon` has to be granted something deliberately, which is what makes "anon sees nothing" on the other tables mean something.
 
-The weather feed is the only place `anon` has to be granted something deliberately. Without it, "anon sees nothing" cannot be told apart from "anon was never considered."
-
-`list_members` is the pressure point. A policy on `list_items` that selects from `list_members` is a join inside a policy. A policy on `list_members` that checks membership against `list_members` raises `42P17`. The scorer probes for both.
-
-Membership has more than one safe implementation, so the scorer does not require any particular one. It proves the outcome through the access probes, and separately fails a `security definer` function that the API exposes or that leaves `search_path` unpinned.
-
-## What belongs in a check
-
-The test is whether something is the guide's job, not whether the guide currently says it. A gap counts as a failure, because the question is whether the document does its job. Teaching a pattern includes teaching it safely, and telling a reader to write policies includes telling them how to prove the policies work.
-
-What does not belong is anything outside that job. A check on good practice the guide has no business covering measures the model's background knowledge instead.
+`list_members` is the pressure point. A policy on `list_items` that selects from it is a join inside a policy, and a policy on `list_members` that checks membership against itself raises `42P17`. Membership has more than one safe implementation, so the scorer proves the outcome through the access probes rather than requiring a design.
 
 Nothing in the migration says who may read or write what.
 
 ## The prompt never asks for tests
 
-Whether the agent arrives at pgTAP is itself a measurement. pgTAP is the documented way to prove policies work, so the scorer checks for it. If agents do not write tests here, that says something about how reachable testing is from the guide.
+Whether the agent arrives at pgTAP is itself a measurement. If agents do not write tests here, that says something about how reachable testing is from the guide.
