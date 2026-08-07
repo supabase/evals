@@ -262,7 +262,13 @@ export interface ToolScoringContext {
   client: SupabaseClient;
   /** Create a fresh independent Supabase client (useful for multi-user RLS tests). */
   getClient: () => SupabaseClient;
-  /** Run a SQL query in-process against the project database. */
+  /**
+   * Run a SQL query in-process against the project database, as the
+   * `postgres` superuser (bypasses RLS and grants, but not triggers). If a
+   * table gates a column on `current_setting('role') = 'service_role'` (a
+   * common anti-self-approval pattern), seed writes to it need
+   * `SET ROLE service_role` first or the write can be silently altered.
+   */
   query: (sql: string) => Promise<{ rows: Record<string, unknown>[] }>;
   /** Invoke a deployed edge function in-process. */
   invokeFunction: (
