@@ -22,7 +22,9 @@ The weather feed is the only place `anon` has to be granted something deliberate
 
 `list_members` is the pressure point. A policy on `list_items` that selects from `list_members` is a join inside a policy. A policy on `list_members` that checks membership against `list_members` raises `42P17`. The scorer probes for both.
 
-Membership has more than one safe implementation, so the scorer does not require any particular one. It proves the outcome through the access probes, and separately fails a `security definer` function that is callable over the API or does not pin `search_path`. Requiring a private helper would fail an agent that keeps membership in the JWT instead, which is secure and is a pattern the guide teaches.
+Membership has more than one safe implementation, so the scorer does not require any particular one. It proves the outcome through the access probes, and separately fails a `security definer` function created in a schema the API exposes.
+
+Every check has to trace to something the guide covers. A check that tests good practice the guide is silent on measures the model's background knowledge, not the guide, and belongs in a doc recommendation instead.
 
 Nothing in the migration says who may read or write what.
 

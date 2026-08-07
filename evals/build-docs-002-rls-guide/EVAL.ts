@@ -9,7 +9,6 @@ import {
   checkGrants,
   checkSecurityDefinersAreSafe,
   checkListItemsAvoidsJoin,
-  checkLookupTableNotForced,
   checkOnePolicyPerOperation,
   checkPolicyColumnsIndexed,
   checkPoliciesScopedToRole,
@@ -50,7 +49,6 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     const checks: CheckResult[] = [
       checkRlsEnabled(tables),
-      checkLookupTableNotForced(tables),
       checkPoliciesScopedToRole(policies),
       checkOnePolicyPerOperation(policies),
       checkUpdatePoliciesHaveBothClauses(policies),

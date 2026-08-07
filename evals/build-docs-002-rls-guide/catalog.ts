@@ -125,19 +125,6 @@ export function checkRlsEnabled(tables: TableState[]): CheckResult {
   };
 }
 
-export function checkLookupTableNotForced(tables: TableState[]): CheckResult {
-  const forced =
-    tables.find((t) => t.relname === 'list_members')?.relforcerowsecurity ===
-    true;
-  return {
-    name: 'row level security is not forced on the list_members lookup table',
-    passed: !forced,
-    notes: forced
-      ? 'list_members has FORCE ROW LEVEL SECURITY, which breaks a security definer helper reading it as its owner'
-      : undefined,
-  };
-}
-
 export function checkPoliciesScopedToRole(policies: PolicyRow[]): CheckResult {
   const unscoped = policies.filter((policy) => {
     const roles = rolesOf(policy);
@@ -273,46 +260,26 @@ export function checkListItemsAvoidsJoin(policies: PolicyRow[]): CheckResult {
   };
 }
 
-// Membership has more than one safe implementation, and the guide itself shows
-// one that needs no function at all, so this looks for the unsafe shapes rather
-// than requiring a helper. Whether membership actually holds is proven by the
-// access probes, not here.
+// The guide cautions against creating a security definer function in an exposed
+// schema, and that is the whole of what it asks for. Requiring a helper at all,
+// or requiring a pinned search_path, would test beyond the guide. Whether
+// membership actually holds is proven by the access probes.
 export function checkSecurityDefinersAreSafe(
   functions: FunctionRow[]
 ): CheckResult {
-  const name =
-    'any security definer function is outside the exposed schemas and pins search_path';
+  const name = 'no security definer function is created in an exposed schema';
   const secdef = functions.filter((fn) => fn.prosecdef);
-
-  if (secdef.length === 0) {
-    return {
-      name,
-      passed: true,
-      notes: 'no security definer function was created',
-    };
-  }
-
   const exposed = secdef.filter((fn) => EXPOSED_SCHEMAS.has(fn.schema_name));
-  const unpinned = secdef.filter(
-    (fn) => !EXPOSED_SCHEMAS.has(fn.schema_name) && !hasEmptySearchPath(fn)
-  );
 
   return {
     name,
-    passed: exposed.length === 0 && unpinned.length === 0,
+    passed: exposed.length === 0,
     notes:
-      exposed.length === 0 && unpinned.length === 0
-        ? `verified ${secdef.map(describeFunction).join(', ')}`
-        : [
-            exposed.length > 0
-              ? `callable over the API: ${exposed.map(describeFunction).join(', ')}`
-              : null,
-            unpinned.length > 0
-              ? `search_path not pinned: ${unpinned.map(describeFunction).join(', ')}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join('; '),
+      exposed.length > 0
+        ? `callable over the API: ${exposed.map(describeFunction).join(', ')}`
+        : secdef.length > 0
+          ? `verified ${secdef.map(describeFunction).join(', ')}`
+          : 'no security definer function was created',
   };
 }
 
@@ -400,24 +367,7 @@ export async function checkGrants(
 }
 
 function describeFunction(fn: FunctionRow): string {
-  const traits = [
-    fn.prosecdef ? 'security definer' : 'security invoker',
-    hasEmptySearchPath(fn)
-      ? 'search_path pinned empty'
-      : `search_path ${searchPathSetting(fn) ?? 'unset'}`,
-  ];
-  return `${fn.schema_name}.${fn.proname} (${traits.join(', ')})`;
-}
-
-function searchPathSetting(fn: FunctionRow): string | undefined {
-  return (fn.proconfig ?? []).find((entry) => entry.startsWith('search_path='));
-}
-
-function hasEmptySearchPath(fn: FunctionRow): boolean {
-  const setting = searchPathSetting(fn);
-  if (setting === undefined) return false;
-  const value = setting.slice('search_path='.length).trim();
-  return value === '' || value === '""' || value === "''";
+  return `${fn.schema_name}.${fn.proname}`;
 }
 
 export function expressionsOf(policies: PolicyRow[]): string[] {
