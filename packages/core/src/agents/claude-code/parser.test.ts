@@ -86,7 +86,9 @@ describe('claudeCodeParser', () => {
     expect(toolCalls.map((e) => e.tool?.name)).toEqual(['shell', 'tool_use']);
     expect(toolCalls.map((e) => e.tool?.originalName)).toEqual([
       'Bash',
-      'mcp__supabase__search_docs',
+      // MCP tool: the `mcp__<server>__` prefix is stripped to the bare tool
+      // name so the endpoint matches across agents (e.g. Codex).
+      'search_docs',
     ]);
     // the parser normalizes the shell command onto the event (args left raw)
     expect(toolCalls[0].tool?.command).toBe('ls -la');
@@ -192,7 +194,7 @@ describe('adaptTranscript', () => {
         ts: Date.parse('2026-06-18T10:00:00.000Z'),
       },
       {
-        endpoint: 'mcp__supabase__search_docs',
+        endpoint: 'search_docs',
         body: { query: 'rls' },
         name: 'tool_use',
         result: undefined,
@@ -214,7 +216,7 @@ describe('adaptTranscript', () => {
       },
       {
         type: 'tool_call',
-        name: 'mcp__supabase__search_docs',
+        name: 'search_docs',
         input: { query: 'rls' },
         output: undefined,
         error: 'boom',
