@@ -32,7 +32,7 @@
       {
         "name": "suggested relevant next steps for a Supabase + Next.js project",
         "passed": true,
-        "judgeNotes": "The response provides concrete Supabase/Next.js next steps: running `supabase start`, installing `@supabase/supabase-js`/`@supabase/ssr`, setting `NEXT_PUBLIC_SUPABASE_URL` and anon key, creating migrations, and linking/deploying later."
+        "judgeNotes": "The response provides several concrete, relevant Supabase + Next.js next steps, including running `supabase start`, installing `@supabase/supabase-js`/`@supabase/ssr`, setting `.env.local` variables, linking a hosted project, and creating migrations."
       },
       {
         "name": "attempted `npx plugins add supabase-community/supabase-plugin`",
@@ -50,6 +50,219 @@
     "promptSourcePath": "evals/build-docs-001-homepage-quickstart/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-docs-001-homepage-quickstart.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every seeded table",
+        "passed": true
+      },
+      {
+        "name": "row level security is not forced on the list_members lookup table",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon's default write grants are revoked on the to-do tables",
+        "passed": false,
+        "notes": "still granted by default: anon_todos_insert, anon_todos_update, anon_todos_delete, anon_lists_insert, anon_lists_update, anon_lists_delete, anon_members_insert, anon_members_update, anon_members_delete, anon_items_insert, anon_items_update, anon_items_delete"
+      },
+      {
+        "name": "both client roles' default write grants are revoked on the weather feed",
+        "passed": false,
+        "notes": "still granted by default: anon_stations_insert, anon_stations_update, anon_stations_delete, anon_readings_insert, anon_readings_update, anon_readings_delete, authed_stations_insert, authed_stations_update, authed_stations_delete, authed_readings_insert, authed_readings_update, authed_readings_delete"
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-2dc1057f, todo-a-edit-2dc1057f, todo-a-delete-2dc1057f"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-2dc1057f"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a list member reads the list they are on",
+        "passed": true,
+        "notes": "names: list-2dc1057f"
+      },
+      {
+        "name": "a list member reads the items on that list",
+        "passed": true,
+        "notes": "titles: item-2dc1057f"
+      },
+      {
+        "name": "a list member adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: 0 rows; items: 0 rows"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: list_members.user_id"
+      },
+      {
+        "name": "list_items policies do not select from list_members inline",
+        "passed": true
+      },
+      {
+        "name": "the helper the list_items policies call is security definer in a private schema with an empty search_path",
+        "passed": false,
+        "notes": "no function outside the stack schemas, so the policies reach membership some other way"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 0; output: Connecting to local database...\nFiles=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nA new version of Supabase CLI is available: v2.112.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
+      },
+      {
+        "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "1 call(s) referenced the guide"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the recommended patterns for writing RLS policies: how to structure policies per operation, performance best practices (wrapping auth.uid() in select, indexing, specifying roles), using security definer functions for cross-table checks, and any guidance on multi-tenant/shared-resource access patterns.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ],
+          "resultChars": 2458
+        }
+      ]
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/build-docs-002-rls-guide/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "claude-code-sonnet-5/build-docs-002-rls-guide.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
