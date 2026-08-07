@@ -17,10 +17,11 @@ const POLICY_FILTER_COLUMNS = [
   { table: 'list_items', column: 'list_id' },
 ];
 
-const PRE_EXISTING_SCHEMAS = new Set([
-  'public',
+/** `[api] schemas` in config.toml: anything here is reachable over the API. */
+const EXPOSED_SCHEMAS = new Set(['public', 'graphql_public']);
+
+const STACK_SCHEMAS = new Set([
   'graphql',
-  'graphql_public',
   'auth',
   'storage',
   'realtime',
@@ -85,7 +86,12 @@ export async function loadPolicies(
   return rows as PolicyRow[];
 }
 
-export async function loadPrivateFunctions(
+/**
+ * Functions the agent could have created: everything outside the schemas the
+ * stack ships. The exposed schemas stay in scope, because a security definer
+ * function there is the case worth catching.
+ */
+export async function loadCandidateFunctions(
   ctx: LocalStackEvalContext
 ): Promise<FunctionRow[]> {
   const { rows } = await ctx.query(stripIndent`
@@ -99,7 +105,7 @@ export async function loadPrivateFunctions(
   `);
   return (rows as FunctionRow[]).filter(
     (row) =>
-      !PRE_EXISTING_SCHEMAS.has(row.schema_name) &&
+      !STACK_SCHEMAS.has(row.schema_name) &&
       !row.schema_name.startsWith('pg_') &&
       !row.schema_name.startsWith('_')
   );
@@ -267,49 +273,46 @@ export function checkListItemsAvoidsJoin(policies: PolicyRow[]): CheckResult {
   };
 }
 
-export function checkHelperIsSafe(
-  policies: PolicyRow[],
+// Membership has more than one safe implementation, and the guide itself shows
+// one that needs no function at all, so this looks for the unsafe shapes rather
+// than requiring a helper. Whether membership actually holds is proven by the
+// access probes, not here.
+export function checkSecurityDefinersAreSafe(
   functions: FunctionRow[]
 ): CheckResult {
   const name =
-    'the helper the list_items policies call is security definer in a private schema with an empty search_path';
-  const expressions = expressionsOf(
-    policies.filter((p) => p.tablename === 'list_items')
-  );
+    'any security definer function is outside the exposed schemas and pins search_path';
+  const secdef = functions.filter((fn) => fn.prosecdef);
 
-  if (expressions.length === 0) {
-    return { name, passed: false, notes: 'no policies on list_items' };
-  }
-
-  const referenced = functions.filter((fn) =>
-    expressions.some((expression) =>
-      new RegExp(`\\b${fn.schema_name}\\.${fn.proname}\\s*\\(`, 'i').test(
-        expression
-      )
-    )
-  );
-
-  if (referenced.length === 0) {
+  if (secdef.length === 0) {
     return {
       name,
-      passed: false,
-      notes:
-        functions.length === 0
-          ? 'no function outside the stack schemas, so the policies reach membership some other way'
-          : `policies reference none of: ${functions.map(describeFunction).join(', ')}`,
+      passed: true,
+      notes: 'no security definer function was created',
     };
   }
 
-  const unsafe = referenced.filter(
-    (fn) => !fn.prosecdef || !hasEmptySearchPath(fn)
+  const exposed = secdef.filter((fn) => EXPOSED_SCHEMAS.has(fn.schema_name));
+  const unpinned = secdef.filter(
+    (fn) => !EXPOSED_SCHEMAS.has(fn.schema_name) && !hasEmptySearchPath(fn)
   );
+
   return {
     name,
-    passed: unsafe.length === 0,
+    passed: exposed.length === 0 && unpinned.length === 0,
     notes:
-      unsafe.length === 0
-        ? `verified ${referenced.map(describeFunction).join(', ')}`
-        : `unsafe: ${unsafe.map(describeFunction).join(', ')}`,
+      exposed.length === 0 && unpinned.length === 0
+        ? `verified ${secdef.map(describeFunction).join(', ')}`
+        : [
+            exposed.length > 0
+              ? `callable over the API: ${exposed.map(describeFunction).join(', ')}`
+              : null,
+            unpinned.length > 0
+              ? `search_path not pinned: ${unpinned.map(describeFunction).join(', ')}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('; '),
   };
 }
 

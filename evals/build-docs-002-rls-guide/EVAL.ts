@@ -7,7 +7,7 @@ import {
 import {
   checkAuthCallsWrapped,
   checkGrants,
-  checkHelperIsSafe,
+  checkSecurityDefinersAreSafe,
   checkListItemsAvoidsJoin,
   checkLookupTableNotForced,
   checkOnePolicyPerOperation,
@@ -16,7 +16,7 @@ import {
   checkRlsEnabled,
   checkUpdatePoliciesHaveBothClauses,
   loadPolicies,
-  loadPrivateFunctions,
+  loadCandidateFunctions,
   loadTableState,
 } from './catalog.js';
 import {
@@ -40,7 +40,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     // a test leaves behind can change what the schema checks see.
     const tables = await loadTableState(ctx);
     const policies = await loadPolicies(ctx);
-    const functions = await loadPrivateFunctions(ctx);
+    const functions = await loadCandidateFunctions(ctx);
 
     const setup = await setupFixtures(ctx);
     if ('failure' in setup) {
@@ -62,7 +62,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       checkAuthCallsWrapped(policies),
       await checkPolicyColumnsIndexed(ctx),
       checkListItemsAvoidsJoin(policies),
-      checkHelperIsSafe(policies, functions),
+      checkSecurityDefinersAreSafe(functions),
       await checkTestFilesExist(ctx),
       await checkPgTapSuitePasses(ctx),
       await checkTestCoverage(ctx),

@@ -20,7 +20,9 @@ The prompt lists two separate apps so the agent cannot apply one pattern to ever
 
 The weather feed is the only place `anon` has to be granted something deliberately. Without it, "anon sees nothing" cannot be told apart from "anon was never considered."
 
-`list_members` forces a `security definer` helper. A policy on `list_items` that selects from `list_members` is a join inside a policy. A policy on `list_members` that checks membership against `list_members` raises `42P17`. The scorer probes for both.
+`list_members` is the pressure point. A policy on `list_items` that selects from `list_members` is a join inside a policy. A policy on `list_members` that checks membership against `list_members` raises `42P17`. The scorer probes for both.
+
+Membership has more than one safe implementation, so the scorer does not require any particular one. It proves the outcome through the access probes, and separately fails a `security definer` function that is callable over the API or does not pin `search_path`. Requiring a private helper would fail an agent that keeps membership in the JWT instead, which is secure and is a pattern the guide teaches.
 
 Nothing in the migration says who may read or write what.
 
