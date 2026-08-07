@@ -221,7 +221,9 @@ async function runEvalInSandbox(
 
 /** Converts Sandbox output into one durable Workflow Stream entry per line. */
 function createWorkflowOutput(): Writable {
-  const writer = getWritable<string>().getWriter();
+  const frameworkWriter = getWritable<string>({
+    namespace: 'framework',
+  }).getWriter();
   const agentWriter = getWritable<string>({ namespace: 'agent' }).getWriter();
   let pending = '';
   let agentPending = '';
@@ -241,7 +243,7 @@ function createWorkflowOutput(): Writable {
     for (const line of text.split('\n')) {
       if (!line) continue;
       if (!line.startsWith(AGENT_STREAM_PREFIX)) {
-        await writer.write(line);
+        await frameworkWriter.write(line);
         continue;
       }
 
@@ -270,7 +272,7 @@ function createWorkflowOutput(): Writable {
       void flush(pending)
         .then(async () => {
           if (agentPending) await agentWriter.write(agentPending);
-          writer.releaseLock();
+          frameworkWriter.releaseLock();
           agentWriter.releaseLock();
         })
         .then(() => callback(), callback);
