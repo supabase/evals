@@ -38,7 +38,12 @@ export interface AgentSandbox {
   /** Run a bash command as the agent user, cwd = workspace. */
   exec(
     command: string,
-    options?: { timeoutMs?: number; env?: Record<string, string> }
+    options?: {
+      timeoutMs?: number;
+      env?: Record<string, string>;
+      onStdout?: (chunk: string) => void;
+      onStderr?: (chunk: string) => void;
+    }
   ): Promise<CommandResult>;
   /** Read a UTF-8 file (absolute path, or relative to the workspace). */
   readFile(path: string): Promise<string>;
@@ -66,6 +71,8 @@ export interface RunnerExecArgs<M extends string = string> {
    */
   reasoningEffort?: string;
   timeoutSec: number;
+  /** Receives raw JSONL chunks emitted by the agent CLI. */
+  onStdout?: (chunk: string) => void;
 }
 
 /** What a runner's `exec` returns: the process result and the raw transcript. */

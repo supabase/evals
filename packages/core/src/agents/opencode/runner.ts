@@ -117,6 +117,7 @@ export function createOpencodeRunner(
       userPromptPath,
       mcpServers,
       timeoutSec,
+      onStdout,
     }) {
       const opencode = npmGlobalBin('opencode');
 
@@ -157,6 +158,7 @@ export function createOpencodeRunner(
           timeoutMs: timeoutSec * 1000,
           // The native vercel provider reads the gateway key from this env var.
           env: { [this.apiKeyEnvVar]: apiKey },
+          onStdout,
         }
       );
       return { command, raw: command.stdout };

@@ -10,4 +10,5 @@ if (existsSync(rootDotenvPath)) {
 
 export default defineNitroConfig({
   modules: ['workflow/nitro'],
+  ignore: ['**/*.test.*'],
 });
