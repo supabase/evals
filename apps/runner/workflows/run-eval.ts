@@ -10,6 +10,11 @@ const DOCKER_BOOTSTRAP_TIMEOUT_MS = 2 * 60 * 1000;
 const INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 const EVAL_TIMEOUT_MS = 20 * 60 * 1000;
 const AGENT_STREAM_PREFIX = '__EVALS_AGENT_STREAM__=';
+const AGENT_API_KEY_ENV_VARS = [
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'AI_GATEWAY_API_KEY',
+];
 
 export interface EvalWorkItem {
   experiment: string;
@@ -46,11 +51,6 @@ export async function runEvalWorkflow(item: EvalWorkItem): Promise<EvalResult> {
 async function createEvalSandbox(item: EvalWorkItem): Promise<Sandbox> {
   'use step';
 
-  const openAiApiKey = process.env.OPENAI_API_KEY;
-  if (!openAiApiKey) {
-    throw new FatalError('OPENAI_API_KEY is required to run the eval probe');
-  }
-
   let sandbox: Sandbox | undefined;
   try {
     sandbox = await Sandbox.create({
@@ -63,7 +63,7 @@ async function createEvalSandbox(item: EvalWorkItem): Promise<Sandbox> {
       runtime: 'node24',
       timeout: SANDBOX_TIMEOUT_MS,
       persistent: false,
-      env: { OPENAI_API_KEY: openAiApiKey },
+      env: pickEnv(AGENT_API_KEY_ENV_VARS),
       tags: { purpose: 'eval', eval: item.evalId },
     });
 
@@ -81,6 +81,16 @@ async function createEvalSandbox(item: EvalWorkItem): Promise<Sandbox> {
     }
     throw error;
   }
+}
+
+/** Picks whichever of the given env vars are actually set, for forwarding into the Sandbox. */
+function pickEnv(names: string[]): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const name of names) {
+    const value = process.env[name];
+    if (value) env[name] = value;
+  }
+  return env;
 }
 
 /** Initializes the skills submodule in Vercel's Git source checkout. */
