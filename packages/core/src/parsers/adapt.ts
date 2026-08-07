@@ -46,7 +46,13 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
     if (event.type === 'message' && event.role && event.content) {
       const content = event.content.trim();
       if (!content) continue;
-      transcript.push({ type: 'message', role: event.role, content });
+      transcript.push({
+        type: 'message',
+        role: event.role,
+        content,
+        usage: event.usage,
+        ts: event.timestamp ? parseTs(event.timestamp) : undefined,
+      });
       if (event.role === 'assistant') {
         agentReport = content;
         steps += 1;
@@ -62,6 +68,8 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         input: body,
         output: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
+        usage: event.usage,
+        ts: event.timestamp ? parseTs(event.timestamp) : undefined,
       });
       toolCalls.push({
         endpoint: event.tool.originalName,

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { useQueryState } from "nuqs"
 import {
   CheckIcon,
   ChevronRightIcon,
@@ -11,6 +12,7 @@ import {
 import { passFailClassName } from "@/components/results/table-shared"
 import type { CheckResult, DocsCall, ParsedResult } from "@/lib/eval-results"
 import { formatProductLabel, formatTagLabel } from "@/lib/format"
+import { traceEvalParser, TRACE_EVAL_QUERY_KEY } from "@/lib/url-state"
 import { cn } from "@/lib/utils"
 
 const DOCS_CALL_SOURCE_LABEL: Record<DocsCall["source"], string> = {
@@ -205,6 +207,8 @@ function ResultDocsCalls({ calls }: { calls: DocsCall[] }) {
 
 /** Everything recorded about one run, shown when its row in the sheet is expanded. */
 export function EvalDetails({ result }: { result: ParsedResult }) {
+  const [, setTraceEval] = useQueryState(TRACE_EVAL_QUERY_KEY, traceEvalParser)
+
   return (
     <dl className={evalMetaGridClassName}>
       {result.prompt ? (
@@ -219,6 +223,18 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
           }
         />
       ) : null}
+      <EvalMetadataRow
+        label="Trace"
+        value={
+          <button
+            type="button"
+            onClick={() => void setTraceEval(result.eval)}
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            View span tree
+          </button>
+        }
+      />
       <EvalMetadataRow label="Attempts" value={result.attempts ?? "-"} />
       <EvalMetadataRow
         label="Source"
