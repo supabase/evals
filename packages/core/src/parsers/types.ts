@@ -11,6 +11,18 @@
 
 import type { ParsedTranscript } from '../transcript/types.js';
 
+/**
+ * Optional run context for parsers. Some agents (OpenCode) name MCP tools
+ * `<server>_<tool>` without a structural marker, so the server is only
+ * recoverable by matching the configured server names — which the harness
+ * knows but the transcript alone does not. Parsers whose format encodes the
+ * server (Claude Code, Codex) ignore this.
+ */
+export interface ParseContext {
+  /** Names of the MCP servers configured for this run. */
+  mcpServerNames?: string[];
+}
+
 export interface AgentTranscriptParser {
-  parseTranscript(raw: string): ParsedTranscript;
+  parseTranscript(raw: string, ctx?: ParseContext): ParsedTranscript;
 }

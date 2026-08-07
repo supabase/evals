@@ -13,6 +13,7 @@
 
 import type {
   ParsedTranscript,
+  ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
 import type { AgentTranscriptParser } from '../../parsers/types.js';
@@ -54,20 +55,26 @@ const CLAUDE_CODE_TOOLS: AgentToolMap = {
 };
 
 /**
- * Claude Code names MCP tools `mcp__<server>__<tool>`. Strip the
- * `mcp__<server>__` prefix so the scorer-facing `originalName` is the bare tool
- * name (e.g. `query_logs`), matching how the other agent parsers emit MCP tool
- * names (Codex records the bare `tool` from its `mcp_tool_call` shape). Without
- * this, the same logical MCP call has a different endpoint per agent, so a
- * scorer's `tc.endpoint === 'query_logs'` silently never matches Claude Code.
- * Non-MCP tools are returned unchanged.
+ * Claude Code names MCP tools `mcp__<server>__<tool>` (fixture:
+ * `mcp__supabase-mcp__query_logs`). The `mcp__` marker and `__` delimiters make
+ * the server and bare tool name structurally recoverable, so scorers get an
+ * agent-agnostic `toolName` plus the originating `server`. Anything else is a
+ * built-in / native tool.
  */
-function bareToolName(name: string): string {
-  if (!name.startsWith('mcp__')) return name;
-  // ['mcp', '<server>', '<tool...>'] — rejoin trailing segments so a tool name
-  // that itself contains '__' survives.
-  const parts = name.split('__');
-  return parts.length >= 3 ? parts.slice(2).join('__') : name;
+function toolCall(rawName: string): ToolCall {
+  if (rawName.startsWith('mcp__')) {
+    // ['mcp', '<server>', '<tool...>'] — rejoin trailing segments so a tool
+    // name that itself contains '__' survives.
+    const parts = rawName.split('__');
+    if (parts.length >= 3) {
+      return {
+        kind: 'mcp',
+        server: parts[1]!,
+        toolName: parts.slice(2).join('__'),
+      };
+    }
+  }
+  return { kind: 'other', toolName: rawName };
 }
 
 /**
@@ -247,10 +254,9 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
           timestamp,
           type: 'tool_call',
           tool: {
-            // Pass the raw name to normalizeToolName so its `mcp__` → `tool_use`
-            // fallback still fires; expose the bare name as the endpoint.
             name: normalizeToolName(use.name, CLAUDE_CODE_TOOLS),
-            originalName: bareToolName(use.name),
+            originalName: use.name,
+            call: toolCall(use.name),
             id: use.id,
             args: use.input,
           },

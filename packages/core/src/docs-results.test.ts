@@ -5,15 +5,30 @@ import {
 } from './docs-results.js';
 import type { ToolCallRecord } from './index.js';
 
+/** Builds a `ToolCall` from a raw agent tool name (mirrors claude-code's `mcp__server__tool`). */
+function toToolCall(rawName: string): ToolCallRecord['tool'] {
+  if (rawName.startsWith('mcp__')) {
+    const parts = rawName.split('__');
+    if (parts.length >= 3) {
+      return {
+        kind: 'mcp',
+        server: parts[1]!,
+        toolName: parts.slice(2).join('__'),
+      };
+    }
+  }
+  return { kind: 'other', toolName: rawName };
+}
+
 /** Builds the minimal tool call record needed by docs-result tests. */
 function toolCall(
-  endpoint: string,
+  rawName: string,
   body: Record<string, unknown>,
   options: Partial<
     Pick<ToolCallRecord, 'url' | 'result' | 'name' | 'command' | 'error'>
   > = {}
 ): ToolCallRecord {
-  return { endpoint, body, ...options, ts: 0 };
+  return { tool: toToolCall(rawName), body, ...options, ts: 0 };
 }
 
 describe('buildDocsResult', () => {

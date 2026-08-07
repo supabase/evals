@@ -84,11 +84,16 @@ describe('claudeCodeParser', () => {
 
     const toolCalls = events.filter((e) => e.type === 'tool_call');
     expect(toolCalls.map((e) => e.tool?.name)).toEqual(['shell', 'tool_use']);
+    // originalName stays raw as the agent emitted it.
     expect(toolCalls.map((e) => e.tool?.originalName)).toEqual([
       'Bash',
-      // MCP tool: the `mcp__<server>__` prefix is stripped to the bare tool
-      // name so the endpoint matches across agents (e.g. Codex).
-      'search_docs',
+      'mcp__supabase__search_docs',
+    ]);
+    // `call` carries the agent-agnostic identity: MCP tools are split into
+    // server + bare toolName; built-ins are `other`.
+    expect(toolCalls.map((e) => e.tool?.call)).toEqual([
+      { kind: 'other', toolName: 'Bash' },
+      { kind: 'mcp', server: 'supabase', toolName: 'search_docs' },
     ]);
     // the parser normalizes the shell command onto the event (args left raw)
     expect(toolCalls[0].tool?.command).toBe('ls -la');
@@ -185,7 +190,7 @@ describe('adaptTranscript', () => {
   it('builds tool calls keyed by the original tool name, with results paired in', () => {
     expect(adapted.toolCalls).toEqual([
       {
-        endpoint: 'Bash',
+        tool: { kind: 'other', toolName: 'Bash' },
         body: { command: 'ls -la' },
         name: 'shell',
         command: 'ls -la',
@@ -194,7 +199,7 @@ describe('adaptTranscript', () => {
         ts: Date.parse('2026-06-18T10:00:00.000Z'),
       },
       {
-        endpoint: 'search_docs',
+        tool: { kind: 'mcp', server: 'supabase', toolName: 'search_docs' },
         body: { query: 'rls' },
         name: 'tool_use',
         result: undefined,
