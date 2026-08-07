@@ -32,7 +32,7 @@
       {
         "name": "suggested relevant next steps for a Supabase + Next.js project",
         "passed": true,
-        "judgeNotes": "The response gives concrete Supabase/Next.js next steps: run `supabase start` or link a project, install `@supabase/supabase-js`/`@supabase/ssr`, set `.env.local` variables, and create/apply a first migration."
+        "judgeNotes": "The response includes multiple concrete Supabase/Next.js next steps: running `supabase start`, linking a hosted project, installing `@supabase/supabase-js`/`@supabase/ssr`, setting `NEXT_PUBLIC_SUPABASE_URL` and anon key from `supabase status`, and creating a first migration."
       },
       {
         "name": "attempted `npx plugins add supabase-community/supabase-plugin`",
@@ -80,10 +80,6 @@
         "passed": true
       },
       {
-        "name": "row level security is not forced on the list_members lookup table",
-        "passed": true
-      },
-      {
         "name": "every policy is scoped to a role instead of defaulting to public",
         "passed": true
       },
@@ -108,7 +104,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-37b23307, todo-a-edit-37b23307, todo-a-delete-37b23307"
+        "notes": "titles: todo-a-e3c6073f, todo-a-edit-e3c6073f, todo-a-delete-e3c6073f"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -117,7 +113,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-37b23307"
+        "notes": "titles: todo-b-e3c6073f"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -156,12 +152,12 @@
       {
         "name": "a list member reads the list they are on",
         "passed": true,
-        "notes": "names: list-37b23307"
+        "notes": "names: list-e3c6073f"
       },
       {
         "name": "a list member reads the items on that list",
         "passed": true,
-        "notes": "titles: item-37b23307"
+        "notes": "titles: item-e3c6073f"
       },
       {
         "name": "a list member adds an item and the row lands",
@@ -203,20 +199,22 @@
       },
       {
         "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
-        "passed": true
+        "passed": false,
+        "notes": "unwrapped call in: todos.delete own todos, todos.update own todos, todos.insert own todos, todos.select own todos, lists.delete own lists, lists.update own lists, lists.insert own lists, lists.select own or shared lists, list_members.owner removes or member leaves, list_items.insert items as self on accessible lists"
       },
       {
         "name": "columns the policies filter on have a btree index",
-        "passed": true
+        "passed": false,
+        "notes": "no complete btree index leading with: todos.user_id, lists.owner_id, list_members.user_id, list_items.list_id"
       },
       {
         "name": "list_items policies do not select from list_members inline",
         "passed": true
       },
       {
-        "name": "the helper the list_items policies call is security definer in a private schema with an empty search_path",
-        "passed": true,
-        "notes": "verified private.is_list_member (security definer, search_path pinned empty)"
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": false,
+        "notes": "callable over the API: public.is_list_owner, public.is_list_member"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -226,7 +224,7 @@
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": false,
-        "notes": "no test summary found; exit 0; output: Connecting to local database...\nFiles=0, Tests=0,  0 wallclock secs ( 0.01 usr +  0.00 sys =  0.01 CPU)\nResult: NOTESTS\nA new version of Supabase CLI is available: v2.112.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
+        "notes": "no test summary found; exit 0; output: Connecting to local database...\nFiles=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nA new version of Supabase CLI is available: v2.112.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
       },
       {
         "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
