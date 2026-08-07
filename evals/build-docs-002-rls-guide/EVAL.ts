@@ -1,7 +1,8 @@
-import type {
-  CheckResult,
-  LocalStackEvalContext,
-  LocalStackScorer,
+import {
+  buildDocsResult,
+  type CheckResult,
+  type LocalStackEvalContext,
+  type LocalStackScorer,
 } from '@supabase-evals/core';
 import {
   checkAuthCallsWrapped,
@@ -86,18 +87,21 @@ const scorer: LocalStackScorer = async (ctx) => {
 
 export default scorer;
 
+// A search_docs hit carries the guide's url in its result, not its request, so
+// reuse the harness's own resolution rather than scanning the raw tool call.
 function checkGuideWasRead(ctx: LocalStackEvalContext): CheckResult {
-  const reads = ctx.toolCalls.filter((call) =>
-    [call.url, call.command, call.endpoint, JSON.stringify(call.body ?? {})]
-      .filter((value): value is string => typeof value === 'string')
-      .some((value) => value.includes(GUIDE_PATH))
+  const calls = buildDocsResult(ctx.toolCalls).calls.filter((call) =>
+    call.pages?.some((page) => page.url.includes(GUIDE_PATH))
   );
+  const withContent = calls.filter((call) => call.hasContent);
   return {
     name: 'the agent read the Row Level Security guide the prompt referenced',
-    passed: reads.length > 0,
+    passed: withContent.length > 0,
     notes:
-      reads.length > 0
-        ? `${reads.length} call(s) referenced the guide`
-        : 'no tool call referenced the guide url',
+      withContent.length > 0
+        ? `${withContent.map((call) => call.source).join(', ')}`
+        : calls.length > 0
+          ? `reached the guide via ${calls.map((call) => call.source).join(', ')} but retrieved no page content`
+          : 'no docs call reached the guide',
   };
 }
