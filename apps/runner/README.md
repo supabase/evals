@@ -29,7 +29,7 @@ source "$(git rev-parse --show-toplevel)/.env" && curl -sS -X POST "$VERCEL_DEPL
 
 Runs use `main` by default when `ref` is omitted.
 
-Delete stopped eval sandboxes older than an hour:
+Delete stopped sandboxes:
 
 ```bash
 source "$(git rev-parse --show-toplevel)/.env" && curl -sS -X POST "$VERCEL_DEPLOY_URL/api/cleanup-sandboxes" -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET"
