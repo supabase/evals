@@ -12560,7 +12560,7 @@
       "agent": "codex",
       "modelProvider": "openai",
       "modelId": "gpt-5.6-sol",
-      "reasoningEffort": "low"
+      "reasoningEffort": "medium"
     },
     "eval": "deploy-database-001-prometheus-metrics",
     "stage": "deploy",
@@ -12580,12 +12580,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Prometheus preserves the app scrape and adds a deployable Supabase scrape over HTTPS to the correct metrics path using HTTP Basic Auth with password_file. The target is a project ref on supabase.co, and docker-compose wires the matching password file via a Compose secret mounted at /run/secrets/supabase_secret_key."
+        "judgeNotes": "Meets requirements: preserves app scrape, adds HTTPS Supabase metrics scrape at /customer/v1/privileged/metrics for a rendered project ref on supabase.co, uses HTTP Basic Auth with password_file, and wires the password file through a Docker Compose secret."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, matching secret file placement, Compose stack deploy/restart guidance, and concrete verification via Prometheus targets, Grafana/Prometheus labels, and curl."
+        "judgeNotes": "README includes steps to create a Supabase Secret API key, place it in the Docker secret file matching the Compose configuration, deploy/restart the stack, and verify via Prometheus targets or PromQL. Endpoint and auth setup are consistent."
       }
     ],
     "skills": {
@@ -12601,31 +12601,63 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Prometheus metrics project endpoint customer v1 privileged metrics service_role authentication hosted Supabase\", limit: 5) { nodes { __typename title href content } } }",
+          "query": "query { searchDocs(query: \"Prometheus metrics endpoint hosted Supabase project observability customer v1 privileged metrics authentication\", limit: 8) { nodes { title href content } totalCount } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
-              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics",
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics",
               "title": "Metrics API"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/vendor-agnostic",
               "title": "Vendor-agnostic Metrics API setup"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/grafana-cloud",
               "title": "Metrics API with Grafana Cloud"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/read-replicas",
+              "title": "Read Replicas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connection-management",
+              "title": "Connection management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/temporary-access",
+              "title": "Temporary access"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/reports",
+              "title": "Reports"
             }
           ],
-          "resultChars": 39702
+          "resultChars": 77573
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Vendor-agnostic Metrics API setup Prometheus scrape_config basic_auth password_file scrape interval\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/vendor-agnostic",
+              "title": "Vendor-agnostic Metrics API setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/grafana-cloud",
+              "title": "Metrics API with Grafana Cloud"
+            }
+          ],
+          "resultChars": 15264
         }
       ]
     },
@@ -15015,7 +15047,7 @@
       "agent": "codex",
       "modelProvider": "openai",
       "modelId": "gpt-5.6-sol",
-      "reasoningEffort": "low"
+      "reasoningEffort": "medium"
     },
     "eval": "deploy-database-001-prometheus-metrics",
     "stage": "deploy",
@@ -15035,12 +15067,12 @@
       {
         "name": "configured the Supabase Metrics API scrape correctly",
         "passed": true,
-        "judgeNotes": "Meets requirements: app scrape preserved, Supabase HTTPS metrics endpoint configured with Basic Auth password_file, project target present, and docker-compose wires the secret to Prometheus."
+        "judgeNotes": "Supabase scrape uses HTTPS, correct metrics path, Basic Auth with password_file, valid project target, preserves app job, and docker-compose wires the password file via a Compose secret mounted at /run/secrets/supabase_metrics_api_key."
       },
       {
         "name": "documented live deployment and verification steps",
         "passed": true,
-        "judgeNotes": "README includes Secret API key creation, environment-backed Compose secret mounted to the expected password_file path, restart/recreate and reload commands, and concrete verification via Prometheus targets/Grafana/curl."
+        "judgeNotes": "README includes creating a Supabase Secret API key, writing it to the Compose secret file or configuring the file path, recreating Prometheus via Docker Compose, and verifying via Prometheus targets and a concrete query."
       }
     ],
     "skills": {
@@ -15051,23 +15083,23 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Prometheus metrics hosted project customer v1 privileged metrics service_role Supabase observability\", limit: 8) { nodes { __typename title href content } } }",
+          "query": "query { searchDocs(query: \"Prometheus metrics endpoint hosted project observability metrics basic auth service role key /customer/v1/privileged/metrics\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-self-hosted",
-              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics",
-              "title": "Metrics API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/vendor-agnostic",
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/vendor-agnostic",
               "title": "Vendor-agnostic Metrics API setup"
             },
             {
-              "url": "https://supabase.com/docs/guides/telemetry/metrics/grafana-cloud",
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics",
+              "title": "Metrics API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/grafana-self-hosted",
+              "title": "Metrics API with Prometheus & Grafana (self-hosted)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/metrics/grafana-cloud",
               "title": "Metrics API with Grafana Cloud"
             },
             {
@@ -15075,19 +15107,11 @@
               "title": "Read Replicas"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/connection-management",
-              "title": "Connection management"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles",
-              "title": "Postgres Roles"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/security/security-testing",
-              "title": "Security testing of your Supabase projects"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
             }
           ],
-          "resultChars": 48186
+          "resultChars": 53828
         }
       ]
     },
