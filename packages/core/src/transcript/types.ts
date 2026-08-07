@@ -28,12 +28,29 @@ export type ToolName =
   | 'tool_use'
   | 'unknown';
 
+/**
+ * Reference to the delegated subagent an event belongs to. Agent-agnostic:
+ * any harness that delegates work (Claude Code's Task/Agent tool, …) can
+ * populate it; consumers use it to keep subagent activity distinct from the
+ * main thread (e.g. the final report and step count).
+ */
+export interface SubagentRef {
+  /** Correlation id of the spawning `agent_task` tool call (its `tool.id`). */
+  id?: string;
+  /** Subagent kind as the harness names it (e.g. "general-purpose"). */
+  type?: string;
+  /** Task description the parent gave the subagent. */
+  description?: string;
+}
+
 /** A single normalized event in an agent transcript. */
 export interface TranscriptEvent {
   /** ISO timestamp of the event, when the agent records one. */
   timestamp?: string;
   /** Event kind. */
   type: 'message' | 'tool_call' | 'tool_result' | 'thinking' | 'error';
+  /** Set when the event happened inside a delegated subagent, not the main thread. */
+  subagent?: SubagentRef;
   /** For `message` events: the speaker. */
   role?: 'user' | 'assistant' | 'system';
   /** Text content (for `message`, `thinking`, `error`). */
