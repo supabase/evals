@@ -32,7 +32,7 @@
       {
         "name": "suggested relevant next steps for a Supabase + Next.js project",
         "passed": true,
-        "judgeNotes": "The response includes multiple concrete Supabase/Next.js next steps: running `supabase start`, setting `.env.local` with Supabase URL/anon key, installing `@supabase/supabase-js`/`@supabase/ssr`, creating migrations, and linking a hosted project."
+        "judgeNotes": "The response gives concrete Supabase/Next.js next steps: running `supabase start`, linking a hosted project, installing `@supabase/supabase-js`/`@supabase/ssr`, and setting `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`. These are relevant to the initialized Supabase setup."
       },
       {
         "name": "attempted `npx plugins add supabase-community/supabase-plugin`",
@@ -108,7 +108,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-fc2121db, todo-a-edit-fc2121db, todo-a-delete-fc2121db"
+        "notes": "titles: todo-a-57e56f63, todo-a-edit-57e56f63, todo-a-delete-57e56f63"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -117,7 +117,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-fc2121db"
+        "notes": "titles: todo-b-57e56f63"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -156,12 +156,12 @@
       {
         "name": "a list member reads the list they are on",
         "passed": true,
-        "notes": "names: list-fc2121db"
+        "notes": "names: list-57e56f63"
       },
       {
         "name": "a list member reads the items on that list",
         "passed": true,
-        "notes": "titles: item-fc2121db"
+        "notes": "titles: item-57e56f63"
       },
       {
         "name": "a list member adds an item and the row lands",
@@ -207,8 +207,7 @@
       },
       {
         "name": "columns the policies filter on have a btree index",
-        "passed": false,
-        "notes": "no complete btree index leading with: list_members.user_id"
+        "passed": true
       },
       {
         "name": "list_items policies do not select from list_members inline",
@@ -237,7 +236,7 @@
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
         "passed": false,
-        "notes": "no tool call referenced the guide url"
+        "notes": "no docs call reached the guide"
       }
     ],
     "skills": {
@@ -245,36 +244,7 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"row level security performance best practices auth.uid policies\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
-              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
-              "title": "Column Level Security"
-            }
-          ],
-          "resultChars": 72200
-        }
-      ]
+      "calls": []
     },
     "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
     "promptSourcePath": "evals/build-docs-002-rls-guide/PROMPT.md",
