@@ -54,6 +54,23 @@ const CLAUDE_CODE_TOOLS: AgentToolMap = {
 };
 
 /**
+ * Claude Code names MCP tools `mcp__<server>__<tool>`. Strip the
+ * `mcp__<server>__` prefix so the scorer-facing `originalName` is the bare tool
+ * name (e.g. `query_logs`), matching how the other agent parsers emit MCP tool
+ * names (Codex records the bare `tool` from its `mcp_tool_call` shape). Without
+ * this, the same logical MCP call has a different endpoint per agent, so a
+ * scorer's `tc.endpoint === 'query_logs'` silently never matches Claude Code.
+ * Non-MCP tools are returned unchanged.
+ */
+function bareToolName(name: string): string {
+  if (!name.startsWith('mcp__')) return name;
+  // ['mcp', '<server>', '<tool...>'] — rejoin trailing segments so a tool name
+  // that itself contains '__' survives.
+  const parts = name.split('__');
+  return parts.length >= 3 ? parts.slice(2).join('__') : name;
+}
+
+/**
  * Claude Code's tool args → normalized fields. Owned here, not in shared: Read/
  * Write/Edit carry the path in `file_path`, NotebookEdit in `notebook_path`,
  * Bash the command in `command`, WebFetch the URL in `url`. The shared extractor
@@ -230,8 +247,10 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
           timestamp,
           type: 'tool_call',
           tool: {
+            // Pass the raw name to normalizeToolName so its `mcp__` → `tool_use`
+            // fallback still fires; expose the bare name as the endpoint.
             name: normalizeToolName(use.name, CLAUDE_CODE_TOOLS),
-            originalName: use.name,
+            originalName: bareToolName(use.name),
             id: use.id,
             args: use.input,
           },
