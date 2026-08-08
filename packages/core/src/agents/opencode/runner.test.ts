@@ -86,7 +86,7 @@ describe('opencode runner', () => {
 /** Capture the `--model` flag, run env, and written config from one exec. */
 async function captureExec(
   model: string,
-  opts: { mcp?: boolean } = {}
+  opts: { mcp?: boolean; systemPrompt?: boolean } = {}
 ): Promise<{
   runCommand: string;
   runEnv: Record<string, string> | undefined;
@@ -113,7 +113,7 @@ async function captureExec(
     },
     model,
     apiKey: 'gw-key',
-    systemPromptPath: '/s',
+    systemPromptPath: opts.systemPrompt === false ? undefined : '/s',
     userPromptPath: '/u',
     mcpServers: opts.mcp ? { supabase: { command: 'srv' } } : {},
     timeoutSec: 1,
@@ -138,5 +138,19 @@ describe('opencode runner exec routing', () => {
     expect(config?.agent).toEqual({ title: { disable: true } });
     expect(config?.mcp).toEqual({});
     expect(runCommand).toContain('OPENCODE_CONFIG=');
+  });
+
+  it('prepends the harness system prompt to the message when there is one', async () => {
+    // opencode has no system-prompt flag, so it lands on the user message.
+    const { runCommand } = await captureExec('moonshotai/kimi-k3');
+    expect(runCommand).toContain(`"$(cat /s; printf '\\n\\n'; cat /u)"`);
+  });
+
+  it('sends the task alone with no system prompt (no leading blank block)', async () => {
+    const { runCommand } = await captureExec('moonshotai/kimi-k3', {
+      systemPrompt: false,
+    });
+    expect(runCommand).toContain('"$(cat /u)"');
+    expect(runCommand).not.toContain("printf '\\n\\n'");
   });
 });

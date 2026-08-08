@@ -360,6 +360,11 @@ export type LocalStackScorer = (
 ) => Promise<ScoreResult>;
 
 export type AgentRunArgs = {
+  /**
+   * System prompt from the harness. Empty for a CLI agent the harness has
+   * nothing to add to — it keeps its own built-in prompt untouched, and no
+   * system prompt is staged into the sandbox at all.
+   */
   systemPrompt: string;
   userPrompt: string;
   tools?: ToolSet;
@@ -405,6 +410,13 @@ export type AgentHarness = {
 export type SkillSource = { name: string; dir: string };
 
 export type LocalStackSessionArgs = {
+  /**
+   * The agent harness this session serves. Only `ai-sdk` calls the session's
+   * in-process `tools`, so only it gets the prompt addendum describing them —
+   * a CLI agent brings its own tools and would be told about tools it doesn't
+   * have.
+   */
+  agent: AgentHarnessId;
   /** Supabase CLI version this scenario requires, overriding the runtime default. */
   cliVersion?: string;
   /**

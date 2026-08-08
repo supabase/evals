@@ -27,6 +27,7 @@ import {
 } from '../lib/cli-args.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
+import { buildSystemPrompt } from './system-prompt.js';
 import {
   buildDocsResult,
   buildSkillResult,
@@ -245,9 +246,9 @@ function buildLoadSkillTool(skills: readonly ToolsSkill[]): ToolSet {
 }
 
 /**
- * Local-stack skill sources: resolve each skill name to its host directory so
- * the sandbox can install it with Vercel's `skills` CLI; the agent then
- * discovers each skill by reading its SKILL.md with its file tools. The
+ * Sandbox skill sources: resolve each skill name to its host directory so the
+ * sandbox can install it with Vercel's `skills` CLI, which places it in every
+ * CLI harness's native project scope for that harness to discover. The
  * `skills/` entries are symlinks into the agent-skills submodule; realpath them
  * so `docker cp` copies real files, not dangling links. Missing skills are
  * skipped with a warning.
@@ -306,31 +307,6 @@ function readSessionSeedArgs(ev: EvalManifest) {
   };
 }
 
-function basePromptFor(mode: EvalMode): string {
-  if (mode === 'local-stack') {
-    return (
-      'You are an agent solving a Supabase eval task in a Linux workspace. ' +
-      'Use the provided tools to inspect and modify the workspace and run commands. ' +
-      'When you are done, end your turn with a short summary of what you did.'
-    );
-  }
-  return (
-    'You are an agent solving a Supabase eval task. ' +
-    'Use the provided tools to inspect and modify the project. ' +
-    'When you are done, end your turn with a short summary of what you did ' +
-    '(or for audit tasks, your findings).'
-  );
-}
-
-function buildSystemPrompt(
-  mode: EvalMode,
-  addendum?: string,
-  skillContext?: string
-): string {
-  const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
-  return blocks.join('\n\n');
-}
-
 /**
  * Adapt a `{ close() }` resource to `AsyncDisposable` so it can be bound with
  * `await using` — cleanup then runs on scope exit (normal fall-through, `continue`,
@@ -360,6 +336,13 @@ async function runOne(
     transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
+    /**
+     * The exact system prompt handed to the agent (`''` when it got none). CLI
+     * harnesses receive theirs as a file in the sandbox scratch dir, outside the
+     * exported workspace, so recording it here is the only way to verify from a
+     * run artifact what the agent was actually told.
+     */
+    systemPrompt: string;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -391,6 +374,7 @@ async function runOne(
   let lastTranscript: TranscriptPart[] = [];
   let lastAgentReport = '';
   let lastStoppedReason = 'not_started';
+  let lastSystemPrompt = '';
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === 'local-stack') {
@@ -423,6 +407,7 @@ async function runOne(
         : undefined;
       await using session = disposable(
         await exp.localStack.startSession({
+          agent: exp.agent.id,
           cliVersion: ev.metadata.cliVersion,
           localDir: ev.localDir,
           includeServices: ev.metadata.services,
@@ -443,8 +428,13 @@ async function runOne(
         })
       );
 
+      const systemPrompt = buildSystemPrompt(
+        exp.agent.id,
+        'local-stack',
+        session.promptAddendum
+      );
       const run = await exp.agent.run({
-        systemPrompt: buildSystemPrompt('local-stack', session.promptAddendum),
+        systemPrompt,
         userPrompt: prompt,
         tools: session.tools,
         sandbox: session.sandbox,
@@ -455,6 +445,7 @@ async function runOne(
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
       lastStoppedReason = run.stoppedReason;
+      lastSystemPrompt = systemPrompt;
 
       // Export the agent's workspace to the host so scorers can run host
       // tooling (vite/vitest from the repo root) against the produced files
@@ -496,6 +487,7 @@ async function runOne(
           transcript: run.transcript,
           agentReport: run.agentReport,
           stoppedReason: run.stoppedReason,
+          systemPrompt,
         };
       }
       logRetryAttempt(expName, ev, attempt, last);
@@ -508,7 +500,12 @@ async function runOne(
     // platform-lite via host.docker.internal (so platform-lite binds 0.0.0.0).
     // An in-process agent runs host-side with no sandbox.
     await using cliSandbox = agentRunsInSandbox
-      ? disposable(await createBareSandbox({ skills: skillSources }))
+      ? disposable(
+          await createBareSandbox({
+            agent: exp.agent.id,
+            skills: skillSources,
+          })
+        )
       : undefined;
     await using session = disposable(
       await exp.runtime.startSession({
@@ -517,14 +514,16 @@ async function runOne(
       })
     );
 
-    // CLI agents read their installed skills from disk (the bare sandbox folds
-    // the discovery listing into its promptAddendum). In-process agents have
-    // no filesystem, so their skills are advertised in the prompt and pulled
-    // on demand via the load_skill tool.
+    // CLI agents discover their installed skills themselves — the skills CLI
+    // put them in every harness's native project scope, so each one advertises
+    // and loads them in its own words and the bare sandbox contributes nothing
+    // here. In-process agents have no filesystem, so their skills are advertised
+    // in the prompt and pulled on demand via the load_skill tool.
     const skillsPrompt = agentRunsInSandbox
       ? cliSandbox!.promptAddendum
       : buildToolsSkillsPrompt(toolsSkills);
     const systemPrompt = buildSystemPrompt(
+      exp.agent.id,
       'tools',
       session.promptAddendum,
       skillsPrompt
@@ -541,6 +540,7 @@ async function runOne(
     lastTranscript = run.transcript;
     lastAgentReport = run.agentReport;
     lastStoppedReason = run.stoppedReason;
+    lastSystemPrompt = systemPrompt;
     last = await (scorer as ToolScorer)({
       ...session.scoringContext,
       toolCalls: run.toolCalls,
@@ -562,6 +562,7 @@ async function runOne(
         transcript: run.transcript,
         agentReport: run.agentReport,
         stoppedReason: run.stoppedReason,
+        systemPrompt,
       };
     }
     logRetryAttempt(expName, ev, attempt, last);
@@ -576,6 +577,7 @@ async function runOne(
     transcript: lastTranscript,
     agentReport: lastAgentReport,
     stoppedReason: lastStoppedReason,
+    systemPrompt: lastSystemPrompt,
   };
 }
 

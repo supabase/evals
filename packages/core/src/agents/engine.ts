@@ -89,15 +89,25 @@ export function createCliAgent<M extends string = string>(
       await runner.install(sandbox, version, apiKey);
 
       // Stage the prompts into the sandbox scratch dir (outside the workspace).
+      // An empty system prompt is staged as no file at all — a CLI agent brings
+      // its own system prompt, and the harness only adds one when it has
+      // something real to say (e.g. an installed-skills listing). Runners then
+      // skip their system-prompt plumbing entirely rather than pointing a flag
+      // at an empty file or prepending a blank block to the user prompt.
       await sandbox.exec(`mkdir -p ${SCRATCH}`);
-      await writeSandboxFile(sandbox, SYSTEM_PROMPT_PATH, args.systemPrompt);
+      const systemPromptPath = args.systemPrompt
+        ? SYSTEM_PROMPT_PATH
+        : undefined;
+      if (systemPromptPath) {
+        await writeSandboxFile(sandbox, systemPromptPath, args.systemPrompt);
+      }
       await writeSandboxFile(sandbox, USER_PROMPT_PATH, args.userPrompt);
 
       const { command, raw } = await runner.exec({
         sandbox,
         model: options.model,
         apiKey,
-        systemPromptPath: SYSTEM_PROMPT_PATH,
+        systemPromptPath,
         userPromptPath: USER_PROMPT_PATH,
         // Rewrite loopback hosts so in-container MCP servers can reach host-side
         // platform-lite; the runner writes them in its own config format.

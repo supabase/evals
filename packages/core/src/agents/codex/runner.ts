@@ -92,11 +92,15 @@ export const codexRunner: AgentRunner<CodexModel> = {
     ].join(' ');
 
     // Codex has no system-prompt flag; prepend the system prompt to the task,
-    // both staged as files, fed on stdin.
-    const command = await sandbox.exec(
-      `{ cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath}; } | ${codex} ${flags}`,
-      { timeoutMs: timeoutSec * 1000, env: { OPENAI_API_KEY: apiKey } }
-    );
+    // both staged as files, fed on stdin. With no system prompt the task goes in
+    // alone — concatenating an empty one would open the prompt with a blank block.
+    const stdin = systemPromptPath
+      ? `{ cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath}; }`
+      : `cat ${userPromptPath}`;
+    const command = await sandbox.exec(`${stdin} | ${codex} ${flags}`, {
+      timeoutMs: timeoutSec * 1000,
+      env: { OPENAI_API_KEY: apiKey },
+    });
     return { command, raw: command.stdout };
   },
 
