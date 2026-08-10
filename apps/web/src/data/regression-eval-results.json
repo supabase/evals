@@ -1331,5 +1331,240 @@
     "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
+  },
+  {
+    "experiment": "mcp357-claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-logs-002-undescribed-source-discovery",
+    "stage": "investigate",
+    "product": [
+      "data-api"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified the Data API permission failure on the orders table",
+        "passed": true
+      },
+      {
+        "name": "enumerated available log sources before concluding",
+        "passed": true
+      },
+      {
+        "name": "referenced the postgrest_logs source by name",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our auto-generated REST API (the Data API) is failing for some requests in production, but our edge functions and database both look healthy. Look through the project's logs and tell me what's actually failing, and why.",
+    "promptSourcePath": "evals/investigate-logs-002-undescribed-source-discovery/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "mcp357-claude-code-sonnet-5/investigate-logs-002-undescribed-source-discovery.json"
+  },
+  {
+    "experiment": "mcp357-claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-logs-003-function-stream-disambiguation",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "surfaced the function's runtime finding (dollars-vs-cents charge bug)",
+        "passed": true
+      },
+      {
+        "name": "queried the function_logs runtime console stream",
+        "passed": true
+      },
+      {
+        "name": "did not report the function as healthy based on HTTP 200s",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `process-payment` edge function returns HTTP 200 for every request, so at the HTTP layer everything looks healthy — but customers are being charged the wrong amounts. I need to see what the function is actually logging from inside while it runs. What's going wrong?",
+    "promptSourcePath": "evals/investigate-logs-003-function-stream-disambiguation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "mcp357-claude-code-sonnet-5/investigate-logs-003-function-stream-disambiguation.json"
+  },
+  {
+    "experiment": "mcp357-codex-gpt-5.4-mini",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-logs-002-undescribed-source-discovery",
+    "stage": "investigate",
+    "product": [
+      "data-api"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified the Data API permission failure on the orders table",
+        "passed": true
+      },
+      {
+        "name": "enumerated available log sources before concluding",
+        "passed": true
+      },
+      {
+        "name": "referenced the postgrest_logs source by name",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query {\n  searchDocs(query: \"Exposing a Table to the Data API grants anon authenticated permission denied 42501\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/database-api-42501-errors",
+              "title": "Database API 42501 errors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/42501--permission-denied-for-table-httprequestqueue-KnozmQ",
+              "title": "42501 : permission denied for table http_request_queue"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0026_pg_graphql_anon_table_exposed",
+              "title": "Database Advisor: Lint 0026_pg_graphql_anon_table_exposed"
+            }
+          ],
+          "resultChars": 48999
+        }
+      ]
+    },
+    "prompt": "Our auto-generated REST API (the Data API) is failing for some requests in production, but our edge functions and database both look healthy. Look through the project's logs and tell me what's actually failing, and why.",
+    "promptSourcePath": "evals/investigate-logs-002-undescribed-source-discovery/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "mcp357-codex-gpt-5.4-mini/investigate-logs-002-undescribed-source-discovery.json"
+  },
+  {
+    "experiment": "mcp357-codex-gpt-5.4-mini",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-logs-003-function-stream-disambiguation",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "surfaced the function's runtime finding (dollars-vs-cents charge bug)",
+        "passed": true
+      },
+      {
+        "name": "queried the function_logs runtime console stream",
+        "passed": false
+      },
+      {
+        "name": "did not report the function as healthy based on HTTP 200s",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `process-payment` edge function returns HTTP 200 for every request, so at the HTTP layer everything looks healthy — but customers are being charged the wrong amounts. I need to see what the function is actually logging from inside while it runs. What's going wrong?",
+    "promptSourcePath": "evals/investigate-logs-003-function-stream-disambiguation/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "mcp357-codex-gpt-5.4-mini/investigate-logs-003-function-stream-disambiguation.json"
   }
 ]
