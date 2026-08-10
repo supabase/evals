@@ -3,6 +3,8 @@ import { finished } from 'node:stream/promises';
 import { Writable } from 'node:stream';
 import { FatalError, getWritable } from 'workflow';
 
+import type { EvalRunInput } from '../schemas.js';
+
 const EVAL_REPOSITORY = 'https://github.com/supabase/evals.git';
 const EVAL_REF = 'main';
 const SANDBOX_TIMEOUT_MS = 30 * 60 * 1000;
@@ -16,11 +18,7 @@ const AGENT_API_KEY_ENV_VARS = [
   'AI_GATEWAY_API_KEY',
 ];
 
-export interface EvalWorkItem {
-  experiment: string;
-  evalId: string;
-  ref?: string;
-}
+export type { EvalRunInput };
 
 export interface EvalResult {
   sandboxName: string;
@@ -31,24 +29,21 @@ export interface EvalResult {
 
 type EvalSummary = Omit<EvalResult, 'sandboxName'>;
 
-export async function runEvalWorkflow(item: EvalWorkItem): Promise<EvalResult> {
+export async function runEvalWorkflow(
+  input: EvalRunInput
+): Promise<EvalResult> {
   'use workflow';
 
-  const sandbox = await createEvalSandbox(item);
-
-  let result: EvalSummary;
+  const sandbox = await createEvalSandbox(input);
   try {
-    result = await runEvalInSandbox(sandbox, item);
-  } catch (error) {
+    const result = await runEvalInSandbox(sandbox, input);
+    return { sandboxName: sandbox.name, ...result };
+  } finally {
     await deleteEvalSandbox(sandbox);
-    throw error;
   }
-
-  await deleteEvalSandbox(sandbox);
-  return { sandboxName: sandbox.name, ...result };
 }
 
-async function createEvalSandbox(item: EvalWorkItem): Promise<Sandbox> {
+async function createEvalSandbox(input: EvalRunInput): Promise<Sandbox> {
   'use step';
 
   let sandbox: Sandbox | undefined;
@@ -57,14 +52,14 @@ async function createEvalSandbox(item: EvalWorkItem): Promise<Sandbox> {
       source: {
         type: 'git',
         url: EVAL_REPOSITORY,
-        revision: item.ref ?? EVAL_REF,
+        revision: input.ref ?? EVAL_REF,
         depth: 1,
       },
       runtime: 'node24',
       timeout: SANDBOX_TIMEOUT_MS,
       persistent: false,
       env: pickEnv(AGENT_API_KEY_ENV_VARS),
-      tags: { purpose: 'eval', eval: item.evalId },
+      tags: { purpose: 'eval', eval: input.evalId },
     });
 
     console.log(`Created Sandbox ${sandbox.name}`);
@@ -153,7 +148,7 @@ async function prepareDocker(sandbox: Sandbox): Promise<void> {
 
 async function runEvalInSandbox(
   sandbox: Sandbox,
-  item: EvalWorkItem
+  input: EvalRunInput
 ): Promise<EvalSummary> {
   'use step';
 
@@ -171,7 +166,7 @@ async function runEvalInSandbox(
     'pnpm install'
   );
 
-  const output = createWorkflowOutput();
+  const output = createWorkflowOutput(input);
   try {
     const evaluation = await sandbox.runCommand({
       cmd: 'corepack',
@@ -182,8 +177,8 @@ async function runEvalInSandbox(
         'exec',
         'tsx',
         'harness/run-eval.ts',
-        `--experiment=${item.experiment}`,
-        `--eval=${item.evalId}`,
+        `--experiment=${input.experiment}`,
+        `--eval=${input.evalId}`,
         '--runs=1',
         '--timeout-sec=720',
       ],
@@ -203,7 +198,7 @@ async function runEvalInSandbox(
     await finished(output);
   }
 
-  const resultPath = `results/${item.experiment}/${item.evalId}.json`;
+  const resultPath = `results/${input.experiment}/${input.evalId}.json`;
   const summary = await sandbox.runCommand({
     cmd: 'node',
     args: [
@@ -229,12 +224,18 @@ async function runEvalInSandbox(
   return result;
 }
 
-/** Converts Sandbox output into one durable Workflow Stream entry per line. */
-function createWorkflowOutput(): Writable {
+/**
+ * Converts Sandbox output into one durable Workflow Stream entry per line.
+ * Streams are namespaced per pair so evals in one batch don't interleave.
+ */
+function createWorkflowOutput(input: EvalRunInput): Writable {
+  const pair = `${input.experiment}/${input.evalId}`;
   const frameworkWriter = getWritable<string>({
-    namespace: 'framework',
+    namespace: `framework:${pair}`,
   }).getWriter();
-  const agentWriter = getWritable<string>({ namespace: 'agent' }).getWriter();
+  const agentWriter = getWritable<string>({
+    namespace: `agent:${pair}`,
+  }).getWriter();
   let pending = '';
   let agentPending = '';
 

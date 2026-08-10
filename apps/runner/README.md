@@ -29,6 +29,14 @@ source "$(git rev-parse --show-toplevel)/.env" && curl -sS -X POST "$VERCEL_DEPL
 
 Runs use `main` by default when `ref` is omitted.
 
+Run a batch of experiment and eval pairs:
+
+```bash
+source "$(git rev-parse --show-toplevel)/.env" && curl -sS -X POST "$VERCEL_DEPLOY_URL/api/run-evals" -H "content-type: application/json" -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" -d "{\"ref\":\"$EVALS_RUNNER_REF\",\"concurrency\":3,\"items\":[{\"experiment\":\"codex-gpt-5.4-mini\",\"evalId\":\"build-functions-001-order-total\"},{\"experiment\":\"codex-gpt-5.4-mini\",\"evalId\":\"build-rls-002-own-todos-client\"},{\"experiment\":\"claude-code-sonnet-5\",\"evalId\":\"build-rls-002-own-todos-client\"}]}" | jq
+```
+
+`concurrency` defaults to 10.
+
 Delete stopped sandboxes:
 
 ```bash
