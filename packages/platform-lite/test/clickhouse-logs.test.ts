@@ -58,6 +58,21 @@ for (const [id, functionId] of [
     },
   });
 }
+// A source the mcp query_logs description does NOT enumerate: it must still be
+// seedable and queryable through the unified stream once modeled.
+await seedLogRow(logsDb, {
+  id: 'pr1',
+  ts: new Date('2026-04-28T10:00:00Z'),
+  source: 'postgrest',
+  level: 'error',
+  message: 'permission denied for table orders',
+  metadata: {
+    method: 'GET',
+    path: '/rest/v1/orders',
+    status_code: 403,
+    error_code: '42501',
+  },
+});
 afterAll(() => logsDb.close());
 
 // verbatim from mcp getClickHouseLogQuery('edge-function')
@@ -101,6 +116,30 @@ describe('compileClickHouseLogsSql + unified logs view', () => {
     expect(Number(result.rows[0]!.error_count)).toBe(2);
     expect(Number(result.rows[0]!.total_count)).toBe(3);
     expect(Number(result.rows[1]!.error_count)).toBe(1);
+  });
+
+  it('serves a modeled-but-undescribed source (postgrest_logs) through the unified stream', async () => {
+    const sql = `select id, event_message,
+      log_attributes['request.path'] as path,
+      log_attributes['response.status_code'] as status_code,
+      log_attributes['error.code'] as error_code
+      from logs
+      where source = 'postgrest_logs'
+      order by timestamp desc
+      limit 10`;
+    const result = await logsDb.query<{
+      event_message: string;
+      path: string;
+      status_code: string;
+      error_code: string;
+    }>(compileClickHouseLogsSql(sql));
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({
+      path: '/rest/v1/orders',
+      status_code: '403',
+      error_code: '42501',
+    });
+    expect(result.rows[0]!.event_message).toMatch(/permission denied/i);
   });
 
   it('surfaces an error for a bare numeric comparison on a map value (hosted-faithful)', async () => {
@@ -241,12 +280,13 @@ limit 100`
       ['edge_logs', 5],
       ['function_edge_logs', 5],
       ['function_logs', 2],
+      ['postgrest_logs', 1],
       ['storage_logs', 1],
     ]);
     const total = await logsDb.query<{ n: string }>(
       compileClickHouseLogsSql('select count(*) as n from logs')
     );
-    expect(Number(total.rows[0]!.n)).toBe(13);
+    expect(Number(total.rows[0]!.n)).toBe(14);
   });
 
   it('matches an absent map key against the empty string, as a ClickHouse Map does', async () => {
@@ -258,7 +298,7 @@ limit 100`
         "select count(*) as n from logs where log_attributes['nonexistent'] = ''"
       )
     );
-    expect(Number(result.rows[0]!.n)).toBe(13);
+    expect(Number(result.rows[0]!.n)).toBe(14);
   });
 
   it('translates map access with whitespace inside the subscript', async () => {

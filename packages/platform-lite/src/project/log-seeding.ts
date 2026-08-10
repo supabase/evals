@@ -113,6 +113,28 @@ CREATE TABLE IF NOT EXISTS storage_logs (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- The Data API (PostgREST) request stream. A real hosted source that current
+-- mcp's query_logs description does NOT enumerate in its example source list,
+-- so it exercises whether an agent DISCOVERS available sources vs assumes the
+-- listed ones (see investigate-observability-002). Seed it with source
+-- 'postgrest' / 'postgrest_logs'.
+CREATE TABLE IF NOT EXISTS postgrest_logs (
+  id text PRIMARY KEY,
+  identifier text,
+  timestamp timestamptz NOT NULL DEFAULT now(),
+  ts timestamptz,
+  event_message text,
+  message text,
+  source text,
+  level text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  method text,
+  path text,
+  status_code integer,
+  error_code text,
+  error text
+);
+
 -- Unified ClickHouse-shaped stream: the hosted /analytics/endpoints/logs
 -- endpoint exposes one 'logs' relation with a 'source' discriminator and a
 -- log_attributes map. Mirror it so ClickHouse-dialect SQL from current mcp
@@ -176,7 +198,11 @@ CREATE VIEW logs AS
   FROM auth_logs
   UNION ALL
   SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'storage_logs', metadata
-  FROM storage_logs;
+  FROM storage_logs
+  UNION ALL
+  SELECT id, identifier, timestamp, ts, event_message, message, level, level, 'postgrest_logs',
+    metadata || jsonb_strip_nulls(jsonb_build_object('request.method', method, 'request.path', path, 'response.status_code', status_code, 'error.code', error_code, 'error.message', error))
+  FROM postgrest_logs;
 
 -- Enforcement of "only the unified stream is queryable" lives HERE, not in a
 -- regex: the ClickHouse route's transaction runs SET LOCAL ROLE logs_reader,
@@ -283,11 +309,19 @@ export async function seedLogRow(logsDb: PGlite, row: LogRow): Promise<void> {
     return;
   }
 
+  if (
+    normalizedSource === 'postgrest' ||
+    normalizedSource === 'postgrest_logs'
+  ) {
+    await seedPostgrestLog(logsDb, log);
+    return;
+  }
+
   // Loud failure over a silent no-op: a dropped seed surfaces later as a false
   // "no logs" query result, which reads as a passing scenario. Same doctrine as
   // the unmodeled-source guard in debugging.ts.
   throw new Error(
-    `unknown log seed source '${row.source}' — expected edge-function, edge-function-runtime, edge, postgres/database, auth, or storage`
+    `unknown log seed source '${row.source}' — expected edge-function, edge-function-runtime, edge, postgres/database, auth, storage, or postgrest`
   );
 }
 
@@ -447,6 +481,34 @@ async function seedAuthLog(
       metadataText(log.metadata, ['status']),
       metadataText(log.metadata, ['path']),
       metadataText(log.metadata, ['error']),
+    ]
+  );
+}
+
+async function seedPostgrestLog(
+  logsDb: PGlite,
+  log: NormalizedLogSeed
+): Promise<void> {
+  await logsDb.query(
+    `INSERT INTO postgrest_logs
+      (
+        id, identifier, timestamp, ts, event_message, message, source, level, metadata,
+        method, path, status_code, error_code, error
+      )
+     VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12)`,
+    [
+      log.id,
+      metadataText(log.metadata, ['identifier']),
+      log.ts,
+      log.message,
+      log.source,
+      log.level,
+      log.metadataJson,
+      metadataText(log.metadata, ['method']),
+      metadataText(log.metadata, ['path']),
+      metadataNumber(log.metadata, ['status_code', 'status']),
+      metadataText(log.metadata, ['error_code', 'code']),
+      metadataText(log.metadata, ['error']) ?? log.message,
     ]
   );
 }

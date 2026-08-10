@@ -198,7 +198,7 @@ export function createDebuggingRoutes(
  */
 const UNMODELED_SOURCES = /\b(workflow_run_logs|realtime_logs)\b/i;
 const PHYSICAL_RELATIONS =
-  /\b(?:from|join)\s+(edge_logs|function_edge_logs|function_logs|postgres_logs|auth_logs|storage_logs)\b/i;
+  /\b(?:from|join)\s+(edge_logs|function_edge_logs|function_logs|postgres_logs|postgrest_logs|auth_logs|storage_logs)\b/i;
 const WALL_CLOCK_FNS =
   /\b(now|now64|today|yesterday|current_timestamp|current_date|localtimestamp)\b/i;
 // 'logs' as a relation; log_attributes and other log_* identifiers do not match.
