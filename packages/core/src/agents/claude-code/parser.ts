@@ -60,8 +60,11 @@ const CLAUDE_CODE_TOOLS: AgentToolMap = {
  * the server and bare tool name structurally recoverable, so scorers get an
  * agent-agnostic `toolName` plus the originating `server`. Anything else is a
  * built-in / native tool.
+ *
+ * Exported so tests elsewhere that need a Claude Code-shaped `ToolCall` (e.g.
+ * `docs-results.test.ts`) reuse this instead of re-deriving the split.
  */
-function toolCall(rawName: string): ToolCall {
+export function parseClaudeCodeToolCall(rawName: string): ToolCall {
   if (rawName.startsWith('mcp__')) {
     // ['mcp', '<server>', '<tool...>'] — rejoin trailing segments so a tool
     // name that itself contains '__' survives.
@@ -256,7 +259,7 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
           tool: {
             name: normalizeToolName(use.name, CLAUDE_CODE_TOOLS),
             originalName: use.name,
-            call: toolCall(use.name),
+            call: parseClaudeCodeToolCall(use.name),
             id: use.id,
             args: use.input,
           },

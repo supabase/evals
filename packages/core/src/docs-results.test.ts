@@ -1,26 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
+import { parseClaudeCodeToolCall } from './agents/claude-code/parser.js';
 import {
   buildDocsResult,
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';
 import type { ToolCallRecord } from './index.js';
 
-/** Builds a `ToolCall` from a raw agent tool name (mirrors claude-code's `mcp__server__tool`). */
-function toToolCall(rawName: string): ToolCallRecord['tool'] {
-  if (rawName.startsWith('mcp__')) {
-    const parts = rawName.split('__');
-    if (parts.length >= 3) {
-      return {
-        kind: 'mcp',
-        server: parts[1]!,
-        toolName: parts.slice(2).join('__'),
-      };
-    }
-  }
-  return { kind: 'other', toolName: rawName };
-}
-
-/** Builds the minimal tool call record needed by docs-result tests. */
+/** Builds the minimal tool call record needed by docs-result tests, from a raw
+ * agent tool name (Claude Code's `mcp__server__tool` shape). */
 function toolCall(
   rawName: string,
   body: Record<string, unknown>,
@@ -28,7 +15,7 @@ function toolCall(
     Pick<ToolCallRecord, 'url' | 'result' | 'name' | 'command' | 'error'>
   > = {}
 ): ToolCallRecord {
-  return { tool: toToolCall(rawName), body, ...options, ts: 0 };
+  return { tool: parseClaudeCodeToolCall(rawName), body, ...options, ts: 0 };
 }
 
 describe('buildDocsResult', () => {
