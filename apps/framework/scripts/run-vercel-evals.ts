@@ -1,0 +1,553 @@
+#!/usr/bin/env tsx
+
+import { APIError, type Command, Sandbox, StreamError } from '@vercel/sandbox';
+import { execFile, execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
+import pLimit from 'p-limit';
+import pRetry from 'p-retry';
+
+const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const execFileAsync = promisify(execFile);
+const DASHBOARD_URL = 'https://vercel.com/supabase/evals-runner';
+const AGENT_ENV_NAMES = [
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'AI_GATEWAY_API_KEY',
+];
+export interface EvalPair {
+  eval_id: string;
+  experiment: string;
+  experiment_suite: string;
+  eval_suite: string;
+}
+
+interface RunnerOptions {
+  pairs: EvalPair[];
+  revision: string;
+  repoUrl: string;
+  outputDir: string;
+  runs: number;
+  timeoutSec: number;
+  concurrency: number;
+  vcpus: number;
+}
+
+interface PairOptions extends RunnerOptions {
+  pair: EvalPair;
+  attempt: number;
+}
+
+interface SandboxCommandOptions {
+  cmd: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  sudo?: boolean;
+  timeoutMs?: number;
+}
+
+class SandboxCommandError extends Error {
+  constructor(step: string, exitCode: number, output: string) {
+    const detail = output.trim().slice(-4_000);
+    super(`${step} exited with code ${exitCode}${detail ? `\n${detail}` : ''}`);
+    this.name = 'SandboxCommandError';
+  }
+}
+
+/** Runs every item while keeping at most `concurrency` promises active. */
+export async function runBounded<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  run: (item: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  const limit = pLimit(concurrency);
+  return Promise.allSettled(items.map((item) => limit(run, item)));
+}
+
+/** Returns whether an error is safe to retry without changing the request. */
+export function isTransientError(error: Error): boolean {
+  if (error instanceof SandboxCommandError) return false;
+  if (error instanceof StreamError) return true;
+  if (error instanceof APIError) {
+    const status = error.response.status;
+    return (
+      status === 408 ||
+      status === 409 ||
+      status === 425 ||
+      status === 429 ||
+      status >= 500
+    );
+  }
+  return false;
+}
+
+/** Runs all pairs and reports failures only after independent work finishes. */
+async function runPairs(options: RunnerOptions): Promise<void> {
+  requireVercelCredentials();
+
+  const results = await runBounded(
+    options.pairs,
+    options.concurrency,
+    async (pair) =>
+      pRetry(
+        (attempt) =>
+          runPairOnce({
+            ...options,
+            pair,
+            attempt,
+          }),
+        {
+          retries: 2,
+          factor: 2,
+          minTimeout: 5_000,
+          maxTimeout: 30_000,
+          randomize: true,
+          shouldRetry: ({ error }) => isTransientError(error),
+          onFailedAttempt: ({
+            error,
+            attemptNumber,
+            retriesLeft,
+            retryDelay,
+          }) => {
+            const retrying = isTransientError(error) && retriesLeft > 0;
+            console.warn(
+              `${pairLabel(pair)} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(error.message)}`
+            );
+          },
+        }
+      )
+  );
+
+  console.log('\n=== Sandbox eval summary ===');
+  const failures: string[] = [];
+  for (let index = 0; index < results.length; index += 1) {
+    const pair = options.pairs[index];
+    const result = results[index];
+    if (!pair || !result) continue;
+    if (result.status === 'fulfilled') {
+      console.log(`PASS ${pairLabel(pair)}`);
+      continue;
+    }
+    const message = errorMessage(result.reason);
+    failures.push(`${pairLabel(pair)}: ${message}`);
+    console.error(`ERROR ${pairLabel(pair)}: ${message}`);
+  }
+
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures.map((message) => new Error(message)),
+      `${failures.length} Sandbox eval pair(s) failed`
+    );
+  }
+}
+
+/** Runs one pair in a fresh Sandbox and downloads its complete result tree. */
+async function runPairOnce(options: PairOptions): Promise<void> {
+  const { pair } = options;
+  const label = pairLabel(pair);
+  let sandbox: Sandbox | undefined;
+
+  try {
+    sandbox = await Sandbox.create({
+      ...vercelCredentialsFromEnv(),
+      name: sandboxName(pair),
+      runtime: 'node24',
+      source: {
+        type: 'git',
+        url: options.repoUrl,
+        revision: options.revision,
+        depth: 1,
+      },
+      resources: { vcpus: options.vcpus },
+      timeout: options.runs * options.timeoutSec * 1_000 + 20 * 60 * 1_000,
+      persistent: false,
+      tags: {
+        runner: 'supabase-evals',
+        run: process.env.GITHUB_RUN_ID ?? 'local',
+        experiment: tagValue(pair.experiment),
+        eval: tagValue(pair.eval_id),
+        attempt: String(options.attempt),
+      },
+    });
+    console.log(
+      `${label} attempt ${options.attempt}: ${sandbox.name} ${DASHBOARD_URL}`
+    );
+
+    await runSandboxCommand(sandbox, label, 'initialize submodules', {
+      cmd: 'git',
+      args: [
+        '-c',
+        'url.https://github.com/.insteadOf=git@github.com:',
+        'submodule',
+        'update',
+        '--init',
+        '--recursive',
+      ],
+      cwd: sandbox.cwd,
+      timeoutMs: 5 * 60 * 1_000,
+    });
+    await runSandboxCommand(sandbox, label, 'install Docker', {
+      cmd: 'dnf',
+      args: ['install', '-y', '-q', 'docker'],
+      sudo: true,
+      timeoutMs: 5 * 60 * 1_000,
+    });
+    await sandbox.runCommand({
+      cmd: 'dockerd',
+      sudo: true,
+      detached: true,
+    });
+    await runSandboxCommand(sandbox, label, 'start Docker', {
+      cmd: 'bash',
+      args: [
+        '-c',
+        'for i in $(seq 60); do docker info >/dev/null 2>&1 && chmod 666 /var/run/docker.sock && exit 0; sleep 1; done; echo "dockerd not ready" >&2; exit 1',
+      ],
+      sudo: true,
+      timeoutMs: 90_000,
+    });
+    await runSandboxCommand(sandbox, label, 'install pnpm', {
+      cmd: 'npm',
+      args: ['install', '--global', 'pnpm@10.24.0'],
+      sudo: true,
+      timeoutMs: 5 * 60 * 1_000,
+    });
+    await runSandboxCommand(sandbox, label, 'install dependencies', {
+      cmd: 'pnpm',
+      args: ['install', '--frozen-lockfile'],
+      cwd: sandbox.cwd,
+      timeoutMs: 10 * 60 * 1_000,
+    });
+
+    await sandbox.writeFiles([
+      {
+        path: '.env',
+        content: `${agentEnvironment()}\n`,
+      },
+    ]);
+    await runSandboxCommand(sandbox, label, 'run eval', {
+      cmd: 'pnpm',
+      args: [
+        'eval',
+        '--',
+        '--experiment',
+        pair.experiment,
+        '--experiment-suite',
+        pair.experiment_suite,
+        '--eval',
+        pair.eval_id,
+        '--runs',
+        String(options.runs),
+        '--timeout-sec',
+        String(options.timeoutSec),
+      ],
+      cwd: sandbox.cwd,
+      timeoutMs: options.runs * options.timeoutSec * 1_000 + 5 * 60 * 1_000,
+    });
+    await runSandboxCommand(sandbox, label, 'validate result', {
+      cmd: 'test',
+      args: ['-f', `results/${pair.experiment}/${pair.eval_id}.json`],
+      cwd: sandbox.cwd,
+    });
+    await runSandboxCommand(sandbox, label, 'pack results', {
+      cmd: 'tar',
+      args: [
+        '--exclude=*/node_modules',
+        '-czf',
+        '/tmp/eval-results.tgz',
+        '-C',
+        `results/${pair.experiment}`,
+        '.',
+      ],
+      cwd: sandbox.cwd,
+      timeoutMs: 5 * 60 * 1_000,
+    });
+    await downloadResults(sandbox, pair, options.outputDir);
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(String(error));
+  } finally {
+    if (sandbox) await cleanupSandbox(sandbox, label);
+  }
+}
+
+/** Runs a detached command, streams logs best-effort, and waits for its exit code. */
+async function runSandboxCommand(
+  sandbox: Sandbox,
+  label: string,
+  step: string,
+  options: SandboxCommandOptions
+): Promise<void> {
+  console.log(`${label} ${step}`);
+  const command = await sandbox.runCommand({
+    ...options,
+    detached: true,
+  });
+  const logs = streamCommandLogs(command, label, step).catch((error) => {
+    console.warn(`${label} ${step} log stream ended: ${errorMessage(error)}`);
+  });
+  const result = await pRetry(() => command.wait(), {
+    retries: 5,
+    factor: 2,
+    minTimeout: 1_000,
+    maxTimeout: 10_000,
+    shouldRetry: ({ error }) => isTransientError(error),
+    onFailedAttempt: ({ error, attemptNumber }) => {
+      console.warn(
+        `${label} ${step} wait failed (attempt ${attemptNumber}): ${error.message}`
+      );
+    },
+  });
+  await logs;
+  if (result.exitCode === 0) return;
+
+  const output = await result.output('both').catch(() => '');
+  throw new SandboxCommandError(step, result.exitCode, output);
+}
+
+/** Mirrors command output into the controller log without owning completion. */
+async function streamCommandLogs(
+  command: Command,
+  label: string,
+  step: string
+): Promise<void> {
+  for await (const log of command.logs()) {
+    const target = log.stream === 'stdout' ? process.stdout : process.stderr;
+    target.write(`${label} [${step}] ${log.data}`);
+  }
+}
+
+/** Downloads and extracts one pair into the aggregate artifact directory. */
+async function downloadResults(
+  sandbox: Sandbox,
+  pair: EvalPair,
+  outputDir: string
+): Promise<void> {
+  const staging = mkdtempSync(join(tmpdir(), 'vercel-eval-results-'));
+  const archive = join(staging, 'results.tgz');
+  const destination = join(outputDir, artifactDirectory(pair));
+  try {
+    const downloaded = await sandbox.downloadFile(
+      { path: '/tmp/eval-results.tgz' },
+      { path: archive },
+      { mkdirRecursive: true }
+    );
+    if (!downloaded) throw new Error('results archive was missing');
+    rmSync(destination, { recursive: true, force: true });
+    mkdirSync(destination, { recursive: true });
+    await execFileAsync('tar', ['-xzf', archive, '-C', destination]);
+    console.log(`${pairLabel(pair)} results downloaded to ${destination}`);
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+/** Stops and deletes a Sandbox while preserving the pair's original outcome. */
+async function cleanupSandbox(sandbox: Sandbox, label: string): Promise<void> {
+  try {
+    await sandbox.stop();
+    console.log(`${label} sandbox ${sandbox.name} stopped`);
+  } catch (error) {
+    console.warn(`${label} sandbox stop failed: ${errorMessage(error)}`);
+  }
+  try {
+    await sandbox.delete();
+    console.log(`${label} sandbox ${sandbox.name} deleted`);
+  } catch (error) {
+    console.warn(`${label} sandbox delete failed: ${errorMessage(error)}`);
+  }
+}
+
+/** Parses and validates the pair list supplied by GitHub Actions. */
+export function parsePairs(value: string): EvalPair[] {
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error('--pairs-json must be a non-empty JSON array');
+  }
+  const pairs: EvalPair[] = [];
+  for (const item of parsed) {
+    if (!isEvalPair(item)) {
+      throw new Error(
+        'each pair must contain eval_id, experiment, experiment_suite, and eval_suite strings'
+      );
+    }
+    pairs.push(item);
+  }
+  return pairs;
+}
+
+/** Narrows untrusted JSON to the workflow's pair shape. */
+function isEvalPair(value: unknown): value is EvalPair {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'eval_id' in value &&
+    typeof value.eval_id === 'string' &&
+    'experiment' in value &&
+    typeof value.experiment === 'string' &&
+    'experiment_suite' in value &&
+    typeof value.experiment_suite === 'string' &&
+    'eval_suite' in value &&
+    typeof value.eval_suite === 'string'
+  );
+}
+
+/** Reads one CLI flag in either `--name value` or `--name=value` form. */
+function readFlag(rawArgs: string[], name: string): string | undefined {
+  const prefix = `--${name}=`;
+  const inline = rawArgs.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length);
+  const index = rawArgs.indexOf(`--${name}`);
+  if (index === -1) return undefined;
+  const value = rawArgs[index + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error(`--${name} requires a value`);
+  }
+  return value;
+}
+
+/** Parses a positive integer CLI option. */
+function positiveInteger(value: string, name: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`--${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
+/** Returns an environment variable or a useful configuration error. */
+function requireEnv(name: string, hint: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set: ${hint}`);
+  return value;
+}
+
+/** Validates that local token authentication has all three required values. */
+function requireVercelCredentials(): void {
+  if (process.env.VERCEL_OIDC_TOKEN) return;
+  requireEnv('VERCEL_TOKEN', 'configure the evals-runner Vercel project');
+  requireEnv('VERCEL_TEAM_ID', 'configure the evals-runner Vercel project');
+  requireEnv('VERCEL_PROJECT_ID', 'configure the evals-runner Vercel project');
+}
+
+/** Returns explicit credentials because the SDK does not infer all local vars. */
+function vercelCredentialsFromEnv():
+  | { token: string; teamId: string; projectId: string }
+  | Record<string, never> {
+  if (process.env.VERCEL_OIDC_TOKEN) return {};
+  return {
+    token: requireEnv('VERCEL_TOKEN', 'missing Vercel token'),
+    teamId: requireEnv('VERCEL_TEAM_ID', 'missing Vercel team ID'),
+    projectId: requireEnv('VERCEL_PROJECT_ID', 'missing Vercel project ID'),
+  };
+}
+
+/** Serializes configured provider keys into the repo-root `.env` file. */
+function agentEnvironment(): string {
+  const lines: string[] = [];
+  for (const name of AGENT_ENV_NAMES) {
+    const value = process.env[name];
+    if (value) lines.push(`${name}=${value}`);
+  }
+  return lines.join('\n');
+}
+
+/** Converts the origin remote into a Vercel-compatible HTTPS clone URL. */
+function repositoryUrl(): string {
+  return execFileSync('git', ['remote', 'get-url', 'origin'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+    .trim()
+    .replace(/^git@github\.com:/, 'https://github.com/');
+}
+
+/** Reads the checked-out commit used when no explicit revision is supplied. */
+function currentRevision(): string {
+  return execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  }).trim();
+}
+
+/** Builds the stable per-pair directory expected by the publish job. */
+function artifactDirectory(pair: EvalPair): string {
+  return `raw-results-${pair.experiment}__${pair.eval_id}`;
+}
+
+/** Formats a pair consistently in interleaved controller output. */
+function pairLabel(pair: EvalPair): string {
+  return `[${pair.experiment} x ${pair.eval_id}]`;
+}
+
+/** Produces a unique dashboard-safe Sandbox name. */
+function sandboxName(pair: EvalPair): string {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `${tagValue(pair.experiment).slice(0, 35)}--${tagValue(pair.eval_id).slice(0, 45)}--${suffix}`;
+}
+
+/** Sanitizes metadata for Sandbox names and tags. */
+function tagValue(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9-]+/g, '-')
+    .slice(0, 64);
+}
+
+/** Converts unknown thrown values into readable diagnostics. */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Keeps retry notices readable when the final summary carries full output. */
+function firstLine(value: string): string {
+  return value.split('\n', 1)[0] ?? value;
+}
+
+/** Parses CLI inputs and starts the controller. */
+async function main(): Promise<void> {
+  const rawArgs = process.argv.slice(2).filter((arg) => arg !== '--');
+  const pairsValue = readFlag(rawArgs, 'pairs-json') ?? process.env.EVAL_PAIRS;
+  if (!pairsValue) throw new Error('--pairs-json or EVAL_PAIRS is required');
+
+  const options: RunnerOptions = {
+    pairs: parsePairs(pairsValue),
+    revision: readFlag(rawArgs, 'revision') ?? currentRevision(),
+    repoUrl: readFlag(rawArgs, 'repo-url') ?? repositoryUrl(),
+    outputDir: resolve(
+      ROOT,
+      readFlag(rawArgs, 'output-dir') ?? 'downloaded-results'
+    ),
+    runs: positiveInteger(readFlag(rawArgs, 'runs') ?? '2', 'runs'),
+    timeoutSec: positiveInteger(
+      readFlag(rawArgs, 'timeout-sec') ?? '720',
+      'timeout-sec'
+    ),
+    concurrency: positiveInteger(
+      readFlag(rawArgs, 'concurrency') ?? '4',
+      'concurrency'
+    ),
+    vcpus: positiveInteger(readFlag(rawArgs, 'vcpus') ?? '4', 'vcpus'),
+  };
+
+  console.log(
+    `${options.pairs.length} pair(s), concurrency=${options.concurrency}, runs=${options.runs}, timeout=${options.timeoutSec}s, revision=${options.revision.slice(0, 8)}`
+  );
+  for (const pair of options.pairs) console.log(`PLAN ${pairLabel(pair)}`);
+  if (rawArgs.includes('--dry-run')) return;
+  await runPairs(options);
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((error) => {
+    console.error(errorMessage(error));
+    process.exitCode = 1;
+  });
+}

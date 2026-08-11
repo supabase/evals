@@ -27,6 +27,10 @@ on:
         description: "Timeout per attempt in seconds"
         required: true
         default: "720"
+      sandbox_concurrency:
+        description: "Maximum Vercel Sandboxes running at once"
+        required: true
+        default: "4"
       merge:
         description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
         type: boolean
@@ -72,6 +76,7 @@ jobs:
       pairs: ${{ steps.discover.outputs.pairs }}
       runs: ${{ steps.inputs.outputs.runs }}
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
+      sandbox_concurrency: ${{ steps.inputs.outputs.sandbox_concurrency }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
       do_merge: ${{ steps.inputs.outputs.do_merge }}
     steps:
@@ -88,6 +93,7 @@ jobs:
             experiment_suite="${{ inputs.experiment_suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
+            sandbox_concurrency="${{ inputs.sandbox_concurrency }}"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             experiments_override=""
             eval_id=""
@@ -95,6 +101,7 @@ jobs:
             experiment_suite="regression"
             runs="2"
             timeout_sec="720"
+            sandbox_concurrency="4"
           else
             experiments_override=""
             eval_id=""
@@ -102,6 +109,7 @@ jobs:
             experiment_suite="benchmark,no-skills,regression"
             runs="2"
             timeout_sec="720"
+            sandbox_concurrency="4"
           fi
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
@@ -130,6 +138,7 @@ jobs:
             echo "experiment_suite=$experiment_suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
+            echo "sandbox_concurrency=$sandbox_concurrency"
             echo "filter_changed=$filter_changed"
             echo "do_merge=$do_merge"
           } >> "$GITHUB_OUTPUT"
@@ -252,14 +261,13 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.pairs != '[]'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.prepare.outputs.pairs) }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -291,30 +299,27 @@ jobs:
           } > .env
 
       - name: Run evals
+        env:
+          EVAL_PAIRS: ${{ needs.prepare.outputs.pairs }}
+          EVAL_REVISION: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: |
           set -euo pipefail
 
-          pnpm eval -- \
-            --experiment "${{ matrix.experiment }}" \
-            --experiment-suite "${{ matrix.experiment_suite }}" \
-            --eval "${{ matrix.eval_id }}" \
+          pnpm --filter @supabase-evals/framework eval:vercel -- \
+            --pairs-json "$EVAL_PAIRS" \
+            --revision "$EVAL_REVISION" \
             --runs "${{ needs.prepare.outputs.runs }}" \
-            --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
-
-          # A skipped experiment (e.g. missing API key) exits 0 without writing results.
-          if [ ! -f "results/${{ matrix.experiment }}/${{ matrix.eval_id }}.json" ]; then
-            echo "::error::no result written for ${{ matrix.experiment }} x ${{ matrix.eval_id }} (experiment skipped?)"
-            exit 1
-          fi
+            --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}" \
+            --concurrency "${{ needs.prepare.outputs.sandbox_concurrency }}"
 
       - name: Upload raw results
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: raw-results-${{ matrix.experiment }}__${{ matrix.eval_id }}
-          path: |
-            results/${{ matrix.experiment }}/
-            !results/**/node_modules/**
+          name: raw-results
+          path: downloaded-results/
+          if-no-files-found: warn
           retention-days: 3
 
   publish-results:
@@ -355,22 +360,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download raw results
-        # actions/download-artifact only nests a downloaded artifact under a
-        # directory named after it when there's more than one to disambiguate;
-        # with exactly one matching pair it dumps the contents flat into
-        # `path`, silently breaking the per-experiment glob below. Naming the
-        # destination directory ourselves side-steps that inconsistency.
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p downloaded-results
-          pairs='${{ needs.prepare.outputs.pairs }}'
-          while IFS= read -r name; do
-            gh run download ${{ github.run_id }} --name "$name" --dir "downloaded-results/$name"
-          done < <(jq -r '.[] | "raw-results-\(.experiment)__\(.eval_id)"' <<< "$pairs" | sort -u)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: raw-results
+          path: downloaded-results
 
       - name: Export results
         shell: bash
