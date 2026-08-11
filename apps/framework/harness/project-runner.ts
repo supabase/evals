@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -23,9 +24,12 @@ const PROJECT_ENV = {
 // Vite/vitest resolve their own package (and the workspace's deps, e.g. react)
 // by walking up from the workspace looking for a node_modules dir. Workspaces
 // live under results/, outside ROOT, so link ROOT's node_modules in directly.
+// The link replaces anything already there, since an agent that ran npm install
+// in the sandbox exports its own node_modules.
 function linkNodeModules(workspace: string) {
   const link = join(workspace, 'node_modules');
-  if (!existsSync(link)) symlinkSync(join(ROOT, 'node_modules'), link, 'dir');
+  rmSync(link, { recursive: true, force: true });
+  symlinkSync(join(ROOT, 'node_modules'), link, 'dir');
 }
 
 export async function viteBuild(workspace: string): Promise<CommandResult> {
