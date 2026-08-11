@@ -71,9 +71,12 @@ export async function checkTestCoverage(
     files.map(async (file) => `-- ${file}\n${await ctx.readFile(file)}`)
   );
 
-  // Comments are stripped so a header listing the tables cannot stand in for
-  // testing them, and every seeded table is required rather than one per group.
-  const corpus = stripSqlComments(sources.join('\n\n')).toLowerCase();
+  // Every seeded table has to be named by real SQL. Comments and single-quoted
+  // literals are stripped first, so neither a header nor an assertion
+  // description like ok(true, 'covers todos and lists') can stand in for
+  // testing. Dollar-quoted blocks survive, since that is where pgTAP carries
+  // the queries under test.
+  const corpus = stripNonSql(sources.join('\n\n')).toLowerCase();
   const untested = REQUIRED_TABLES.filter(
     (table) => !new RegExp(`\\b${table}\\b`).test(corpus)
   );
@@ -128,8 +131,11 @@ export async function checkTestCoverage(
   return { name, passed: verdict.passed, judgeNotes: verdict.notes };
 }
 
-function stripSqlComments(sql: string): string {
-  return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
+function stripNonSql(sql: string): string {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--[^\n]*/g, ' ')
+    .replace(/'(?:[^']|'')*'/g, ' ');
 }
 
 export async function listTestFiles(
