@@ -12,7 +12,8 @@ import pRetry from 'p-retry';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const execFileAsync = promisify(execFile);
-const DASHBOARD_URL = 'https://vercel.com/supabase/evals-runner';
+const SANDBOX_DASHBOARD_URL =
+  'https://vercel.com/supabase/evals-runner/sandboxes';
 const AGENT_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
@@ -174,7 +175,7 @@ async function runPairOnce(options: PairOptions): Promise<void> {
       },
     });
     console.log(
-      `${label} attempt ${options.attempt}: ${sandbox.name} ${DASHBOARD_URL}`
+      `${label} attempt ${options.attempt}: ${SANDBOX_DASHBOARD_URL}/${sandbox.name}`
     );
 
     await runSandboxCommand(sandbox, label, 'initialize submodules', {
