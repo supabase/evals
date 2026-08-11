@@ -8,17 +8,18 @@ import {
   checkAuthCallsWrapped,
   checkGrants,
   checkSecurityDefinersAreSafe,
-  checkListItemsAvoidsJoin,
   checkOnePolicyPerOperation,
   checkPolicyColumnsIndexed,
   checkPoliciesScopedToRole,
   checkRlsEnabled,
+  checkViewsRunAsInvoker,
   checkUpdatePoliciesHaveBothClauses,
   loadPolicies,
   loadCandidateFunctions,
   loadTableState,
 } from './catalog.js';
 import {
+  checkMetadataEscalation,
   checkSharedListAccess,
   checkTodoVisibility,
   checkTodoWrites,
@@ -49,6 +50,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     const checks: CheckResult[] = [
       checkRlsEnabled(tables),
+      checkViewsRunAsInvoker(tables),
       checkPoliciesScopedToRole(policies),
       checkOnePolicyPerOperation(policies),
       checkUpdatePoliciesHaveBothClauses(policies),
@@ -57,9 +59,11 @@ const scorer: LocalStackScorer = async (ctx) => {
       ...(await checkTodoWrites(ctx, fixtures)),
       ...(await checkSharedListAccess(ctx, fixtures)),
       ...(await checkWeatherFeed(ctx, fixtures)),
+      // Last: it rewrites clientB's metadata, so every other clientB probe has
+      // to have run already.
+      await checkMetadataEscalation(fixtures),
       checkAuthCallsWrapped(policies),
       await checkPolicyColumnsIndexed(ctx),
-      checkListItemsAvoidsJoin(policies),
       checkSecurityDefinersAreSafe(functions),
       await checkTestFilesExist(ctx),
       await checkPgTapSuitePasses(ctx),

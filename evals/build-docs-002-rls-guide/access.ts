@@ -13,9 +13,11 @@ const FORBIDDEN = '42501';
 export type Fixtures = {
   clientA: SupabaseClient;
   clientB: SupabaseClient;
+  clientC: SupabaseClient;
   anonClient: SupabaseClient;
   userAId: string;
   userBId: string;
+  userCId: string;
   todoA: string;
   todoAEdit: string;
   todoADelete: string;
@@ -35,6 +37,7 @@ export async function setupFixtures(
 ): Promise<{ fixtures: Fixtures } | { failure: CheckResult }> {
   const clientA = await ctx.getClient();
   const clientB = await ctx.getClient();
+  const clientC = await ctx.getClient();
   const anonClient = await ctx.getClient();
   const run = randomUUID().slice(0, 8);
 
@@ -46,20 +49,31 @@ export async function setupFixtures(
     email: `rls-guide-b-${run}@example.com`,
     password: PASSWORD,
   });
+  const { data: authC, error: authCError } = await clientC.auth.signUp({
+    email: `rls-guide-c-${run}@example.com`,
+    password: PASSWORD,
+  });
 
   if (
     authAError ||
     authBError ||
+    authCError ||
     !authA.user?.id ||
     !authA.session ||
     !authB.user?.id ||
-    !authB.session
+    !authB.session ||
+    !authC.user?.id ||
+    !authC.session
   ) {
     return {
       failure: {
         name: 'created auth sessions',
         passed: false,
-        notes: authAError?.message ?? authBError?.message ?? 'missing session',
+        notes:
+          authAError?.message ??
+          authBError?.message ??
+          authCError?.message ??
+          'missing session',
       },
     };
   }
@@ -67,9 +81,11 @@ export async function setupFixtures(
   const fixtures: Fixtures = {
     clientA,
     clientB,
+    clientC,
     anonClient,
     userAId: authA.user.id,
     userBId: authB.user.id,
+    userCId: authC.user.id,
     todoA: `todo-a-${run}`,
     todoAEdit: `todo-a-edit-${run}`,
     todoADelete: `todo-a-delete-${run}`,
@@ -82,9 +98,14 @@ export async function setupFixtures(
     readingId: randomUUID(),
   };
 
+  // Atomic, and tolerant of an agent that enrols the owner itself. Without
+  // ON CONFLICT a membership trigger collides with the seed and takes the whole
+  // scorer down to a single failed check.
   await execSql(
     ctx,
     stripIndent`
+      BEGIN;
+
       INSERT INTO todos (user_id, title) VALUES
         ('${fixtures.userAId}', '${fixtures.todoA}'),
         ('${fixtures.userAId}', '${fixtures.todoAEdit}'),
@@ -93,8 +114,10 @@ export async function setupFixtures(
 
       INSERT INTO lists (id, owner_id, name)
         VALUES ('${fixtures.listId}', '${fixtures.userAId}', '${fixtures.listName}');
-      INSERT INTO list_members (list_id, user_id)
-        VALUES ('${fixtures.listId}', '${fixtures.userAId}');
+      INSERT INTO list_members (list_id, user_id) VALUES
+        ('${fixtures.listId}', '${fixtures.userAId}'),
+        ('${fixtures.listId}', '${fixtures.userCId}')
+        ON CONFLICT (list_id, user_id) DO NOTHING;
       INSERT INTO list_items (list_id, author_id, title)
         VALUES ('${fixtures.listId}', '${fixtures.userAId}', '${fixtures.listItem}');
 
@@ -102,6 +125,8 @@ export async function setupFixtures(
         VALUES ('${fixtures.stationId}', '${fixtures.stationName}', 47.6, -122.3);
       INSERT INTO weather_readings (id, station_id, temp_c, conditions)
         VALUES ('${fixtures.readingId}', '${fixtures.stationId}', 12.5, 'seeded');
+
+      COMMIT;
     `
   );
 
@@ -247,27 +272,76 @@ export async function checkTodoWrites(
   ];
 }
 
+// user_metadata is writable by the user it belongs to, so a policy that trusts
+// a claim from it hands every user admin over everyone else's rows. Neither
+// fixture user has metadata by default, which makes such a policy look correct.
+export async function checkMetadataEscalation(
+  f: Fixtures
+): Promise<CheckResult> {
+  const name =
+    'a user cannot widen their own access by editing their user metadata';
+  const update = await f.clientB.auth.updateUser({ data: { admin: true } });
+  if (update.error) {
+    return { name, passed: false, notes: describeError(update.error) };
+  }
+
+  await f.clientB.auth.refreshSession();
+  const read = await f.clientB.from('todos').select('title');
+  const titles = titlesOf(read.data);
+  const leaked = titles.filter((title) => title !== f.todoB);
+
+  return {
+    name,
+    passed: !read.error && leaked.length === 0,
+    notes: read.error
+      ? describeError(read.error)
+      : leaked.length === 0
+        ? undefined
+        : `self-assigned admin exposed: ${leaked.join(', ')}`,
+  };
+}
+
 export async function checkSharedListAccess(
   ctx: LocalStackEvalContext,
   f: Fixtures
 ): Promise<CheckResult[]> {
   const created = `item-created-${randomUUID().slice(0, 8)}`;
 
-  const memberLists = await f.clientA.from('lists').select('name');
-  const memberItems = await f.clientA.from('list_items').select('title');
-  const memberMembership = await f.clientA.from('list_members').select('*');
+  // Member probes run as userC, who is on the list but neither its owner nor
+  // the author of any item, so an owner-only or author-only policy set cannot
+  // satisfy them.
+  const memberLists = await f.clientC.from('lists').select('name');
+  const memberItems = await f.clientC.from('list_items').select('title');
+  const memberMembership = await f.clientC.from('list_members').select('*');
   const outsiderLists = await f.clientB.from('lists').select('name');
   const outsiderItems = await f.clientB.from('list_items').select('title');
   const anonLists = await f.anonClient.from('lists').select('name');
   const anonItems = await f.anonClient.from('list_items').select('title');
+  const anonMembership = await f.anonClient.from('list_members').select('*');
 
-  const memberInsert = await f.clientA
+  const memberInsert = await f.clientC
     .from('list_items')
-    .insert({ list_id: f.listId, author_id: f.userAId, title: created });
+    .insert({ list_id: f.listId, author_id: f.userCId, title: created });
+
+  await f.clientB
+    .from('list_items')
+    .update({ title: 'outsider-hijacked' })
+    .eq('title', f.listItem);
+  await f.clientB.from('list_items').delete().eq('title', f.listItem);
+  await f.clientB
+    .from('lists')
+    .update({ name: 'outsider-hijacked' })
+    .eq('id', f.listId);
 
   const { rows } = await ctx.query(stripIndent`
-    SELECT title FROM list_items WHERE title = '${created}'
+    SELECT title FROM list_items
+    WHERE title IN ('${created}', '${f.listItem}', 'outsider-hijacked')
   `);
+  const { rows: listRows } = await ctx.query(stripIndent`
+    SELECT name FROM lists WHERE id = '${f.listId}'
+  `);
+  const itemTitles = rows.map((row) => String(row.title));
+  const listIntact = listRows[0]?.name === f.listName;
 
   const recursive = [
     memberLists.error,
@@ -277,12 +351,13 @@ export async function checkSharedListAccess(
     outsiderItems.error,
     anonLists.error,
     anonItems.error,
+    anonMembership.error,
     memberInsert.error,
   ].filter((error) => error?.code === RECURSION);
 
   return [
     {
-      name: 'a list member reads the list they are on',
+      name: 'a member who does not own the list still reads it',
       passed:
         !memberLists.error && namesOf(memberLists.data).includes(f.listName),
       notes: memberLists.error
@@ -290,7 +365,7 @@ export async function checkSharedListAccess(
         : `names: ${namesOf(memberLists.data).join(', ')}`,
     },
     {
-      name: 'a list member reads the items on that list',
+      name: "a member who authored nothing still reads the list's items",
       passed:
         !memberItems.error && titlesOf(memberItems.data).includes(f.listItem),
       notes: memberItems.error
@@ -298,13 +373,36 @@ export async function checkSharedListAccess(
         : `titles: ${titlesOf(memberItems.data).join(', ')}`,
     },
     {
-      name: 'a list member adds an item and the row lands',
-      passed: !memberInsert.error && rows.length > 0,
+      name: 'a member who does not own the list adds an item and the row lands',
+      passed: !memberInsert.error && itemTitles.includes(created),
       notes: memberInsert.error
         ? describeError(memberInsert.error)
-        : rows.length > 0
+        : itemTitles.includes(created)
           ? undefined
           : 'insert reported success but no row was written',
+    },
+    {
+      name: 'a non-member cannot modify or delete a list item',
+      passed:
+        itemTitles.includes(f.listItem) &&
+        !itemTitles.includes('outsider-hijacked'),
+      notes: itemTitles.includes(f.listItem)
+        ? undefined
+        : "the outsider's write removed or renamed the seeded item",
+    },
+    {
+      name: 'a non-member cannot rename the list',
+      passed: listIntact,
+      notes: listIntact ? undefined : `list is now: ${listRows[0]?.name}`,
+    },
+    {
+      name: 'signed-out visitors cannot read the membership table',
+      passed: anonMembership.error
+        ? anonMembership.error.code === FORBIDDEN
+        : (anonMembership.data?.length ?? 0) === 0,
+      notes: anonMembership.error
+        ? describeError(anonMembership.error)
+        : `${anonMembership.data?.length ?? 0} rows`,
     },
     {
       name: 'a non-member reads neither the list nor its items',

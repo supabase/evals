@@ -20,7 +20,9 @@ Two separate apps, so one access pattern cannot be applied to everything.
 
 `using (true)` is correct on the weather feed and catastrophic on todos. The feed is also the only place `anon` has to be granted something deliberately, which is what makes "anon sees nothing" on the other tables mean something.
 
-`list_members` is the pressure point. A policy on `list_items` that selects from it is a join inside a policy, and a policy on `list_members` that checks membership against itself raises `42P17`. Membership has more than one safe implementation, so the scorer proves the outcome through the access probes rather than requiring a design.
+`list_members` is the pressure point, because a policy on it that checks membership against itself raises `42P17`. Membership has more than one safe implementation, so the scorer proves the outcome through the access probes rather than requiring a design.
+
+The probes use three users. The list owner, an outsider, and a member who neither owns the list nor authored anything on it. That third user is what separates real sharing from owner-only and author-only policies, which otherwise satisfy every shared-list check while sharing is broken.
 
 Nothing in the migration says who may read or write what.
 

@@ -43,8 +43,10 @@ const STACK_SCHEMAS = new Set([
 
 export type TableState = {
   relname: string;
+  relkind: string;
   relrowsecurity: boolean;
   relforcerowsecurity: boolean;
+  reloptions: string[] | null;
 };
 
 export type PolicyRow = {
@@ -63,14 +65,20 @@ export type FunctionRow = {
   proconfig: string[] | null;
 };
 
+/** Every relation the API exposes, not only the seeded six. */
 export async function loadTableState(
   ctx: LocalStackEvalContext
 ): Promise<TableState[]> {
   const { rows } = await ctx.query(stripIndent`
-    SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+    SELECT
+      c.relname,
+      c.relkind::text AS relkind,
+      c.relrowsecurity,
+      c.relforcerowsecurity,
+      c.reloptions
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public' AND c.relkind = 'r'
+    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm')
   `);
   return rows as TableState[];
 }
@@ -111,17 +119,58 @@ export async function loadCandidateFunctions(
   );
 }
 
+// Ranges over the exposed schema rather than the seeded names, so a table the
+// agent adds is measured too. SEEDED_TABLES is only the must-exist list.
 export function checkRlsEnabled(tables: TableState[]): CheckResult {
-  const missing = SEEDED_TABLES.filter(
-    (name) => tables.find((t) => t.relname === name)?.relrowsecurity !== true
+  const absent = SEEDED_TABLES.filter(
+    (name) => !tables.some((t) => t.relname === name)
   );
+  const unprotected = tables
+    .filter((t) => t.relkind === 'r' || t.relkind === 'p')
+    .filter((t) => t.relrowsecurity !== true)
+    .map((t) => t.relname);
+
   return {
-    name: 'row level security is enabled on every seeded table',
-    passed: missing.length === 0,
+    name: 'row level security is enabled on every table in the exposed schema',
+    passed: absent.length === 0 && unprotected.length === 0,
     notes:
-      missing.length === 0
+      absent.length === 0 && unprotected.length === 0
         ? undefined
-        : `RLS not enabled on: ${missing.join(', ')}`,
+        : [
+            absent.length > 0
+              ? `seeded table missing: ${absent.join(', ')}`
+              : null,
+            unprotected.length > 0
+              ? `RLS not enabled on: ${unprotected.join(', ')}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('; '),
+  };
+}
+
+// A view runs as its owner unless security_invoker is set, so a view over a
+// protected table hands out everything the policies were meant to withhold.
+export function checkViewsRunAsInvoker(tables: TableState[]): CheckResult {
+  const views = tables.filter((t) => t.relkind === 'v' || t.relkind === 'm');
+  const leaky = views
+    .filter(
+      (t) =>
+        !(t.reloptions ?? []).some((option) =>
+          /^security_invoker\s*=\s*(true|on)$/i.test(option)
+        )
+    )
+    .map((t) => t.relname);
+
+  return {
+    name: 'any view in the exposed schema runs as the invoker',
+    passed: leaky.length === 0,
+    notes:
+      views.length === 0
+        ? 'no views created'
+        : leaky.length === 0
+          ? `verified ${views.map((v) => v.relname).join(', ')}`
+          : `bypasses RLS: ${leaky.join(', ')}`,
   };
 }
 
@@ -237,29 +286,6 @@ export async function checkPolicyColumnsIndexed(
   };
 }
 
-export function checkListItemsAvoidsJoin(policies: PolicyRow[]): CheckResult {
-  const expressions = expressionsOf(
-    policies.filter((p) => p.tablename === 'list_items')
-  );
-  const name = 'list_items policies do not select from list_members inline';
-
-  if (expressions.length === 0) {
-    return { name, passed: false, notes: 'no policies on list_items' };
-  }
-
-  const joined = expressions.filter((expression) =>
-    /\bFROM\s+(public\.)?list_members\b/i.test(expression)
-  );
-  return {
-    name,
-    passed: joined.length === 0,
-    notes:
-      joined.length === 0
-        ? undefined
-        : `${joined.length} list_items policy expression(s) join list_members directly`,
-  };
-}
-
 // Scoped to the two ways a security definer function is unsafe, not to any
 // particular design. Membership has more than one safe implementation, and
 // whether it holds is proven by the access probes.
@@ -302,85 +328,48 @@ function hasEmptySearchPath(fn: FunctionRow): boolean {
   return value === '' || value === '""' || value === "''";
 }
 
+const WEATHER_TABLES = new Set(['weather_stations', 'weather_readings']);
+
+type GrantRow = { table_name: string; rolname: string; priv: string };
+
+// Ranges over the exposed schema so an extra table the agent leaves behind is
+// measured too, rather than only the seeded names.
 export async function checkGrants(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult[]> {
   const { rows } = await ctx.query(stripIndent`
-    SELECT
-      has_table_privilege('anon', 'public.todos', 'INSERT') AS anon_todos_insert,
-      has_table_privilege('anon', 'public.todos', 'UPDATE') AS anon_todos_update,
-      has_table_privilege('anon', 'public.todos', 'DELETE') AS anon_todos_delete,
-      has_table_privilege('anon', 'public.lists', 'INSERT') AS anon_lists_insert,
-      has_table_privilege('anon', 'public.lists', 'UPDATE') AS anon_lists_update,
-      has_table_privilege('anon', 'public.lists', 'DELETE') AS anon_lists_delete,
-      has_table_privilege('anon', 'public.list_members', 'INSERT') AS anon_members_insert,
-      has_table_privilege('anon', 'public.list_members', 'UPDATE') AS anon_members_update,
-      has_table_privilege('anon', 'public.list_members', 'DELETE') AS anon_members_delete,
-      has_table_privilege('anon', 'public.list_items', 'INSERT') AS anon_items_insert,
-      has_table_privilege('anon', 'public.list_items', 'UPDATE') AS anon_items_update,
-      has_table_privilege('anon', 'public.list_items', 'DELETE') AS anon_items_delete,
-      has_table_privilege('anon', 'public.weather_stations', 'INSERT') AS anon_stations_insert,
-      has_table_privilege('anon', 'public.weather_stations', 'UPDATE') AS anon_stations_update,
-      has_table_privilege('anon', 'public.weather_stations', 'DELETE') AS anon_stations_delete,
-      has_table_privilege('anon', 'public.weather_readings', 'INSERT') AS anon_readings_insert,
-      has_table_privilege('anon', 'public.weather_readings', 'UPDATE') AS anon_readings_update,
-      has_table_privilege('anon', 'public.weather_readings', 'DELETE') AS anon_readings_delete,
-      has_table_privilege('authenticated', 'public.weather_stations', 'INSERT') AS authed_stations_insert,
-      has_table_privilege('authenticated', 'public.weather_stations', 'UPDATE') AS authed_stations_update,
-      has_table_privilege('authenticated', 'public.weather_stations', 'DELETE') AS authed_stations_delete,
-      has_table_privilege('authenticated', 'public.weather_readings', 'INSERT') AS authed_readings_insert,
-      has_table_privilege('authenticated', 'public.weather_readings', 'UPDATE') AS authed_readings_update,
-      has_table_privilege('authenticated', 'public.weather_readings', 'DELETE') AS authed_readings_delete
+    SELECT c.relname AS table_name, r.rolname, p.priv
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    CROSS JOIN (VALUES ('anon'), ('authenticated')) AS r(rolname)
+    CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('DELETE')) AS p(priv)
+    WHERE n.nspname = 'public'
+      AND c.relkind IN ('r', 'p', 'v', 'm')
+      AND has_table_privilege(r.rolname, c.oid, p.priv)
   `);
-  const grants = rows[0] ?? {};
-  const granted = (key: string) => grants[key] === true;
+  const granted = rows as GrantRow[];
+  const describe = (g: GrantRow) =>
+    `${g.rolname} ${g.priv.toLowerCase()} on ${g.table_name}`;
 
-  const anonWrites = [
-    'anon_todos_insert',
-    'anon_todos_update',
-    'anon_todos_delete',
-    'anon_lists_insert',
-    'anon_lists_update',
-    'anon_lists_delete',
-    'anon_members_insert',
-    'anon_members_update',
-    'anon_members_delete',
-    'anon_items_insert',
-    'anon_items_update',
-    'anon_items_delete',
-  ].filter(granted);
-
-  const feedWrites = [
-    'anon_stations_insert',
-    'anon_stations_update',
-    'anon_stations_delete',
-    'anon_readings_insert',
-    'anon_readings_update',
-    'anon_readings_delete',
-    'authed_stations_insert',
-    'authed_stations_update',
-    'authed_stations_delete',
-    'authed_readings_insert',
-    'authed_readings_update',
-    'authed_readings_delete',
-  ].filter(granted);
+  const anonWrites = granted.filter((g) => g.rolname === 'anon');
+  const feedWrites = granted.filter((g) => WEATHER_TABLES.has(g.table_name));
 
   return [
     {
-      name: "anon's default write grants are revoked on the to-do tables",
+      name: 'anon holds no write grant anywhere in the exposed schema',
       passed: anonWrites.length === 0,
       notes:
         anonWrites.length === 0
           ? undefined
-          : `still granted by default: ${anonWrites.join(', ')}`,
+          : `still granted: ${anonWrites.map(describe).join(', ')}`,
     },
     {
-      name: "both client roles' default write grants are revoked on the weather feed",
+      name: 'no client role holds a write grant on the weather feed',
       passed: feedWrites.length === 0,
       notes:
         feedWrites.length === 0
           ? undefined
-          : `still granted by default: ${feedWrites.join(', ')}`,
+          : `still granted: ${feedWrites.map(describe).join(', ')}`,
     },
   ];
 }

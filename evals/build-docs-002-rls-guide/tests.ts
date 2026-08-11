@@ -8,10 +8,13 @@ import { stripIndent } from 'common-tags';
 /** Allow + deny for four operations across two roles is eight assertions. */
 const MIN_PGTAP_TESTS = 8;
 
-const REQUIRED_TABLE_GROUPS = [
-  ['todos'],
-  ['lists', 'list_items'],
-  ['weather_readings', 'weather_stations'],
+const REQUIRED_TABLES = [
+  'todos',
+  'lists',
+  'list_members',
+  'list_items',
+  'weather_stations',
+  'weather_readings',
 ];
 
 export async function checkTestFilesExist(
@@ -67,16 +70,18 @@ export async function checkTestCoverage(
   const sources = await Promise.all(
     files.map(async (file) => `-- ${file}\n${await ctx.readFile(file)}`)
   );
-  const corpus = sources.join('\n\n').toLowerCase();
 
-  const untested = REQUIRED_TABLE_GROUPS.filter(
-    (group) => !group.some((table) => corpus.includes(table))
+  // Comments are stripped so a header listing the tables cannot stand in for
+  // testing them, and every seeded table is required rather than one per group.
+  const corpus = stripSqlComments(sources.join('\n\n')).toLowerCase();
+  const untested = REQUIRED_TABLES.filter(
+    (table) => !new RegExp(`\\b${table}\\b`).test(corpus)
   );
   if (untested.length > 0) {
     return {
       name,
       passed: false,
-      notes: `tests never reference: ${untested.map((group) => group.join('/')).join(', ')}`,
+      notes: `tests never reference: ${untested.join(', ')}`,
     };
   }
 
@@ -121,6 +126,10 @@ export async function checkTestCoverage(
   });
 
   return { name, passed: verdict.passed, judgeNotes: verdict.notes };
+}
+
+function stripSqlComments(sql: string): string {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
 }
 
 export async function listTestFiles(
