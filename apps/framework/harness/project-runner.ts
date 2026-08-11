@@ -157,7 +157,7 @@ async function runNodeBin(
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [bin, ...args], {
       cwd,
-      env: { ...process.env, ...env },
+      env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
