@@ -475,14 +475,6 @@ async function smokeFrontendBuildTooling() {
   cpSync(join(ROOT, FRONTEND_EVAL, 'tests'), join(workspace, 'tests'), {
     recursive: true,
   });
-  writeFileSync(
-    join(workspace, '.env.local'),
-    [
-      'VITE_SUPABASE_URL=http://supabase-evals.local',
-      'VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key',
-      '',
-    ].join('\n')
-  );
   writeFileSync(join(workspace, 'src', 'App.tsx'), GOOD_FRONTEND_APP);
   writeFileSync(
     join(workspace, 'vite.config.ts'),

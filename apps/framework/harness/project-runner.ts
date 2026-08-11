@@ -12,6 +12,13 @@ import type { CommandResult, VitestResult } from '@supabase-evals/core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
+const PROJECT_DB_URL = 'http://supabase-evals.local';
+const PROJECT_DB_ANON_KEY = 'supabase-evals-anon-key';
+const PROJECT_DB_JWT_SECRET = 'supabase-evals-dev-secret';
+const PROJECT_ENV = {
+  VITE_SUPABASE_URL: PROJECT_DB_URL,
+  VITE_SUPABASE_ANON_KEY: PROJECT_DB_ANON_KEY,
+};
 
 // Vite/vitest resolve their own package (and the workspace's deps, e.g. react)
 // by walking up from the workspace looking for a node_modules dir. Workspaces
@@ -26,7 +33,8 @@ export async function viteBuild(workspace: string): Promise<CommandResult> {
   return runNodeBin(
     join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'),
     ['build'],
-    workspace
+    workspace,
+    PROJECT_ENV
   );
 }
 
@@ -63,7 +71,7 @@ export async function vitestRun(workspace: string): Promise<VitestResult> {
       `--outputFile=${reportPath}`,
     ],
     workspace,
-    { SUPABASE_EVALS_WORKSPACE: workspace }
+    { ...PROJECT_ENV, SUPABASE_EVALS_WORKSPACE: workspace }
   );
   const parsed = existsSync(reportPath)
     ? parseVitestReport(reportPath)
@@ -79,9 +87,9 @@ import { afterAll } from "vitest";
 import { App, getAuthSchemaSql, SUPABASE_AUTH_HELPERS_SQL } from "@supabase/lite";
 import { createPgliteConnection } from "@supabase/lite/pglite";
 
-const PROJECT_DB_URL = "http://supabase-evals.local";
-const PROJECT_DB_ANON_KEY = "supabase-evals-anon-key";
-const PROJECT_DB_JWT_SECRET = "supabase-evals-dev-secret";
+const PROJECT_DB_URL = ${JSON.stringify(PROJECT_DB_URL)};
+const PROJECT_DB_ANON_KEY = ${JSON.stringify(PROJECT_DB_ANON_KEY)};
+const PROJECT_DB_JWT_SECRET = ${JSON.stringify(PROJECT_DB_JWT_SECRET)};
 const AUTH_SQL = \`
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
