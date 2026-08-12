@@ -1671,6 +1671,59 @@
       "modelId": "claude-opus-5",
       "reasoningEffort": "high"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified video-thumbnails as the affected function and correctly described failures as HTTP 546 due to CPU/resource limit, not 500/503. Also treated welcome-email 500 as unrelated."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms) → status 546`, and distinguishes it from application exceptions and unrelated welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified fixed CPU limits and recommended reducing/offloading CPU-intensive thumbnail/video work: moving transcoding off Edge Functions to a container/managed service, using Edge only as a thin trigger/enqueue, and doing less CPU work via keyframe seeking, downscaling, and capping input resolution."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "claude-code-opus-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -1902,6 +1955,63 @@
       "modelId": "claude-opus-5",
       "reasoningEffort": "high"
     },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"1e68be31-9c10-453c-bdd3-7f41cce56a06\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the missing USING clause on the UPDATE RLS policy as the cause of silent 0-row updates and fixed it with an authenticated, owner-scoped USING clause while preserving the WITH CHECK clause."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5/resolve-dataapi-002-update-zero-rows-affected.json"
+  },
+  {
+    "experiment": "claude-code-opus-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
     "eval": "resolve-database-001-migration-history-mismatch",
     "stage": "resolve",
     "product": [
@@ -2095,6 +2205,76 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-5/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "claude-code-opus-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a3-7999-762c-b233-65b63fa8c212/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnoses missing UPDATE policy for storage.objects upsert, explains public bucket only covers reads, adds authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and keeps public read/RLS intact."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "claude-code-opus-5-no-skills",
@@ -3757,6 +3937,87 @@
       "modelId": "claude-opus-5",
       "reasoningEffort": "high"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified video-thumbnails as the affected function and correctly described failures as HTTP 546 CPUTime/resource-limit responses, distinct from the unrelated welcome-email 500."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` and explaining the CPU ceiling. It does not blame memory, wall-clock time, code exceptions, or the unrelated welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant clearly recommends the real fix as getting the heavy CPU-intensive video thumbnail work out of the Edge Function via a queue/background worker, external service, or container/Lambda worker, and also mentions optimizing to reduce CPU below the limit. Although it includes retry as a stopgap, it explicitly labels it a band-aid and not the real fix."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function CPU time limit 546 shutdown worker reuse\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
+              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
+              "title": "Edge Functions worker timeouts and WebSocket drops"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/status-codes",
+              "title": "Status codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
+              "title": "Edge Function shutdown reasons explained"
+            }
+          ],
+          "resultChars": 35698
+        }
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5-no-skills/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "claude-code-opus-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -3923,6 +4184,83 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-5-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "claude-code-opus-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"4db69cab-5ef7-4a52-9b97-4949864d3ff3\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "The answer correctly identifies the missing USING clause on the UPDATE RLS policy as the cause of silent zero-row updates, explains USING vs WITH CHECK semantics, and fixes the policy for authenticated users with USING (user_id = auth.uid()) while retaining WITH CHECK (user_id = auth.uid()). It keeps RLS intact and verifies owner-only updates and prevention of reassignment."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"UPDATE policy requires USING and WITH CHECK row level security\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
+              "title": "RLS Simplified"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            }
+          ],
+          "resultChars": 66067
+        }
+      ]
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "claude-code-opus-5-no-skills",
@@ -4110,6 +4448,71 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-opus-5-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "claude-code-opus-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a2-1b6f-773a-8f4c-b7df2fdbdd0e/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacements, explained public bucket only affects reads, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and kept public read/RLS intact."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -5659,6 +6062,59 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly characterized failures as HTTP 546 resource/CPUTime limit shutdowns rather than 500/503 server errors."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing shutdown reason CPUTime and cpu_time_used 2000ms / cpu_time_limit 2000ms. It does not blame memory, wall-clock time, code exceptions, or the welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant recommended reducing CPU-intensive thumbnail work and moving heavy video processing off the edge-function request path/background worker, which matches the required fix. It also mentioned awaiting/waitUntil, but included valid CPU-reduction/offloading recommendations."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -5840,6 +6296,90 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"12005797-b5e2-405a-8674-141c63259218\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed the missing UPDATE USING clause, explained the zero-row behavior, and fixed the authenticated tasks policy with owner-scoped USING plus retained owner-scoped WITH CHECK while keeping RLS intact."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"RLS policy UPDATE USING WITH CHECK default missing\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
+              "title": "RLS Simplified"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
+              "title": "Build a User Management App with Ionic React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/enterprise-sso/auth-sso-saml",
+              "title": "Single Sign-On with SAML 2.0 for Projects"
+            }
+          ],
+          "resultChars": 107724
+        }
+      ]
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -6043,6 +6583,76 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a1-fcc8-74be-89c9-028b33d3bfd9/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, explained public bucket only affects reads implicitly by keeping public SELECT, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and did not weaken public-read setup or disable RLS."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
@@ -7144,6 +7754,83 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as affected and correctly characterized failures as HTTP 546 `WORKER_RESOURCE_LIMIT`/CPUTime resource limit, while noting unrelated `welcome-email` 500 separately."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "Assistant specifically attributes the 546 failures to CPU time exhaustion, citing log evidence: `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`. It distinguishes this from application errors and the unrelated welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant clearly identifies the CPU limit and recommends reducing/offloading CPU-intensive thumbnail work: moving processing to a background worker/external service, downscaling/downsampling, using a lighter decode path, and reducing output resolution/quality. It does not rely on raising limits or timeouts."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function CPU time limit exceeded shutdown reason\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
+              "title": "Edge Function shutdown reasons explained"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
+              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/status-codes",
+              "title": "Status codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
+              "title": "Edge Functions worker timeouts and WebSocket drops"
+            }
+          ],
+          "resultChars": 33536
+        }
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -7349,6 +8036,58 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"44fb2e66-c4a7-4d7b-8d63-4d9d6e88c1e8\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed the missing USING clause on the UPDATE RLS policy, explained why it caused silent 0-row updates, and fixed it with USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()), authenticated/user ownership scoping, and RLS enforcement."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "resolve-database-001-migration-history-mismatch",
     "stage": "resolve",
     "product": [
@@ -7526,6 +8265,71 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a1-dbb4-7718-b3fa-8482b0426784/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnoses missing UPDATE RLS policy for upsert replacement, explains public bucket only covers read URL implicitly via SELECT/public read, adds authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and does not weaken public-read setup or disable RLS."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -9913,6 +10717,59 @@
       "modelId": "gpt-5.4-mini",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified video-thumbnails as affected and stated failures return status 546 due to CPU/resource limit, while noting welcome-email 500 was unrelated."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "Assistant specifically attributes 546 failures to CPUTime CPU budget exhaustion and cites log evidence: shutdown reason CPUTime plus cpu_time_used 2000ms at cpu_time_limit 2000ms. It does not blame memory, wall-clock, code exception, or the unrelated welcome-email error."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "Recommended reducing/offloading CPU-intensive work: make extraction cheaper, downscale/avoid scanning/transcoding, defer large inputs, and move thumbnail generation to a background worker."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -10584,6 +11441,64 @@
       "modelId": "gpt-5.4-mini",
       "reasoningEffort": "medium"
     },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"3e59ce2d-fca9-4e1c-9868-a7e369ea9c98\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified the missing USING clause on the UPDATE RLS policy as the cause of zero-row updates, kept RLS enabled, recreated the authenticated owner-scoped policy with USING (user_id = auth.uid()) and WITH CHECK (user_id = auth.uid()), and verified it."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-dataapi-002-update-zero-rows-affected.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-001-migration-history-mismatch",
     "stage": "resolve",
     "product": [
@@ -10829,6 +11744,106 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a1-f25a-77ec-b47a-0445bb8ed613/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed missing RLS UPDATE policy for storage.objects, explained upsert replacement needs UPDATE beyond INSERT/SELECT and public bucket only affects downloads, added an authenticated owner-scoped UPDATE policy with USING and WITH CHECK using storage.foldername(name)[1] = auth.uid()::text, and kept the bucket public with RLS enabled."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage upsert insert select update bucket policy avatar replace existing file\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/quickstart",
+              "title": "Storage Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-cant-i-uploadlistetc-my-public-bucket-Z6CmGt",
+              "title": "Why can't I upload/list/etc my public bucket?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-flutter",
+              "title": "Build a User Management App with Flutter"
+            }
+          ],
+          "resultChars": 59020
+        }
+      ]
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini-no-skills",
@@ -12451,6 +13466,54 @@
       "modelId": "gpt-5.4-mini",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` and correctly described failures as status `546` due to CPU/resource limit exhaustion, not 500/503."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` and stating it is not an app-level exception."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identifies CPU budget exhaustion and recommends moving thumbnail generation off the edge function to a background worker/dedicated job, or reducing work per request with caps/guardrails. This directly addresses reducing/offloading CPU-intensive work rather than increasing limits or retrying."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -12617,6 +13680,58 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"e3bae16b-f91a-4baa-aa3f-b351e2ceb140\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the UPDATE policy missing its USING clause, explained the zero-row RLS behavior, and fixed it with USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()) and the existing authenticated-scoped policy/RLS."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini-no-skills",
@@ -12804,6 +13919,71 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a1-be05-730c-949e-9eec04a0f46c/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, kept public read/RLS setup, and added authenticated owner-scoped UPDATE policy with USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "codex-gpt-5.6",
@@ -14931,6 +16111,100 @@
       "modelId": "gpt-5.6-sol",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as affected and correctly described failures as HTTP 546 due to CPU/resource limit, not 500/503."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion and grounds it in log evidence: `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "Recommended moving CPU-heavy video decoding/transcoding to an external media service/container worker and short-term optimizations to reduce decoding work (seek to timestamp, decode one frame, cap size/resolution)."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions CPUTime 546 cpu time limit background processing video ffmpeg\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/background-tasks",
+              "title": "Background Tasks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/wasm",
+              "title": "Using Wasm modules"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            }
+          ],
+          "resultChars": 34782
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i \\\"edge function|cpu|breaking-change\\\" | sed -n '1,80p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15074
+        }
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -15265,6 +16539,107 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.6/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"30497c9e-e282-46e3-89cd-d23baef2d9c5\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the silent zero-row UPDATE as the UPDATE policy lacking a USING clause, explained WITH CHECK only validates the new row, and fixed it by adding owner-scoped USING while retaining owner-scoped WITH CHECK, scoped to authenticated and with RLS enabled."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog breaking change RLS update select policy",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security UPDATE requires SELECT policy silent zero rows USING WITH CHECK auth.uid\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
+              "title": "RLS Simplified"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0024_permissive_rls_policy",
+              "title": "Database Advisor: Lint 0024_permissive_rls_policy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/storage-error-403-forbidden-new-row-violates-row-level-security-policy-on-upload-a94384",
+              "title": "Storage error: 403 Forbidden: 'new row violates row-level security policy' on upload"
+            }
+          ],
+          "resultChars": 43022
+        }
+      ]
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "codex-gpt-5.6",
@@ -15620,6 +16995,120 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.6/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a3-9c2b-72f7-b288-a303c6544995/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed missing UPDATE RLS policy for storage.objects during upsert, noted public bucket only affects downloads, kept public read/RLS intact, and added an authenticated owner-scoped UPDATE policy with both USING and WITH CHECK for avatars."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage upload upsert true required RLS permissions SELECT UPDATE INSERT storage.objects\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/design",
+              "title": "The Storage Schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/product-security",
+              "title": "Secure configuration of Supabase products"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/storage-error-403-forbidden-new-row-violates-row-level-security-policy-on-upload-a94384",
+              "title": "Storage error: 403 Forbidden: 'new row violates row-level security policy' on upload"
+            }
+          ],
+          "resultChars": 20870
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com changelog storage breaking change RLS upsert",
+          "pages": []
+        }
+      ]
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "codex-gpt-5.6-no-skills",
@@ -18461,6 +19950,111 @@
       "modelId": "gpt-5.6-sol",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly characterized failures as HTTP 546 due to CPU/resource limit, not 500/503."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly attributes the 546 failures to Edge Function CPU time exhaustion, citing log evidence: shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "Recommended moving CPU-intensive FFmpeg/video decoding to a containerized worker/media-processing service, keeping the Edge Function lightweight with queued background processing, and explicitly noted retries/waitUntil are not sufficient."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions CPUTime 546 cpu time limit 2000ms video processing background tasks limits\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/background-tasks",
+              "title": "Background Tasks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-monitoring-resource-usage",
+              "title": "Monitoring Edge Function resource usage"
+            }
+          ],
+          "resultChars": 23597
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Queues Edge Function background worker video processing ffmpeg\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/image-manipulation",
+              "title": "Image Manipulation"
+            }
+          ],
+          "resultChars": 22442
+        }
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -18656,6 +20250,87 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.6-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"6c821ece-156b-420b-b9d6-9806f4c2cbf6\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the missing USING clause on the UPDATE policy, explained the zero-row behavior, and fixed it with an authenticated, owner-scoped USING while retaining WITH CHECK and RLS."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security UPDATE policy USING WITH CHECK rows not updated return data select policy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
+              "title": "RLS Simplified"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0007_policy_exists_rls_disabled",
+              "title": "Database Advisor: Lint 0007_policy_exists_rls_disabled"
+            }
+          ],
+          "resultChars": 70342
+        }
+      ]
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "codex-gpt-5.6-no-skills",
@@ -18872,6 +20547,100 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "codex-gpt-5.6-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a2-38fd-75ea-b1d2-252b033792b8/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "The answer correctly diagnoses missing UPDATE RLS for storage.objects during upsert replacement, notes public bucket/read does not cover overwrite permissions, preserves public read and RLS, and adds an authenticated owner-scoped UPDATE policy with USING and WITH CHECK based on the user folder."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage upsert RLS permissions INSERT SELECT UPDATE objects\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
+              "title": "Delete Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            }
+          ],
+          "resultChars": 24191
+        }
+      ]
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "opencode-kimi-k3",
@@ -20296,6 +22065,87 @@
       "modelProvider": "moonshotai",
       "modelId": "moonshotai/kimi-k3"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified `video-thumbnails` as the affected function and explicitly stated failures are HTTP 546 / WORKER_RESOURCE_LIMIT due to CPUTime/resource limit, not 500/503. It also treated the welcome-email 500 as unrelated."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing log evidence: shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms. It also distinguishes this from code exceptions and marks the welcome-email error as unrelated."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly recommends reducing CPU per request (cheaper frame extraction, scaling, caps) and the structural fix of moving thumbnail generation to a background job/external service. It also notes the CPU limit cannot be raised."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge functions CPU time limit 546 worker shutdown limits\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
+              "title": "Edge Functions worker timeouts and WebSocket drops"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
+              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            }
+          ],
+          "resultChars": 23226
+        }
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -20514,6 +22364,63 @@
       "modelProvider": "moonshotai",
       "modelId": "moonshotai/kimi-k3"
     },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"ecbed260-c76a-43ab-9138-0f1f4dafce95\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the zero-row UPDATE as missing RLS USING on the UPDATE policy, explained USING vs WITH CHECK, and fixed by recreating the authenticated task-owner policy with USING ((select auth.uid()) = user_id) and WITH CHECK ((select auth.uid()) = user_id), keeping RLS semantics intact."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3/resolve-dataapi-002-update-zero-rows-affected.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
     "eval": "resolve-database-001-migration-history-mismatch",
     "stage": "resolve",
     "product": [
@@ -20707,6 +22614,76 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "opencode-kimi-k3/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a5-9963-712d-8743-1aad2c43c70d/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, kept public read/RLS setup, and added authenticated owner-scoped UPDATE policy with USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3/resolve-storage-001-upsert-missing-update-policy.json"
   },
   {
     "experiment": "opencode-kimi-k3-no-skills",
@@ -21906,6 +23883,82 @@
       "modelProvider": "moonshotai",
       "modelId": "moonshotai/kimi-k3"
     },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified `video-thumbnails` as the affected function and recognized failures as HTTP 546 due to CPU/resource worker limits, not 500/503 server errors. It also noted the unrelated `welcome-email` 500 separately."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "Assistant specifically attributes the 546 failures to Edge Function CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` and distinguishing it from code bugs or unrelated errors."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant explicitly identifies CPU time limit failures and recommends reducing CPU work (fast seek, single frame extraction, scaling down, limiting input) and offloading to asynchronous background workers/external compute. Although it mentions retries as a short-term mitigation, it clearly states the real/best fix is reducing or offloading CPU-intensive work."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function limits CPU time wall clock\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
+              "title": "Edge Functions worker timeouts and WebSocket drops"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            }
+          ],
+          "resultChars": 23029
+        }
+      ]
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3-no-skills/investigate-functions-001-546-resource-limit.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
     "eval": "investigate-realtime-001-subscribed-no-events",
     "stage": "investigate",
     "product": [
@@ -22070,6 +24123,57 @@
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
     "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-dataapi-001-empty-results.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"aa207d3e-b78e-49d2-9693-0c0ca93c1747\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the zero-row UPDATE as caused by the UPDATE RLS policy missing a USING clause, explained USING vs WITH CHECK correctly, and fixed it with USING (user_id = auth.uid()) while retaining WITH CHECK (user_id = auth.uid())."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3-no-skills/resolve-dataapi-002-update-zero-rows-affected.json"
   },
   {
     "experiment": "opencode-kimi-k3-no-skills",
@@ -22254,5 +24358,69 @@
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "attempts": 1,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-security-002-rls-cross-tenant-leak.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "resolve-storage-001-upsert-missing-update-policy",
+    "stage": "resolve",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "benchmark",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket avatars exists",
+        "passed": true
+      },
+      {
+        "name": "bucket avatars stays public",
+        "passed": true,
+        "notes": "the bucket being public is intentional (avatars need a public URL); it is not the bug"
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "anon can still read the public avatar",
+        "passed": true
+      },
+      {
+        "name": "user A can replace their own avatar via upsert",
+        "passed": true,
+        "notes": "saw: [{\"name\":\"019ff5a3-a6e6-729a-80e7-5df3937edeab/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+      },
+      {
+        "name": "user B cannot overwrite user A's avatar",
+        "passed": true
+      },
+      {
+        "name": "added an owner-scoped UPDATE policy without weakening public reads",
+        "passed": true,
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, kept public-read/RLS setup, and added owner-scoped UPDATE policy for authenticated users with USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
+    "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   }
 ]
