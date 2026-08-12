@@ -98,10 +98,7 @@ export async function setupFixtures(
     readingId: randomUUID(),
   };
 
-  // Atomic, and tolerant of an agent that enrols the owner itself. Without
-  // ON CONFLICT a membership trigger collides with the seed and takes the whole
-  // scorer down to a single failed check.
-  await execSql(
+  const seed = await execSql(
     ctx,
     stripIndent`
       BEGIN;
@@ -114,10 +111,16 @@ export async function setupFixtures(
 
       INSERT INTO lists (id, owner_id, name)
         VALUES ('${fixtures.listId}', '${fixtures.userAId}', '${fixtures.listName}');
-      INSERT INTO list_members (list_id, user_id) VALUES
-        ('${fixtures.listId}', '${fixtures.userAId}'),
-        ('${fixtures.listId}', '${fixtures.userCId}')
-        ON CONFLICT (list_id, user_id) DO NOTHING;
+      INSERT INTO list_members (list_id, user_id)
+        SELECT v.list_id, v.user_id
+        FROM (VALUES
+          ('${fixtures.listId}'::uuid, '${fixtures.userAId}'::uuid),
+          ('${fixtures.listId}'::uuid, '${fixtures.userCId}'::uuid)
+        ) AS v(list_id, user_id)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM list_members m
+          WHERE m.list_id = v.list_id AND m.user_id = v.user_id
+        );
       INSERT INTO list_items (list_id, author_id, title)
         VALUES ('${fixtures.listId}', '${fixtures.userAId}', '${fixtures.listItem}');
 
@@ -129,6 +132,16 @@ export async function setupFixtures(
       COMMIT;
     `
   );
+
+  if (!seed.ok) {
+    return {
+      failure: {
+        name: 'seeded the fixture rows',
+        passed: false,
+        notes: seed.message,
+      },
+    };
+  }
 
   return { fixtures };
 }
@@ -178,6 +191,7 @@ export async function checkTodoWrites(
   const created = `todo-a-created-${run}`;
   const forged = `todo-a-forged-${run}`;
   const edited = `todo-a-edited-${run}`;
+  const hijacked = `todo-b-hijacked-${run}`;
 
   const ownInsert = await f.clientA
     .from('todos')
@@ -192,7 +206,7 @@ export async function checkTodoWrites(
     .eq('title', f.todoAEdit);
   await f.clientA
     .from('todos')
-    .update({ title: 'hijacked' })
+    .update({ title: hijacked })
     .eq('title', f.todoB);
   await f.clientA
     .from('todos')
@@ -210,7 +224,7 @@ export async function checkTodoWrites(
     FROM todos
     WHERE title IN (
       '${f.todoA}', '${f.todoAEdit}', '${f.todoADelete}', '${f.todoB}',
-      '${created}', '${forged}', '${edited}', 'hijacked'
+      '${created}', '${forged}', '${edited}', '${hijacked}'
     )
   `);
   const present = (title: string) => rows.some((row) => row.title === title);
@@ -245,7 +259,7 @@ export async function checkTodoWrites(
     },
     {
       name: "a signed-in user cannot modify another user's todo",
-      passed: present(f.todoB) && !present('hijacked'),
+      passed: present(f.todoB) && !present(hijacked),
       notes: present(f.todoB) ? undefined : `rows now: ${JSON.stringify(rows)}`,
     },
     {
@@ -272,6 +286,15 @@ export async function checkTodoWrites(
   ];
 }
 
+const ESCALATION_CLAIMS = {
+  admin: true,
+  is_admin: true,
+  role: 'admin',
+  user_role: 'admin',
+  roles: ['admin'],
+  claims_admin: true,
+};
+
 // user_metadata is writable by the user it belongs to, so a policy that trusts
 // a claim from it hands every user admin over everyone else's rows. Neither
 // fixture user has metadata by default, which makes such a policy look correct.
@@ -280,32 +303,74 @@ export async function checkMetadataEscalation(
 ): Promise<CheckResult> {
   const name =
     'a user cannot widen their own access by editing their user metadata';
-  const update = await f.clientB.auth.updateUser({ data: { admin: true } });
+  const update = await f.clientB.auth.updateUser({ data: ESCALATION_CLAIMS });
   if (update.error) {
     return { name, passed: false, notes: describeError(update.error) };
   }
 
-  await f.clientB.auth.refreshSession();
-  const read = await f.clientB.from('todos').select('title');
-  const titles = titlesOf(read.data);
-  const leaked = titles.filter((title) => title !== f.todoB);
+  const refresh = await f.clientB.auth.refreshSession();
+  const token = refresh.data.session?.access_token;
+  const carried = token ? metadataOf(token) : undefined;
+  if (refresh.error || carried?.admin !== true) {
+    return {
+      name,
+      passed: false,
+      notes: refresh.error
+        ? `session refresh failed: ${describeError(refresh.error)}`
+        : 'the self-assigned claims never reached the access token',
+    };
+  }
+
+  const todos = await f.clientB.from('todos').select('title');
+  const lists = await f.clientB.from('lists').select('name');
+  const items = await f.clientB.from('list_items').select('title');
+  const members = await f.clientB.from('list_members').select('*');
+
+  const todoTitles = titlesOf(todos.data);
+  // An empty result would otherwise look like a policy that blocked everything.
+  const readWorked = !todos.error && todoTitles.includes(f.todoB);
+  const leaked = [
+    ...todoTitles
+      .filter((title) => title !== f.todoB)
+      .map((t) => `todos: ${t}`),
+    ...namesOf(lists.data).map((n) => `lists: ${n}`),
+    ...titlesOf(items.data).map((t) => `list_items: ${t}`),
+    ...(members.data ?? []).map(() => 'list_members: a membership row'),
+  ];
 
   return {
     name,
-    passed: !read.error && leaked.length === 0,
-    notes: read.error
-      ? describeError(read.error)
-      : leaked.length === 0
+    passed: readWorked && leaked.length === 0,
+    notes: readWorked
+      ? leaked.length === 0
         ? undefined
-        : `self-assigned admin exposed: ${leaked.join(', ')}`,
+        : `self-assigned admin exposed: ${leaked.join(', ')}`
+      : todos.error
+        ? describeError(todos.error)
+        : "the probe could not re-read the user's own todo",
   };
+}
+
+function metadataOf(accessToken: string): Record<string, unknown> | undefined {
+  const payload = accessToken.split('.')[1];
+  if (!payload) return undefined;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    return claims.user_metadata as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function checkSharedListAccess(
   ctx: LocalStackEvalContext,
   f: Fixtures
 ): Promise<CheckResult[]> {
-  const created = `item-created-${randomUUID().slice(0, 8)}`;
+  const run = randomUUID().slice(0, 8);
+  const created = `item-created-${run}`;
+  const createdEdit = `item-created-edit-${run}`;
+  const memberEdited = `item-member-edited-${run}`;
+  const hijacked = `outsider-hijacked-${run}`;
 
   // Member probes run as userC, who is on the list but neither its owner nor
   // the author of any item, so an owner-only or author-only policy set cannot
@@ -319,23 +384,34 @@ export async function checkSharedListAccess(
   const anonItems = await f.anonClient.from('list_items').select('title');
   const anonMembership = await f.anonClient.from('list_members').select('*');
 
-  const memberInsert = await f.clientC
+  const memberInsert = await f.clientC.from('list_items').insert([
+    { list_id: f.listId, author_id: f.userCId, title: created },
+    { list_id: f.listId, author_id: f.userCId, title: createdEdit },
+  ]);
+  const memberUpdate = await f.clientC
     .from('list_items')
-    .insert({ list_id: f.listId, author_id: f.userCId, title: created });
+    .update({ title: memberEdited })
+    .eq('title', createdEdit);
 
-  await f.clientB
+  const outsiderItemUpdate = await f.clientB
     .from('list_items')
-    .update({ title: 'outsider-hijacked' })
+    .update({ title: hijacked })
     .eq('title', f.listItem);
-  await f.clientB.from('list_items').delete().eq('title', f.listItem);
-  await f.clientB
+  const outsiderItemDelete = await f.clientB
+    .from('list_items')
+    .delete()
+    .eq('title', f.listItem);
+  const outsiderListUpdate = await f.clientB
     .from('lists')
-    .update({ name: 'outsider-hijacked' })
+    .update({ name: hijacked })
     .eq('id', f.listId);
 
   const { rows } = await ctx.query(stripIndent`
     SELECT title FROM list_items
-    WHERE title IN ('${created}', '${f.listItem}', 'outsider-hijacked')
+    WHERE title IN (
+      '${created}', '${createdEdit}', '${memberEdited}', '${f.listItem}',
+      '${hijacked}'
+    )
   `);
   const { rows: listRows } = await ctx.query(stripIndent`
     SELECT name FROM lists WHERE id = '${f.listId}'
@@ -353,6 +429,10 @@ export async function checkSharedListAccess(
     anonItems.error,
     anonMembership.error,
     memberInsert.error,
+    memberUpdate.error,
+    outsiderItemUpdate.error,
+    outsiderItemDelete.error,
+    outsiderListUpdate.error,
   ].filter((error) => error?.code === RECURSION);
 
   return [
@@ -382,10 +462,20 @@ export async function checkSharedListAccess(
           : 'insert reported success but no row was written',
     },
     {
-      name: 'a non-member cannot modify or delete a list item',
+      name: 'a member who does not own the list edits an item and the row changes',
       passed:
-        itemTitles.includes(f.listItem) &&
-        !itemTitles.includes('outsider-hijacked'),
+        !memberUpdate.error &&
+        itemTitles.includes(memberEdited) &&
+        !itemTitles.includes(createdEdit),
+      notes: memberUpdate.error
+        ? describeError(memberUpdate.error)
+        : itemTitles.includes(memberEdited)
+          ? undefined
+          : 'update raised nothing but the row was never changed',
+    },
+    {
+      name: 'a non-member cannot modify or delete a list item',
+      passed: itemTitles.includes(f.listItem) && !itemTitles.includes(hijacked),
       notes: itemTitles.includes(f.listItem)
         ? undefined
         : "the outsider's write removed or renamed the seeded item",
@@ -522,6 +612,7 @@ type FeedWriteAttempt = {
   rowSurvived: boolean;
   rowUnchanged: boolean;
   nothingInjected: boolean;
+  restoreError: string;
 };
 
 // Each role's attempt is scored against its own snapshot, and the seeded
@@ -550,13 +641,13 @@ async function attemptFeedWrites(
   `);
   const seeded = rows.find((row) => row.id === f.readingId);
 
-  await execSql(
+  const restore = await execSql(
     ctx,
     stripIndent`
-      DELETE FROM weather_readings WHERE conditions = '${marker}';
+      DELETE FROM weather_readings
+        WHERE conditions = '${marker}' OR id = '${f.readingId}';
       INSERT INTO weather_readings (id, station_id, temp_c, conditions)
-        VALUES ('${f.readingId}', '${f.stationId}', 12.5, 'seeded')
-        ON CONFLICT (id) DO UPDATE SET temp_c = 12.5, conditions = 'seeded';
+        VALUES ('${f.readingId}', '${f.stationId}', 12.5, 'seeded');
     `
   );
 
@@ -565,6 +656,7 @@ async function attemptFeedWrites(
     rowSurvived: Boolean(seeded),
     rowUnchanged: seeded?.conditions === 'seeded',
     nothingInjected: !rows.some((row) => row.conditions === marker),
+    restoreError: restore.ok ? '' : restore.message,
   };
 }
 
@@ -585,14 +677,17 @@ function describeFeedWrites(attempt: FeedWriteAttempt): string {
     attempt.rowSurvived ? 'reading survived delete' : 'reading was deleted',
     attempt.rowUnchanged ? 'reading unchanged' : 'reading was updated',
     attempt.nothingInjected ? 'no row injected' : 'a row was injected',
-  ].join('; ');
+    attempt.restoreError ? `restore failed: ${attempt.restoreError}` : null,
+  ]
+    .filter(Boolean)
+    .join('; ');
 }
 
 /** Runs non-SELECT SQL against the local stack database as the superuser. */
 export async function execSql(
   ctx: LocalStackEvalContext,
   sql: string
-): Promise<void> {
+): Promise<{ ok: boolean; message: string }> {
   const encoded = Buffer.from(sql, 'utf8').toString('base64');
   const result = await ctx.exec(
     stripIndent`
@@ -601,9 +696,10 @@ export async function execSql(
     `
   );
 
-  if (!result.ok) {
-    throw new Error(`SQL execution failed: ${result.stderr || result.stdout}`);
-  }
+  return {
+    ok: result.ok,
+    message: result.ok ? '' : result.stderr || result.stdout,
+  };
 }
 
 function titlesOf(data: unknown): string[] {

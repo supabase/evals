@@ -78,7 +78,15 @@ export async function loadTableState(
       c.reloptions
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm')
+    WHERE n.nspname = 'public'
+      AND c.relkind IN ('r', 'p', 'v', 'm')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM pg_depend d
+        WHERE d.classid = 'pg_class'::regclass
+          AND d.objid = c.oid
+          AND d.deptype = 'e'
+      )
   `);
   return rows as TableState[];
 }
@@ -119,8 +127,8 @@ export async function loadCandidateFunctions(
   );
 }
 
-// Ranges over the exposed schema rather than the seeded names, so a table the
-// agent adds is measured too. SEEDED_TABLES is only the must-exist list.
+// Ranges over `public` rather than the seeded names, so a table the agent adds
+// is measured too. SEEDED_TABLES is only the must-exist list.
 export function checkRlsEnabled(tables: TableState[]): CheckResult {
   const absent = SEEDED_TABLES.filter(
     (name) => !tables.some((t) => t.relname === name)
@@ -131,7 +139,7 @@ export function checkRlsEnabled(tables: TableState[]): CheckResult {
     .map((t) => t.relname);
 
   return {
-    name: 'row level security is enabled on every table in the exposed schema',
+    name: 'row level security is enabled on every table in the public schema',
     passed: absent.length === 0 && unprotected.length === 0,
     notes:
       absent.length === 0 && unprotected.length === 0
@@ -152,18 +160,18 @@ export function checkRlsEnabled(tables: TableState[]): CheckResult {
 // A view runs as its owner unless security_invoker is set, so a view over a
 // protected table hands out everything the policies were meant to withhold.
 export function checkViewsRunAsInvoker(tables: TableState[]): CheckResult {
-  const views = tables.filter((t) => t.relkind === 'v' || t.relkind === 'm');
+  const views = tables.filter((t) => t.relkind === 'v');
   const leaky = views
     .filter(
       (t) =>
         !(t.reloptions ?? []).some((option) =>
-          /^security_invoker\s*=\s*(true|on)$/i.test(option)
+          /^security_invoker\s*=\s*(true|on|yes|1)$/i.test(option)
         )
     )
     .map((t) => t.relname);
 
   return {
-    name: 'any view in the exposed schema runs as the invoker',
+    name: 'any view in the public schema runs as the invoker',
     passed: leaky.length === 0,
     notes:
       views.length === 0
@@ -332,8 +340,8 @@ const WEATHER_TABLES = new Set(['weather_stations', 'weather_readings']);
 
 type GrantRow = { table_name: string; rolname: string; priv: string };
 
-// Ranges over the exposed schema so an extra table the agent leaves behind is
-// measured too, rather than only the seeded names.
+// Ranges over `public` so an extra table the agent leaves behind is measured
+// too, rather than only the seeded names.
 export async function checkGrants(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult[]> {
@@ -342,9 +350,9 @@ export async function checkGrants(
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     CROSS JOIN (VALUES ('anon'), ('authenticated')) AS r(rolname)
-    CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('DELETE')) AS p(priv)
+    CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE')) AS p(priv)
     WHERE n.nspname = 'public'
-      AND c.relkind IN ('r', 'p', 'v', 'm')
+      AND c.relkind IN ('r', 'p')
       AND has_table_privilege(r.rolname, c.oid, p.priv)
   `);
   const granted = rows as GrantRow[];
@@ -356,7 +364,7 @@ export async function checkGrants(
 
   return [
     {
-      name: 'anon holds no write grant anywhere in the exposed schema',
+      name: 'anon holds no write grant anywhere in the public schema',
       passed: anonWrites.length === 0,
       notes:
         anonWrites.length === 0

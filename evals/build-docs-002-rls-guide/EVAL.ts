@@ -27,9 +27,9 @@ import {
   setupFixtures,
 } from './access.js';
 import {
-  checkPgTapSuitePasses,
   checkTestCoverage,
   checkTestFilesExist,
+  runPgTapSuite,
 } from './tests.js';
 
 const GUIDE_PATH = 'guides/database/postgres/row-level-security';
@@ -43,10 +43,25 @@ const scorer: LocalStackScorer = async (ctx) => {
     const functions = await loadCandidateFunctions(ctx);
 
     const setup = await setupFixtures(ctx);
-    if ('failure' in setup) {
-      return { passed: false, checks: [setup.failure] };
-    }
-    const fixtures = setup.fixtures;
+    const access: CheckResult[] =
+      'failure' in setup
+        ? [setup.failure]
+        : [
+            ...(await checkTodoVisibility(setup.fixtures)),
+            ...(await checkTodoWrites(ctx, setup.fixtures)),
+            ...(await checkSharedListAccess(ctx, setup.fixtures)),
+            ...(await checkWeatherFeed(ctx, setup.fixtures)),
+            // Last: it rewrites clientB's metadata, so every other clientB
+            // probe has to have run already.
+            await checkMetadataEscalation(setup.fixtures),
+          ];
+
+    const grants = await checkGrants(ctx);
+    const indexes = await checkPolicyColumnsIndexed(ctx);
+    const testFiles = await checkTestFilesExist(ctx);
+    // Run the suite last: it leaves rows and objects behind that the other
+    // checks would see.
+    const suite = await runPgTapSuite(ctx);
 
     const checks: CheckResult[] = [
       checkRlsEnabled(tables),
@@ -54,20 +69,14 @@ const scorer: LocalStackScorer = async (ctx) => {
       checkPoliciesScopedToRole(policies),
       checkOnePolicyPerOperation(policies),
       checkUpdatePoliciesHaveBothClauses(policies),
-      ...(await checkGrants(ctx)),
-      ...(await checkTodoVisibility(fixtures)),
-      ...(await checkTodoWrites(ctx, fixtures)),
-      ...(await checkSharedListAccess(ctx, fixtures)),
-      ...(await checkWeatherFeed(ctx, fixtures)),
-      // Last: it rewrites clientB's metadata, so every other clientB probe has
-      // to have run already.
-      await checkMetadataEscalation(fixtures),
+      ...grants,
+      ...access,
       checkAuthCallsWrapped(policies),
-      await checkPolicyColumnsIndexed(ctx),
+      indexes,
       checkSecurityDefinersAreSafe(functions),
-      await checkTestFilesExist(ctx),
-      await checkPgTapSuitePasses(ctx),
-      await checkTestCoverage(ctx),
+      testFiles,
+      suite.check,
+      await checkTestCoverage(ctx, suite.assertions),
       checkGuideWasRead(ctx),
     ];
 

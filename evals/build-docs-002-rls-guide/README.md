@@ -20,6 +20,8 @@ Two separate apps, so one access pattern cannot be applied to everything.
 
 `using (true)` is correct on the weather feed and catastrophic on todos. The feed is also the only place `anon` has to be granted something deliberately, which is what makes "anon sees nothing" on the other tables mean something.
 
+Those six are what the migration seeds and what the probes drive. They are not the limit of what the scorer measures. The RLS, view and grant checks range over everything in `public`, minus what an extension owns, so a view or a table the agent adds is measured as well. A view over `todos` without `security_invoker` hands out every row the policies withhold, and it is not one of the six.
+
 `list_members` is the pressure point, because a policy on it that checks membership against itself raises `42P17`. Membership has more than one safe implementation, so the scorer proves the outcome through the access probes rather than requiring a design.
 
 The probes use three users. The list owner, an outsider, and a member who neither owns the list nor authored anything on it. That third user is what separates real sharing from owner-only and author-only policies, which otherwise satisfy every shared-list check while sharing is broken.
@@ -29,3 +31,5 @@ Nothing in the migration says who may read or write what.
 ## The prompt never asks for tests
 
 Whether the agent arrives at pgTAP is itself a measurement. If agents do not write tests here, that says something about how reachable testing is from the guide.
+
+Coverage is read off the TAP stream, not the test files. A seeded table counts as covered when it is named by an assertion that ran and passed, which is either the description the agent wrote or the one pgTAP generates for assertions like `policies_are`. Scanning the file text instead lets a comment or an unused scratch table stand in for a test.

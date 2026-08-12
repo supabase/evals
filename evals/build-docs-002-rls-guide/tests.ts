@@ -4,18 +4,17 @@ import {
   type LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { SEEDED_TABLES } from './catalog.js';
 
 /** Allow + deny for four operations across two roles is eight assertions. */
 const MIN_PGTAP_TESTS = 8;
 
-const REQUIRED_TABLES = [
-  'todos',
-  'lists',
-  'list_members',
-  'list_items',
-  'weather_stations',
-  'weather_readings',
-];
+const PASSING_ASSERTION = /^\s*ok\s+\d+\s*-?\s*(.*)$/i;
+
+export type PgTapRun = {
+  check: CheckResult;
+  assertions: string[];
+};
 
 export async function checkTestFilesExist(
   ctx: LocalStackEvalContext
@@ -34,10 +33,11 @@ export async function checkTestFilesExist(
 // The counts alone are not enough: a suite whose plan does not match the
 // assertions it ran reports `Tests: 6 Failed: 0` and still exits non-zero with
 // `Result: FAIL`, so the exit status is what decides.
-export async function checkPgTapSuitePasses(
+export async function runPgTapSuite(
   ctx: LocalStackEvalContext
-): Promise<CheckResult> {
-  const result = await ctx.exec('supabase test db 2>&1', {
+): Promise<PgTapRun> {
+  // Without --debug, the test results the coverage check reads never reach us.
+  const result = await ctx.exec('supabase test db --debug', {
     timeoutMs: 180_000,
   });
   const output = result.stdout + result.stderr;
@@ -48,17 +48,27 @@ export async function checkPgTapSuitePasses(
   const failed = failedMatch ? parseInt(failedMatch[1], 10) : 0;
   const ran = total > 0;
 
+  const assertions = result.stdout
+    .split('\n')
+    .filter((line) => !/#\s*(skip|todo)\b/i.test(line))
+    .map((line) => line.match(PASSING_ASSERTION)?.[1]?.trim())
+    .filter((description): description is string => description !== undefined);
+
   return {
-    name: `supabase test db runs at least ${MIN_PGTAP_TESTS} assertions and all pass`,
-    passed: result.ok && ran && failed === 0 && total >= MIN_PGTAP_TESTS,
-    notes: ran
-      ? `${total - failed} passed, ${failed} failed, exit ${result.exitCode}`
-      : `no test summary found; exit ${result.exitCode}; output: ${output.slice(0, 500)}`,
+    check: {
+      name: `supabase test db runs at least ${MIN_PGTAP_TESTS} assertions and all pass`,
+      passed: result.ok && ran && failed === 0 && total >= MIN_PGTAP_TESTS,
+      notes: ran
+        ? `${total - failed} passed, ${failed} failed, exit ${result.exitCode}`
+        : `no test summary found; exit ${result.exitCode}; output: ${output.slice(0, 500)}`,
+    },
+    assertions,
   };
 }
 
 export async function checkTestCoverage(
-  ctx: LocalStackEvalContext
+  ctx: LocalStackEvalContext,
+  assertions: string[]
 ): Promise<CheckResult> {
   const name =
     'tests assert allow and deny per operation on the seeded tables, for anon and authenticated';
@@ -67,26 +77,24 @@ export async function checkTestCoverage(
     return { name, passed: false, notes: 'no test files to review' };
   }
 
-  const sources = await Promise.all(
-    files.map(async (file) => `-- ${file}\n${await ctx.readFile(file)}`)
-  );
-
-  // Every seeded table has to be named by real SQL. Comments and single-quoted
-  // literals are stripped first, so neither a header nor an assertion
-  // description like ok(true, 'covers todos and lists') can stand in for
-  // testing. Dollar-quoted blocks survive, since that is where pgTAP carries
-  // the queries under test.
-  const corpus = stripNonSql(sources.join('\n\n')).toLowerCase();
-  const untested = REQUIRED_TABLES.filter(
-    (table) => !new RegExp(`\\b${table}\\b`).test(corpus)
+  const reported = assertions.join('\n').toLowerCase();
+  const untested = SEEDED_TABLES.filter(
+    (table) => !new RegExp(`\\b${table}\\b`).test(reported)
   );
   if (untested.length > 0) {
     return {
       name,
       passed: false,
-      notes: `tests never reference: ${untested.join(', ')}`,
+      notes:
+        assertions.length === 0
+          ? 'no passing assertions were reported'
+          : `no passing assertion names: ${untested.join(', ')}`,
     };
   }
+
+  const sources = await Promise.all(
+    files.map(async (file) => `-- ${file}\n${await ctx.readFile(file)}`)
+  );
 
   const verdict = await judge({
     input: sources.join('\n\n'),
@@ -129,13 +137,6 @@ export async function checkTestCoverage(
   });
 
   return { name, passed: verdict.passed, judgeNotes: verdict.notes };
-}
-
-function stripNonSql(sql: string): string {
-  return sql
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\n]*/g, ' ')
-    .replace(/'(?:[^']|'')*'/g, ' ');
 }
 
 export async function listTestFiles(
