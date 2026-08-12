@@ -60,6 +60,236 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "any view in the public schema runs as the invoker",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": false,
+        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings"
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": false,
+        "notes": "still granted: anon insert on weather_stations, authenticated insert on weather_stations, anon update on weather_stations, authenticated update on weather_stations, anon delete on weather_stations, authenticated delete on weather_stations, anon truncate on weather_stations, authenticated truncate on weather_stations, anon insert on weather_readings, authenticated insert on weather_readings, anon update on weather_readings, authenticated update on weather_readings, anon delete on weather_readings, authenticated delete on weather_readings, anon truncate on weather_readings, authenticated truncate on weather_readings"
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-cca3f525, todo-a-edit-cca3f525, todo-a-delete-cca3f525"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-cca3f525"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-cca3f525"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-cca3f525"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: 0 rows; items: 0 rows"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": true
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": true,
+        "notes": "verified private.is_list_member"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nopen supabase/.temp/profile: no such file or directory\nSupabase CLI 2.67.1\nUsing profile: supabase (supabase.co)\nConnecting to local database...\n2026/08/12 19:32:25 PG Send: {\"Type\":\"StartupMessage\",\"ProtocolVersion\":196608,\"Parameters\":{\"database\":\"postgres\",\"user\":\"postgres\"}}\n2026/08/12 19:32:25 PG Recv: {\"Type\":\"AuthenticationSASL\",\"AuthMechanisms\":[\"SCRAM-SHA-256\"]}\n2026/08/12 19:32:25 PG Send: {\"Type\":\""
+      },
+      {
+        "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the full guide on Row Level Security in Supabase/Postgres: how to enable RLS, how to write policies (SELECT/INSERT/UPDATE/DELETE), using auth.uid(), performance recommendations (indexes, wrapping functions in SELECT, specifying roles, minimizing joins, using security definer functions), policies for public/anon access, and any best practice patterns for multi-tenant/shared-ownership schemas. Include exact syntax examples given in the guide.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ],
+          "resultChars": 7556
+        }
+      ]
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/build-docs-002-rls-guide/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "claude-code-sonnet-5/build-docs-002-rls-guide.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "build-functions-006-dual-auth-with-server",
     "stage": "build",
     "product": [
