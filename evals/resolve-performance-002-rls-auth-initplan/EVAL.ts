@@ -185,7 +185,9 @@ async function checkSelectPolicyUsesInitplan(
   return {
     name: 'SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)',
     passed: wrapsAuthInSubquery,
-    notes: quals.length ? quals.join(' | ') : 'no SELECT policy found on documents',
+    notes: quals.length
+      ? quals.join(' | ')
+      : 'no SELECT policy found on documents',
   };
 }
 
