@@ -1685,17 +1685,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified video-thumbnails as the affected function and correctly described failures as HTTP 546 due to CPU/resource limit, not 500/503. Also treated welcome-email 500 as unrelated."
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly described failures as HTTP 546 due to CPU/resource limit, while treating `welcome-email` 500 as unrelated."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms) → status 546`, and distinguishes it from application exceptions and unrelated welcome-email error."
+        "judgeNotes": "The assistant specifically attributes the HTTP 546 failures to CPU time exhaustion, citing log evidence: shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms/2000ms. It does not blame memory, wall-clock time, code exceptions, or the unrelated welcome-email error."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified fixed CPU limits and recommended reducing/offloading CPU-intensive thumbnail/video work: moving transcoding off Edge Functions to a container/managed service, using Edge only as a thin trigger/enqueue, and doing less CPU work via keyframe seeking, downscaling, and capping input resolution."
+        "judgeNotes": "The assistant recommends reducing/offloading CPU-intensive thumbnail work: moving decode off the isolate to a media service/transform API, cheaper extraction, capping input size, and notes retries/scaling won't help because CPU time is fixed."
       }
     ],
     "skills": {
@@ -1708,7 +1708,83 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "How to debug Edge Function failures: what log sources/tables exist (edge_logs, function_edge_logs, function_logs), how to query them, and what common causes of intermittent edge function errors (timeouts, memory limits, CPU limits, WORKER_LIMIT, boot errors) look like in logs.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 786
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function shutdown reason CPUTime cpu_time_limit 546 error\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
+              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
+              "title": "Edge Function shutdown reasons explained"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/status-codes",
+              "title": "Status codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-504-error-response",
+              "title": "Edge Function 504 error response"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-codes",
+              "title": "Error codes"
+            }
+          ],
+          "resultChars": 48463
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge functions CPU time limit wall clock limits quotas\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/compute-and-disk",
+              "title": "Compute and Disk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/billing-faq",
+              "title": "Billing FAQ"
+            }
+          ],
+          "resultChars": 56359
+        }
+      ]
     },
     "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
     "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
@@ -1974,7 +2050,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"1e68be31-9c10-453c-bdd3-7f41cce56a06\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"1df0ce54-ee29-48ef-ad23-a414658d4581\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -1983,7 +2059,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "Diagnosed the missing USING clause on the UPDATE RLS policy as the cause of silent 0-row updates and fixed it with an authenticated, owner-scoped USING clause while preserving the WITH CHECK clause."
+        "judgeNotes": "Diagnoses missing USING clause on the tasks UPDATE RLS policy as the cause of silent 0-row updates, explains WITH CHECK vs USING, and fixes by recreating the authenticated UPDATE policy with user_id/auth.uid() in both USING and WITH CHECK while keeping RLS/security boundaries intact."
       }
     ],
     "skills": {
@@ -2138,6 +2214,70 @@
       "modelId": "claude-opus-5",
       "reasoningEffort": "high"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(user_id = ( SELECT auth.uid() AS uid))"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "Diagnosed the RLS policy's per-row auth.uid()/current_setting evaluation, fixed it with (select auth.uid()) in owner-scoped policies, kept RLS semantics and authenticated-only access. Extra index/analyze changes do not invalidate the required fix."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "claude-code-opus-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -2247,7 +2387,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a3-7999-762c-b233-65b63fa8c212/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ef-8f84-7599-a509-e05c95a370b6/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -2256,7 +2396,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "Diagnoses missing UPDATE policy for storage.objects upsert, explains public bucket only covers reads, adds authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and keeps public read/RLS intact."
+        "judgeNotes": "Diagnoses missing UPDATE RLS policy for storage.objects during upsert replacement, notes public bucket only covers SELECT/download, keeps public read/RLS intact, and adds an authenticated owner-scoped UPDATE policy with both USING and WITH CHECK."
       }
     ],
     "skills": {
@@ -3951,17 +4091,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified video-thumbnails as the affected function and correctly described failures as HTTP 546 CPUTime/resource-limit responses, distinct from the unrelated welcome-email 500."
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly characterized failures as HTTP 546/resource limit CPU-time shutdowns, not 500/503 errors. Also treated `welcome-email` 500 as unrelated."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` and explaining the CPU ceiling. It does not blame memory, wall-clock time, code exceptions, or the unrelated welcome-email error."
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing log evidence: `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`, and distinguishes it from exceptions, wall time, memory, and the unrelated welcome-email error."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant clearly recommends the real fix as getting the heavy CPU-intensive video thumbnail work out of the Edge Function via a queue/background worker, external service, or container/Lambda worker, and also mentions optimizing to reduce CPU below the limit. Although it includes retry as a stopgap, it explicitly labels it a band-aid and not the real fix."
+        "judgeNotes": "Recommended offloading CPU-intensive video decoding/thumbnailing to a container or media service, making it async via queue/worker, client-side generation, and reducing in-function CPU by using cheaper thumbnail extraction."
       }
     ],
     "skills": {
@@ -3969,40 +4109,7 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge function CPU time limit 546 shutdown worker reuse\", limit: 6) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/functions/limits",
-              "title": "Limits"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
-              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
-              "title": "Edge Functions worker timeouts and WebSocket drops"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
-              "title": "Understanding Edge Function CPU limits"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/status-codes",
-              "title": "Status codes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
-              "title": "Edge Function shutdown reasons explained"
-            }
-          ],
-          "resultChars": 35698
-        }
-      ]
+      "calls": []
     },
     "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
     "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
@@ -4213,7 +4320,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"4db69cab-5ef7-4a52-9b97-4949864d3ff3\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"6a99b1c7-9f21-49f4-9cd2-92bf4c62d0db\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -4222,7 +4329,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "The answer correctly identifies the missing USING clause on the UPDATE RLS policy as the cause of silent zero-row updates, explains USING vs WITH CHECK semantics, and fixes the policy for authenticated users with USING (user_id = auth.uid()) while retaining WITH CHECK (user_id = auth.uid()). It keeps RLS intact and verifies owner-only updates and prevention of reassignment."
+        "judgeNotes": "The assistant correctly identifies the missing USING clause on the UPDATE policy as the cause of silent zero-row updates, explains USING vs WITH CHECK, and fixes it with an authenticated policy scoped to user_id = auth.uid() while retaining WITH CHECK and RLS."
       }
     ],
     "skills": {
@@ -4230,32 +4337,7 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"UPDATE policy requires USING and WITH CHECK row level security\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
-              "title": "RLS Simplified"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            }
-          ],
-          "resultChars": 66067
-        }
-      ]
+      "calls": []
     },
     "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
@@ -4386,6 +4468,65 @@
       "modelId": "claude-opus-5",
       "reasoningEffort": "high"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(user_id = ( SELECT auth.uid() AS uid))"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "Identified auth.uid() being evaluated per row in the RLS predicate, fixed policies by wrapping auth.uid() in a scalar subquery so it becomes an InitPlan evaluated once, and preserved row-owner scoping/RLS semantics."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-opus-5-no-skills/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "claude-code-opus-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -4490,7 +4631,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a2-1b6f-773a-8f4c-b7df2fdbdd0e/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ee-1a1e-7609-bbc0-7c5c40be6d74/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -4499,7 +4640,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacements, explained public bucket only affects reads, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and kept public read/RLS intact."
+        "judgeNotes": "Diagnoses missing UPDATE RLS policy for upsert replacement, explains public bucket only covers read/download, keeps bucket public/RLS enabled, and adds an authenticated owner-scoped UPDATE policy with USING and WITH CHECK."
       }
     ],
     "skills": {
@@ -6076,17 +6217,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly characterized failures as HTTP 546 resource/CPUTime limit shutdowns rather than 500/503 server errors."
+        "judgeNotes": "Identified video-thumbnails as affected and correctly characterized failures as HTTP 546 resource/CPU limit shutdowns, not 500/503 server errors."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing shutdown reason CPUTime and cpu_time_used 2000ms / cpu_time_limit 2000ms. It does not blame memory, wall-clock time, code exceptions, or the welcome-email error."
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing log evidence: shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms. It does not blame memory, wall-clock time, exceptions, or unrelated errors."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant recommended reducing CPU-intensive thumbnail work and moving heavy video processing off the edge-function request path/background worker, which matches the required fix. It also mentioned awaiting/waitUntil, but included valid CPU-reduction/offloading recommendations."
+        "judgeNotes": "The assistant clearly identifies CPUTime limit and recommends reducing CPU cost of thumbnail generation and moving transcoding to a background worker/external CPU-budgeted service, with enqueueing from the Edge Function. This matches the required fix and does not suggest raising limits as the solution."
       }
     ],
     "skills": {
@@ -6099,7 +6240,30 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize how to debug edge function errors using logs, especially intermittent failures.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 1186
+        },
+        {
+          "source": "web_fetch",
+          "query": "What does a 546 status code and \"shutdown (reason: CPUTime, cpu_time_used, cpu_time_limit)\" message mean for edge functions? What are the CPU time limits and how can this be fixed?",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits.md"
+            }
+          ],
+          "resultChars": 1094
+        }
+      ]
     },
     "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
     "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
@@ -6325,7 +6489,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"12005797-b5e2-405a-8674-141c63259218\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"7bb872a2-4722-4b8c-a5be-14ee4bd4571d\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -6334,7 +6498,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed the missing UPDATE USING clause, explained the zero-row behavior, and fixed the authenticated tasks policy with owner-scoped USING plus retained owner-scoped WITH CHECK while keeping RLS intact."
+        "judgeNotes": "The assistant correctly identified the missing USING clause on the UPDATE RLS policy as the cause of silent 0-row updates, explained USING vs WITH CHECK, and fixed the tasks policy for authenticated users with USING auth.uid() = user_id while keeping WITH CHECK auth.uid() = user_id and RLS enabled."
       }
     ],
     "skills": {
@@ -6342,13 +6506,15 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase"
+      ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"RLS policy UPDATE USING WITH CHECK default missing\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"row level security policy USING clause default WITH CHECK UPDATE\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -6364,15 +6530,15 @@
               "title": "RLS Simplified"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
-              "title": "Build a User Management App with Ionic React"
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0002_auth_users_exposed",
+              "title": "Database Advisor: Lint 0002_auth_users_exposed"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/enterprise-sso/auth-sso-saml",
-              "title": "Single Sign-On with SAML 2.0 for Projects"
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0024_permissive_rls_policy",
+              "title": "Database Advisor: Lint 0024_permissive_rls_policy"
             }
           ],
-          "resultChars": 107724
+          "resultChars": 62534
         }
       ]
     },
@@ -6516,6 +6682,71 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(user_id = ( SELECT auth.uid() AS uid))"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "The answer identifies the RLS auth.uid()/current_setting predicate as the scaling issue, fixes policies by wrapping auth.uid() in a scalar subquery so it becomes an InitPlan evaluated once per query, keeps owner scoping with user_id equality, and keeps RLS/policies for authenticated users rather than widening access."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -6625,7 +6856,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a1-fcc8-74be-89c9-028b33d3bfd9/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ed-eaf5-761a-9cbb-62fa4f7ff340/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -6634,7 +6865,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, explained public bucket only affects reads implicitly by keeping public SELECT, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and did not weaken public-read setup or disable RLS."
+        "judgeNotes": "Diagnosed missing storage.objects UPDATE policy for avatar upsert replacement, explained public bucket only covers read/download, and added an authenticated owner-scoped UPDATE policy with USING and WITH CHECK while keeping public read/RLS intact."
       }
     ],
     "skills": {
@@ -7768,17 +7999,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified `video-thumbnails` as affected and correctly characterized failures as HTTP 546 `WORKER_RESOURCE_LIMIT`/CPUTime resource limit, while noting unrelated `welcome-email` 500 separately."
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly described failures as HTTP 546 WORKER_RESOURCE_LIMIT/CPUTime resource-limit responses, while noting the welcome-email 500 as unrelated."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "Assistant specifically attributes the 546 failures to CPU time exhaustion, citing log evidence: `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`. It distinguishes this from application errors and the unrelated welcome-email error."
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing log evidence including shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms. It distinguishes this from wall-clock/network timeout and notes the welcome-email error is unrelated."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant clearly identifies the CPU limit and recommends reducing/offloading CPU-intensive thumbnail work: moving processing to a background worker/external service, downscaling/downsampling, using a lighter decode path, and reducing output resolution/quality. It does not rely on raising limits or timeouts."
+        "judgeNotes": "The assistant correctly identifies CPUTime shutdown as the cause and recommends reducing/offloading CPU-intensive thumbnail work: optimizing decode/seek/downscale, moving heavy video processing to background workers or external services, and capping input size. Although it also mentions retry logic, it is not the only recommendation and the primary fix reduces/offloads CPU usage."
       }
     ],
     "skills": {
@@ -7789,12 +8020,16 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge function CPU time limit exceeded shutdown reason\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"edge function CPU time limit exceeded shutdown\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
-              "title": "Edge Function shutdown reasons explained"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
             },
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
@@ -7805,15 +8040,11 @@
               "title": "Status codes"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
-              "title": "Understanding Edge Function CPU limits"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
-              "title": "Edge Functions worker timeouts and WebSocket drops"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
+              "title": "Edge Function shutdown reasons explained"
             }
           ],
-          "resultChars": 33536
+          "resultChars": 31353
         }
       ]
     },
@@ -8055,7 +8286,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"44fb2e66-c4a7-4d7b-8d63-4d9d6e88c1e8\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"dc442e02-31fa-4fc8-b8f7-3679b7f03176\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -8064,7 +8295,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed the missing USING clause on the UPDATE RLS policy, explained why it caused silent 0-row updates, and fixed it with USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()), authenticated/user ownership scoping, and RLS enforcement."
+        "judgeNotes": "Diagnosed missing UPDATE USING clause, fixed policy with USING (user_id = auth.uid()) and retained WITH CHECK for authenticated users without disabling RLS."
       }
     ],
     "skills": {
@@ -8072,7 +8303,36 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"row level security policy UPDATE USING WITH CHECK default missing\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
+              "title": "RLS Simplified"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
+              "title": "Build a User Management App with Ionic React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/enterprise-sso/auth-sso-saml",
+              "title": "Single Sign-On with SAML 2.0 for Projects"
+            }
+          ],
+          "resultChars": 107724
+        }
+      ]
     },
     "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
@@ -8203,6 +8463,86 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(( SELECT auth.uid() AS uid) = user_id)"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified per-row auth.uid() evaluation in RLS as the cause, fixed policies by wrapping auth.uid() in a scalar subquery to create an InitPlan, preserved owner scoping and authenticated role, and kept RLS/security intact."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"RLS performance auth.uid() wrap select initplan\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv",
+              "title": "RLS Performance and Best Practices"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
+              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
+            }
+          ],
+          "resultChars": 41842
+        }
+      ]
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -8307,7 +8647,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a1-dbb4-7718-b3fa-8482b0426784/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ed-975e-738b-9b80-de4fd834abcf/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -8316,7 +8656,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "Diagnoses missing UPDATE RLS policy for upsert replacement, explains public bucket only covers read URL implicitly via SELECT/public read, adds authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and does not weaken public-read setup or disable RLS."
+        "judgeNotes": "Diagnosed missing storage.objects UPDATE policy for upsert replacements, noted public bucket only affects reads, and added authenticated owner-scoped UPDATE policy with USING and WITH CHECK while keeping public read/RLS intact."
       }
     ],
     "skills": {
@@ -10731,17 +11071,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified video-thumbnails as affected and stated failures return status 546 due to CPU/resource limit, while noting welcome-email 500 was unrelated."
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly recognized the failures as HTTP 546 resource-limit/CPU limit responses, not 500s or 503s."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "Assistant specifically attributes 546 failures to CPUTime CPU budget exhaustion and cites log evidence: shutdown reason CPUTime plus cpu_time_used 2000ms at cpu_time_limit 2000ms. It does not blame memory, wall-clock, code exception, or the unrelated welcome-email error."
+        "judgeNotes": "The assistant specifically attributed the 546 failures to CPU time exhaustion, citing the shutdown reason `CPUTime` and `cpu_time_used: 2000ms` / `cpu_time_limit: 2000ms` as log evidence."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "Recommended reducing/offloading CPU-intensive work: make extraction cheaper, downscale/avoid scanning/transcoding, defer large inputs, and move thumbnail generation to a background worker."
+        "judgeNotes": "The assistant correctly identifies CPUTime limit and recommends reducing/offloading CPU-intensive thumbnail generation via asynchronous worker/background job, reducing work per invocation, avoiding full scans, and caching. It does not rely on retrying or increasing limits."
       }
     ],
     "skills": {
@@ -10750,11 +11090,69 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring and debugging edge functions logs\", limit: 5) { nodes { __typename title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/logging",
+              "title": "Logging"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/debugging-tools",
+              "title": "Local Debugging"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/debugging",
+              "title": "Debugging guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/unit-test",
+              "title": "Testing your Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
+              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
+            }
+          ],
+          "resultChars": 43128
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Function 546 CPUTime optimize heavy processing video thumbnail\", limit: 5) { nodes { __typename title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/storing-vectors",
+              "title": "Storing Vectors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/storage-caching",
+              "title": "Integrating with Supabase Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/wasm",
+              "title": "Using Wasm modules"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            }
+          ],
+          "resultChars": 50150
+        }
+      ]
     },
     "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
     "promptSourcePath": "evals/investigate-functions-001-546-resource-limit/PROMPT.md",
@@ -11460,7 +11858,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"3e59ce2d-fca9-4e1c-9868-a7e369ea9c98\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"6e0d06e4-d7b5-4c3f-80aa-ae655c1cd8db\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -11469,7 +11867,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified the missing USING clause on the UPDATE RLS policy as the cause of zero-row updates, kept RLS enabled, recreated the authenticated owner-scoped policy with USING (user_id = auth.uid()) and WITH CHECK (user_id = auth.uid()), and verified it."
+        "judgeNotes": "The assistant correctly identified the UPDATE policy had only WITH CHECK and no USING, explained that UPDATE needs USING to find/qualify the existing row causing silent 0-row updates, and fixed it with a user-owned USING clause while preserving WITH CHECK, scoped to authenticated/user_id with RLS still enabled."
       }
     ],
     "skills": {
@@ -11483,7 +11881,95 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,140p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 7789
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and debugging Supabase RLS update no rows\", limit: 3) { nodes { __typename title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            }
+          ],
+          "resultChars": 64670
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"UPDATE requires SELECT policy RLS Supabase\", limit: 5) { nodes { __typename title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            }
+          ],
+          "resultChars": 71556
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase Postgres RLS empty result no rows\", limit: 5) { nodes { __typename title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx",
+              "title": "Why is my select returning an empty data array and I have data in the table?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/debugging",
+              "title": "Debugging guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0008_rls_enabled_no_policy",
+              "title": "Database Advisor: Lint 0008_rls_enabled_no_policy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            }
+          ],
+          "resultChars": 42939
+        }
+      ]
     },
     "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
@@ -11647,6 +12133,128 @@
       "modelId": "gpt-5.4-mini",
       "reasoningEffort": "medium"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(( SELECT auth.uid() AS uid) = user_id)"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly identified the direct auth.uid() RLS predicate as the bottleneck due to per-row evaluation, changed the policies to ((select auth.uid()) = user_id), verified an InitPlan and index usage, and kept RLS scoped to authenticated row owners."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security performance auth.uid index select policy\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on CLICommandReference { title href content } } totalCount } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
+              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
+            }
+          ],
+          "resultChars": 72267
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging slow query explain analyze missing indexes\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } totalCount } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors",
+              "title": "Performance and Security Advisors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/inspect",
+              "title": "Debugging and monitoring"
+            }
+          ],
+          "resultChars": 74452
+        }
+      ]
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -11786,7 +12394,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a1-f25a-77ec-b47a-0445bb8ed613/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ed-fe38-7411-a832-b4aa09ff87f8/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -11795,7 +12403,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed missing RLS UPDATE policy for storage.objects, explained upsert replacement needs UPDATE beyond INSERT/SELECT and public bucket only affects downloads, added an authenticated owner-scoped UPDATE policy with USING and WITH CHECK using storage.foldername(name)[1] = auth.uid()::text, and kept the bucket public with RLS enabled."
+        "judgeNotes": "The assistant correctly diagnosed missing UPDATE RLS policy for storage.objects during avatar upsert/replacement, noted existing SELECT/INSERT and public bucket, added an authenticated owner-scoped UPDATE policy with USING and WITH CHECK using owner_id = auth.uid()::text, and did not weaken public-read setup or disable RLS."
       }
     ],
     "skills": {
@@ -11812,31 +12420,47 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"storage upsert insert select update bucket policy avatar replace existing file\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "query": "query { searchDocs(query: \"storage upsert requires insert select update policy\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/storage/quickstart",
-              "title": "Storage Quickstart"
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
-              "title": "Storage Buckets"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
-              "title": "Configure S3 Storage"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-cant-i-uploadlistetc-my-public-bucket-Z6CmGt",
-              "title": "Why can't I upload/list/etc my public bucket?"
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
             },
             {
               "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-flutter",
               "title": "Build a User Management App with Flutter"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
             }
           ],
-          "resultChars": 59020
+          "resultChars": 77961
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage update policy owner avatar upsert select update owner_id owner\", limit: 10) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/ownership",
+              "title": "Ownership"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            }
+          ],
+          "resultChars": 6639
         }
       ]
     },
@@ -13480,17 +14104,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified `video-thumbnails` and correctly described failures as status `546` due to CPU/resource limit exhaustion, not 500/503."
+        "judgeNotes": "Identified video-thumbnails as the affected function and correctly stated failures return HTTP 546 due to CPU/resource limit, while noting welcome-email 500 is unrelated."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` and stating it is not an app-level exception."
+        "judgeNotes": "The assistant specifically attributes the 546 shutdowns to CPU time exhaustion, citing log evidence including `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`, and distinguishes it from the unrelated welcome-email error."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant correctly identifies CPU budget exhaustion and recommends moving thumbnail generation off the edge function to a background worker/dedicated job, or reducing work per request with caps/guardrails. This directly addresses reducing/offloading CPU-intensive work rather than increasing limits or retrying."
+        "judgeNotes": "The assistant identified CPU limit shutdowns and recommended moving expensive thumbnail work out of the edge function, reducing per-request work, using smaller/lower-resolution inputs, and making processing async via a background worker. These directly reduce/offload CPU-intensive work."
       }
     ],
     "skills": {
@@ -13709,7 +14333,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"e3bae16b-f91a-4baa-aa3f-b351e2ceb140\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"454d55fa-f3bf-476e-84a5-5c2815fd24dd\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -13718,7 +14342,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "Diagnosed the UPDATE policy missing its USING clause, explained the zero-row RLS behavior, and fixed it with USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()) and the existing authenticated-scoped policy/RLS."
+        "judgeNotes": "Diagnosed the missing USING clause on the authenticated UPDATE policy, kept WITH CHECK scoped to user_id = auth.uid(), left RLS enabled, and applied the correct policy fix."
       }
     ],
     "skills": {
@@ -13857,6 +14481,65 @@
       "modelId": "gpt-5.4-mini",
       "reasoningEffort": "medium"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": false,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": false,
+        "notes": "(user_id = auth.uid())"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": false,
+        "judgeNotes": "The assistant did not identify or fix the per-row auth.uid()/current_setting evaluation in the RLS policy. It instead added a composite/covering index and left the policy as user_id = auth.uid(), so it fails the rubric."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "codex-gpt-5.4-mini-no-skills/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -13961,7 +14644,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a1-be05-730c-949e-9eec04a0f46c/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ed-885e-7640-b495-fabe292580ca/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -13970,7 +14653,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, kept public read/RLS setup, and added authenticated owner-scoped UPDATE policy with USING and WITH CHECK."
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, explained public bucket only covers reads, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and kept public read/RLS setup intact."
       }
     ],
     "skills": {
@@ -16125,17 +16808,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified `video-thumbnails` as affected and correctly described failures as HTTP 546 due to CPU/resource limit, not 500/503."
+        "judgeNotes": "Identified video-thumbnails as the affected function and correctly described failures as HTTP 546 due to CPU/resource limit, not 500/503."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion and grounds it in log evidence: `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`."
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` as log evidence."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "Recommended moving CPU-heavy video decoding/transcoding to an external media service/container worker and short-term optimizations to reduce decoding work (seek to timestamp, decode one frame, cap size/resolution)."
+        "judgeNotes": "The assistant clearly identifies CPU exhaustion and recommends reducing/offloading CPU-intensive thumbnail processing: moving decoding/frame extraction to a worker or external service, optimizing extraction, avoiding full decoding/buffering, and imposing limits. It also correctly says retries won’t help."
       }
     ],
     "skills": {
@@ -16144,15 +16827,14 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Edge Functions CPUTime 546 cpu time limit background processing video ffmpeg\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Edge Functions CPUTime shutdown 546 CPU time limit video processing background tasks\", limit: 8) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -16164,30 +16846,70 @@
               "title": "Background Tasks"
             },
             {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
               "url": "https://supabase.com/docs/guides/getting-started/features",
               "title": "Features"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/wasm",
-              "title": "Using Wasm modules"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-monitoring-resource-usage",
+              "title": "Monitoring Edge Function resource usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
+              "title": "Edge Function shutdown reasons explained"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-takes-too-long-to-respond",
+              "title": "Edge Function takes too long to respond"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/recursive-functions",
               "title": "Recursive / Nested Function Calls"
             }
           ],
-          "resultChars": 34782
+          "resultChars": 47378
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Edge Functions logs shutdown reasons CPU time\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
+              "title": "Edge Function shutdown reasons explained"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
+              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-takes-too-long-to-respond",
+              "title": "Edge Function takes too long to respond"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-monitoring-resource-usage",
+              "title": "Monitoring Edge Function resource usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/debugging",
+              "title": "Debugging guide"
+            }
+          ],
+          "resultChars": 45089
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i \\\"edge function|cpu|breaking-change\\\" | sed -n '1,80p'\"",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -i -C 2 'edge function|cpu|limit|breaking-change' | head -80\"",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 15074
+          "resultChars": 6135
         }
       ]
     },
@@ -16568,7 +17290,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"30497c9e-e282-46e3-89cd-d23baef2d9c5\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"c4d3551f-6cd7-458b-be4c-51a5f191129f\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -16577,7 +17299,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "Diagnosed the silent zero-row UPDATE as the UPDATE policy lacking a USING clause, explained WITH CHECK only validates the new row, and fixed it by adding owner-scoped USING while retaining owner-scoped WITH CHECK, scoped to authenticated and with RLS enabled."
+        "judgeNotes": "The assistant correctly identified the missing USING clause on the tasks UPDATE policy as the cause of silent zero-row updates, added an owner-scoped USING condition while preserving WITH CHECK, kept the policy scoped to authenticated users and user_id, and left RLS enabled."
       }
     ],
     "skills": {
@@ -16603,36 +17325,36 @@
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/changelog.md Supabase changelog breaking change RLS update select policy",
+          "query": "site:supabase.com/changelog.md Supabase changelog breaking change RLS update SELECT policy",
           "pages": []
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Row Level Security UPDATE requires SELECT policy silent zero rows USING WITH CHECK auth.uid\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"debugging UPDATE affects 0 rows RLS corresponding SELECT policy\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/debugging",
+              "title": "Debugging guide"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
-              "title": "RLS Simplified"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0024_permissive_rls_policy",
-              "title": "Database Advisor: Lint 0024_permissive_rls_policy"
+              "url": "https://supabase.com/docs/guides/storage/production/scaling",
+              "title": "Storage Optimizations"
             },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
               "title": "Column Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/storage-error-403-forbidden-new-row-violates-row-level-security-policy-on-upload-a94384",
-              "title": "Storage error: 403 Forbidden: 'new row violates row-level security policy' on upload"
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
             }
           ],
-          "resultChars": 43022
+          "resultChars": 69599
         }
       ]
     },
@@ -16888,6 +17610,114 @@
       "modelId": "gpt-5.6-sol",
       "reasoningEffort": "medium"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(( SELECT auth.uid() AS uid) = user_id)"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "The assistant correctly diagnosed direct auth.uid() in the RLS ownership predicate as a per-row cost, rewrote policies to use (select auth.uid()) = user_id so Postgres uses an InitPlan once per query, kept policies scoped to authenticated owners, and kept RLS intact."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"row level security performance recommendations auth.uid select index policy column\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
+              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors",
+              "title": "Performance and Security Advisors"
+            }
+          ],
+          "resultChars": 50741
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog RLS performance auth.uid index Supabase",
+          "pages": []
+        }
+      ]
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -17037,7 +17867,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a3-9c2b-72f7-b288-a303c6544995/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ee-09a7-7623-bdd8-111df66fb6fd/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -17046,7 +17876,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed missing UPDATE RLS policy for storage.objects during upsert, noted public bucket only affects downloads, kept public read/RLS intact, and added an authenticated owner-scoped UPDATE policy with both USING and WITH CHECK for avatars."
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, explained public bucket only affects read/download, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and kept bucket public/RLS intact."
       }
     ],
     "skills": {
@@ -17063,9 +17893,13 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Storage upload upsert true required RLS permissions SELECT UPDATE INSERT storage.objects\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Storage upload upsert existing object RLS SELECT UPDATE INSERT policy requirements troubleshooting\", limit: 6) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/storage-error-403-forbidden-new-row-violates-row-level-security-policy-on-upload-a94384",
+              "title": "Storage error: 403 Forbidden: 'new row violates row-level security policy' on upload"
+            },
             {
               "url": "https://supabase.com/docs/guides/storage/security/access-control",
               "title": "Storage Access Control"
@@ -17075,33 +17909,30 @@
               "title": "Configure S3 Storage"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/schema/design",
-              "title": "The Storage Schema"
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
             },
             {
               "url": "https://supabase.com/docs/guides/security/product-security",
               "title": "Secure configuration of Supabase products"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/storage-error-403-forbidden-new-row-violates-row-level-security-policy-on-upload-a94384",
-              "title": "Storage error: 403 Forbidden: 'new row violates row-level security policy' on upload"
+              "url": "https://supabase.com/docs/guides/storage/schema/design",
+              "title": "The Storage Schema"
             }
           ],
-          "resultChars": 20870
+          "resultChars": 24619
         },
         {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -i -C 2 'storage|rls|upsert|breaking-change' | head -n 120\"",
+          "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
-          ]
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com changelog storage breaking change RLS upsert",
-          "pages": []
+          ],
+          "resultChars": 4460
         }
       ]
     },
@@ -19964,17 +20795,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly characterized failures as HTTP 546 due to CPU/resource limit, not 500/503."
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly recognized failures as HTTP 546 due to CPU/resource limits, not 500/503 server errors."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant explicitly attributes the 546 failures to Edge Function CPU time exhaustion, citing log evidence: shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms."
+        "judgeNotes": "The assistant specifically attributed status 546 failures to CPU time exhaustion and grounded it in log evidence: shutdown reason CPUTime with cpu_time_used 2000ms matching cpu_time_limit 2000ms."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "Recommended moving CPU-intensive FFmpeg/video decoding to a containerized worker/media-processing service, keeping the Edge Function lightweight with queued background processing, and explicitly noted retries/waitUntil are not sufficient."
+        "judgeNotes": "The assistant identified the CPU limit issue and recommended reducing/offloading CPU-intensive thumbnail work via queue/background processing on external compute, plus optimizations like seeking, extracting one frame, downscaling early, and enforcing input limits."
       }
     ],
     "skills": {
@@ -19985,7 +20816,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Edge Functions CPUTime 546 cpu time limit 2000ms video processing background tasks limits\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Edge Functions CPUTime status 546 CPU time limit background tasks image video processing limits\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -19993,51 +20824,43 @@
               "title": "Limits"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
-              "title": "Understanding Edge Function CPU limits"
-            },
-            {
               "url": "https://supabase.com/docs/guides/functions/background-tasks",
               "title": "Background Tasks"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
             },
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-monitoring-resource-usage",
               "title": "Monitoring Edge Function resource usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/storage-caching",
+              "title": "Integrating with Supabase Storage"
             }
           ],
-          "resultChars": 23597
+          "resultChars": 13135
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase Queues Edge Function background worker video processing ffmpeg\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Edge Function shutdown reason CPUTime 546\", limit: 3) { nodes { ... on TroubleshootingGuide { title href content } ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
-              "title": "Recursive / Nested Function Calls"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
+              "title": "Edge Function shutdown reasons explained"
             },
             {
-              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
-              "title": "Consuming Supabase Queue Messages with Edge Functions"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
-              "title": "Scheduling Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues",
-              "title": "Supabase Queues"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/examples/image-manipulation",
-              "title": "Image Manipulation"
+              "url": "https://supabase.com/docs/guides/functions/status-codes",
+              "title": "Status codes"
             }
           ],
-          "resultChars": 22442
+          "resultChars": 17473
         }
       ]
     },
@@ -20279,7 +21102,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"6c821ece-156b-420b-b9d6-9806f4c2cbf6\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"7dc865b9-a257-4923-bf43-cb9dace055bd\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -20288,7 +21111,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "Diagnosed the missing USING clause on the UPDATE policy, explained the zero-row behavior, and fixed it with an authenticated, owner-scoped USING while retaining WITH CHECK and RLS."
+        "judgeNotes": "Diagnosed the UPDATE policy missing a USING clause, explained the zero-row behavior, and fixed it with USING (user_id = auth.uid()) while retaining WITH CHECK and authenticated scope."
       }
     ],
     "skills": {
@@ -20299,7 +21122,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Row Level Security UPDATE policy USING WITH CHECK rows not updated return data select policy\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"row level security update policy USING WITH CHECK UPDATE requires SELECT policy\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -20307,23 +21130,43 @@
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
-              "title": "RLS Simplified"
-            },
-            {
               "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
               "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-simplified-BJTcS8",
+              "title": "RLS Simplified"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
               "title": "Advanced pgTAP Testing"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0007_policy_exists_rls_disabled",
-              "title": "Database Advisor: Lint 0007_policy_exists_rls_disabled"
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
             }
           ],
-          "resultChars": 70342
+          "resultChars": 90787
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase UPDATE policy using auth.uid() user_id example select policy required\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            }
+          ],
+          "resultChars": 65229
         }
       ]
     },
@@ -20485,6 +21328,94 @@
       "modelId": "gpt-5.6-sol",
       "reasoningEffort": "medium"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(( SELECT auth.uid() AS uid) = user_id)"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "Diagnosed direct auth.uid() per-row RLS evaluation, rewrote policies to use (select auth.uid()) = user_id while preserving authenticated owner-only access and RLS, and verified InitPlan plus no widened access."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"RLS performance auth.uid select index policy\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv",
+              "title": "RLS Performance and Best Practices"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/production/scaling",
+              "title": "Storage Optimizations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
+              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 67690
+        }
+      ]
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "codex-gpt-5.6-no-skills/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -20589,7 +21520,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a2-38fd-75ea-b1d2-252b033792b8/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ef-fc53-77f9-aa35-1ad7bb7f5f66/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -20598,7 +21529,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "The answer correctly diagnoses missing UPDATE RLS for storage.objects during upsert replacement, notes public bucket/read does not cover overwrite permissions, preserves public read and RLS, and adds an authenticated owner-scoped UPDATE policy with USING and WITH CHECK based on the user folder."
+        "judgeNotes": "The assistant correctly diagnosed missing UPDATE RLS policy for storage.objects during upsert, noted public bucket only affects downloads, added an authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and did not weaken public-read setup or disable RLS."
       }
     ],
     "skills": {
@@ -20609,7 +21540,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Storage upsert RLS permissions INSERT SELECT UPDATE objects\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "query": "query { searchDocs(query: \"Storage upsert existing file RLS UPDATE SELECT INSERT permissions\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -20621,19 +21552,15 @@
               "title": "Storage Helper Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
-              "title": "Delete Objects"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
             },
             {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
-              "title": "Copy Objects"
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
             }
           ],
-          "resultChars": 24191
+          "resultChars": 21335
         }
       ]
     },
@@ -22079,17 +23006,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified `video-thumbnails` as the affected function and explicitly stated failures are HTTP 546 / WORKER_RESOURCE_LIMIT due to CPUTime/resource limit, not 500/503. It also treated the welcome-email 500 as unrelated."
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly described failures as HTTP 546 resource/CPU limit shutdowns, not 500/503 server or boot/timeout errors."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing log evidence: shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms. It also distinguishes this from code exceptions and marks the welcome-email error as unrelated."
+        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing log evidence including `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`, and distinguishes CPU time from wall-clock time."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant explicitly recommends reducing CPU per request (cheaper frame extraction, scaling, caps) and the structural fix of moving thumbnail generation to a background job/external service. It also notes the CPU limit cannot be raised."
+        "judgeNotes": "The assistant clearly identifies CPU time limit exhaustion and recommends reducing per-request CPU work via optimization, caps, lighter processing, offloading to external services/workers, and splitting into background jobs. It mentions retries only as a short-term band-aid, not the fix."
       }
     ],
     "skills": {
@@ -22104,32 +23031,94 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge functions CPU time limit 546 worker shutdown limits\", limit: 5) { nodes { title href content } } }",
+          "source": "web_fetch",
+          "query": "https://supabase.com/docs/guides/monitoring-and-debugging.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
-              "title": "Edge Functions worker timeouts and WebSocket drops"
-            },
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 1990
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function CPU time limit shutdown 546\") { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
               "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
-              "title": "Understanding Edge Function CPU limits"
             },
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
               "title": "Edge Function 'wall clock time limit reached'"
             },
             {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
+              "title": "Edge Functions worker timeouts and WebSocket drops"
+            },
+            {
               "url": "https://supabase.com/docs/guides/functions/limits",
               "title": "Limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-504-error-response",
+              "title": "Edge Function 504 error response"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/status-codes",
+              "title": "Status codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/debugging",
+              "title": "Debugging guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-takes-too-long-to-respond",
+              "title": "Edge Function takes too long to respond"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
+              "title": "Edge Function shutdown reasons explained"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/storing-vectors",
+              "title": "Storing Vectors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/wasm",
+              "title": "Using Wasm modules"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-codes",
+              "title": "Error codes"
             }
           ],
-          "resultChars": 23226
+          "resultChars": 122371
+        },
+        {
+          "source": "web_fetch",
+          "query": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response.md"
+            }
+          ],
+          "resultChars": 13493
         }
       ]
     },
@@ -22383,7 +23372,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"ecbed260-c76a-43ab-9138-0f1f4dafce95\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"b742248e-f914-48c1-a10a-c727d0d0f41b\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -22392,7 +23381,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "Diagnosed the zero-row UPDATE as missing RLS USING on the UPDATE policy, explained USING vs WITH CHECK, and fixed by recreating the authenticated task-owner policy with USING ((select auth.uid()) = user_id) and WITH CHECK ((select auth.uid()) = user_id), keeping RLS semantics intact."
+        "judgeNotes": "The assistant correctly identified the missing USING clause on the UPDATE RLS policy as the cause of silent 0-row updates, explained WITH CHECK vs USING, and fixed it with a policy scoped to authenticated users using the task owner user_id while preserving WITH CHECK to prevent reassignment. It did not disable RLS or use a blanket policy."
       }
     ],
     "skills": {
@@ -22546,6 +23535,69 @@
       "modelProvider": "moonshotai",
       "modelId": "moonshotai/kimi-k3"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(( SELECT auth.uid() AS uid) = user_id)"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "The answer correctly diagnoses per-row auth.uid() evaluation in the RLS predicate, fixes policies using (select auth.uid()) so it is evaluated once as an InitPlan, keeps owner scoping for SELECT/INSERT, and verifies RLS remains enabled."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -22655,7 +23707,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a5-9963-712d-8743-1aad2c43c70d/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5ef-b89d-70fe-ab82-411fe9675ebf/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -22664,7 +23716,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, kept public read/RLS setup, and added authenticated owner-scoped UPDATE policy with USING and WITH CHECK."
+        "judgeNotes": "Diagnosed missing storage.objects UPDATE RLS policy for upsert replacement, kept public-read setup/RLS, and added authenticated owner-scoped UPDATE policy with USING and WITH CHECK."
       }
     ],
     "skills": {
@@ -23897,17 +24949,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified `video-thumbnails` as the affected function and recognized failures as HTTP 546 due to CPU/resource worker limits, not 500/503 server errors. It also noted the unrelated `welcome-email` 500 separately."
+        "judgeNotes": "Identified video-thumbnails as affected and correctly described failures as HTTP 546 WORKER_RESOURCE_LIMIT/CPUTime resource limit, while noting welcome-email 500 as unrelated."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "Assistant specifically attributes the 546 failures to Edge Function CPU time exhaustion, citing `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)` and distinguishing it from code bugs or unrelated errors."
+        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing shutdown reason CPUTime and cpu_time_used/cpu_time_limit 2000/2000ms. It also distinguishes the unrelated welcome-email error."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant explicitly identifies CPU time limit failures and recommends reducing CPU work (fast seek, single frame extraction, scaling down, limiting input) and offloading to asynchronous background workers/external compute. Although it mentions retries as a short-term mitigation, it clearly states the real/best fix is reducing or offloading CPU-intensive work."
+        "judgeNotes": "The assistant clearly identifies CPUTime limit as the cause and recommends offloading CPU-intensive thumbnail generation to a background worker/external service/client-side, constraining inputs, and notes code tweaks/input limits as mitigation. This satisfies the rubric by reducing/offloading CPU-intensive work rather than merely increasing timeout or retrying."
       }
     ],
     "skills": {
@@ -23918,7 +24970,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge function limits CPU time wall clock\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"edge function CPU time limit shutdown CPUTime 546\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -23926,23 +24978,23 @@
               "title": "Understanding Edge Function CPU limits"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
-              "title": "Edge Function 'wall clock time limit reached'"
-            },
-            {
               "url": "https://supabase.com/docs/guides/functions/limits",
               "title": "Limits"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
-              "title": "Edge Functions worker timeouts and WebSocket drops"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
+              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
-              "title": "Recursive / Nested Function Calls"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-504-error-response",
+              "title": "Edge Function 504 error response"
             }
           ],
-          "resultChars": 23029
+          "resultChars": 27605
         }
       ]
     },
@@ -24151,7 +25203,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"aa207d3e-b78e-49d2-9693-0c0ca93c1747\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"4294c7c2-03a7-4049-a220-99a50a6c4bcf\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -24160,7 +25212,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "Diagnosed the zero-row UPDATE as caused by the UPDATE RLS policy missing a USING clause, explained USING vs WITH CHECK correctly, and fixed it with USING (user_id = auth.uid()) while retaining WITH CHECK (user_id = auth.uid())."
+        "judgeNotes": "The assistant correctly identified the missing USING clause on the UPDATE RLS policy as the cause of silent zero-row updates, explained WITH CHECK vs USING, and fixed it with FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid()). It kept RLS semantics scoped to authenticated users and row ownership."
       }
     ],
     "skills": {
@@ -24296,6 +25348,64 @@
       "modelProvider": "moonshotai",
       "modelId": "moonshotai/kimi-k3"
     },
+    "eval": "resolve-performance-002-rls-auth-initplan",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "sql"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on documents",
+        "passed": true
+      },
+      {
+        "name": "user A still reads exactly their own documents",
+        "passed": true,
+        "notes": "saw 2 rows"
+      },
+      {
+        "name": "user B cannot read user A's documents",
+        "passed": true
+      },
+      {
+        "name": "SELECT policy evaluates auth.uid() as an InitPlan (wrapped in a subquery)",
+        "passed": true,
+        "notes": "(( SELECT auth.uid() AS uid) = user_id)"
+      },
+      {
+        "name": "diagnosed per-row auth.uid() re-evaluation and applied the InitPlan fix",
+        "passed": true,
+        "judgeNotes": "The answer correctly identifies per-row auth.uid()/JWT setting evaluation in the RLS predicate as the cause, fixes the RLS policies with (select auth.uid()) so it becomes an InitPlan evaluated once per query, and preserves owner-scoped SELECT/INSERT policies without disabling RLS or widening access."
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our `documents` table has Row Level Security enabled so each signed-in user only sees their own rows. It worked fine in testing, but now that the table has grown the document list has become painfully slow — a simple \"list my documents\" query that should be instant now takes seconds and gets slower as the table grows, even though each user only owns a handful of rows.\n\nWe don't want to weaken the security model — users must still only ever see their own documents. Find out why the query is so slow and fix it.",
+    "promptSourcePath": "evals/resolve-performance-002-rls-auth-initplan/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "opencode-kimi-k3-no-skills/resolve-performance-002-rls-auth-initplan.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
     "eval": "resolve-security-002-rls-cross-tenant-leak",
     "stage": "resolve",
     "product": [
@@ -24399,7 +25509,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019ff5a3-a6e6-729a-80e7-5df3937edeab/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019ff5f9-2d74-758c-bfe0-c692030d3745/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -24408,7 +25518,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, kept public-read/RLS setup, and added owner-scoped UPDATE policy for authenticated users with USING and WITH CHECK."
+        "judgeNotes": "The assistant correctly diagnosed the issue as a missing UPDATE RLS policy on storage.objects for upsert-based avatar replacement, noted public bucket only affects reads, added an authenticated owner-scoped UPDATE policy with both USING and WITH CHECK, and preserved public-read/RLS setup."
       }
     ],
     "skills": {
@@ -24420,7 +25530,7 @@
     },
     "prompt": "Our app has a public `avatars` bucket so profile photos have a public URL. Each user's avatar is stored at `<user_id>/avatar.png`, and the app uploads it with `upsert: true` so a new photo replaces the old one at that same path.\n\nThe very first upload for a user always works, but replacing an existing avatar fails. Find out why and fix it.",
     "promptSourcePath": "evals/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "opencode-kimi-k3-no-skills/resolve-storage-001-upsert-missing-update-policy.json"
   }
 ]
