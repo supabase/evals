@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { APIError, type Command, Sandbox } from '@vercel/sandbox';
+import { APIError, Sandbox } from '@vercel/sandbox';
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -80,48 +80,48 @@ async function runPairs(options: RunnerOptions): Promise<void> {
   const results = await runBounded(
     options.pairs,
     options.concurrency,
-    async (pair) =>
-      pRetry(
-        (attempt) =>
-          runPairOnce({
-            ...options,
-            pair,
-            attempt,
-          }),
-        {
-          retries: 2,
-          factor: 2,
-          minTimeout: 5_000,
-          maxTimeout: 30_000,
-          randomize: true,
-          onFailedAttempt: ({
-            error,
-            attemptNumber,
-            retriesLeft,
-            retryDelay,
-          }) => {
-            const retrying = retriesLeft > 0;
-            console.warn(
-              `${pairLabel(pair)} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(errorMessage(error))}`
-            );
-          },
-        }
-      )
+    async (pair) => {
+      try {
+        await pRetry(
+          (attempt) =>
+            runPairOnce({
+              ...options,
+              pair,
+              attempt,
+            }),
+          {
+            retries: 2,
+            factor: 2,
+            minTimeout: 5_000,
+            maxTimeout: 30_000,
+            randomize: true,
+            onFailedAttempt: ({
+              error,
+              attemptNumber,
+              retriesLeft,
+              retryDelay,
+            }) => {
+              const retrying = retriesLeft > 0;
+              console.warn(
+                `${pairLabel(pair)} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(errorMessage(error))}`
+              );
+            },
+          }
+        );
+        console.log(`PASS ${pairLabel(pair)}`);
+      } catch (error) {
+        console.error(`ERROR ${pairLabel(pair)}: ${errorMessage(error)}`);
+        throw error;
+      }
+    }
   );
 
-  console.log('\n=== Sandbox eval summary ===');
   const failures: string[] = [];
   for (let index = 0; index < results.length; index += 1) {
     const pair = options.pairs[index];
     const result = results[index];
-    if (!pair || !result) continue;
-    if (result.status === 'fulfilled') {
-      console.log(`PASS ${pairLabel(pair)}`);
-      continue;
-    }
-    const message = errorMessage(result.reason);
-    failures.push(`${pairLabel(pair)}: ${message}`);
-    console.error(`ERROR ${pairLabel(pair)}: ${message}`);
+    if (!pair || !result || result.status === 'fulfilled') continue;
+    failures.push(`${pairLabel(pair)}: ${errorMessage(result.reason)}`);
   }
 
   if (failures.length > 0) {
@@ -304,9 +304,6 @@ async function runSandboxCommand(
     ...options,
     detached: true,
   });
-  const logs = streamCommandLogs(command, label, step).catch((error) => {
-    console.warn(`${label} ${step} log stream ended: ${errorMessage(error)}`);
-  });
   const result = await pRetry(() => command.wait(), {
     retries: 5,
     factor: 2,
@@ -318,23 +315,10 @@ async function runSandboxCommand(
       );
     },
   });
-  await logs;
   if (result.exitCode === 0) return;
 
   const output = await result.output('both').catch(() => '');
   throw new SandboxCommandError(step, result.exitCode, output);
-}
-
-/** Mirrors command output into the controller log without owning completion. */
-async function streamCommandLogs(
-  command: Command,
-  label: string,
-  step: string
-): Promise<void> {
-  for await (const log of command.logs()) {
-    const target = log.stream === 'stdout' ? process.stdout : process.stderr;
-    target.write(`${label} [${step}] ${log.data}`);
-  }
 }
 
 /** Downloads and extracts one pair into the aggregate artifact directory. */
