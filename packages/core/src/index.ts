@@ -42,6 +42,7 @@ import {
 import type {
   AgentHarnessId,
   CheckResult,
+  EvalMetadata,
   EvalSuite,
   ExperimentDisplayMetadata,
   ExperimentSuite,
@@ -105,10 +106,11 @@ export {
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';
 export type { DocsResultSandbox } from './docs-results.js';
-// CLI agent harnesses (Claude Code, Codex, and the framework for adding more).
+// CLI agent harnesses (Claude Code, Codex, OpenCode, and the framework for adding more).
 export { createCliAgent } from './agents/engine.js';
 export { claudeCodeAgent } from './agents/claude-code/index.js';
 export { codexAgent } from './agents/codex/index.js';
+export { opencodeAgent } from './agents/opencode/index.js';
 export type {
   AgentMetadata,
   AgentSandbox,
@@ -197,8 +199,8 @@ export interface ToolCallRecord {
   url?: string;
   /** Canonical tool category, set by CLI agent parsers; unset for ai-sdk tools which have no normalization layer. */
   name?: ToolName;
-  /** Skill name loaded by this call, when the harness can identify one. */
-  loadedSkill?: string;
+  /** Skill names loaded by this call, when the harness can identify any. */
+  loadedSkills?: string[];
   result?: unknown;
   error?: string;
   ts: number;
@@ -463,6 +465,13 @@ export type LocalStackSessionArgs = {
    * able to launch. See `supabaseMcpServerMounts`.
    */
   mounts?: readonly SandboxMount[];
+  /**
+   * Skip installing the real Supabase CLI into the sandbox (from
+   * `skipCliInstall:` frontmatter), for scenarios whose prompt has the agent
+   * install the CLI itself. Also skips the CLI shim that enforces
+   * `includeServices`, since there's no real binary yet to resolve and wrap.
+   */
+  skipCliInstall?: boolean;
 };
 
 /** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */
@@ -539,6 +548,13 @@ export type ExperimentConfig = {
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
   localStack?: LocalStackRuntime;
   skills: string[];
+  /**
+   * Skip running specific evals against this experiment, e.g. a `*-no-skills`
+   * experiment skipping evals whose per-eval `skills` override is already
+   * `[]` — running those would just duplicate what this experiment's own
+   * empty skill list already covers.
+   */
+  skipEval?: (ev: { id: string; metadata: EvalMetadata }) => boolean;
 };
 
 export function getExperimentDisplayMetadata(
@@ -679,10 +695,10 @@ export function aiSdkAgent(options: {
             const input = isRecord(event.toolCall.input)
               ? event.toolCall.input
               : {};
-            const loadedSkill =
+            const loadedSkills =
               event.toolCall.toolName === 'load_skill' &&
               typeof input.name === 'string'
-                ? input.name
+                ? [input.name]
                 : undefined;
             const command =
               event.toolCall.toolName.toLowerCase() === 'bash' &&
@@ -693,7 +709,7 @@ export function aiSdkAgent(options: {
               endpoint: event.toolCall.toolName,
               body: input,
               command,
-              loadedSkill,
+              loadedSkills,
               result: event.output,
               ts: Date.now(),
             });

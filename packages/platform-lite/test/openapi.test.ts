@@ -8,7 +8,7 @@ describe('OpenAPI surface', () => {
     expect(res.status).toBe(200);
 
     const spec = (await res.json()) as {
-      paths: Record<string, Record<string, unknown>>;
+      paths: Record<string, Record<string, { operationId?: string }>>;
     };
 
     expect(spec.paths['/v1/projects']).toHaveProperty('get');
@@ -25,11 +25,29 @@ describe('OpenAPI surface', () => {
     expect(
       spec.paths['/v1/projects/{ref}/database/migrations']
     ).not.toHaveProperty('delete');
+    // Distinct operations for the legacy and ClickHouse logs endpoints —
+    // upstream renamed the legacy one when the no-`.all` route landed.
+    expect(
+      spec.paths['/v1/projects/{ref}/analytics/endpoints/logs.all']!.get!
+        .operationId
+    ).toBe('v1-get-project-logs-all');
+    expect(
+      spec.paths['/v1/projects/{ref}/analytics/endpoints/logs']!.get!
+        .operationId
+    ).toBe('v1-get-project-logs');
     expect(
       spec.paths['/v1/projects/{ref}/functions/{function_slug}']
     ).toHaveProperty('get');
     expect(
       spec.paths['/v1/projects/{ref}/functions/{function_slug}/body']
     ).toHaveProperty('get');
+
+    // operationIds must be unique across the advertised spec (OpenAPI
+    // requirement; a duplicate breaks generated clients).
+    const ids = Object.values(spec.paths)
+      .flatMap((methods) => Object.values(methods))
+      .map((op) => op.operationId)
+      .filter((id): id is string => typeof id === 'string');
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

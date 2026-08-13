@@ -124,7 +124,7 @@ describe('codexParser', () => {
     });
 
     const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
-    expect(adapted.toolCalls[0].loadedSkill).toBe('supabase');
+    expect(adapted.toolCalls[0].loadedSkills).toEqual(['supabase']);
   });
 
   it('marks a non-zero exit code as a failed shell call (error surfaced via adapter)', () => {
@@ -166,6 +166,27 @@ describe('codexParser', () => {
       .events.find((e) => e.type === 'tool_result');
     expect(result?.tool?.success).toBeUndefined();
     expect(result?.tool?.originalName).toBe('search_docs');
+  });
+
+  it("keeps a web_search item's action, which says what the hosted tool did", () => {
+    const url = 'https://supabase.com/changelog.md';
+    const stream = JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'ws_0',
+        type: 'web_search',
+        query: url,
+        action: { type: 'open_page', url },
+        status: 'completed',
+      },
+    });
+
+    const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
+    expect(adapted.toolCalls[0].name).toBe('web_search');
+    expect(adapted.toolCalls[0].body).toEqual({
+      query: url,
+      action: { type: 'open_page', url },
+    });
   });
 
   it('emits an error event for a failed turn', () => {

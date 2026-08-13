@@ -1,5 +1,6 @@
 import type { DocsCall, DocsCallPage, DocsResult } from './eval-metadata.js';
 import type { ToolCallRecord } from './index.js';
+import { isRecord } from './json.js';
 
 /** The subset of AgentSandbox rehydration needs; avoids a hard dependency on its full interface. */
 export interface DocsResultSandbox {
@@ -24,6 +25,31 @@ const TRUNCATION_APPROX_SIZE_PATTERN =
 const TITLED_PAGE_PATTERN =
   /"title":"([^"]*)"\s*,?\s*"(?:href|url)":"([^"]+)"/g;
 const HREF_PATTERN = /"(?:href|url)":"([^"]+)"/g;
+const CURL_PATTERN = /\bcurl\b/;
+// curl/wget as a segment's actual command, not merely mentioned somewhere in
+// another command's arguments (e.g. `echo curl ...`). Allows leading env
+// assignments (`FOO=bar curl ...`).
+const FETCHER_COMMAND_PATTERN = /^\s*(?:[A-Za-z_]\w*=\S*\s+)*(curl|wget)\b/;
+// A `bash/sh/zsh -c "..."` wrapper, how agents commonly run a whole piped
+// command in one shell call. Unwrapped first, so a pipe inside the quotes
+// doesn't get split as if it belonged to the outer command.
+const SHELL_WRAPPER_PATTERN =
+  /^\s*(?:\S*\/)?(?:bash|sh|zsh)\s+-\S*c\S*\s+(['"])([\s\S]*)\1\s*$/;
+const CURL_NO_BODY_PATTERN =
+  /(?:^|\s)(?:-[^-\s]*[oOI]\S*|--(?:output|remote-name|head)(?:=\S*)?)(?=\s|$)/;
+const WGET_STDOUT_PATTERN =
+  /(?:^|\s)(?:-[A-Za-z]*O-|-[A-Za-z]*O\s+-|--output-document(?:=|\s+)-)(?=\s|$)/;
+const SHELL_SEGMENT_PATTERN = /(?:&&|\|\||[;|]|\r?\n)/;
+const SHELL_COMMAND_LIST_PATTERN = /(?:&&|\|\||;|\r?\n)/;
+// Matches curl's -f/--fail flag.
+const CURL_FAIL_FLAG_PATTERN =
+  /(?:^|\s)(?:-[A-Za-z]*f[A-Za-z]*|--fail\b)(?=\s|$)/;
+// Bare `>`, `1>`, and `&>` redirect stdout away from the pipe. A lone `2>`,
+// or `2>&1` which folds stderr back into stdout, leaves the body on stdout.
+const STDOUT_REDIRECT_PATTERN = /(?:^|[^2])>/;
+// Urls inside a shell command, stopping at the shell metacharacters that can
+// legally follow one (`|`, `>`, quotes, backslash-escapes).
+const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
 
 /** The search_docs query arg, flat on `body` or nested under `body.arguments` (Codex's shape). */
 function extractGraphqlQuery(
@@ -38,14 +64,81 @@ function extractGraphqlQuery(
   return undefined;
 }
 
-/** True when a URL string points at any supabase.com host. */
-function isSupabaseUrl(value: string): boolean {
+/**
+ * True for the apex supabase.com host. Docs, changelog, and blog all live
+ * there. Subdomains like `api.` and `mcp.` are service endpoints, so they
+ * don't count.
+ */
+function isSupabaseApexUrl(value: string): boolean {
   try {
-    const { hostname } = new URL(value);
-    return hostname === 'supabase.com' || hostname.endsWith('.supabase.com');
+    return new URL(value).hostname === 'supabase.com';
   } catch {
     return false;
   }
+}
+
+/** The shell command a call ran, from the parser's normalized view or the raw body. */
+function shellCommand(call: ToolCallRecord): string | undefined {
+  if (call.name !== 'shell') return undefined;
+  if (call.command) return call.command;
+  return typeof call.body.command === 'string' ? call.body.command : undefined;
+}
+
+/** The docs urls a shell command writes to stdout, empty when page text won't reach the model. */
+function shellFetchUrls(command: string | undefined): string[] {
+  if (!command) return [];
+  const wrapped = command.match(SHELL_WRAPPER_PATTERN);
+  if (wrapped) return shellFetchUrls(wrapped[2]);
+
+  const urls: string[] = [];
+  for (const segment of command.split(SHELL_SEGMENT_PATTERN)) {
+    const fetcherMatch = segment.match(FETCHER_COMMAND_PATTERN);
+    if (!fetcherMatch || fetcherMatch.index === undefined) continue;
+    const fetcher = fetcherMatch[1];
+
+    const curlToStdout =
+      fetcher === 'curl' &&
+      !CURL_NO_BODY_PATTERN.test(segment) &&
+      !STDOUT_REDIRECT_PATTERN.test(segment);
+    const wgetToStdout =
+      fetcher === 'wget' &&
+      WGET_STDOUT_PATTERN.test(segment) &&
+      !STDOUT_REDIRECT_PATTERN.test(segment);
+    if (!curlToStdout && !wgetToStdout) continue;
+
+    for (const match of segment
+      .slice(fetcherMatch.index + fetcherMatch[0].length)
+      .match(URL_IN_COMMAND_PATTERN) ?? []) {
+      // Trailing sentence punctuation glues onto a url in prose; a real one
+      // never ends in a period or comma.
+      const url = match.replace(/[.,]+$/, '');
+      if (isSupabaseApexUrl(url) && !urls.includes(url)) urls.push(url);
+    }
+  }
+  return urls;
+}
+
+/** True when no separate command can contribute to a shell fetch's combined result. */
+function shellFetchOwnsResult(command: string): boolean {
+  const withoutIgnoredFailure = command.replace(
+    /\|\|\s*true\s*(?=(?:["'])?\s*$)/,
+    ''
+  );
+  return !SHELL_COMMAND_LIST_PATTERN.test(withoutIgnoredFailure);
+}
+
+/**
+ * Codex's `web_search` action, the tool's own statement of what it did. Only
+ * `type` and `url` matter here: `query` is already carried separately, and no
+ * other field says anything about which page was read.
+ */
+function webSearchAction(
+  body: Record<string, unknown>
+): { type: string; url?: string } | undefined {
+  const action = body.action;
+  if (!isRecord(action) || typeof action.type !== 'string') return undefined;
+  const url = typeof action.url === 'string' ? action.url : undefined;
+  return { type: action.type, url };
 }
 
 /** The in-container path a truncated result was persisted to, if `result` is one of the known stub shapes. */
@@ -82,19 +175,19 @@ function isDocsRelatedCall(call: ToolCallRecord): boolean {
   return (
     call.endpoint.endsWith('search_docs') ||
     call.name === 'web_fetch' ||
-    call.name === 'web_search'
+    call.name === 'web_search' ||
+    shellFetchUrls(shellCommand(call)).length > 0
   );
 }
 
-/** Fetches a truncated docs call's real result back from disk. Must run before the sandbox disposes, the file lives inside that container. */
+/** Fetches a truncated docs call's real result back from disk, so a real page fetch doesn't get counted as just the tiny truncation stub. Must run before the sandbox disposes, the file lives inside that container. */
 export async function rehydrateTruncatedDocsResults(
   sandbox: DocsResultSandbox,
   toolCalls: ToolCallRecord[]
 ): Promise<void> {
   for (const call of toolCalls) {
-    if (!isDocsRelatedCall(call)) continue;
     const path = extractTruncatedResultPath(call.result);
-    if (!path) continue;
+    if (!path || !isDocsRelatedCall(call)) continue;
     try {
       call.result = await sandbox.readFile(path);
     } catch {}
@@ -118,12 +211,12 @@ function extractPages(result: unknown): DocsCallPage[] {
   const pages: DocsCallPage[] = [];
   const seen = new Set<string>();
   for (const [, title, url] of text.matchAll(TITLED_PAGE_PATTERN)) {
-    if (!isSupabaseUrl(url) || seen.has(url)) continue;
+    if (!isSupabaseApexUrl(url) || seen.has(url)) continue;
     seen.add(url);
     pages.push(title ? { url, title } : { url });
   }
   for (const [, url] of text.matchAll(HREF_PATTERN)) {
-    if (!isSupabaseUrl(url) || seen.has(url)) continue;
+    if (!isSupabaseApexUrl(url) || seen.has(url)) continue;
     seen.add(url);
     pages.push({ url });
   }
@@ -151,7 +244,7 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
     }
 
     if (call.name === 'web_fetch') {
-      if (!call.url || !isSupabaseUrl(call.url)) continue;
+      if (!call.url || !isSupabaseApexUrl(call.url)) continue;
       // WebFetch runs the fetch through an LLM extraction step guided by
       // `prompt`, so that's the meaningful "ask" here (same role `query`
       // plays for search_docs), not the url. Url still recorded, in `pages`.
@@ -170,10 +263,52 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       const query = typeof body.query === 'string' ? body.query : undefined;
       if (!query) continue;
 
-      // Codex's web_search doubles as a fetch when the query is a URL. No
-      // result payload is ever exposed on this tool, so content is unknown, not false.
+      // Codex states what its hosted search did, so trust that over the shape
+      // of the query string, which renders a page open and a search for that
+      // same url identically.
+      //
+      // Only `search` actually arrives intact on CLI 0.138: exec re-parses the
+      // app-server action, which serializes camelCase (`openPage`), into a
+      // snake_case enum (`open_page`), so both page-reading variants land on
+      // the catch-all and reach us as `other`. `search` survives because it's
+      // one word in either casing. The `other` calls fall through to the
+      // url-shape branch below, same as before. See codex's
+      // event_processor_with_jsonl_output.rs (the from_value round trip) and
+      // app-server-protocol v2/item.rs vs protocol/models.rs for the two enums.
+      const action = webSearchAction(body);
+
+      if (action?.type === 'open_page' || action?.type === 'find_in_page') {
+        if (!action.url || !isSupabaseApexUrl(action.url)) continue;
+        calls.push({
+          source: 'web_search',
+          query,
+          hasContent: true,
+          pages: [{ url: action.url }],
+          resultChars: resultCharCount(result),
+        });
+        continue;
+      }
+
+      if (action?.type === 'search') {
+        if (!/supabase/i.test(query)) continue;
+        // No page to attribute: the hits never reach the client. `hasContent`
+        // stays unknown rather than false, because those hits carry snippet
+        // text the model may well have read, and we can't see it either way.
+        // The gain over the url-shape fallback is knowing this wasn't a page
+        // open even when the query happens to be a bare url.
+        calls.push({
+          source: 'web_search',
+          query,
+          pages: [],
+          resultChars: resultCharCount(result),
+        });
+        continue;
+      }
+
+      // No action reported (Claude Code, or an action type we don't know):
+      // fall back to the query's shape, which is all there is to go on.
       if (URL_PATTERN.test(query)) {
-        if (!isSupabaseUrl(query)) continue;
+        if (!isSupabaseApexUrl(query)) continue;
         calls.push({
           source: 'web_search',
           query,
@@ -192,6 +327,30 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
         query,
         hasContent: pages.length > 0 ? false : undefined,
         pages,
+        resultChars: resultCharCount(result),
+      });
+      continue;
+    }
+
+    if (call.name === 'shell') {
+      const command = shellCommand(call);
+      const urls = shellFetchUrls(command);
+      if (!command || urls.length === 0) continue;
+      // A non-zero exit already proves the fetch failed.
+      if (call.error) continue;
+      // With no shell output at all, nothing from the fetch reached the model.
+      if (typeof result !== 'string' || result.length === 0) continue;
+      // curl without -f/--fail exits 0 on a 4xx/5xx. wget doesn't need the
+      // check: it already exits non-zero on an HTTP error by default
+      // (https://www.gnu.org/software/wget/manual/html_node/Exit-Status.html).
+      const curlExitUnproven =
+        CURL_PATTERN.test(command) && !CURL_FAIL_FLAG_PATTERN.test(command);
+      const ownsResult = shellFetchOwnsResult(command);
+      calls.push({
+        source: 'shell_fetch',
+        query: command,
+        hasContent: !curlExitUnproven && ownsResult ? true : undefined,
+        pages: urls.map((url) => ({ url })),
         resultChars: resultCharCount(result),
       });
       continue;

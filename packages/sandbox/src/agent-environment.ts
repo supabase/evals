@@ -29,6 +29,8 @@ export interface LocalStackSetup {
   projectRunning?: boolean;
   /** Link the CLI to a mocked hosted project (platform-lite) at this host port. */
   hosted?: { port: number; pgPort?: number; ref: string; accessToken: string };
+  /** Skip installing the real CLI, for scenarios where the agent installs it itself. */
+  skipCliInstall?: boolean;
 }
 
 export interface AgentEnvironmentOptions {
@@ -85,6 +87,7 @@ export async function createAgentEnvironment(
         localDir: options.localDir,
         projectRunning: options.localStack.projectRunning,
         hosted: options.localStack.hosted,
+        skipCliInstall: options.localStack.skipCliInstall,
       });
     } else if (options.localDir) {
       await sandbox.copyToContainer(options.localDir, sandbox.workdir);

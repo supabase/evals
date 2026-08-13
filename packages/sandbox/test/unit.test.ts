@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   resolveSandboxPath,
   truncateOutput,
@@ -12,7 +12,9 @@ import {
   buildServiceWrapperScript,
   buildSupabaseStartCommand,
   computeExcludedServices,
+  startSupabaseProject,
 } from '../src/supabase.js';
+import type { DockerSandbox } from '../src/docker-sandbox.js';
 import {
   SKILLS_CLI_VERSION,
   SKILLS_INSTALL_DIR,
@@ -185,6 +187,109 @@ describe('buildSupabaseStartCommand', () => {
   });
 });
 
+describe('startSupabaseProject retries', () => {
+  const ok = { ok: true, exitCode: 0, stdout: '', stderr: '' };
+  const pullLimited = {
+    ok: false,
+    exitCode: 1,
+    stdout: '',
+    stderr:
+      'failed to pull docker image: Error response from daemon: toomanyrequests: Rate exceeded',
+  };
+  // A local-stack boot timeout: coreutils `timeout` exits 124 (TERM) or 137
+  // (KILL escalation). Points at a wedged service, not a registry blip.
+  const bootTimeout = {
+    ok: false,
+    exitCode: 124,
+    stdout: '',
+    stderr: 'starting...\n[command timed out after 600s and was terminated]',
+  };
+
+  /**
+   * A sandbox whose `supabase start` returns `startResult` for the first
+   * `failures` starts, then succeeds. `failures` of Infinity fails forever.
+   */
+  function fakeSandbox(failures: number, startResult = pullLimited) {
+    const commands: string[] = [];
+    const sandbox = {
+      runShell: async (command: string) => {
+        commands.push(command);
+        if (!command.startsWith('supabase start')) return ok;
+        const startsSoFar = commands.filter((c) =>
+          c.startsWith('supabase start')
+        ).length;
+        return startsSoFar <= failures ? startResult : ok;
+      },
+    } as unknown as DockerSandbox;
+    return { sandbox, commands };
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('returns without retrying when the first start succeeds', async () => {
+    const { sandbox, commands } = fakeSandbox(0);
+    await startSupabaseProject(sandbox);
+    expect(commands).toEqual(['supabase start']);
+  });
+
+  it('stops the partial stack and retries on a transient pull failure', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { sandbox, commands } = fakeSandbox(1);
+
+    const started = startSupabaseProject(sandbox);
+    await vi.runAllTimersAsync();
+    await started;
+
+    expect(commands).toEqual([
+      'supabase start',
+      'supabase stop --no-backup',
+      'supabase start',
+    ]);
+  });
+
+  it('throws the original error once the backoff schedule is exhausted', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { sandbox, commands } = fakeSandbox(Number.POSITIVE_INFINITY);
+
+    const started = startSupabaseProject(sandbox);
+    // Surface the rejection before asserting so the timer loop can't race it.
+    const outcome = started.catch((err: unknown) => err);
+    await vi.runAllTimersAsync();
+    const err = await outcome;
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('[supabase start] failed:');
+    expect((err as Error).message).toContain('toomanyrequests');
+    // 1 initial + 3 retries, with a stop between each pair of starts.
+    expect(commands.filter((c) => c.startsWith('supabase start'))).toHaveLength(
+      4
+    );
+    expect(
+      commands.filter((c) => c === 'supabase stop --no-backup')
+    ).toHaveLength(3);
+  });
+
+  it('does not retry a local-stack boot timeout', async () => {
+    const { sandbox, commands } = fakeSandbox(
+      Number.POSITIVE_INFINITY,
+      bootTimeout
+    );
+
+    await expect(startSupabaseProject(sandbox)).rejects.toThrow(
+      '[supabase start] failed:'
+    );
+    // A timeout means a service is wedged; re-running would waste the full
+    // boot timeout again, so it fails after the very first attempt with no
+    // stop/retry in between.
+    expect(commands).toEqual(['supabase start']);
+  });
+});
+
 describe('computeExcludedServices', () => {
   it('inverts the include list preserving canonical order', () => {
     const excluded = computeExcludedServices(['gotrue', 'kong', 'postgrest']);
@@ -294,6 +399,71 @@ describe('cliVersion frontmatter', () => {
         ].join('\n')
       )
     ).toThrow();
+  });
+});
+
+describe('skills frontmatter', () => {
+  const buildMarkdown = (extra: string) =>
+    [
+      '---',
+      'stage: build',
+      'suite: regression',
+      'interface: cli',
+      'product: [database]',
+      'topic: [sdk]',
+      extra,
+      '---',
+      'body',
+    ].join('\n');
+
+  it('preserves hyphenated skill directory names', () => {
+    const { metadata } = parseEvalMarkdown(
+      buildMarkdown('skills: [supabase, supabase-postgres-best-practices]')
+    );
+    expect(metadata.skills).toEqual([
+      'supabase',
+      'supabase-postgres-best-practices',
+    ]);
+  });
+
+  it('parses an empty override distinctly from an omitted key', () => {
+    const overridden = parseEvalMarkdown(buildMarkdown('skills: []'));
+    expect(overridden.metadata.skills).toEqual([]);
+
+    const omitted = parseEvalMarkdown(buildMarkdown(''));
+    expect(omitted.metadata.skills).toBeUndefined();
+  });
+});
+
+describe('skipCliInstall frontmatter', () => {
+  const buildMarkdown = (extra: string) =>
+    [
+      '---',
+      'stage: build',
+      'suite: regression',
+      'interface: cli',
+      'product: [database]',
+      'topic: [sdk]',
+      extra,
+      '---',
+      'body',
+    ].join('\n');
+
+  it('accepts a real boolean and a quoted string form', () => {
+    expect(
+      parseEvalMarkdown(buildMarkdown('skipCliInstall: true')).metadata
+        .skipCliInstall
+    ).toBe(true);
+    expect(
+      parseEvalMarkdown(buildMarkdown('skipCliInstall: "true"')).metadata
+        .skipCliInstall
+    ).toBe(true);
+  });
+
+  it('defaults to undefined when omitted', () => {
+    expect(
+      parseEvalMarkdown(buildMarkdown('')).metadata.skipCliInstall
+    ).toBeUndefined();
   });
 });
 

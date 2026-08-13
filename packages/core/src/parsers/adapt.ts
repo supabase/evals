@@ -71,7 +71,7 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         path: event.tool.path,
         command: event.tool.command,
         url: event.tool.url,
-        loadedSkill: event.tool.loadedSkill,
+        loadedSkills: event.tool.loadedSkills,
         result: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
         ts: parseTs(event.timestamp),

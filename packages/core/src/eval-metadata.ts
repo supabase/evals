@@ -52,10 +52,19 @@ export const experimentSuiteSchema = z.enum([
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
 
-export const agentHarnessIdSchema = z.enum(['ai-sdk', 'claude-code', 'codex']);
+export const agentHarnessIdSchema = z.enum([
+  'ai-sdk',
+  'claude-code',
+  'codex',
+  'opencode',
+]);
 export type AgentHarnessId = z.infer<typeof agentHarnessIdSchema>;
 
-export const modelProviderSchema = z.enum(['anthropic', 'openai']);
+export const modelProviderSchema = z.enum([
+  'anthropic',
+  'openai',
+  'moonshotai',
+]);
 export type ModelProvider = z.infer<typeof modelProviderSchema>;
 
 export const reasoningEffortSchema = z.enum([
@@ -120,6 +129,22 @@ export type EvalMetadata = {
    * evals only). Defaults to false.
    */
   hostedProject?: boolean;
+  /**
+   * Overrides the experiment's `skills` list for this eval only. An empty
+   * list (`skills: []`) tests an agent with no pre-installed Supabase
+   * skills, regardless of which experiment runs it — for a scenario where
+   * the prompt asks the agent to install skills itself. Omit the key
+   * entirely to use the experiment's own skill list.
+   */
+  skills?: string[];
+  /**
+   * Skips installing the real Supabase CLI into the sandbox before the agent
+   * starts (sandbox evals only). Defaults to false. Set true only for
+   * scenarios whose prompt has the agent install the CLI itself — the
+   * harness itself never invokes `supabase` when this is set, so pair it
+   * with `projectRunning: false`.
+   */
+  skipCliInstall?: boolean;
 };
 
 export type ParsedEvalMarkdown = {
@@ -140,6 +165,8 @@ export const evalMetadataSchema = z.object({
   // non-empty string as true.
   projectRunning: z.union([z.boolean(), z.stringbool()]).optional(),
   hostedProject: z.union([z.boolean(), z.stringbool()]).optional(),
+  skills: z.array(z.string().min(1)).optional(),
+  skipCliInstall: z.union([z.boolean(), z.stringbool()]).optional(),
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
@@ -171,12 +198,14 @@ const toTokenList = (value: unknown): unknown => {
     .filter((item) => typeof item === 'string' && item.length > 0);
 };
 
-// `services` are real Supabase CLI service identifiers (e.g. `postgres-meta`,
-// `storage-api`, `edge-runtime`), matched verbatim against ALL_SUPABASE_SERVICES
-// in @supabase-evals/sandbox. They must NOT go through normalizeToken: folding
-// hyphens to underscores would turn `postgres-meta` into `postgres_meta` and
-// fail that match. Only trim + lowercase; preserve hyphens. Blanks are dropped.
-const toServiceList = (value: unknown): unknown =>
+// `services` and `skills` are literal identifiers (Supabase CLI service names
+// like `postgres-meta`, or skill directory names like
+// `supabase-postgres-best-practices`), not enum tokens. They must NOT go
+// through normalizeToken: folding hyphens to underscores would turn
+// `postgres-meta` into `postgres_meta` and fail the verbatim match against
+// ALL_SUPABASE_SERVICES (services) or the skills/ directory (skills). Only
+// trim + lowercase; preserve hyphens. Blanks are dropped.
+const toIdentifierList = (value: unknown): unknown =>
   (Array.isArray(value) ? value : [value])
     .map((item) =>
       typeof item === 'string' ||
@@ -206,10 +235,17 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     // `services: []` means database only; an omitted key means the full stack.
     // Only an explicit list is honored — any other value is treated as absent.
     services: Array.isArray(data.services)
-      ? toServiceList(data.services)
+      ? toIdentifierList(data.services)
       : undefined,
     projectRunning: data.projectRunning,
     hostedProject: data.hostedProject,
+    // `skills: []` means no pre-installed skills for this eval; an omitted
+    // key means "use the experiment's own skill list" (see resolveSkillSources
+    // in apps/framework/harness/run-eval.ts).
+    skills: Array.isArray(data.skills)
+      ? toIdentifierList(data.skills)
+      : undefined,
+    skipCliInstall: data.skipCliInstall,
   };
 }, evalMetadataSchema);
 
@@ -234,10 +270,13 @@ export type SkillResult = z.infer<typeof skillResultSchema>;
 // tool vocabulary). `web_fetch`/`web_search` are the harness's own normalized
 // name, so Claude Code's `WebSearch` and Codex's `web_search` (the same
 // action, spelled differently per harness) collapse into one value here.
+// `shell_fetch` is a docs url fetched to shell stdout, which is how an agent
+// with no fetch tool of its own reads a page (Codex curls the changelog).
 export const docsPageSourceSchema = z.enum([
   'search_docs',
   'web_fetch',
   'web_search',
+  'shell_fetch',
 ]);
 export type DocsPageSource = z.infer<typeof docsPageSourceSchema>;
 
@@ -252,14 +291,15 @@ export type DocsCallPage = z.infer<typeof docsCallPageSchema>;
 
 export const docsCallSchema = z.object({
   source: docsPageSourceSchema,
-  // Whichever field is the meaningful "ask" for that source: search term, GraphQL query, WebFetch's extraction prompt, or target URL.
+  // Whichever field is the meaningful "ask" for that source: search term, GraphQL query, WebFetch's extraction prompt, or shell command.
   query: z.string(),
   // Whether the call's results included page text, not just a title/url hit.
   // Known for search_docs (whether the agent's own GraphQL selection asked
-  // for `content`) and web_fetch (always true, that's what fetching is).
-  // False for Claude Code's WebSearch (its results never include page text,
-  // only title/url). Unknown (omitted) for a Codex web_search used as a
-  // fetch: no result payload is ever exposed on that tool.
+  // for `content`), web_fetch, and an isolated shell_fetch. False for Claude
+  // Code's WebSearch, whose results never include page text. Unknown (omitted)
+  // when the available trace cannot prove either state, including Codex
+  // web_search, a shell fetch mixed with other commands, and an unflagged
+  // curl (see docs-results.ts).
   hasContent: z.boolean().optional(),
   pages: z.array(docsCallPageSchema),
   // Size of the result the call actually produced, in characters, an
@@ -268,7 +308,8 @@ export const docsCallSchema = z.object({
   // rehydrated file when the CLI truncated the result, or parsed out of the
   // truncation message's own reported size when rehydration wasn't
   // possible or wasn't attempted (e.g. no sandbox, ai-sdk/Codex which don't
-  // truncate this way). Omitted only when there's no result at all.
+  // truncate this way). Omitted when the trace exposes no result, including
+  // Codex web_search and failed calls whose output is recorded as an error.
   resultChars: z.number().optional(),
 });
 export type DocsCall = z.infer<typeof docsCallSchema>;

@@ -7,8 +7,10 @@ export function buildSkillResult(
   toolCalls: ToolCallRecord[]
 ): SkillResult {
   const loadedSkills = new Set<string>();
-  for (const { loadedSkill } of toolCalls) {
-    if (loadedSkill) loadedSkills.add(loadedSkill);
+  for (const call of toolCalls) {
+    for (const skill of call.loadedSkills ?? []) {
+      loadedSkills.add(skill);
+    }
   }
   const loaded = available.filter((skill) => loadedSkills.has(skill));
 

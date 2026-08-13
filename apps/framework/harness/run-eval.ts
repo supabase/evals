@@ -372,11 +372,14 @@ async function runOne(
   // tools mode its skills are advertised in the prompt and loaded via the
   // load_skill tool. Skill sources (name+dir) are shared by both paths.
   const agentRunsInSandbox = exp.agent.runsInSandbox ?? false;
-  const skillSources = resolveSkillSources(exp.skills);
+  // A per-eval `skills` override replaces the experiment's own list entirely,
+  // so a scenario testing self-installed skills gets an empty list regardless
+  // of which experiment runs it.
+  const skillSources = resolveSkillSources(ev.metadata.skills ?? exp.skills);
   const availableSkills = skillSources.map((skill) => skill.name);
   const toolsSkills =
     ev.mode === 'tools' && !agentRunsInSandbox
-      ? loadToolsSkills(exp.skills)
+      ? loadToolsSkills(ev.metadata.skills ?? exp.skills)
       : [];
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ToolScorer
@@ -436,11 +439,9 @@ async function runOne(
                 invokeFunction: hostedBackend.invokeFunction,
               }
             : undefined,
-          // Skills are installed into the sandbox and discovered by the agent
-          // (the session folds the discovery listing into its promptAddendum),
-          // so no skill text is injected into the prompt here.
           skills: skillSources,
           mounts: supabaseMcpServerMounts(),
+          skipCliInstall: ev.metadata.skipCliInstall,
         })
       );
 
@@ -452,9 +453,6 @@ async function runOne(
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
       });
-      // Must run before session disposes below, see rehydrateTruncatedDocsResults.
-      await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
-
       lastToolCalls = run.toolCalls;
       lastTranscript = run.transcript;
       lastAgentReport = run.agentReport;
@@ -486,6 +484,9 @@ async function runOne(
           return vitestRun(hostWorkspace);
         },
       });
+
+      // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
+      await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
 
       if (STOP_ON_PASS && last.passed) {
         return {
@@ -543,10 +544,6 @@ async function runOne(
       sandbox: cliSandbox?.sandbox,
       timeoutSec: TIMEOUT_SEC,
     });
-    // Must run before cliSandbox disposes below, see rehydrateTruncatedDocsResults.
-    if (cliSandbox)
-      await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
-
     lastToolCalls = run.toolCalls;
     lastTranscript = run.transcript;
     lastAgentReport = run.agentReport;
@@ -557,6 +554,10 @@ async function runOne(
       transcript: run.transcript,
       agentReport: run.agentReport,
     });
+
+    // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
+    if (cliSandbox)
+      await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
 
     if (STOP_ON_PASS && last.passed) {
       return {
@@ -641,7 +642,7 @@ async function runConcurrent<T>(
 async function main() {
   if (rawArgs.filter((a) => a !== '--')[0] === 'list') {
     const experiments = await loadExperiments();
-    const filtered =
+    let filtered =
       EXPERIMENT_SUITE_FILTERS.length > 0
         ? experiments.filter(
             (e) =>
@@ -651,6 +652,18 @@ async function main() {
               )
           )
         : experiments;
+    if (EVAL_FILTERS.length > 0) {
+      // Drop experiments that would skipEval every requested eval, so callers
+      // building an experiment x eval matrix (e.g. the eval-refresh workflow)
+      // don't plan a pair that will produce no results — and no artifact —
+      // to upload.
+      const evals = discoverEvals().filter((ev) =>
+        EVAL_FILTERS.includes(ev.id)
+      );
+      filtered = filtered.filter(({ config }) =>
+        evals.some((ev) => !config.skipEval?.(ev))
+      );
+    }
     console.log(JSON.stringify(filtered.map((e) => e.name)));
     return;
   }
@@ -753,6 +766,10 @@ async function main() {
         console.log(
           `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`
         );
+        continue;
+      }
+      if (config.skipEval?.(ev)) {
+        console.log(`SKIP ${name} x ${ev.id} (skipEval)`);
         continue;
       }
       if (DRY) {

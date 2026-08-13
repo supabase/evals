@@ -226,7 +226,7 @@ jobs:
               if [ -n "$experiments_override" ]; then
                 experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
               else
-                experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite")"
+                experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite" --eval "$id")"
               fi
 
               while IFS= read -r experiment; do
@@ -259,6 +259,7 @@ jobs:
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -286,6 +287,7 @@ jobs:
           {
             echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
             echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+            echo "AI_GATEWAY_API_KEY=${AI_GATEWAY_API_KEY}"
           } > .env
 
       - name: Run evals
@@ -300,11 +302,19 @@ jobs:
             --runs "${{ needs.prepare.outputs.runs }}" \
             --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
 
+          # A skipped experiment (e.g. missing API key) exits 0 without writing results.
+          if [ ! -f "results/${{ matrix.experiment }}/${{ matrix.eval_id }}.json" ]; then
+            echo "::error::no result written for ${{ matrix.experiment }} x ${{ matrix.eval_id }} (experiment skipped?)"
+            exit 1
+          fi
+
       - name: Upload raw results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: raw-results-${{ matrix.experiment }}__${{ matrix.eval_id }}
-          path: results/${{ matrix.experiment }}/
+          path: |
+            results/${{ matrix.experiment }}/
+            !results/**/node_modules/**
           retention-days: 3
 
   publish-results:

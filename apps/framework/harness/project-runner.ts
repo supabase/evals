@@ -1,13 +1,28 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import type { CommandResult, VitestResult } from '@supabase-evals/core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '..', '..', '..');
+const ROOT = join(__dirname, '..');
+
+// Vite/vitest resolve their own package (and the workspace's deps, e.g. react)
+// by walking up from the workspace looking for a node_modules dir. Workspaces
+// live under results/, outside ROOT, so link ROOT's node_modules in directly.
+function linkNodeModules(workspace: string) {
+  const link = join(workspace, 'node_modules');
+  if (!existsSync(link)) symlinkSync(join(ROOT, 'node_modules'), link, 'dir');
+}
 
 export async function viteBuild(workspace: string): Promise<CommandResult> {
+  linkNodeModules(workspace);
   return runNodeBin(
     join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'),
     ['build'],
@@ -16,6 +31,7 @@ export async function viteBuild(workspace: string): Promise<CommandResult> {
 }
 
 export async function vitestRun(workspace: string): Promise<VitestResult> {
+  linkNodeModules(workspace);
   const reportPath = join(workspace, 'vitest-report.json');
   const configPath = join(workspace, 'vitest.evals.config.ts');
   const setupDir = join(workspace, '.evals');
