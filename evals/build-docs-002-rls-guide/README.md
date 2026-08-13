@@ -32,4 +32,4 @@ Nothing in the migration says who may read or write what.
 
 Whether the agent arrives at pgTAP is itself a measurement. If agents do not write tests here, that says something about how reachable testing is from the guide.
 
-Coverage is read off the TAP stream, not the test files. A seeded table counts as covered when it is named by an assertion that ran and passed, which is either the description the agent wrote or the one pgTAP generates for assertions like `policies_are`. Scanning the file text instead lets a comment or an unused scratch table stand in for a test.
+Coverage is judged, not pattern-matched. Two mechanical gates were tried and both failed in the same way: searching the file text counts a comment as a test, and searching the assertion descriptions rejects a correct suite that passes no description. Each fix in one direction made the other worse. The judge reads the sources with the six tables written into its rubric, and the suite's exit status proves the assertions ran.

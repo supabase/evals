@@ -604,6 +604,14 @@ export async function checkWeatherFeed(
       passed: isBlocked(authedWrites),
       notes: describeFeedWrites(authedWrites),
     },
+    {
+      name: 'the weather feed fixture survived both write attempts',
+      passed: !anonWrites.restoreError && !authedWrites.restoreError,
+      notes:
+        [anonWrites.restoreError, authedWrites.restoreError]
+          .filter(Boolean)
+          .join('; ') || undefined,
+    },
   ];
 }
 
@@ -644,10 +652,21 @@ async function attemptFeedWrites(
   const restore = await execSql(
     ctx,
     stripIndent`
-      DELETE FROM weather_readings
-        WHERE conditions = '${marker}' OR id = '${f.readingId}';
+      BEGIN;
+
+      DELETE FROM weather_readings WHERE conditions = '${marker}';
+
+      UPDATE weather_readings
+        SET temp_c = 12.5, conditions = 'seeded'
+        WHERE id = '${f.readingId}';
+
       INSERT INTO weather_readings (id, station_id, temp_c, conditions)
-        VALUES ('${f.readingId}', '${f.stationId}', 12.5, 'seeded');
+        SELECT '${f.readingId}', '${f.stationId}', 12.5, 'seeded'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM weather_readings WHERE id = '${f.readingId}'
+        );
+
+      COMMIT;
     `
   );
 
@@ -677,10 +696,7 @@ function describeFeedWrites(attempt: FeedWriteAttempt): string {
     attempt.rowSurvived ? 'reading survived delete' : 'reading was deleted',
     attempt.rowUnchanged ? 'reading unchanged' : 'reading was updated',
     attempt.nothingInjected ? 'no row injected' : 'a row was injected',
-    attempt.restoreError ? `restore failed: ${attempt.restoreError}` : null,
-  ]
-    .filter(Boolean)
-    .join('; ');
+  ].join('; ');
 }
 
 /** Runs non-SELECT SQL against the local stack database as the superuser. */

@@ -7,9 +7,11 @@ import {
 import {
   checkAuthCallsWrapped,
   checkGrants,
+  checkMatviewsHiddenFromClients,
   checkSecurityDefinersAreSafe,
   checkOnePolicyPerOperation,
   checkPolicyColumnsIndexed,
+  checkPoliciesIgnoreUserMetadata,
   checkPoliciesScopedToRole,
   checkRlsEnabled,
   checkViewsRunAsInvoker,
@@ -27,9 +29,9 @@ import {
   setupFixtures,
 } from './access.js';
 import {
+  checkPgTapSuitePasses,
   checkTestCoverage,
   checkTestFilesExist,
-  runPgTapSuite,
 } from './tests.js';
 
 const GUIDE_PATH = 'guides/database/postgres/row-level-security';
@@ -57,26 +59,29 @@ const scorer: LocalStackScorer = async (ctx) => {
           ];
 
     const grants = await checkGrants(ctx);
+    const matviews = await checkMatviewsHiddenFromClients(ctx);
     const indexes = await checkPolicyColumnsIndexed(ctx);
     const testFiles = await checkTestFilesExist(ctx);
     // Run the suite last: it leaves rows and objects behind that the other
     // checks would see.
-    const suite = await runPgTapSuite(ctx);
+    const suite = await checkPgTapSuitePasses(ctx);
 
     const checks: CheckResult[] = [
       checkRlsEnabled(tables),
       checkViewsRunAsInvoker(tables),
+      matviews,
       checkPoliciesScopedToRole(policies),
       checkOnePolicyPerOperation(policies),
       checkUpdatePoliciesHaveBothClauses(policies),
       ...grants,
       ...access,
       checkAuthCallsWrapped(policies),
+      checkPoliciesIgnoreUserMetadata(policies),
       indexes,
       checkSecurityDefinersAreSafe(functions),
       testFiles,
-      suite.check,
-      await checkTestCoverage(ctx, suite.assertions),
+      suite,
+      await checkTestCoverage(ctx),
       checkGuideWasRead(ctx),
     ];
 

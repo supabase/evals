@@ -161,6 +161,9 @@ export function checkRlsEnabled(tables: TableState[]): CheckResult {
 // protected table hands out everything the policies were meant to withhold.
 export function checkViewsRunAsInvoker(tables: TableState[]): CheckResult {
   const views = tables.filter((t) => t.relkind === 'v');
+  const matviews = tables
+    .filter((t) => t.relkind === 'm')
+    .map((t) => t.relname);
   const leaky = views
     .filter(
       (t) =>
@@ -171,14 +174,46 @@ export function checkViewsRunAsInvoker(tables: TableState[]): CheckResult {
     .map((t) => t.relname);
 
   return {
-    name: 'any view in the public schema runs as the invoker',
-    passed: leaky.length === 0,
+    name: 'every view in the public schema runs as the invoker, and none is materialized',
+    passed: leaky.length === 0 && matviews.length === 0,
     notes:
-      views.length === 0
-        ? 'no views created'
-        : leaky.length === 0
-          ? `verified ${views.map((v) => v.relname).join(', ')}`
-          : `bypasses RLS: ${leaky.join(', ')}`,
+      leaky.length === 0 && matviews.length === 0
+        ? views.length === 0
+          ? 'no views created'
+          : `verified ${views.map((v) => v.relname).join(', ')}`
+        : [
+            leaky.length > 0 ? `bypasses RLS: ${leaky.join(', ')}` : null,
+            matviews.length > 0
+              ? `materialized, so row level security never applies: ${matviews.join(', ')}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('; '),
+  };
+}
+
+export async function checkMatviewsHiddenFromClients(
+  ctx: LocalStackEvalContext
+): Promise<CheckResult> {
+  const { rows } = await ctx.query(stripIndent`
+    SELECT c.relname AS table_name, r.rolname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    CROSS JOIN (VALUES ('anon'), ('authenticated')) AS r(rolname)
+    WHERE n.nspname = 'public'
+      AND c.relkind = 'm'
+      AND has_table_privilege(r.rolname, c.oid, 'SELECT')
+  `);
+  const readable = rows.map(
+    (row) => `${String(row.rolname)} on ${String(row.table_name)}`
+  );
+  return {
+    name: 'no client role can read a materialized view',
+    passed: readable.length === 0,
+    notes:
+      readable.length === 0
+        ? undefined
+        : `select granted: ${readable.join(', ')}`,
   };
 }
 
@@ -259,6 +294,24 @@ export function checkAuthCallsWrapped(policies: PolicyRow[]): CheckResult {
       offenders.length === 0
         ? undefined
         : `unwrapped call in: ${offenders.map((p) => `${p.tablename}.${p.policyname}`).join(', ')}`,
+  };
+}
+
+export function checkPoliciesIgnoreUserMetadata(
+  policies: PolicyRow[]
+): CheckResult {
+  const offenders = policies.filter((policy) =>
+    expressionsOf([policy]).some((expression) =>
+      /user_metadata/i.test(expression)
+    )
+  );
+  return {
+    name: 'no policy reads user_metadata, which its own subject can write',
+    passed: offenders.length === 0,
+    notes:
+      offenders.length === 0
+        ? undefined
+        : `reads user_metadata: ${offenders.map((p) => `${p.tablename}.${p.policyname}`).join(', ')}`,
   };
 }
 

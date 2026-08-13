@@ -4,17 +4,12 @@ import {
   type LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
-import { SEEDED_TABLES } from './catalog.js';
 
 /** Allow + deny for four operations across two roles is eight assertions. */
 const MIN_PGTAP_TESTS = 8;
 
-const PASSING_ASSERTION = /^\s*ok\s+\d+\s*-?\s*(.*)$/i;
-
-export type PgTapRun = {
-  check: CheckResult;
-  assertions: string[];
-};
+const SUITE_TOTAL = /Files=\d+,\s*Tests=(\d+)/;
+const SUITE_FAILED = /\bFailed:\s*(\d+)/i;
 
 export async function checkTestFilesExist(
   ctx: LocalStackEvalContext
@@ -33,63 +28,36 @@ export async function checkTestFilesExist(
 // The counts alone are not enough: a suite whose plan does not match the
 // assertions it ran reports `Tests: 6 Failed: 0` and still exits non-zero with
 // `Result: FAIL`, so the exit status is what decides.
-export async function runPgTapSuite(
+export async function checkPgTapSuitePasses(
   ctx: LocalStackEvalContext
-): Promise<PgTapRun> {
-  // Without --debug, the test results the coverage check reads never reach us.
-  const result = await ctx.exec('supabase test db --debug', {
-    timeoutMs: 180_000,
-  });
+): Promise<CheckResult> {
+  const result = await ctx.exec('supabase test db', { timeoutMs: 180_000 });
   const output = result.stdout + result.stderr;
 
-  const totalMatch = output.match(/Tests[=:]\s*(\d+)/i);
-  const failedMatch = output.match(/Failed:\s*(\d+)/i);
+  const summary = SUITE_TOTAL.test(result.stdout) ? result.stdout : output;
+  const totalMatch = summary.match(SUITE_TOTAL);
+  const failedMatch = summary.match(SUITE_FAILED);
   const total = totalMatch ? parseInt(totalMatch[1], 10) : 0;
   const failed = failedMatch ? parseInt(failedMatch[1], 10) : 0;
   const ran = total > 0;
 
-  const assertions = result.stdout
-    .split('\n')
-    .filter((line) => !/#\s*(skip|todo)\b/i.test(line))
-    .map((line) => line.match(PASSING_ASSERTION)?.[1]?.trim())
-    .filter((description): description is string => description !== undefined);
-
   return {
-    check: {
-      name: `supabase test db runs at least ${MIN_PGTAP_TESTS} assertions and all pass`,
-      passed: result.ok && ran && failed === 0 && total >= MIN_PGTAP_TESTS,
-      notes: ran
-        ? `${total - failed} passed, ${failed} failed, exit ${result.exitCode}`
-        : `no test summary found; exit ${result.exitCode}; output: ${output.slice(0, 500)}`,
-    },
-    assertions,
+    name: `supabase test db runs at least ${MIN_PGTAP_TESTS} assertions and all pass`,
+    passed: result.ok && ran && failed === 0 && total >= MIN_PGTAP_TESTS,
+    notes: ran
+      ? `${total - failed} passed, ${failed} failed, exit ${result.exitCode}`
+      : `no test summary found; exit ${result.exitCode}; output: ${output.slice(0, 500)}`,
   };
 }
 
 export async function checkTestCoverage(
-  ctx: LocalStackEvalContext,
-  assertions: string[]
+  ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const name =
     'tests assert allow and deny per operation on the seeded tables, for anon and authenticated';
   const files = await listTestFiles(ctx);
   if (files.length === 0) {
     return { name, passed: false, notes: 'no test files to review' };
-  }
-
-  const reported = assertions.join('\n').toLowerCase();
-  const untested = SEEDED_TABLES.filter(
-    (table) => !new RegExp(`\\b${table}\\b`).test(reported)
-  );
-  if (untested.length > 0) {
-    return {
-      name,
-      passed: false,
-      notes:
-        assertions.length === 0
-          ? 'no passing assertions were reported'
-          : `no passing assertion names: ${untested.join(', ')}`,
-    };
   }
 
   const sources = await Promise.all(
@@ -108,7 +76,12 @@ export async function checkTestCoverage(
       \`weather_readings\`, readable by everyone and writable by no client).
 
       Pass only if the tests, taken together, do all of the following:
-      - Exercise the tables above, not scratch tables the suite created for
+      - Assert something against every one of these six tables, by name:
+        \`todos\`, \`lists\`, \`list_members\`, \`list_items\`,
+        \`weather_stations\`, \`weather_readings\`. Naming a table in a comment,
+        in an assertion description, or in setup that no assertion reads does
+        not count. If any of the six is missing, fail and say which.
+      - Exercise those tables, not scratch tables the suite created for
         itself.
       - Assert both an allowed and a denied outcome for each of select,
         insert, update, and delete.
