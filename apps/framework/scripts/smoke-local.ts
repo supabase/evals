@@ -19,6 +19,7 @@ import {
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { parsePublishedLog, PUBLISHED_LOG_FORMAT } from './published-log.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..', '..', '..');
@@ -95,6 +96,97 @@ function ck(name: string, fn: () => void) {
   }
 }
 
+// --- published-log parsing: the merge-commit case origin/main cannot reach ---
+// Built here rather than asserted against real history: main has no merge that
+// touches a published export, so an end-to-end check would pass either way.
+{
+  const repo = join(SANDBOX, 'merge-parse-repo');
+  const file = 'exports.json';
+  const g = (args: string[]) =>
+    execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+  mkdirSync(repo, { recursive: true });
+  g(['init', '-q', '-b', 'main']);
+  g(['config', 'user.email', 'smoke@local']);
+  g(['config', 'user.name', 'smoke']);
+  const commitFile = (body: string, msg: string) => {
+    writeFileSync(join(repo, file), body);
+    g(['add', file]);
+    g(['commit', '-qm', msg]);
+  };
+  commitFile('[{"eval":"base"}]\n', 'base');
+  g(['checkout', '-q', '-b', 'side']);
+  commitFile('[{"eval":"side"}]\n', 'side');
+  g(['checkout', '-q', 'main']);
+  commitFile('[{"eval":"main"}]\n', 'main edit');
+  // Expected to conflict: we resolve to content differing from BOTH parents so
+  // path-limited history simplification keeps this merge in `git log -- <file>`.
+  // The conflict is the point, so assert a merge is genuinely in progress rather
+  // than discarding the exit status and hoping.
+  const merge = spawnSync('git', ['merge', 'side'], {
+    cwd: repo,
+    encoding: 'utf8',
+  });
+  assert.notEqual(
+    merge.status,
+    0,
+    `expected \`git merge side\` to conflict, got clean exit: ${merge.stdout}${merge.stderr}`
+  );
+  assert.ok(
+    existsSync(join(repo, '.git', 'MERGE_HEAD')),
+    'no MERGE_HEAD: the next commit would not be a merge commit'
+  );
+  commitFile('[{"eval":"merged"}]\n', 'merge side into main');
+
+  const line = g(['log', 'main', '-1', PUBLISHED_LOG_FORMAT, '--', file]);
+
+  ck('published log line for a merge commit really has 2 parents', () => {
+    const [, parents] = line.split('\t');
+    assert.equal(parents.split(' ').length, 2, `expected a merge: ${line}`);
+  });
+
+  ck('merge commit parses to the mainline parent and a real date', () => {
+    const parsed = parsePublishedLog(line);
+    assert.match(parsed.commit, /^[0-9a-f]{40}$/);
+    assert.match(parsed.parent, /^[0-9a-f]{40}$/);
+    assert.equal(parsed.parent, g(['rev-parse', 'main^1']));
+    assert.ok(
+      !Number.isNaN(Date.parse(parsed.committedAt)),
+      `committedAt is not a date: ${parsed.committedAt}`
+    );
+  });
+
+  ck('the old space-split is what this guards against', () => {
+    // Reproduce the pre-fix parse to prove the regression is real: `%P` puts a
+    // second sha where the timestamp belongs, and Date.parse yields NaN.
+    const spaceSplit = g([
+      'log',
+      'main',
+      '-1',
+      '--format=%H %P %cI',
+      '--',
+      file,
+    ]).split(' ');
+    assert.equal(spaceSplit.length, 4);
+    assert.ok(Number.isNaN(Date.parse(spaceSplit[2])));
+  });
+
+  ck('malformed published log lines are refused, not guessed', () => {
+    assert.throws(() => parsePublishedLog('only-one-field'), /expected 3/);
+    assert.throws(
+      () => parsePublishedLog('nothex\tdead\t2026-01-01'),
+      /not a sha/
+    );
+    assert.throws(
+      () => parsePublishedLog(`${'a'.repeat(40)}\t${'b'.repeat(40)}\tnope`),
+      /not a date/
+    );
+    assert.throws(
+      () => parsePublishedLog(`${'a'.repeat(40)}\t\t2026-01-01T00:00:00Z`),
+      /no parent/
+    );
+  });
+}
+
 // --- refusals happen pre-spend, with actionable messages ---
 {
   const r = local(['compare', 'no-such-eval-xyz']);
@@ -134,7 +226,14 @@ function ck(name: string, fn: () => void) {
       readFileSync(join(OUT, `${EVAL}.published.json`), 'utf8')
     );
     assert.match(receipt.publishedProvenance.commit, /^[0-9a-f]{40}$/);
+    // Exactly ONE sha, and a real date: %P expands to every parent, so a
+    // space-split of `%H %P %cI` puts a second parent where the timestamp
+    // belongs on a merge commit (Date.parse -> NaN, "NaNd old" in the report).
     assert.match(receipt.publishedProvenance.parent, /^[0-9a-f]{40}$/);
+    assert.ok(
+      !Number.isNaN(Date.parse(receipt.publishedProvenance.committedAt)),
+      `committedAt is not a date: ${receipt.publishedProvenance.committedAt}`
+    );
   });
   ck('treatment receipt carries host provenance', () => {
     const receipt = JSON.parse(
@@ -211,14 +310,37 @@ function ck(name: string, fn: () => void) {
     '--mcp',
     fake,
   ]);
-  ck('mcp build that ignores the env var refused pre-spend', () => {
+  ck('mcp build without the --content-api-url flag refused pre-spend', () => {
     assert.equal(staleBuild.status, 1);
     assert.match(staleBuild.out, /predates supabase\/mcp#343/);
   });
 
+  // The discriminating case: a build carrying ONLY the env fallback, no flag.
+  // We forward the URL as `--content-api-url` in the server's argv (the server
+  // runs in-container and inherits no environment), so such a build would
+  // ignore the override — probing for the env var name alone would wave it
+  // through and buy a paid run against production docs.
   writeFileSync(
     join(pkg, 'dist', 'transports', 'stdio.js'),
-    '// smoke fixture reading process.env.SUPABASE_CONTENT_API_URL\n'
+    '// smoke fixture: env fallback only\nprocess.env.SUPABASE_CONTENT_API_URL\n'
+  );
+  const envOnly = local([
+    'run',
+    EVAL,
+    '--content-api',
+    'http://127.0.0.1:3001',
+    '--mcp',
+    fake,
+  ]);
+  ck('mcp build with only the env fallback refused pre-spend', () => {
+    assert.equal(envOnly.status, 1);
+    assert.match(envOnly.out, /no --content-api-url flag/);
+  });
+
+  // A post-#343 build: registers the flag and keeps the env fallback.
+  writeFileSync(
+    join(pkg, 'dist', 'transports', 'stdio.js'),
+    "// smoke fixture: post-#343 build\n['content-api-url']:{type:'string'}\nprocess.env.SUPABASE_CONTENT_API_URL\n"
   );
   const honoured = local([
     'run',
@@ -228,7 +350,7 @@ function ck(name: string, fn: () => void) {
     '--mcp',
     fake,
   ]);
-  ck('build honouring the env var is accepted and recorded', () => {
+  ck('build with the --content-api-url flag is accepted and recorded', () => {
     assert.equal(honoured.status, 0);
     const receipt = JSON.parse(
       readFileSync(join(OUT, `${EVAL}.treatment.json`), 'utf8')

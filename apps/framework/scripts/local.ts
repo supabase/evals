@@ -43,6 +43,7 @@ import {
   type RawEvalResult,
 } from '@supabase-evals/core/eval-metadata';
 import { main as docsMain } from './local-docs.js';
+import { parsePublishedLog, PUBLISHED_LOG_FORMAT } from './published-log.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..', '..');
@@ -139,15 +140,15 @@ function loadPublishedFile(file: string): PublishedFile | undefined {
   } catch {
     return undefined;
   }
-  const [commit, parent, committedAt] = git([
+  const line = git([
     'log',
     'origin/main',
     '-1',
-    '--format=%H %P %cI',
+    PUBLISHED_LOG_FORMAT,
     '--',
     file,
-  ]).split(' ');
-  return { file, rows, commit, parent, committedAt };
+  ]);
+  return { file, rows, ...parsePublishedLog(line) };
 }
 
 /** Fetch origin/main so the published exports are current; warn-and-continue offline. */
@@ -308,24 +309,33 @@ function resolveMcpServerPath(raw: string): string {
 }
 
 /**
- * `--content-api` is only honoured by a local mcp build. The flag sets
- * SUPABASE_CONTENT_API_URL, which the server reads to point `search_docs` at
- * a local docs index — support merged in supabase/mcp#343 but shipped in NO
- * release yet (newest is v0.9.0; the harness pin is older still). Ungated,
- * the published package ignores the var: `search_docs` silently queries
- * PRODUCTION docs while collectProvenance still stamps contentApiUrl into the
- * receipt — a paid run that measures the wrong world and reports the right
- * one. Shape check, so it runs for fake runs too (like resolveMcpServerPath).
+ * `--content-api` is only honoured by an mcp build carrying supabase/mcp#343,
+ * which added a `--content-api-url` flag (and a SUPABASE_CONTENT_API_URL env
+ * fallback) on the stdio transport. The harness launches the MCP_SERVER_VERSION
+ * pin, which predates it, so with the published package `search_docs` would
+ * silently query PRODUCTION docs while collectProvenance still stamps
+ * contentApiUrl into the receipt — a paid run that measures the wrong world and
+ * reports the right one. Hence: refuse without a local build.
+ *
+ * The probe looks for the FLAG, not the env var, because the flag is what we
+ * actually pass: createConfig reads SUPABASE_CONTENT_API_URL in this process
+ * and forwards it as `--content-api-url` in the server's argv (a CLI agent
+ * spawns that command inside the sandbox container, which inherits no
+ * environment from us, so the server's own env fallback never fires). A build
+ * with the flag but no env fallback works fine here; one with only the env
+ * fallback would not.
+ *
+ * Shape check, so it runs for fake runs too (like resolveMcpServerPath).
  */
 function validateContentApi(contentApi: string, mcpServerPath?: string) {
   if (!mcpServerPath)
     fail(
-      `--content-api needs --mcp <path>: the published mcp server ignores SUPABASE_CONTENT_API_URL, so search_docs would query production docs while the receipt claims ${contentApi}\n  pass --mcp pointing at an mcp checkout on main, built (flag support merged in supabase/mcp#343, not yet released)`
+      `--content-api needs --mcp <path>: the harness otherwise launches the pinned v${MCP_SERVER_VERSION} package, which has no --content-api-url flag, so search_docs would query production docs while the receipt claims ${contentApi}\n  pass --mcp pointing at an mcp checkout carrying supabase/mcp#343, built`
     );
   const stdio = join(mcpServerPath, 'dist', 'transports', 'stdio.js');
-  if (!readFileSync(stdio, 'utf8').includes('SUPABASE_CONTENT_API_URL'))
+  if (!readFileSync(stdio, 'utf8').includes('content-api-url'))
     fail(
-      `the mcp build at ${mcpServerPath} predates supabase/mcp#343 and ignores SUPABASE_CONTENT_API_URL — search_docs would query production docs, not ${contentApi}\n  update and rebuild the checkout: git pull && pnpm install && pnpm build`
+      `the mcp build at ${mcpServerPath} has no --content-api-url flag (predates supabase/mcp#343) — search_docs would query production docs, not ${contentApi}\n  update and rebuild the checkout: git pull && pnpm install && pnpm build`
     );
 }
 
