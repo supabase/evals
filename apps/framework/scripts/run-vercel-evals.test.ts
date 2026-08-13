@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  isTransientError,
   parsePairs,
+  positiveInteger,
   runBounded,
+  tagValue,
 } from './run-vercel-evals.js';
 
 describe('Vercel eval controller', () => {
@@ -27,12 +28,28 @@ describe('Vercel eval controller', () => {
     ]);
   });
 
-  it('does not guess retryability from unstructured error messages', () => {
-    expect(isTransientError(new Error('HTTP 429 rate limit exceeded'))).toBe(
-      false
+  it('rejects non-positive-integer CLI options', () => {
+    expect(positiveInteger('3', 'runs')).toBe(3);
+    expect(() => positiveInteger('0', 'runs')).toThrow(
+      '--runs must be a positive integer'
     );
-    expect(isTransientError(new Error('fetch failed: ECONNRESET'))).toBe(false);
-    expect(isTransientError(new Error('no experiment matched'))).toBe(false);
+    expect(() => positiveInteger('-1', 'runs')).toThrow(
+      '--runs must be a positive integer'
+    );
+    expect(() => positiveInteger('1.5', 'runs')).toThrow(
+      '--runs must be a positive integer'
+    );
+    expect(() => positiveInteger('abc', 'runs')).toThrow(
+      '--runs must be a positive integer'
+    );
+  });
+
+  it('sanitizes Sandbox names and tags to the allowed charset', () => {
+    expect(tagValue('openai-gpt-5.4-nano')).toBe('openai-gpt-5-4-nano');
+    expect(tagValue('Build CLI / Bootstrap App!')).toBe(
+      'build-cli-bootstrap-app-'
+    );
+    expect(tagValue('a'.repeat(100))).toHaveLength(64);
   });
 
   it('validates pair input before starting Sandboxes', () => {

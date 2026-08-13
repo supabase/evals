@@ -5,6 +5,20 @@ import {
   type ExperimentSuite,
 } from '@supabase-evals/core/eval-metadata';
 
+/** Reads one CLI flag in either `--name value` or `--name=value` form. */
+export function readFlag(rawArgs: string[], name: string): string | undefined {
+  const prefix = `--${name}=`;
+  const inline = rawArgs.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length);
+  const index = rawArgs.indexOf(`--${name}`);
+  if (index === -1) return undefined;
+  const value = rawArgs[index + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error(`--${name} requires a value`);
+  }
+  return value;
+}
+
 export function splitList(value: string): string[] {
   return value
     .split(',')

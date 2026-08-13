@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { APIError, type Command, Sandbox, StreamError } from '@vercel/sandbox';
+import { type Command, Sandbox } from '@vercel/sandbox';
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,6 +9,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import pLimit from 'p-limit';
 import pRetry from 'p-retry';
+import { z } from 'zod';
+import { readFlag } from '../lib/cli-args.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const execFileAsync = promisify(execFile);
@@ -19,12 +21,14 @@ const AGENT_ENV_NAMES = [
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
 ];
-export interface EvalPair {
-  eval_id: string;
-  experiment: string;
-  experiment_suite: string;
-  eval_suite: string;
-}
+
+const evalPairSchema = z.object({
+  eval_id: z.string(),
+  experiment: z.string(),
+  experiment_suite: z.string(),
+  eval_suite: z.string(),
+});
+export type EvalPair = z.infer<typeof evalPairSchema>;
 
 interface RunnerOptions {
   pairs: EvalPair[];
@@ -69,23 +73,6 @@ export async function runBounded<T, R>(
   return Promise.allSettled(items.map((item) => limit(run, item)));
 }
 
-/** Returns whether an error is safe to retry without changing the request. */
-export function isTransientError(error: Error): boolean {
-  if (error instanceof SandboxCommandError) return false;
-  if (error instanceof StreamError) return true;
-  if (error instanceof APIError) {
-    const status = error.response.status;
-    return (
-      status === 408 ||
-      status === 409 ||
-      status === 425 ||
-      status === 429 ||
-      status >= 500
-    );
-  }
-  return false;
-}
-
 /** Runs all pairs and reports failures only after independent work finishes. */
 async function runPairs(options: RunnerOptions): Promise<void> {
   requireVercelCredentials();
@@ -107,14 +94,13 @@ async function runPairs(options: RunnerOptions): Promise<void> {
           minTimeout: 5_000,
           maxTimeout: 30_000,
           randomize: true,
-          shouldRetry: ({ error }) => isTransientError(error),
           onFailedAttempt: ({
             error,
             attemptNumber,
             retriesLeft,
             retryDelay,
           }) => {
-            const retrying = isTransientError(error) && retriesLeft > 0;
+            const retrying = retriesLeft > 0;
             console.warn(
               `${pairLabel(pair)} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(error.message)}`
             );
@@ -296,7 +282,6 @@ async function runSandboxCommand(
     factor: 2,
     minTimeout: 1_000,
     maxTimeout: 10_000,
-    shouldRetry: ({ error }) => isTransientError(error),
     onFailedAttempt: ({ error, attemptNumber }) => {
       console.warn(
         `${label} ${step} wait failed (attempt ${attemptNumber}): ${error.message}`
@@ -365,59 +350,26 @@ async function cleanupSandbox(sandbox: Sandbox, label: string): Promise<void> {
 
 /** Parses and validates the pair list supplied by GitHub Actions. */
 export function parsePairs(value: string): EvalPair[] {
-  const parsed: unknown = JSON.parse(value);
-  if (!Array.isArray(parsed) || parsed.length === 0) {
+  const json: unknown = JSON.parse(value);
+  if (!Array.isArray(json) || json.length === 0) {
     throw new Error('--pairs-json must be a non-empty JSON array');
   }
-  const pairs: EvalPair[] = [];
-  for (const item of parsed) {
-    if (!isEvalPair(item)) {
-      throw new Error(
-        'each pair must contain eval_id, experiment, experiment_suite, and eval_suite strings'
-      );
-    }
-    pairs.push(item);
+  const parsed = z.array(evalPairSchema).safeParse(json);
+  if (!parsed.success) {
+    throw new Error(
+      'each pair must contain eval_id, experiment, experiment_suite, and eval_suite strings'
+    );
   }
-  return pairs;
+  return parsed.data;
 }
 
-/** Narrows untrusted JSON to the workflow's pair shape. */
-function isEvalPair(value: unknown): value is EvalPair {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'eval_id' in value &&
-    typeof value.eval_id === 'string' &&
-    'experiment' in value &&
-    typeof value.experiment === 'string' &&
-    'experiment_suite' in value &&
-    typeof value.experiment_suite === 'string' &&
-    'eval_suite' in value &&
-    typeof value.eval_suite === 'string'
-  );
-}
-
-/** Reads one CLI flag in either `--name value` or `--name=value` form. */
-function readFlag(rawArgs: string[], name: string): string | undefined {
-  const prefix = `--${name}=`;
-  const inline = rawArgs.find((arg) => arg.startsWith(prefix));
-  if (inline) return inline.slice(prefix.length);
-  const index = rawArgs.indexOf(`--${name}`);
-  if (index === -1) return undefined;
-  const value = rawArgs[index + 1];
-  if (!value || value.startsWith('--')) {
-    throw new Error(`--${name} requires a value`);
-  }
-  return value;
-}
+const positiveIntegerSchema = z.coerce.number().int().min(1);
 
 /** Parses a positive integer CLI option. */
-function positiveInteger(value: string, name: string): number {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new Error(`--${name} must be a positive integer`);
-  }
-  return parsed;
+export function positiveInteger(value: string, name: string): number {
+  const parsed = positiveIntegerSchema.safeParse(value);
+  if (!parsed.success) throw new Error(`--${name} must be a positive integer`);
+  return parsed.data;
 }
 
 /** Returns an environment variable or a useful configuration error. */
@@ -492,7 +444,7 @@ function sandboxName(pair: EvalPair): string {
 }
 
 /** Sanitizes metadata for Sandbox names and tags. */
-function tagValue(value: string): string {
+export function tagValue(value: string): string {
   return value
     .toLowerCase()
     .replaceAll(/[^a-z0-9-]+/g, '-')
