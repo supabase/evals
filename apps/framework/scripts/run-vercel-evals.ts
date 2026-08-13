@@ -150,7 +150,7 @@ async function runPairOnce(options: PairOptions): Promise<void> {
         depth: 1,
       },
       resources: { vcpus: options.vcpus },
-      timeout: options.runs * options.timeoutSec * 1_000 + 20 * 60 * 1_000,
+      timeout: options.runs * options.timeoutSec * 1_000 + 25 * 60 * 1_000,
       persistent: false,
       tags: {
         runner: 'supabase-evals',
@@ -175,13 +175,13 @@ async function runPairOnce(options: PairOptions): Promise<void> {
         '--recursive',
       ],
       cwd: sandbox.cwd,
-      timeoutMs: 5 * 60 * 1_000,
+      timeoutMs: 2 * 60 * 1_000,
     });
     await runSandboxCommand(sandbox, label, 'install Docker', {
       cmd: 'dnf',
       args: ['install', '-y', '-q', 'docker'],
       sudo: true,
-      timeoutMs: 5 * 60 * 1_000,
+      timeoutMs: 3 * 60 * 1_000,
     });
     await sandbox.runCommand({
       cmd: 'dockerd',
@@ -201,13 +201,13 @@ async function runPairOnce(options: PairOptions): Promise<void> {
       cmd: 'npm',
       args: ['install', '--global', 'pnpm@10.24.0'],
       sudo: true,
-      timeoutMs: 5 * 60 * 1_000,
+      timeoutMs: 2 * 60 * 1_000,
     });
     await runSandboxCommand(sandbox, label, 'install dependencies', {
       cmd: 'pnpm',
       args: ['install', '--frozen-lockfile'],
       cwd: sandbox.cwd,
-      timeoutMs: 10 * 60 * 1_000,
+      timeoutMs: 6 * 60 * 1_000,
     });
 
     await sandbox.writeFiles([
@@ -239,6 +239,7 @@ async function runPairOnce(options: PairOptions): Promise<void> {
       cmd: 'test',
       args: ['-f', `results/${pair.experiment}/${pair.eval_id}.json`],
       cwd: sandbox.cwd,
+      timeoutMs: 30_000,
     });
     await runSandboxCommand(sandbox, label, 'pack results', {
       cmd: 'tar',
@@ -251,7 +252,7 @@ async function runPairOnce(options: PairOptions): Promise<void> {
         '.',
       ],
       cwd: sandbox.cwd,
-      timeoutMs: 5 * 60 * 1_000,
+      timeoutMs: 3 * 60 * 1_000,
     });
     await downloadResults(sandbox, pair, options.outputDir);
   } catch (error) {
