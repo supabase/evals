@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { APIError, type Command, Sandbox } from '@vercel/sandbox';
+import { APIError, Sandbox } from '@vercel/sandbox';
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -299,18 +299,13 @@ async function runSandboxCommand(
   label: string,
   step: string,
   options: SandboxCommandOptions,
-  stream = false
+  logOutput = false
 ): Promise<void> {
   console.log(`${label} ${step}`);
   const command = await sandbox.runCommand({
     ...options,
     detached: true,
   });
-  const logs = stream
-    ? streamCommandLogs(command, label).catch((error) => {
-        console.warn(`${label} ${step} log stream ended: ${errorMessage(error)}`);
-      })
-    : Promise.resolve();
   const result = await pRetry(() => command.wait(), {
     retries: 5,
     factor: 2,
@@ -322,19 +317,16 @@ async function runSandboxCommand(
       );
     },
   });
-  await logs;
-  if (result.exitCode === 0) return;
+  if (result.exitCode === 0) {
+    if (logOutput) {
+      const output = await result.output('both').catch(() => '');
+      if (output.trim()) process.stdout.write(`${label} ${output}`);
+    }
+    return;
+  }
 
   const output = await result.output('both').catch(() => '');
   throw new SandboxCommandError(step, result.exitCode, output);
-}
-
-/** Mirrors run-eval's own RUN/PASS/FAIL progress lines into the controller log. */
-async function streamCommandLogs(command: Command, label: string): Promise<void> {
-  for await (const log of command.logs()) {
-    const target = log.stream === 'stdout' ? process.stdout : process.stderr;
-    target.write(`${label} ${log.data}`);
-  }
 }
 
 /** Downloads and extracts one pair into the aggregate artifact directory. */
