@@ -43,6 +43,10 @@ import {
   type RawEvalResult,
 } from '@supabase-evals/core/eval-metadata';
 import { main as docsMain } from './local-docs.js';
+import {
+  CONTENT_API_FLAG_MIN_VERSION,
+  supportsContentApiFlag,
+} from './mcp-capabilities.js';
 import { parsePublishedLog, PUBLISHED_LOG_FORMAT } from './published-log.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -309,13 +313,16 @@ function resolveMcpServerPath(raw: string): string {
 }
 
 /**
- * `--content-api` is only honoured by an mcp build carrying supabase/mcp#343,
- * which added a `--content-api-url` flag (and a SUPABASE_CONTENT_API_URL env
- * fallback) on the stdio transport. The harness launches the MCP_SERVER_VERSION
- * pin, which predates it, so with the published package `search_docs` would
- * silently query PRODUCTION docs while collectProvenance still stamps
- * contentApiUrl into the receipt — a paid run that measures the wrong world and
- * reports the right one. Hence: refuse without a local build.
+ * `--content-api` only reaches the docs index if the server we launch honours
+ * `--content-api-url` (supabase/mcp#343). Otherwise `search_docs` silently
+ * queries PRODUCTION docs while collectProvenance still stamps contentApiUrl
+ * into the receipt: a paid run that measures the wrong world and reports the
+ * right one.
+ *
+ * Two ways to satisfy it. Either the MCP_SERVER_VERSION pin is new enough that
+ * the published package carries the flag, in which case no local build is
+ * needed (createConfig builds the flag list once and shares it between the npx
+ * and local-build launch paths), or `--mcp` supplies a build that has it.
  *
  * The probe looks for the FLAG, not the env var, because the flag is what we
  * actually pass: createConfig reads SUPABASE_CONTENT_API_URL in this process
@@ -328,10 +335,13 @@ function resolveMcpServerPath(raw: string): string {
  * Shape check, so it runs for fake runs too (like resolveMcpServerPath).
  */
 function validateContentApi(contentApi: string, mcpServerPath?: string) {
-  if (!mcpServerPath)
+  if (!mcpServerPath) {
+    // No override: it rides on the pinned published package, so the pin decides.
+    if (supportsContentApiFlag(MCP_SERVER_VERSION)) return;
     fail(
-      `--content-api needs --mcp <path>: the harness otherwise launches the pinned v${MCP_SERVER_VERSION} package, which has no --content-api-url flag, so search_docs would query production docs while the receipt claims ${contentApi}\n  pass --mcp pointing at an mcp checkout carrying supabase/mcp#343, built`
+      `--content-api needs --mcp <path>: the harness launches the pinned v${MCP_SERVER_VERSION} package, which has no --content-api-url flag (added in v${CONTENT_API_FLAG_MIN_VERSION} via supabase/mcp#343), so search_docs would query production docs while the receipt claims ${contentApi}\n  pass --mcp pointing at an mcp checkout carrying that change, built\n  (raising MCP_SERVER_VERSION to v${CONTENT_API_FLAG_MIN_VERSION} also lifts this, but the platform-lite fixtures track the pin, so that is a harness-wide change and not a local fix)`
     );
+  }
   const stdio = join(mcpServerPath, 'dist', 'transports', 'stdio.js');
   if (!readFileSync(stdio, 'utf8').includes('content-api-url'))
     fail(

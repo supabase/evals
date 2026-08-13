@@ -101,9 +101,10 @@ pnpm local experiments                      # list experiments + published-basel
   pnpm local docs up --docs <path-to-supabase-monorepo>
   pnpm local docs seed        # full embed via the docs app's pipeline (~$0.12 OpenAI; asks first)
   pnpm local docs api         # keep running in a separate terminal
-  # --content-api needs a local mcp build too: SUPABASE_CONTENT_API_URL support
-  # is merged (supabase/mcp#343) but unreleased, so the published server ignores
-  # it and search_docs would silently hit production docs. Refused pre-spend.
+  # --content-api needs a local mcp build while the harness pin is below v0.10.0:
+  # the --content-api-url flag landed in supabase/mcp#343 and shipped in v0.10.0,
+  # so the pinned server ignores it and search_docs would silently hit production
+  # docs. Refused pre-spend; --mcp stops being required once the pin catches up.
   pnpm local run <eval-id> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>
   ```
 

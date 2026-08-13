@@ -959,8 +959,9 @@ export function supabaseMcpServer(
       // container, which inherits nothing from the harness process — and
       // `rewriteLoopback` then maps 127.0.0.1 -> host.docker.internal so the
       // host-side API is actually reachable from in there. Flag support landed
-      // in supabase/mcp#343 (unreleased), so this needs a local build; `pnpm
-      // local` refuses --content-api without one.
+      // in supabase/mcp#343 and shipped in v0.10.0, so it works on the npx path
+      // too once MCP_SERVER_VERSION reaches that; below it, `pnpm local` refuses
+      // --content-api unless --mcp supplies a build that has the flag.
       const contentApiUrl = process.env.SUPABASE_CONTENT_API_URL;
       if (contentApiUrl) serverArgs.push('--content-api-url', contentApiUrl);
 

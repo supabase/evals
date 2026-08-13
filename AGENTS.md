@@ -31,10 +31,11 @@ Per input:
   `pnpm local docs seed --yes` to re-embed (**~$0.12 OpenAI — see spend
   rules**), keep `pnpm local docs api` running in a separate terminal, then
   `pnpm local compare <eval> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>`.
-  `--content-api` also needs `--mcp`: the env var it sets is only read by an
-  mcp build carrying supabase/mcp#343 (merged, unreleased). With the published
-  package `search_docs` would query production docs while the receipt claimed
-  otherwise, so the runner refuses pre-spend.
+  `--content-api` needs `--mcp` while the harness pin is below v0.10.0: the
+  `--content-api-url` flag it forwards landed in supabase/mcp#343 and shipped in
+  v0.10.0, so the pinned package ignores it and `search_docs` would query
+  production docs while the receipt claimed otherwise. The runner refuses
+  pre-spend, and stops asking for `--mcp` once the pin reaches v0.10.0.
   **`docs seed` currently fails against a vanilla docs checkout**: the pipeline
   unconditionally loads its lint-warnings source, which needs a GitHub App
   (`DOCS_GITHUB_APP_*`, no token fallback), and one `Promise.all` makes that

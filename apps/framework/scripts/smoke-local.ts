@@ -19,6 +19,10 @@ import {
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import {
+  CONTENT_API_FLAG_MIN_VERSION,
+  supportsContentApiFlag,
+} from './mcp-capabilities.js';
 import { parsePublishedLog, PUBLISHED_LOG_FORMAT } from './published-log.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -94,6 +98,38 @@ function ck(name: string, fn: () => void) {
     console.error(`FAIL: ${name}`);
     throw err;
   }
+}
+
+// --- content-api capability: version comparison, both sides of the boundary ---
+// Driven directly because the pin it gates on is a constant in core, so an
+// end-to-end check only ever exercises whichever side today's pin sits on.
+{
+  ck('versions below the flag release are not capable', () => {
+    for (const v of ['0.8.1', '0.9.0', '0.9.9', '0.1.0'])
+      assert.equal(supportsContentApiFlag(v), false, v);
+  });
+  ck('the flag release and newer are capable', () => {
+    for (const v of [CONTENT_API_FLAG_MIN_VERSION, '0.10.1', '0.11.0', '1.0.0'])
+      assert.equal(supportsContentApiFlag(v), true, v);
+  });
+  ck('no prerelease counts, however high its number', () => {
+    // A version number orders releases; it does not prove what is in the tree.
+    // A prerelease could be cut from a branch that forked before the flag, and
+    // wrongly trusting one costs a paid run against production docs, so the
+    // conservative answer is the right one on both sides of the minimum.
+    for (const v of ['0.10.0-dev.1', '0.11.0-beta', '1.0.0-rc.1', '0.9.0-x'])
+      assert.equal(supportsContentApiFlag(v), false, v);
+  });
+  ck('malformed versions throw instead of reporting a capability', () => {
+    // The dangerous direction: `0.10.foo` parsed loosely reads as 0.10.0 and
+    // would wave a paid run through against production docs.
+    for (const v of ['0.10.foo', '0.10', '', 'latest', 'v0.10.0'])
+      assert.throws(
+        () => supportsContentApiFlag(v),
+        /not a MAJOR\.MINOR\.PATCH version/,
+        `expected a throw for ${JSON.stringify(v)}`
+      );
+  });
 }
 
 // --- published-log parsing: the merge-commit case origin/main cannot reach ---
