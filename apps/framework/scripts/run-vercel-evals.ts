@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { APIError, Sandbox } from '@vercel/sandbox';
+import { APIError, type Command, Sandbox } from '@vercel/sandbox';
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -108,9 +108,9 @@ async function runPairs(options: RunnerOptions): Promise<void> {
             },
           }
         );
-        console.log(`PASS ${pairLabel(pair)}`);
+        console.log(`SANDBOX OK ${pairLabel(pair)}`);
       } catch (error) {
-        console.error(`ERROR ${pairLabel(pair)}: ${errorMessage(error)}`);
+        console.error(`SANDBOX FAILED ${pairLabel(pair)}: ${errorMessage(error)}`);
         throw error;
       }
     }
@@ -234,7 +234,7 @@ async function runPairOnce(options: PairOptions): Promise<void> {
       ],
       cwd: sandbox.cwd,
       timeoutMs: options.runs * options.timeoutSec * 1_000 + 5 * 60 * 1_000,
-    });
+    }, true);
     await runSandboxCommand(sandbox, label, 'validate result', {
       cmd: 'test',
       args: ['-f', `results/${pair.experiment}/${pair.eval_id}.json`],
@@ -297,13 +297,19 @@ async function runSandboxCommand(
   sandbox: Sandbox,
   label: string,
   step: string,
-  options: SandboxCommandOptions
+  options: SandboxCommandOptions,
+  stream = false
 ): Promise<void> {
   console.log(`${label} ${step}`);
   const command = await sandbox.runCommand({
     ...options,
     detached: true,
   });
+  const logs = stream
+    ? streamCommandLogs(command, label).catch((error) => {
+        console.warn(`${label} ${step} log stream ended: ${errorMessage(error)}`);
+      })
+    : Promise.resolve();
   const result = await pRetry(() => command.wait(), {
     retries: 5,
     factor: 2,
@@ -315,10 +321,19 @@ async function runSandboxCommand(
       );
     },
   });
+  await logs;
   if (result.exitCode === 0) return;
 
   const output = await result.output('both').catch(() => '');
   throw new SandboxCommandError(step, result.exitCode, output);
+}
+
+/** Mirrors run-eval's own RUN/PASS/FAIL progress lines into the controller log. */
+async function streamCommandLogs(command: Command, label: string): Promise<void> {
+  for await (const log of command.logs()) {
+    const target = log.stream === 'stdout' ? process.stdout : process.stderr;
+    target.write(`${label} ${log.data}`);
+  }
 }
 
 /** Downloads and extracts one pair into the aggregate artifact directory. */
