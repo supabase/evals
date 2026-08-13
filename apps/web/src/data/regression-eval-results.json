@@ -103,7 +103,7 @@
       {
         "name": "anon holds no write grant anywhere in the public schema",
         "passed": false,
-        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items"
+        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings"
       },
       {
         "name": "no client role holds a write grant on the weather feed",
@@ -113,7 +113,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-0dabbe65, todo-a-edit-0dabbe65, todo-a-delete-0dabbe65"
+        "notes": "titles: todo-a-2f00e866, todo-a-edit-2f00e866, todo-a-delete-2f00e866"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -122,7 +122,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-0dabbe65"
+        "notes": "titles: todo-b-2f00e866"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -161,12 +161,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-0dabbe65"
+        "notes": "names: list-2f00e866"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-0dabbe65"
+        "notes": "titles: item-2f00e866"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -245,8 +245,8 @@
       },
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
-        "passed": false,
-        "notes": "callable over the API: public.is_list_owner, public.is_list_member"
+        "passed": true,
+        "notes": "verified private.is_list_owner, private.is_list_member"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -277,14 +277,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize all guidance about writing Row Level Security policies in Supabase/Postgres: syntax, best practices, performance recommendations (indexes, wrapping functions in select, specifying roles, security definer functions for avoiding recursive RLS), how to reference auth.uid(), policies for SELECT/INSERT/UPDATE/DELETE, using views, and any gotchas.",
+          "query": "Extract the full guide content: what RLS is, how to enable it, how to write policies (CREATE POLICY syntax, USING vs WITH CHECK, roles, auth.uid()), best practices (indexing columns used in policies, wrapping functions in SELECT, specifying roles, adding explicit filters in queries), security definer functions to avoid recursive RLS issues, and any example policies shown (especially for multi-tenant/shared data and public read access). Include exact SQL syntax examples verbatim.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 3785
+          "resultChars": 5350
         }
       ]
     },
