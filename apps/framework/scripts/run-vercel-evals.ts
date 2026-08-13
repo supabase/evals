@@ -102,7 +102,7 @@ async function runPairs(options: RunnerOptions): Promise<void> {
           }) => {
             const retrying = retriesLeft > 0;
             console.warn(
-              `${pairLabel(pair)} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(error.message)}`
+              `${pairLabel(pair)} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(errorMessage(error))}`
             );
           },
         }
@@ -314,7 +314,7 @@ async function runSandboxCommand(
     maxTimeout: 10_000,
     onFailedAttempt: ({ error, attemptNumber }) => {
       console.warn(
-        `${label} ${step} wait failed (attempt ${attemptNumber}): ${error.message}`
+        `${label} ${step} wait failed (attempt ${attemptNumber}): ${errorMessage(error)}`
       );
     },
   });
