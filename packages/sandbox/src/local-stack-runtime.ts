@@ -79,12 +79,14 @@ export function localStackRuntime(
       projectRunning,
       hosted,
       skills,
+      mounts,
       skipCliInstall,
     }) {
       const env = await createAgentEnvironment({
         cliVersion: cliVersion ?? options.cliVersion,
         localDir,
         skills,
+        mounts,
         localStack: {
           includeServices,
           projectRunning,
