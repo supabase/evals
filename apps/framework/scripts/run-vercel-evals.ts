@@ -75,7 +75,7 @@ export async function runBounded<T, R>(
 
 /** Runs all pairs and reports failures only after independent work finishes. */
 async function runPairs(options: RunnerOptions): Promise<void> {
-  requireVercelCredentials();
+  const credentials = vercelCredentialsFromEnv();
 
   const results = await runBounded(
     options.pairs,
@@ -84,11 +84,14 @@ async function runPairs(options: RunnerOptions): Promise<void> {
       try {
         await pRetry(
           (attempt) =>
-            runPairOnce({
-              ...options,
-              pair,
-              attempt,
-            }),
+            runPairOnce(
+              {
+                ...options,
+                pair,
+                attempt,
+              },
+              credentials
+            ),
           {
             retries: 2,
             factor: 2,
@@ -135,14 +138,17 @@ async function runPairs(options: RunnerOptions): Promise<void> {
 }
 
 /** Runs one pair in a fresh Sandbox and downloads its complete result tree. */
-async function runPairOnce(options: PairOptions): Promise<void> {
+async function runPairOnce(
+  options: PairOptions,
+  credentials: VercelCredentials
+): Promise<void> {
   const { pair } = options;
   const label = pairLabel(pair);
   let sandbox: Sandbox | undefined;
 
   try {
     sandbox = await createSandbox(label, {
-      ...vercelCredentialsFromEnv(),
+      ...credentials,
       name: sandboxName(pair),
       runtime: 'node24',
       source: {
@@ -411,13 +417,7 @@ function requireEnv(name: string, hint: string): string {
   return value;
 }
 
-/** Validates that local token authentication has all three required values. */
-function requireVercelCredentials(): void {
-  if (process.env.VERCEL_OIDC_TOKEN) return;
-  requireEnv('VERCEL_TOKEN', 'configure the evals-runner Vercel project');
-  requireEnv('VERCEL_TEAM_ID', 'configure the evals-runner Vercel project');
-  requireEnv('VERCEL_PROJECT_ID', 'configure the evals-runner Vercel project');
-}
+type VercelCredentials = ReturnType<typeof vercelCredentialsFromEnv>;
 
 /** Returns explicit credentials because the SDK does not infer all local vars. */
 function vercelCredentialsFromEnv():
