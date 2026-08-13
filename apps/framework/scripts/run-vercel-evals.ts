@@ -483,7 +483,6 @@ export function tagValue(value: string): string {
     .slice(0, 64);
 }
 
-/** Converts unknown thrown values into readable diagnostics. */
 const apiErrorBodySchema = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });
