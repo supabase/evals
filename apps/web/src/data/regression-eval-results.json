@@ -32,7 +32,7 @@
       {
         "name": "suggested relevant next steps for a Supabase + Next.js project",
         "passed": true,
-        "judgeNotes": "The response provides multiple concrete Supabase/Next.js next steps: starting or linking a Supabase project, installing @supabase/supabase-js/@supabase/ssr, setting NEXT_PUBLIC_SUPABASE_URL and anon key env vars, and creating a first migration."
+        "judgeNotes": "The response includes multiple concrete Supabase/Next.js next steps: `supabase start`, linking a hosted project, installing `@supabase/supabase-js`/`@supabase/ssr`, setting `NEXT_PUBLIC_SUPABASE_URL` and anon key from `supabase status`, and creating a first migration."
       },
       {
         "name": "attempted `npx plugins add supabase-community/supabase-plugin`",
@@ -80,9 +80,13 @@
         "passed": true
       },
       {
-        "name": "any view in the public schema runs as the invoker",
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
         "passed": true,
         "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
       },
       {
         "name": "every policy is scoped to a role instead of defaulting to public",
@@ -99,7 +103,7 @@
       {
         "name": "anon holds no write grant anywhere in the public schema",
         "passed": false,
-        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings"
+        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items"
       },
       {
         "name": "no client role holds a write grant on the weather feed",
@@ -109,7 +113,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-cca3f525, todo-a-edit-cca3f525, todo-a-delete-cca3f525"
+        "notes": "titles: todo-a-0dabbe65, todo-a-edit-0dabbe65, todo-a-delete-0dabbe65"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -118,7 +122,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-cca3f525"
+        "notes": "titles: todo-b-0dabbe65"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -157,12 +161,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-cca3f525"
+        "notes": "names: list-0dabbe65"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-cca3f525"
+        "notes": "titles: item-0dabbe65"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -220,6 +224,10 @@
         "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
       },
       {
+        "name": "the weather feed fixture survived both write attempts",
+        "passed": true
+      },
+      {
         "name": "a user cannot widen their own access by editing their user metadata",
         "passed": true
       },
@@ -228,13 +236,17 @@
         "passed": true
       },
       {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
         "name": "columns the policies filter on have a btree index",
         "passed": true
       },
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
-        "passed": true,
-        "notes": "verified private.is_list_member"
+        "passed": false,
+        "notes": "callable over the API: public.is_list_owner, public.is_list_member"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -244,7 +256,7 @@
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": false,
-        "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nopen supabase/.temp/profile: no such file or directory\nSupabase CLI 2.67.1\nUsing profile: supabase (supabase.co)\nConnecting to local database...\n2026/08/12 19:32:25 PG Send: {\"Type\":\"StartupMessage\",\"ProtocolVersion\":196608,\"Parameters\":{\"database\":\"postgres\",\"user\":\"postgres\"}}\n2026/08/12 19:32:25 PG Recv: {\"Type\":\"AuthenticationSASL\",\"AuthMechanisms\":[\"SCRAM-SHA-256\"]}\n2026/08/12 19:32:25 PG Send: {\"Type\":\""
+        "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\nA new version of Supabase CLI is available: v2.114.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
       },
       {
         "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
@@ -265,14 +277,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize the full guide on Row Level Security in Supabase/Postgres: how to enable RLS, how to write policies (SELECT/INSERT/UPDATE/DELETE), using auth.uid(), performance recommendations (indexes, wrapping functions in SELECT, specifying roles, minimizing joins, using security definer functions), policies for public/anon access, and any best practice patterns for multi-tenant/shared-ownership schemas. Include exact syntax examples given in the guide.",
+          "query": "Summarize all guidance about writing Row Level Security policies in Supabase/Postgres: syntax, best practices, performance recommendations (indexes, wrapping functions in select, specifying roles, security definer functions for avoiding recursive RLS), how to reference auth.uid(), policies for SELECT/INSERT/UPDATE/DELETE, using views, and any gotchas.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 7556
+          "resultChars": 3785
         }
       ]
     },
@@ -911,7 +923,7 @@
         }
       ]
     },
-    "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working \u2014 `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
+    "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
     "promptSourcePath": "evals/resolve-sdk-001-legacy-key-migration/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/resolve-sdk-001-legacy-key-migration.json"
@@ -1550,7 +1562,7 @@
     "docs": {
       "calls": []
     },
-    "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working \u2014 `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
+    "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
     "promptSourcePath": "evals/resolve-sdk-001-legacy-key-migration/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-sdk-001-legacy-key-migration.json"
