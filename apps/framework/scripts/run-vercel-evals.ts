@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { type Command, Sandbox } from '@vercel/sandbox';
+import { APIError, type Command, Sandbox } from '@vercel/sandbox';
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -139,7 +139,7 @@ async function runPairOnce(options: PairOptions): Promise<void> {
   let sandbox: Sandbox | undefined;
 
   try {
-    sandbox = await Sandbox.create({
+    sandbox = await createSandbox(label, {
       ...vercelCredentialsFromEnv(),
       name: sandboxName(pair),
       runtime: 'node24',
@@ -260,6 +260,36 @@ async function runPairOnce(options: PairOptions): Promise<void> {
   } finally {
     if (sandbox) await cleanupSandbox(sandbox, label);
   }
+}
+
+/**
+ * Retries Sandbox.create() through the vCPU-provisioning rate limit.
+ * The SDK's own retry gives up after ~3 attempts or a >20s Retry-After,
+ * which isn't enough to ride out a large burst, so this layer takes over
+ * with a much bigger budget and honors the same Retry-After header.
+ */
+async function createSandbox(
+  label: string,
+  createOptions: Parameters<typeof Sandbox.create>[0]
+): Promise<Sandbox> {
+  return pRetry(() => Sandbox.create(createOptions), {
+    retries: 12,
+    minTimeout: 0,
+    onFailedAttempt: async ({ error, attemptNumber, retriesLeft }) => {
+      const wait = retryAfterMs(error) ?? Math.min(2 ** attemptNumber * 1_000, 20_000);
+      console.warn(
+        `${label} sandbox create attempt ${attemptNumber} failed${retriesLeft > 0 ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
+      );
+      if (retriesLeft > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    },
+  });
+}
+
+/** Reads the Sandbox API's Retry-After header (seconds), converted to milliseconds. */
+function retryAfterMs(error: unknown): number | undefined {
+  if (!(error instanceof APIError)) return undefined;
+  const seconds = Number(error.response.headers.get('Retry-After'));
+  return seconds > 0 ? seconds * 1_000 : undefined;
 }
 
 /** Runs a detached command, streams logs best-effort, and waits for its exit code. */
@@ -452,7 +482,19 @@ export function tagValue(value: string): string {
 }
 
 /** Converts unknown thrown values into readable diagnostics. */
+const apiErrorBodySchema = z.object({
+  error: z.object({ code: z.string(), message: z.string() }),
+});
+
+/** Converts unknown thrown values into readable diagnostics. */
 function errorMessage(error: unknown): string {
+  if (error instanceof APIError) {
+    const body = apiErrorBodySchema.safeParse(error.json);
+    const detail = body.success
+      ? `${body.data.error.code}: ${body.data.error.message}`
+      : error.message;
+    return `HTTP ${error.response.status} ${detail}`;
+  }
   return error instanceof Error ? error.message : String(error);
 }
 
