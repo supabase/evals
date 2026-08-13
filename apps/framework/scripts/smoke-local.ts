@@ -189,7 +189,14 @@ function ck(name: string, fn: () => void) {
 
 // --- refusals happen pre-spend, with actionable messages ---
 {
-  const r = local(['run', EVAL, '--experiment', 'bogus-model']);
+  const r = local(['compare', 'no-such-eval-xyz']);
+  ck('unknown eval refused', () => {
+    assert.equal(r.status, 1);
+    assert.match(r.out, /no published result for no-such-eval-xyz/);
+  });
+}
+{
+  const r = local(['compare', EVAL, '--experiment', 'bogus-model']);
   ck('unknown experiment refused with the available list', () => {
     assert.equal(r.status, 1);
     assert.match(r.out, /unknown experiment: bogus-model/);
@@ -201,6 +208,39 @@ function ck(name: string, fn: () => void) {
   ck('missing eval dir refused', () => {
     assert.equal(r.status, 1);
     assert.match(r.out, /no eval at evals\/not-an-eval-dir/);
+  });
+}
+
+// --- compare: delta table + receipts with published provenance ---
+{
+  const r = local(['compare', EVAL]);
+  ck('compare prints both rows and the screen caveat', () => {
+    assert.equal(r.status, 0);
+    assert.match(r.out, new RegExp(`=== local compare: ${EVAL}`));
+    assert.match(r.out, /published .*main@[0-9a-f]{7}/);
+    assert.match(r.out, /treatment .*your world/);
+    assert.match(r.out, /screen only:/);
+  });
+  ck('published receipt carries commit provenance', () => {
+    const receipt = JSON.parse(
+      readFileSync(join(OUT, `${EVAL}.published.json`), 'utf8')
+    );
+    assert.match(receipt.publishedProvenance.commit, /^[0-9a-f]{40}$/);
+    // Exactly ONE sha, and a real date: %P expands to every parent, so a
+    // space-split of `%H %P %cI` puts a second parent where the timestamp
+    // belongs on a merge commit (Date.parse -> NaN, "NaNd old" in the report).
+    assert.match(receipt.publishedProvenance.parent, /^[0-9a-f]{40}$/);
+    assert.ok(
+      !Number.isNaN(Date.parse(receipt.publishedProvenance.committedAt)),
+      `committedAt is not a date: ${receipt.publishedProvenance.committedAt}`
+    );
+  });
+  ck('treatment receipt carries host provenance', () => {
+    const receipt = JSON.parse(
+      readFileSync(join(OUT, `${EVAL}.treatment.json`), 'utf8')
+    );
+    assert.match(receipt.provenance.host.sha, /^[0-9a-f]{40}$/);
+    assert.equal(typeof receipt.provenance.host.dirtyFiles, 'number');
   });
 }
 
@@ -253,6 +293,34 @@ function ck(name: string, fn: () => void) {
     );
   });
   rmSync(fake, { recursive: true, force: true });
+}
+
+// --- --suite: expands to the published set; guarded against misuse ---
+{
+  const r = local(['compare', '--suite', 'regression']);
+  ck('suite expands and runs every published eval', () => {
+    assert.equal(r.status, 0);
+    assert.match(r.out, /suite regression for claude-code-sonnet-5: \d+ evals/);
+    assert.ok(
+      (r.out.match(/=== local compare: /g) ?? []).length >= 2,
+      'expected multiple compare blocks'
+    );
+  });
+  const wrongMode = local(['run', '--suite', 'regression']);
+  ck('suite refused in run mode', () => {
+    assert.equal(wrongMode.status, 1);
+    assert.match(wrongMode.out, /only makes sense with compare/);
+  });
+  const both = local(['compare', EVAL, '--suite', 'regression']);
+  ck('suite plus ids refused', () => {
+    assert.equal(both.status, 1);
+    assert.match(both.out, /not both/);
+  });
+  const bogus = local(['compare', '--suite', 'nope']);
+  ck('unknown suite lists available', () => {
+    assert.equal(bogus.status, 1);
+    assert.match(bogus.out, /unknown suite: nope.*regression, benchmark/);
+  });
 }
 
 // --- judge-key gate: refused pre-spend, before any agent spawn ---
