@@ -218,6 +218,7 @@ async function runPairOnce(options: PairOptions): Promise<void> {
         content: `${agentEnvironment()}\n`,
       },
     ]);
+    console.log(`${label} run eval`);
     await runSandboxCommand(
       sandbox,
       label,
@@ -311,7 +312,6 @@ async function runSandboxCommand(
   options: SandboxCommandOptions,
   logOutput = false
 ): Promise<void> {
-  console.log(`${label} ${step}`);
   const command = await sandbox.runCommand({
     ...options,
     detached: true,
