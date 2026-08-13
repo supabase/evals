@@ -6,7 +6,9 @@ describe('readFlag', () => {
     expect(readFlag(['--runs', '3'], 'runs')).toBe('3');
     expect(readFlag(['--runs=3'], 'runs')).toBe('3');
     expect(readFlag(['--other', 'x'], 'runs')).toBeUndefined();
-    expect(() => readFlag(['--runs'], 'runs')).toThrow('--runs requires a value');
+    expect(() => readFlag(['--runs'], 'runs')).toThrow(
+      '--runs requires a value'
+    );
     expect(() => readFlag(['--runs', '--other'], 'runs')).toThrow(
       '--runs requires a value'
     );

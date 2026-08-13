@@ -110,7 +110,9 @@ async function runPairs(options: RunnerOptions): Promise<void> {
         );
         console.log(`SANDBOX OK ${pairLabel(pair)}`);
       } catch (error) {
-        console.error(`SANDBOX FAILED ${pairLabel(pair)}: ${errorMessage(error)}`);
+        console.error(
+          `SANDBOX FAILED ${pairLabel(pair)}: ${errorMessage(error)}`
+        );
         throw error;
       }
     }
@@ -216,25 +218,31 @@ async function runPairOnce(options: PairOptions): Promise<void> {
         content: `${agentEnvironment()}\n`,
       },
     ]);
-    await runSandboxCommand(sandbox, label, 'run eval', {
-      cmd: 'pnpm',
-      args: [
-        'eval',
-        '--',
-        '--experiment',
-        pair.experiment,
-        '--experiment-suite',
-        pair.experiment_suite,
-        '--eval',
-        pair.eval_id,
-        '--runs',
-        String(options.runs),
-        '--timeout-sec',
-        String(options.timeoutSec),
-      ],
-      cwd: sandbox.cwd,
-      timeoutMs: options.runs * options.timeoutSec * 1_000 + 5 * 60 * 1_000,
-    }, true);
+    await runSandboxCommand(
+      sandbox,
+      label,
+      'run eval',
+      {
+        cmd: 'pnpm',
+        args: [
+          'eval',
+          '--',
+          '--experiment',
+          pair.experiment,
+          '--experiment-suite',
+          pair.experiment_suite,
+          '--eval',
+          pair.eval_id,
+          '--runs',
+          String(options.runs),
+          '--timeout-sec',
+          String(options.timeoutSec),
+        ],
+        cwd: sandbox.cwd,
+        timeoutMs: options.runs * options.timeoutSec * 1_000 + 5 * 60 * 1_000,
+      },
+      true
+    );
     await runSandboxCommand(sandbox, label, 'validate result', {
       cmd: 'test',
       args: ['-f', `results/${pair.experiment}/${pair.eval_id}.json`],
@@ -277,11 +285,13 @@ async function createSandbox(
     retries: 12,
     minTimeout: 0,
     onFailedAttempt: async ({ error, attemptNumber, retriesLeft }) => {
-      const wait = retryAfterMs(error) ?? Math.min(2 ** attemptNumber * 1_000, 20_000);
+      const wait =
+        retryAfterMs(error) ?? Math.min(2 ** attemptNumber * 1_000, 20_000);
       console.warn(
         `${label} sandbox create attempt ${attemptNumber} failed${retriesLeft > 0 ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
       );
-      if (retriesLeft > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+      if (retriesLeft > 0)
+        await new Promise((resolve) => setTimeout(resolve, wait));
     },
   });
 }
