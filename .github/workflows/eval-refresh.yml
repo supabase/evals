@@ -30,7 +30,7 @@ on:
       sandbox_concurrency:
         description: "Maximum Vercel Sandboxes running at once"
         required: true
-        default: "4"
+        default: "250"
       merge:
         description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
         type: boolean
@@ -101,7 +101,7 @@ jobs:
             experiment_suite="regression"
             runs="2"
             timeout_sec="720"
-            sandbox_concurrency="4"
+            sandbox_concurrency="250"
           else
             experiments_override=""
             eval_id=""
@@ -109,7 +109,7 @@ jobs:
             experiment_suite="benchmark,no-skills,regression"
             runs="2"
             timeout_sec="720"
-            sandbox_concurrency="4"
+            sandbox_concurrency="250"
           fi
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
