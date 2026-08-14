@@ -1,6 +1,6 @@
 ---
 stage: investigate
-suite: benchmark
+suite: regression
 interface: mcp
 product:
   - database
