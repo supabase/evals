@@ -365,6 +365,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download raw results
+        # If every pair failed, run-evals never uploads a raw-results artifact
+        # at all, so this action errors. Audit pair results below already
+        # handles a missing/empty results/downloaded correctly (every pair
+        # reports missing), so don't let a total failure hide behind this.
+        continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: raw-results
