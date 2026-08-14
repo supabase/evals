@@ -62,6 +62,8 @@ describe('Vercel eval controller', () => {
     expect(isRetryableSandboxCreateError(apiError(500))).toBe(true);
     expect(isRetryableSandboxCreateError(apiError(401))).toBe(false);
     expect(isRetryableSandboxCreateError(apiError(400))).toBe(false);
-    expect(isRetryableSandboxCreateError(new TypeError('fetch failed'))).toBe(true);
+    expect(isRetryableSandboxCreateError(new TypeError('fetch failed'))).toBe(
+      true
+    );
   });
 });
