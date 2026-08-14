@@ -168,7 +168,7 @@ describe('codexParser', () => {
     expect(result?.tool?.originalName).toBe('search_docs');
   });
 
-  it('attributes an mcp_tool_call to its server (explicit field or sole configured server)', () => {
+  it('attributes an mcp_tool_call to its server', () => {
     const withServer = JSON.stringify({
       type: 'item.completed',
       item: {
@@ -188,7 +188,7 @@ describe('codexParser', () => {
       toolName: 'query_logs',
     });
 
-    // No server field: fall back to the sole configured MCP server.
+    // No server field: falls back to `kind: 'other'` rather than guessing.
     const noServer = JSON.stringify({
       type: 'item.completed',
       item: {
@@ -199,11 +199,10 @@ describe('codexParser', () => {
       },
     });
     const fallback = codexParser
-      .parseTranscript(noServer, { mcpServerNames: ['supabase-mcp'] })
+      .parseTranscript(noServer)
       .events.find((e) => e.type === 'tool_call');
     expect(fallback?.tool?.call).toEqual({
-      kind: 'mcp',
-      server: 'supabase-mcp',
+      kind: 'other',
       toolName: 'query_logs',
     });
   });

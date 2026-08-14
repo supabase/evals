@@ -24,10 +24,7 @@ import type {
   ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
-import type {
-  AgentTranscriptParser,
-  ParseContext,
-} from '../../parsers/types.js';
+import type { AgentTranscriptParser } from '../../parsers/types.js';
 import {
   normalizeToolName,
   type AgentToolMap,
@@ -133,10 +130,7 @@ function loadedSkillsFromCodexCall(
   return [];
 }
 
-function itemToEvents(
-  item: Record<string, unknown>,
-  soleServer?: string
-): TranscriptEvent[] {
+function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
   const id = str(item.id) ?? '';
   const itemType = str(item.type);
 
@@ -182,11 +176,8 @@ function itemToEvents(
       // Shape not pinned across versions — be defensive about field names and
       // treat a missing status as unknown (not success). `item.tool` is the
       // bare tool name; `item.server` names the MCP server when present.
-      const bare =
-        str(item.tool) ?? str(item.name) ?? str(item.server) ?? 'mcp_tool_call';
-      // Prefer the explicit server field; fall back to the sole configured MCP
-      // server when the (unpinned) shape omits it.
-      const server = str(item.server) ?? soleServer;
+      const bare = str(item.tool) ?? str(item.name) ?? 'mcp_tool_call';
+      const server = str(item.server);
       return toolCallPair(
         id,
         bare,
@@ -217,13 +208,10 @@ function itemToEvents(
   }
 }
 
-function recordToEvents(
-  data: Record<string, unknown>,
-  soleServer?: string
-): TranscriptEvent[] {
+function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   switch (data.type) {
     case 'item.completed':
-      return isRecord(data.item) ? itemToEvents(data.item, soleServer) : [];
+      return isRecord(data.item) ? itemToEvents(data.item) : [];
     case 'turn.failed':
     case 'error': {
       const message =
@@ -237,16 +225,12 @@ function recordToEvents(
 }
 
 export const codexParser: AgentTranscriptParser = {
-  parseTranscript(raw: string, ctx?: ParseContext): ParsedTranscript {
+  parseTranscript(raw: string): ParsedTranscript {
     const { records, errors } = parseJsonlRecords(raw);
-    // When the mcp_tool_call shape omits the server, attribute to the sole
-    // configured MCP server if there's exactly one.
-    const soleServer =
-      ctx?.mcpServerNames?.length === 1 ? ctx.mcpServerNames[0] : undefined;
     const events: TranscriptEvent[] = [];
     for (const record of records) {
       try {
-        events.push(...recordToEvents(record, soleServer));
+        events.push(...recordToEvents(record));
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
       }
