@@ -170,6 +170,12 @@ export interface SetupSupabaseSandboxOptions {
   /** Host directory whose contents seed the sandbox workspace. */
   localDir?: string;
   /**
+   * Host directory copied over the workspace after `localDir`, before the
+   * stack starts. Scoring a committed example solution passes one here, so
+   * migrations the solution ships apply on `supabase start`.
+   */
+  solutionDir?: string;
+  /**
    * Whether the local stack should already be running when the agent starts
    * (default true): the workspace must then contain supabase/config.toml and
    * `supabase start` runs with the exclude flag appended directly. When
@@ -255,6 +261,12 @@ export async function setupSupabaseSandbox(
 
   if (options.localDir) {
     await sandbox.copyToContainer(options.localDir, sandbox.workdir);
+  }
+
+  // After localDir so a solution's files win, before the stack starts so its
+  // migrations apply on `supabase start`.
+  if (options.solutionDir) {
+    await sandbox.copyToContainer(options.solutionDir, sandbox.workdir);
   }
 
   // When linked to a hosted project with a wire endpoint, the CLI wrapper routes

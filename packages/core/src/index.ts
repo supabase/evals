@@ -418,6 +418,12 @@ export type LocalStackSessionArgs = {
    */
   localDir?: string;
   /**
+   * Host directory copied over the workspace after `localDir`, before the
+   * stack starts. Scoring a committed example solution passes one here, so
+   * migrations the solution ships apply on `supabase start` with no agent run.
+   */
+  solutionDir?: string;
+  /**
    * Local-stack services this eval needs (from `services:` frontmatter).
    * Everything else is excluded from `supabase start` to keep boots fast;
    * omitted means the full stack.

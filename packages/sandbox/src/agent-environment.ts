@@ -38,6 +38,8 @@ export interface AgentEnvironmentOptions {
   cliVersion?: string;
   /** Host directory whose contents seed the workspace. */
   localDir?: string;
+  /** Host directory copied over the workspace after `localDir`, before the stack starts. */
+  solutionDir?: string;
   /** Skills to install into the sandbox (the agent reads them with its file tools). */
   skills?: readonly SkillSource[];
   /**
@@ -78,6 +80,7 @@ export async function createAgentEnvironment(
         cliVersion: options.cliVersion,
         includeServices: options.localStack.includeServices,
         localDir: options.localDir,
+        solutionDir: options.solutionDir,
         projectRunning: options.localStack.projectRunning,
         hosted: options.localStack.hosted,
         skipCliInstall: options.localStack.skipCliInstall,

@@ -13,7 +13,7 @@ Then add a folder under `evals/` containing:
 
 1. `PROMPT.md` with frontmatter metadata and the task the agent sees.
 2. `EVAL.ts` with the scorer.
-3. `solutions/` with the example solutions you scored the eval against. See [Checking your scorer](#checking-your-scorer).
+3. `solutions/` with the example solutions you scored the eval against, one directory per solution. See [Checking your scorer](#checking-your-scorer).
 4. Optional `remote/` data when the scenario needs to seed hosted project state, such as database, logs, or functions.
 5. Optional `local/` files when the scenario needs to seed a local filesystem, such as a local `supabase/` project.
 
@@ -77,6 +77,8 @@ Write each solution in the shape of the thing your eval measures.
 | Project state     | SQL and functions, shaped like the eval's `remote/` seed.                            |
 | A report          | The answer text, for evals scored on what the agent said rather than what it built.  |
 
+`pnpm eval:solution` scores workspace-state solutions. Project-state and report solutions are still worth committing as the record of what you checked, but you score them by hand for now.
+
 ### What to write
 
 Write two kinds of solution:
@@ -88,16 +90,25 @@ Write two kinds of solution:
 
 ### How to score them
 
+`pnpm eval:solution` runs the eval's scorer against a committed solution with no agent, so the same input gives the same verdicts every time.
+
 1. Write down the checks you expect each bad solution to fail. Do this before you run anything.
-2. Score the green solution. Every check should pass.
-3. Score each bad solution. The failures should match your list.
+2. Score every solution in the eval's `solutions/` directory:
+
+   ```bash
+   pnpm eval:solution -- --eval build-cli-002-declarative-schema
+   ```
+
+   Add `--solution <name>` to score one. The run needs Docker and the local stack's default ports, same as any local-stack eval, and writes nothing to `results/`.
+
+3. Read the output. The green solution should pass every check, and each bad solution should fail the ones you listed.
 4. Commit the list next to the solution it describes.
 
 ### Reading the results
 
 - **The green solution fails a check.** Look at the solution and the check. Either could be the thing that's wrong.
 - **A bad solution fails several checks.** Expected. One flaw usually trips more than one check, so matching your list is the bar, not one failure per solution.
-- **A check reads the agent's transcript.** It has nothing to read on a solution you wrote yourself. Expect it to fail, and note that in the list.
+- **A check reads the agent's transcript.** It has nothing to read on a solution you wrote yourself, since no agent ran. Expect it to fail, and note that in the list.
 
 ## Adding an experiment
 

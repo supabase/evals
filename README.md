@@ -64,6 +64,18 @@ Run all benchmark and no-skills experiments across all benchmark evals:
 pnpm eval -- --suite benchmark --experiment-suite benchmark,no-skills
 ```
 
+### Score an example solution
+
+Run an eval's committed solutions through its scorer with no agent:
+
+```bash
+pnpm eval:solution -- --eval build-cli-002-declarative-schema
+```
+
+Each directory under the eval's `solutions/` is copied over the workspace after `local/` and before the stack starts, so migrations it ships apply on `supabase start`. Pass `--solution <name>` to score one instead of all of them.
+
+The run prints every check and writes nothing to `results/`; the exported workspace lands in `.solution-runs/<eval>/<solution>/`. Checks that read the agent's transcript fail here by construction, because no agent ran. Local-stack evals only — a tools eval's starting state is a seeded hosted project, not a workspace to copy files into.
+
 ### View results in the web app
 
 After running evals locally, export their results to `eval-results.json` for the web app:

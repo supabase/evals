@@ -1,17 +1,15 @@
 #!/usr/bin/env tsx
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { jsonSchema, tool, type ToolSet } from 'ai';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import {
@@ -26,6 +24,15 @@ import {
   readSuiteFilters,
 } from '../lib/cli-args.js';
 import { bootPlatformBackend } from './platform-backend.js';
+import {
+  HOSTED_ACCESS_TOKEN,
+  HOSTED_PROJECT_REF,
+  ROOT,
+  copyWithheldTests,
+  discoverEvals,
+  disposable,
+  readSessionSeedArgs,
+} from './eval-discovery.js';
 import { viteBuild, vitestRun } from './project-runner.js';
 import {
   buildDocsResult,
@@ -35,7 +42,6 @@ import {
 } from '@supabase-evals/core';
 import type {
   ExperimentConfig,
-  EvalInterface,
   EvalManifest,
   EvalMode,
   EvalSuite,
@@ -47,15 +53,6 @@ import type {
   ToolCallRecord,
   TranscriptPart,
 } from './types.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '..', '..', '..');
-
-// Fixed identifiers for the mocked hosted project a local-stack eval links to.
-// Both must satisfy the CLI's format checks: ref is `^[a-z]{20}$`, token is
-// `^sbp_[a-f0-9]{40}$`. platform-lite accepts whatever token it's booted with.
-const HOSTED_PROJECT_REF = 'evalshostedprojectxy';
-const HOSTED_ACCESS_TOKEN = 'sbp_' + '0'.repeat(40);
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
@@ -105,56 +102,6 @@ function readFlag(name: string): string | undefined {
     return value;
   }
   return undefined;
-}
-
-/**
- * Resolve the run mode. The sandbox (local-stack) is needed when the agent
- * uses the Supabase CLI (`interface: cli`) — including bootstrap scenarios that
- * start from an empty workspace — or when the eval ships a `local/` workspace
- * of starting files. Everything else runs against the in-memory tools runtime.
- *
- * `interface` is otherwise a benchmark dimension (KPI), not a runtime switch.
- */
-function resolveEvalMode(
-  interfaceKind: EvalInterface | undefined,
-  hasLocal: boolean
-): EvalMode {
-  if (interfaceKind === 'cli' || hasLocal) return 'local-stack';
-  return 'tools';
-}
-
-function discoverEvals(): EvalManifest[] {
-  const dir = join(ROOT, 'evals');
-  if (!existsSync(dir)) return [];
-  const out: EvalManifest[] = [];
-  for (const id of readdirSync(dir)) {
-    const evalDir = join(dir, id);
-    if (!statSync(evalDir).isDirectory()) continue;
-    const localDir = join(evalDir, 'local');
-    const promptPath = join(evalDir, 'PROMPT.md');
-    const evalPath = join(evalDir, 'EVAL.ts');
-    const metadata = parseEvalMarkdown(
-      readFileSync(promptPath, 'utf8'),
-      `evals/${id}/PROMPT.md`
-    ).metadata;
-    const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
-    const mode = resolveEvalMode(metadata.interface, hasLocal);
-    out.push({
-      id,
-      mode,
-      metadata,
-      stage: metadata.stage,
-      product: metadata.product,
-      suite: metadata.suite,
-      topic: metadata.topic,
-      dir: evalDir,
-      localDir: hasLocal ? localDir : undefined,
-      promptPath,
-      evalPath,
-      remoteDir: join(evalDir, 'remote'),
-    });
-  }
-  return out;
 }
 
 type ToolsSkill = { name: string; description: string; body: string };
@@ -284,28 +231,6 @@ function workspacePath(modelName: string, evalId: string, attempt: number) {
   );
 }
 
-function copyWithheldTests(ev: EvalManifest, workspace: string) {
-  const testsDir = join(ev.dir, 'tests');
-  if (existsSync(testsDir)) {
-    cpSync(testsDir, join(workspace, 'tests'), { recursive: true });
-  }
-}
-
-function readSessionSeedArgs(ev: EvalManifest) {
-  const projectSeedSql = join(ev.remoteDir, 'project.sql');
-  const logsSeedJsonl = join(ev.remoteDir, 'logs.jsonl');
-  const functionsSeedDir = join(ev.remoteDir, 'functions');
-
-  return {
-    projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
-    logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
-    functionsSeedDir: existsSync(functionsSeedDir)
-      ? functionsSeedDir
-      : undefined,
-    pgvector: ev.metadata.product.includes('vectors'),
-  };
-}
-
 function basePromptFor(mode: EvalMode): string {
   if (mode === 'local-stack') {
     return (
@@ -329,22 +254,6 @@ function buildSystemPrompt(
 ): string {
   const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
   return blocks.join('\n\n');
-}
-
-/**
- * Adapt a `{ close() }` resource to `AsyncDisposable` so it can be bound with
- * `await using` — cleanup then runs on scope exit (normal fall-through, `continue`,
- * `return`, or a throw), including when a *later* resource created in the same
- * scope throws before its own `try`/`finally` is reached.
- */
-function disposable<T extends { close(): Promise<unknown> }>(
-  resource: T
-): T & AsyncDisposable {
-  return Object.assign(resource, {
-    [Symbol.asyncDispose]: async () => {
-      await resource.close();
-    },
-  });
 }
 
 async function runOne(

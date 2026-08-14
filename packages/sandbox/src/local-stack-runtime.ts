@@ -75,6 +75,7 @@ export function localStackRuntime(
     async startSession({
       cliVersion,
       localDir,
+      solutionDir,
       includeServices,
       projectRunning,
       hosted,
@@ -84,6 +85,7 @@ export function localStackRuntime(
       const env = await createAgentEnvironment({
         cliVersion: cliVersion ?? options.cliVersion,
         localDir,
+        solutionDir,
         skills,
         localStack: {
           includeServices,
