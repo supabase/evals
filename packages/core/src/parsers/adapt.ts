@@ -43,14 +43,31 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
   let steps = 0;
 
   for (const event of events) {
+    // Subagent-attributed events are kept in the transcript (tagged) for
+    // visibility, but never shape the main-thread surface: the final report,
+    // the step count, and the scorer-facing tool-call records stay exactly
+    // what the top-level agent did.
     if (event.type === 'message' && event.role && event.content) {
       const content = event.content.trim();
       if (!content) continue;
-      transcript.push({ type: 'message', role: event.role, content });
-      if (event.role === 'assistant') {
+      transcript.push({
+        type: 'message',
+        role: event.role,
+        content,
+        ...(event.subagent ? { subagent: event.subagent } : {}),
+      });
+      if (event.role === 'assistant' && !event.subagent) {
         agentReport = content;
         steps += 1;
       }
+    } else if (event.type === 'thinking' && event.content) {
+      const content = event.content.trim();
+      if (!content) continue;
+      transcript.push({
+        type: 'thinking',
+        content,
+        ...(event.subagent ? { subagent: event.subagent } : {}),
+      });
     } else if (event.type === 'tool_call' && event.tool) {
       const body = event.tool.args ?? {};
       const resolved = event.tool.id
@@ -62,7 +79,9 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         input: body,
         output: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
+        ...(event.subagent ? { subagent: event.subagent } : {}),
       });
+      if (event.subagent) continue;
       toolCalls.push({
         endpoint: event.tool.originalName,
         body,

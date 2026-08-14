@@ -8,11 +8,19 @@
  * tool results arrive on `user` lines as `tool_result` content blocks, and the
  * run ends with a top-level `result` line carrying the final text.
  *
+ * With `--forward-subagent-text` (set by the runner), subagent text/thinking
+ * arrive as ordinary `assistant`/`user` lines whose top-level
+ * `parent_tool_use_id` names the spawning Agent/Task `tool_use` id, alongside
+ * `subagent_type` and `task_description`. Those events are tagged with the
+ * agnostic `subagent` ref so downstream consumers keep them off the main
+ * thread.
+ *
  * Adapted from `@supabase/agent-evals` (packages/agent-eval/src/parsers).
  */
 
 import type {
   ParsedTranscript,
+  SubagentRef,
   TranscriptEvent,
 } from '../../transcript/types.js';
 import type { AgentTranscriptParser } from '../../parsers/types.js';
@@ -47,8 +55,9 @@ const CLAUDE_CODE_TOOLS: AgentToolMap = {
     Glob: 'glob',
     Grep: 'grep',
     LS: 'list_dir',
-    // Agent / subagent
+    // Agent / subagent (`Task` was renamed `Agent` in Claude Code 2.1.2xx)
     Task: 'agent_task',
+    Agent: 'agent_task',
     TodoWrite: 'agent_task',
   },
 };
@@ -165,11 +174,29 @@ function loadedSkillsFromClaudeCodeCall(
   return [];
 }
 
+/**
+ * Subagent attribution of a stream-json line: present when the line was
+ * forwarded from inside a Task/Agent subagent (`--forward-subagent-text`).
+ */
+function subagentRef(data: Record<string, unknown>): SubagentRef | undefined {
+  if (typeof data.parent_tool_use_id !== 'string') return undefined;
+  return {
+    id: data.parent_tool_use_id,
+    ...(typeof data.subagent_type === 'string'
+      ? { type: data.subagent_type }
+      : {}),
+    ...(typeof data.task_description === 'string'
+      ? { description: data.task_description }
+      : {}),
+  };
+}
+
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   const events: TranscriptEvent[] = [];
   const timestamp =
     typeof data.timestamp === 'string' ? data.timestamp : undefined;
   const type = data.type;
+  const subagent = subagentRef(data);
 
   if (type === 'user' || data.role === 'user') {
     const toolResults = getContentArray(data)?.filter(
@@ -273,6 +300,9 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
     });
   }
 
+  if (subagent) {
+    for (const event of events) event.subagent = subagent;
+  }
   return events;
 }
 
@@ -292,8 +322,12 @@ export const claudeCodeParser: AgentTranscriptParser = {
     for (const record of records) {
       try {
         for (const event of recordToEvents(record)) {
+          // Track only main-thread assistant text: the terminal `result` line
+          // repeats the main thread's final message, never a subagent's.
           const isAssistantMessage =
-            event.type === 'message' && event.role === 'assistant';
+            event.type === 'message' &&
+            event.role === 'assistant' &&
+            !event.subagent;
           // The terminal `result` line repeats the final assistant message that
           // the preceding `assistant` line already emitted (stream-json carries
           // both). Drop the duplicate, but still emit it when the text was never
