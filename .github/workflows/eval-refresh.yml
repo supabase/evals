@@ -305,17 +305,31 @@ jobs:
           # Optional warm-boot snapshot to reuse across runs (built out-of-band).
           # Unset -> cold boots, so this can never regress the default path.
           EVAL_SNAPSHOT_ID: ${{ vars.EVAL_SNAPSHOT_ID }}
+          # When "true", run each attempt in its own sandbox concurrently and
+          # pass an eval if any attempt passes (any-pass), instead of one
+          # sandbox running the attempts sequentially with stop-on-pass.
+          EVAL_PARALLEL_ATTEMPTS: ${{ vars.EVAL_PARALLEL_ATTEMPTS }}
+          RUNS: ${{ needs.prepare.outputs.runs }}
+          CONCURRENCY: ${{ needs.prepare.outputs.sandbox_concurrency }}
         shell: bash
         run: |
           set -euo pipefail
 
+          concurrency="$CONCURRENCY"
           args=(
             --pairs-json "$EVAL_PAIRS"
             --revision "$EVAL_REVISION"
-            --runs "${{ needs.prepare.outputs.runs }}"
+            --runs "$RUNS"
             --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
-            --concurrency "${{ needs.prepare.outputs.sandbox_concurrency }}"
           )
+          if [ "${EVAL_PARALLEL_ATTEMPTS:-}" = "true" ]; then
+            args+=(--parallel-attempts)
+            # Size concurrency to pairs x runs so every attempt runs in one wave
+            # (the halving only shows up when attempts don't queue behind pairs).
+            npairs="$(jq 'length' <<< "$EVAL_PAIRS")"
+            concurrency=$(( npairs * RUNS ))
+          fi
+          args+=(--concurrency "$concurrency")
           if [ -n "${EVAL_SNAPSHOT_ID:-}" ]; then
             args+=(--snapshot-id "$EVAL_SNAPSHOT_ID")
           fi

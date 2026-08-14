@@ -1,7 +1,14 @@
 #!/usr/bin/env tsx
 
 import { execFile, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -81,11 +88,26 @@ interface RunnerOptions {
    * Supabase images pre-baked). Undefined means a cold git-source boot.
    */
   snapshotId?: string;
+  /**
+   * Run each of a pair's `runs` attempts in its own sandbox concurrently and
+   * pass the eval if any attempt passed, instead of one sandbox running the
+   * attempts sequentially with stop-on-pass.
+   */
+  parallelAttempts?: boolean;
 }
 
 interface PairOptions extends RunnerOptions {
   pair: EvalPair;
+  /** Infra-retry attempt for this sandbox (name/tag only). */
   attempt: number;
+  /**
+   * 1-based eval-attempt index in parallel mode — the sandbox runs a single
+   * eval attempt and downloads to `destDir`. Undefined runs `runs` attempts in
+   * one sandbox to the canonical artifact directory.
+   */
+  evalAttempt?: number;
+  /** Overrides the download destination (parallel mode stages per attempt). */
+  destDir?: string;
 }
 
 /** Runs every item while keeping at most `concurrency` promises active. */
@@ -101,6 +123,10 @@ export async function runBounded<T, R>(
 /** Runs all pairs and reports failures only after independent work finishes. */
 async function runPairs(options: RunnerOptions): Promise<void> {
   const credentials = vercelCredentialsFromEnv();
+  if (options.parallelAttempts) {
+    await runParallelAttempts(options, credentials);
+    return;
+  }
 
   const results = await runBounded(
     options.pairs,
@@ -162,20 +188,176 @@ async function runPairs(options: RunnerOptions): Promise<void> {
   }
 }
 
+/**
+ * Parallel-attempts mode: fan every (pair × attempt) out to its own sandbox,
+ * bounded by `concurrency`, then aggregate each pair's attempts with any-pass
+ * (the eval passes if at least one attempt passed).
+ */
+async function runParallelAttempts(
+  options: RunnerOptions,
+  credentials: VercelCredentials
+): Promise<void> {
+  const staging = mkdtempSync(join(tmpdir(), 'vercel-eval-attempts-'));
+  const jobs = options.pairs.flatMap((pair, pairIndex) =>
+    Array.from({ length: options.runs }, (_, index) => ({
+      pair,
+      pairIndex,
+      evalAttempt: index + 1,
+    }))
+  );
+  try {
+    const settled = await runBounded(jobs, options.concurrency, async (job) => {
+      const destDir = join(staging, `${job.pairIndex}-a${job.evalAttempt}`);
+      const label = `${pairLabel(job.pair)} a${job.evalAttempt}`;
+      try {
+        await pRetry(
+          (attempt) =>
+            runPairOnce(
+              {
+                ...options,
+                pair: job.pair,
+                attempt,
+                evalAttempt: job.evalAttempt,
+                destDir,
+              },
+              credentials
+            ),
+          {
+            retries: 2,
+            factor: 2,
+            minTimeout: 5_000,
+            maxTimeout: 30_000,
+            randomize: true,
+            onFailedAttempt: ({
+              error,
+              attemptNumber,
+              retriesLeft,
+              retryDelay,
+            }) => {
+              const retrying = retriesLeft > 0;
+              console.warn(
+                `${label} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(errorMessage(error))}`
+              );
+            },
+          }
+        );
+        return { pairIndex: job.pairIndex, destDir };
+      } catch (error) {
+        console.error(`SANDBOX FAILED ${label}: ${errorMessage(error)}`);
+        throw error;
+      }
+    });
+
+    // Group the surviving attempt directories by pair.
+    const dirsByPair = new Map<number, string[]>();
+    for (const result of settled) {
+      if (result.status !== 'fulfilled') continue;
+      const { pairIndex, destDir } = result.value;
+      const dirs = dirsByPair.get(pairIndex) ?? [];
+      dirs.push(destDir);
+      dirsByPair.set(pairIndex, dirs);
+    }
+
+    const failures: string[] = [];
+    for (let index = 0; index < options.pairs.length; index += 1) {
+      const pair = options.pairs[index];
+      if (!pair) continue;
+      const dirs = dirsByPair.get(index) ?? [];
+      if (dirs.length === 0) {
+        failures.push(
+          `${pairLabel(pair)}: all ${options.runs} attempt(s) failed`
+        );
+        continue;
+      }
+      try {
+        aggregateAttempts(pair, dirs, options.outputDir);
+        console.log(`SANDBOX OK ${pairLabel(pair)}`);
+      } catch (error) {
+        failures.push(`${pairLabel(pair)}: ${errorMessage(error)}`);
+      }
+    }
+
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures.map((message) => new Error(message)),
+        `${failures.length} Sandbox eval pair(s) failed`
+      );
+    }
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Merges a pair's per-attempt result trees into the canonical artifact
+ * directory. The eval passes if any attempt passed; the representative tree (a
+ * passing attempt if there is one, else the first) is kept, with its `attempts`
+ * count set to the number of attempts that produced a result.
+ */
+function aggregateAttempts(
+  pair: EvalPair,
+  attemptDirs: string[],
+  outputDir: string
+): void {
+  const resultName = `${pair.eval_id}.json`;
+  const parsed = attemptDirs
+    .map((dir) => {
+      try {
+        const json = JSON.parse(
+          readFileSync(join(dir, resultName), 'utf8')
+        ) as Record<string, unknown>;
+        return { dir, json };
+      } catch {
+        return undefined;
+      }
+    })
+    .filter(
+      (entry): entry is { dir: string; json: Record<string, unknown> } =>
+        entry !== undefined
+    );
+  if (parsed.length === 0) {
+    throw new Error('no attempt produced a result file');
+  }
+
+  const representative =
+    parsed.find((entry) => entry.json.passed === true) ?? parsed[0];
+  const passedCount = parsed.filter(
+    (entry) => entry.json.passed === true
+  ).length;
+
+  const destination = join(outputDir, artifactDirectory(pair));
+  rmSync(destination, { recursive: true, force: true });
+  mkdirSync(destination, { recursive: true });
+  cpSync(representative.dir, destination, { recursive: true });
+  writeFileSync(
+    join(destination, resultName),
+    JSON.stringify({ ...representative.json, attempts: parsed.length }, null, 2)
+  );
+  console.log(
+    `${pairLabel(pair)} ${passedCount}/${parsed.length} attempt(s) passed → ${representative.json.passed === true ? 'PASS' : 'FAIL'}`
+  );
+}
+
 /** Runs one pair in a fresh Sandbox and downloads its complete result tree. */
 async function runPairOnce(
   options: PairOptions,
   credentials: VercelCredentials
 ): Promise<void> {
   const { pair } = options;
-  const label = pairLabel(pair);
+  const label = options.evalAttempt
+    ? `${pairLabel(pair)} a${options.evalAttempt}`
+    : pairLabel(pair);
+  // In parallel mode each sandbox runs exactly one eval attempt; otherwise one
+  // sandbox runs all `runs` attempts sequentially (stop-on-pass).
+  const runs = options.evalAttempt ? 1 : options.runs;
+  const timeouts = { runs, timeoutSec: options.timeoutSec };
   let sandbox: Sandbox | undefined;
 
   try {
     const warm = Boolean(options.snapshotId);
     sandbox = await createSandbox(label, {
       ...credentials,
-      name: sandboxName(pair),
+      name: sandboxName(pair, options.evalAttempt),
       // A snapshot source carries its own runtime + filesystem; a git source
       // needs the runtime named and clones the repo fresh.
       ...(options.snapshotId
@@ -190,7 +372,7 @@ async function runPairOnce(
             },
           }),
       resources: { vcpus: options.vcpus },
-      timeout: evalCommandTimeoutMs(options) + SANDBOX_TIMEOUT_BUFFER_MS,
+      timeout: evalCommandTimeoutMs(timeouts) + SANDBOX_TIMEOUT_BUFFER_MS,
       persistent: false,
       tags: {
         runner: 'supabase-evals',
@@ -251,12 +433,12 @@ async function runPairOnce(
           '--eval',
           pair.eval_id,
           '--runs',
-          String(options.runs),
+          String(runs),
           '--timeout-sec',
           String(options.timeoutSec),
         ],
         cwd: SANDBOX_CWD,
-        timeoutMs: evalCommandTimeoutMs(options),
+        timeoutMs: evalCommandTimeoutMs(timeouts),
       },
       true
     );
@@ -279,7 +461,11 @@ async function runPairOnce(
       cwd: SANDBOX_CWD,
       timeoutMs: 3 * 60 * 1_000,
     });
-    await downloadResults(sandbox, pair, options.outputDir);
+    await downloadResults(
+      sandbox,
+      pair,
+      options.destDir ?? join(options.outputDir, artifactDirectory(pair))
+    );
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error(String(error));
@@ -288,15 +474,14 @@ async function runPairOnce(
   }
 }
 
-/** Downloads and extracts one pair into the aggregate artifact directory. */
+/** Downloads and extracts one sandbox's result tree into `destination`. */
 async function downloadResults(
   sandbox: Sandbox,
   pair: EvalPair,
-  outputDir: string
+  destination: string
 ): Promise<void> {
   const staging = mkdtempSync(join(tmpdir(), 'vercel-eval-results-'));
   const archive = join(staging, 'results.tgz');
-  const destination = join(outputDir, artifactDirectory(pair));
   try {
     const downloaded = await sandbox.downloadFile(
       { path: '/tmp/eval-results.tgz' },
@@ -383,9 +568,10 @@ function pairLabel(pair: EvalPair): string {
 }
 
 /** Produces a unique dashboard-safe Sandbox name. */
-function sandboxName(pair: EvalPair): string {
+function sandboxName(pair: EvalPair, evalAttempt?: number): string {
   const suffix = Math.random().toString(36).slice(2, 8);
-  return `${tagValue(pair.experiment).slice(0, 35)}--${tagValue(pair.eval_id).slice(0, 45)}--${suffix}`;
+  const attempt = evalAttempt ? `a${evalAttempt}-` : '';
+  return `${tagValue(pair.experiment).slice(0, 35)}--${tagValue(pair.eval_id).slice(0, 42)}--${attempt}${suffix}`;
 }
 
 /** Keeps retry notices readable when the final summary carries full output. */
@@ -420,10 +606,11 @@ async function main(): Promise<void> {
     // An explicit id reuses a prebuilt snapshot across runs; `--snapshot`
     // builds one for this run (resolved below, after the dry-run guard).
     snapshotId: readFlag(rawArgs, 'snapshot-id'),
+    parallelAttempts: rawArgs.includes('--parallel-attempts'),
   };
 
   console.log(
-    `${options.pairs.length} pair(s), concurrency=${options.concurrency}, runs=${options.runs}, timeout=${options.timeoutSec}s, revision=${options.revision.slice(0, 8)}`
+    `${options.pairs.length} pair(s), concurrency=${options.concurrency}, runs=${options.runs}, timeout=${options.timeoutSec}s, revision=${options.revision.slice(0, 8)}${options.parallelAttempts ? ', parallel-attempts (any-pass)' : ''}`
   );
   for (const pair of options.pairs) console.log(`PLAN ${pairLabel(pair)}`);
   if (rawArgs.includes('--dry-run')) return;
