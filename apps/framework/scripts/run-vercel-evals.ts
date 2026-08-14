@@ -245,6 +245,13 @@ async function runPairOnce(
         content: `${agentEnvironment()}\n`,
       },
     ]);
+    if (pair.eval_id === 'investigate-realtime-001-subscribed-no-events') {
+      await runSandboxCommand(sandbox, label, 'TEMPORARY test delay', {
+        cmd: 'sleep',
+        args: ['300'],
+        timeoutMs: 3_000,
+      });
+    }
     console.log(`${label} run eval`);
     await runSandboxCommand(
       sandbox,
