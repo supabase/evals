@@ -220,9 +220,15 @@ async function runPairOnce(
       sudo: true,
       timeoutMs: 90_000,
     });
+    // Installs the pnpm version pinned by packageManager in the checked-out
+    // root package.json so the two can't drift.
     await runSandboxCommand(sandbox, label, 'install pnpm', {
-      cmd: 'npm',
-      args: ['install', '--global', 'pnpm@10.24.0'],
+      cmd: 'bash',
+      args: [
+        '-c',
+        `npm install --global "$(node -p 'require("./package.json").packageManager')"`,
+      ],
+      cwd: sandbox.cwd,
       sudo: true,
       timeoutMs: 2 * 60 * 1_000,
     });
