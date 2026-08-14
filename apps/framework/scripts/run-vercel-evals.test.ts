@@ -1,6 +1,20 @@
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { APIError } from '@vercel/sandbox';
-import { describe, expect, it } from 'vitest';
-import { parsePairs, runBounded } from './run-vercel-evals.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  aggregateAttempts,
+  parsePairs,
+  runBounded,
+  type EvalPair,
+} from './run-vercel-evals.js';
 import { isRetryableSandboxCreateError, tagValue } from './vercel-sandbox.js';
 
 describe('Vercel eval controller', () => {
@@ -61,5 +75,84 @@ describe('Vercel eval controller', () => {
     expect(isRetryableSandboxCreateError(new TypeError('fetch failed'))).toBe(
       true
     );
+  });
+});
+
+describe('aggregateAttempts (any-pass)', () => {
+  const pair: EvalPair = {
+    eval_id: 'e1',
+    experiment: 'exp1',
+    experiment_suite: 'benchmark',
+    eval_suite: 'benchmark',
+  };
+  let root: string;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'agg-test-'));
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  const attemptDir = (
+    name: string,
+    result: { passed: boolean; marker: string } | null
+  ): string => {
+    const dir = join(root, name);
+    mkdirSync(dir, { recursive: true });
+    if (result) {
+      writeFileSync(
+        join(dir, `${pair.eval_id}.json`),
+        JSON.stringify({ ...result, attempts: 1, checks: [] })
+      );
+    }
+    return dir;
+  };
+  const output = () =>
+    JSON.parse(
+      readFileSync(
+        join(root, 'out', `raw-results-${pair.experiment}__${pair.eval_id}`, `${pair.eval_id}.json`),
+        'utf8'
+      )
+    ) as { passed: boolean; attempts: number; marker: string };
+
+  it('passes if any attempt passed and keeps the passing tree', () => {
+    aggregateAttempts(
+      pair,
+      [
+        attemptDir('a1', { passed: false, marker: 'fail' }),
+        attemptDir('a2', { passed: true, marker: 'pass' }),
+      ],
+      join(root, 'out')
+    );
+    expect(output()).toMatchObject({ passed: true, attempts: 2, marker: 'pass' });
+  });
+
+  it('fails only when every attempt failed', () => {
+    aggregateAttempts(
+      pair,
+      [
+        attemptDir('a1', { passed: false, marker: 'a1' }),
+        attemptDir('a2', { passed: false, marker: 'a2' }),
+      ],
+      join(root, 'out')
+    );
+    expect(output()).toMatchObject({ passed: false, attempts: 2 });
+  });
+
+  it('counts only attempts that produced a result file', () => {
+    aggregateAttempts(
+      pair,
+      [
+        attemptDir('a1', { passed: true, marker: 'pass' }),
+        attemptDir('a2', null),
+      ],
+      join(root, 'out')
+    );
+    expect(output()).toMatchObject({ passed: true, attempts: 1, marker: 'pass' });
+  });
+
+  it('throws when no attempt produced a result file', () => {
+    expect(() =>
+      aggregateAttempts(pair, [attemptDir('a1', null)], join(root, 'out'))
+    ).toThrow('no attempt produced a result');
   });
 });

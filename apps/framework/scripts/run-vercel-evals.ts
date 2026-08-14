@@ -294,7 +294,7 @@ async function runParallelAttempts(
  * passing attempt if there is one, else the first) is kept, with its `attempts`
  * count set to the number of attempts that produced a result.
  */
-function aggregateAttempts(
+export function aggregateAttempts(
   pair: EvalPair,
   attemptDirs: string[],
   outputDir: string
