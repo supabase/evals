@@ -1,16 +1,29 @@
 #!/usr/bin/env tsx
 
-import { APIError, Sandbox } from '@vercel/sandbox';
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import type { Sandbox } from '@vercel/sandbox';
 import pLimit from 'p-limit';
 import pRetry from 'p-retry';
 import { z } from 'zod';
 import { positiveInteger, readFlag } from '../lib/cli-args.js';
+import {
+  SANDBOX_CWD,
+  coldProvision,
+  createSandbox,
+  errorMessage,
+  installDependencies,
+  runSandboxCommand,
+  startDocker,
+  tagValue,
+  vercelCredentialsFromEnv,
+  type VercelCredentials,
+} from './vercel-sandbox.js';
+import { ensureSnapshot } from './vercel-snapshot.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const execFileAsync = promisify(execFile);
@@ -34,6 +47,18 @@ const EVAL_TIMEOUT_BUFFER_MS = 25 * 60 * 1_000;
  */
 const SANDBOX_TIMEOUT_BUFFER_MS = 10 * 60 * 1_000;
 
+/**
+ * Wall-clock budget for the `pnpm eval` command: every attempt at its full
+ * timeout plus buffer for the non-agent work around it. Shared by the sandbox
+ * session ceiling and the command timer so the two can't drift.
+ */
+function evalCommandTimeoutMs(options: {
+  runs: number;
+  timeoutSec: number;
+}): number {
+  return options.runs * options.timeoutSec * 1_000 + EVAL_TIMEOUT_BUFFER_MS;
+}
+
 const evalPairSchema = z.object({
   eval_id: z.string(),
   experiment: z.string(),
@@ -51,28 +76,16 @@ interface RunnerOptions {
   timeoutSec: number;
   concurrency: number;
   vcpus: number;
+  /**
+   * Warm-boot snapshot to start each pair's VM from (docker + node_modules +
+   * Supabase images pre-baked). Undefined means a cold git-source boot.
+   */
+  snapshotId?: string;
 }
 
 interface PairOptions extends RunnerOptions {
   pair: EvalPair;
   attempt: number;
-}
-
-interface SandboxCommandOptions {
-  cmd: string;
-  args?: string[];
-  cwd?: string;
-  env?: Record<string, string>;
-  sudo?: boolean;
-  timeoutMs?: number;
-}
-
-class SandboxCommandError extends Error {
-  constructor(step: string, exitCode: number, output: string) {
-    const detail = output.trim().slice(-4_000);
-    super(`${step} exited with code ${exitCode}${detail ? `\n${detail}` : ''}`);
-    this.name = 'SandboxCommandError';
-  }
 }
 
 /** Runs every item while keeping at most `concurrency` promises active. */
@@ -159,21 +172,25 @@ async function runPairOnce(
   let sandbox: Sandbox | undefined;
 
   try {
+    const warm = Boolean(options.snapshotId);
     sandbox = await createSandbox(label, {
       ...credentials,
       name: sandboxName(pair),
-      runtime: 'node24',
-      source: {
-        type: 'git',
-        url: options.repoUrl,
-        revision: options.revision,
-        depth: 1,
-      },
+      // A snapshot source carries its own runtime + filesystem; a git source
+      // needs the runtime named and clones the repo fresh.
+      ...(options.snapshotId
+        ? { source: { type: 'snapshot', snapshotId: options.snapshotId } }
+        : {
+            runtime: 'node24',
+            source: {
+              type: 'git',
+              url: options.repoUrl,
+              revision: options.revision,
+              depth: 1,
+            },
+          }),
       resources: { vcpus: options.vcpus },
-      timeout:
-        options.runs * options.timeoutSec * 1_000 +
-        EVAL_TIMEOUT_BUFFER_MS +
-        SANDBOX_TIMEOUT_BUFFER_MS,
+      timeout: evalCommandTimeoutMs(options) + SANDBOX_TIMEOUT_BUFFER_MS,
       persistent: false,
       tags: {
         runner: 'supabase-evals',
@@ -184,60 +201,32 @@ async function runPairOnce(
       },
     });
     console.log(
-      `${label} attempt ${options.attempt}: ${SANDBOX_DASHBOARD_URL}/${sandbox.name}`
+      `${label} attempt ${options.attempt} (${warm ? 'warm' : 'cold'} boot): ${SANDBOX_DASHBOARD_URL}/${sandbox.name}`
     );
 
-    await runSandboxCommand(sandbox, label, 'initialize submodules', {
-      cmd: 'git',
-      args: [
-        '-c',
-        'url.https://github.com/.insteadOf=git@github.com:',
-        'submodule',
-        'update',
-        '--init',
-        '--recursive',
-      ],
-      cwd: sandbox.cwd,
-      timeoutMs: 2 * 60 * 1_000,
-    });
-    await runSandboxCommand(sandbox, label, 'install Docker', {
-      cmd: 'dnf',
-      args: ['install', '-y', '-q', 'docker'],
-      sudo: true,
-      timeoutMs: 3 * 60 * 1_000,
-    });
-    await sandbox.runCommand({
-      cmd: 'dockerd',
-      sudo: true,
-      detached: true,
-    });
-    await runSandboxCommand(sandbox, label, 'start Docker', {
-      cmd: 'bash',
-      args: [
-        '-c',
-        'for i in $(seq 60); do docker info >/dev/null 2>&1 && chmod 666 /var/run/docker.sock && exit 0; sleep 1; done; echo "dockerd not ready" >&2; exit 1',
-      ],
-      sudo: true,
-      timeoutMs: 90_000,
-    });
-    // Installs the pnpm version pinned by packageManager in the checked-out
-    // root package.json so the two can't drift.
-    await runSandboxCommand(sandbox, label, 'install pnpm', {
-      cmd: 'bash',
-      args: [
-        '-c',
-        `npm install --global "$(node -p 'require("./package.json").packageManager')"`,
-      ],
-      cwd: sandbox.cwd,
-      sudo: true,
-      timeoutMs: 2 * 60 * 1_000,
-    });
-    await runSandboxCommand(sandbox, label, 'install dependencies', {
-      cmd: 'pnpm',
-      args: ['install', '--frozen-lockfile'],
-      cwd: sandbox.cwd,
-      timeoutMs: 6 * 60 * 1_000,
-    });
+    if (warm) {
+      // The snapshot already carries docker, node_modules, and the pulled
+      // images; only restart the daemon (processes aren't snapshotted), move
+      // the checkout to the target revision, and reconcile dependency drift.
+      await startDocker(sandbox, label, { install: false });
+      await runSandboxCommand(sandbox, label, 'checkout revision', {
+        cmd: 'bash',
+        args: [
+          '-c',
+          // supabase/evals is public, so no credentials are needed to fetch.
+          'git config --global url."https://github.com/".insteadOf "git@github.com:"\n' +
+            'git fetch --quiet --depth 1 origin "$REVISION"\n' +
+            'git checkout --quiet --force "$REVISION"\n' +
+            'git submodule update --init --recursive',
+        ],
+        cwd: SANDBOX_CWD,
+        env: { REVISION: options.revision },
+        timeoutMs: 3 * 60 * 1_000,
+      });
+      await installDependencies(sandbox, label);
+    } else {
+      await coldProvision(sandbox, label);
+    }
 
     await sandbox.writeFiles([
       {
@@ -266,16 +255,15 @@ async function runPairOnce(
           '--timeout-sec',
           String(options.timeoutSec),
         ],
-        cwd: sandbox.cwd,
-        timeoutMs:
-          options.runs * options.timeoutSec * 1_000 + EVAL_TIMEOUT_BUFFER_MS,
+        cwd: SANDBOX_CWD,
+        timeoutMs: evalCommandTimeoutMs(options),
       },
       true
     );
     await runSandboxCommand(sandbox, label, 'validate result', {
       cmd: 'test',
       args: ['-f', `results/${pair.experiment}/${pair.eval_id}.json`],
-      cwd: sandbox.cwd,
+      cwd: SANDBOX_CWD,
       timeoutMs: 30_000,
     });
     await runSandboxCommand(sandbox, label, 'pack results', {
@@ -288,7 +276,7 @@ async function runPairOnce(
         `results/${pair.experiment}`,
         '.',
       ],
-      cwd: sandbox.cwd,
+      cwd: SANDBOX_CWD,
       timeoutMs: 3 * 60 * 1_000,
     });
     await downloadResults(sandbox, pair, options.outputDir);
@@ -298,94 +286,6 @@ async function runPairOnce(
   } finally {
     if (sandbox) await cleanupSandbox(sandbox, label);
   }
-}
-
-/**
- * Retries Sandbox.create() through the vCPU-provisioning rate limit.
- * The SDK's own retry gives up after ~3 attempts or a >20s Retry-After,
- * which isn't enough to ride out a large burst, so this layer takes over
- * with a much bigger budget and honors the same Retry-After header.
- */
-async function createSandbox(
-  label: string,
-  createOptions: Parameters<typeof Sandbox.create>[0]
-): Promise<Sandbox> {
-  return pRetry(() => Sandbox.create(createOptions), {
-    retries: 12,
-    minTimeout: 0,
-    shouldRetry: ({ error }) => isRetryableSandboxCreateError(error),
-    onFailedAttempt: async ({ error, attemptNumber, retriesLeft }) => {
-      const retrying = retriesLeft > 0 && isRetryableSandboxCreateError(error);
-      const retryAfter = getRetryAfterMs(error);
-      // Jitter so on top of server's `Retry-After` so concurrent pairs hitting
-      // the same rate limit don't all retry in lockstep.
-      const wait = retryAfter
-        ? retryAfter * (1 + Math.random() * 0.4)
-        : Math.min(2 ** attemptNumber * 1_000, 20_000) *
-          (0.8 + Math.random() * 0.4);
-      console.warn(
-        `${label} sandbox create attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
-      );
-      if (retrying) await new Promise((resolve) => setTimeout(resolve, wait));
-    },
-  });
-}
-
-/**
- * Matches the SDK's retry policy of network errors, 429s, and 5xx.
- * Other 4xx responses (bad token, invalid options) can never succeed.
- * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L10-L17
- */
-export function isRetryableSandboxCreateError(error: unknown): boolean {
-  if (!(error instanceof APIError)) return true;
-  const { status } = error.response;
-  return status === 429 || status >= 500;
-}
-
-/**
- * Reads the Sandbox API's Retry-After header (seconds), converted to milliseconds.
- * The SDK's own retry layer reads the same header on 429s:
- * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L56
- */
-function getRetryAfterMs(error: unknown): number | undefined {
-  if (!(error instanceof APIError)) return undefined;
-  const seconds = Number(error.response.headers.get('Retry-After'));
-  return seconds > 0 ? seconds * 1_000 : undefined;
-}
-
-/** Runs a detached command, streams logs best-effort, and waits for its exit code. */
-async function runSandboxCommand(
-  sandbox: Sandbox,
-  label: string,
-  step: string,
-  options: SandboxCommandOptions,
-  logOutput = false
-): Promise<void> {
-  const command = await sandbox.runCommand({
-    ...options,
-    detached: true,
-  });
-  const result = await pRetry(() => command.wait(), {
-    retries: 5,
-    factor: 2,
-    minTimeout: 1_000,
-    maxTimeout: 10_000,
-    onFailedAttempt: ({ error, attemptNumber }) => {
-      console.warn(
-        `${label} ${step} wait failed (attempt ${attemptNumber}): ${errorMessage(error)}`
-      );
-    },
-  });
-  if (result.exitCode === 0) {
-    if (logOutput) {
-      const output = await result.output('both').catch(() => '');
-      if (output.trim()) process.stdout.write(`${label} ${output}`);
-    }
-    return;
-  }
-
-  const output = await result.output('both').catch(() => '');
-  throw new SandboxCommandError(step, result.exitCode, output);
 }
 
 /** Downloads and extracts one pair into the aggregate artifact directory. */
@@ -444,27 +344,6 @@ export function parsePairs(value: string): EvalPair[] {
   return parsed.data;
 }
 
-/** Returns an environment variable or a useful configuration error. */
-function requireEnv(name: string, hint: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set: ${hint}`);
-  return value;
-}
-
-type VercelCredentials = ReturnType<typeof vercelCredentialsFromEnv>;
-
-/** Returns explicit credentials because the SDK does not infer all local vars. */
-function vercelCredentialsFromEnv():
-  | { token: string; teamId: string; projectId: string }
-  | Record<string, never> {
-  if (process.env.VERCEL_OIDC_TOKEN) return {};
-  return {
-    token: requireEnv('VERCEL_TOKEN', 'missing Vercel token'),
-    teamId: requireEnv('VERCEL_TEAM_ID', 'missing Vercel team ID'),
-    projectId: requireEnv('VERCEL_PROJECT_ID', 'missing Vercel project ID'),
-  };
-}
-
 /** Serializes configured provider keys into the repo-root `.env` file. */
 function agentEnvironment(): string {
   const lines: string[] = [];
@@ -509,30 +388,6 @@ function sandboxName(pair: EvalPair): string {
   return `${tagValue(pair.experiment).slice(0, 35)}--${tagValue(pair.eval_id).slice(0, 45)}--${suffix}`;
 }
 
-/** Sanitizes metadata for Sandbox names and tags. */
-export function tagValue(value: string): string {
-  return value
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9-]+/g, '-')
-    .slice(0, 64);
-}
-
-const apiErrorBodySchema = z.object({
-  error: z.object({ code: z.string(), message: z.string() }),
-});
-
-/** Converts unknown thrown values into readable diagnostics. */
-function errorMessage(error: unknown): string {
-  if (error instanceof APIError) {
-    const body = apiErrorBodySchema.safeParse(error.json);
-    const detail = body.success
-      ? `${body.data.error.code}: ${body.data.error.message}`
-      : error.message;
-    return `HTTP ${error.response.status} ${detail}`;
-  }
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** Keeps retry notices readable when the final summary carries full output. */
 function firstLine(value: string): string {
   return value.split('\n', 1)[0] ?? value;
@@ -562,6 +417,9 @@ async function main(): Promise<void> {
       'concurrency'
     ),
     vcpus: positiveInteger(readFlag(rawArgs, 'vcpus') ?? '4', 'vcpus'),
+    // An explicit id reuses a prebuilt snapshot across runs; `--snapshot`
+    // builds one for this run (resolved below, after the dry-run guard).
+    snapshotId: readFlag(rawArgs, 'snapshot-id'),
   };
 
   console.log(
@@ -569,6 +427,15 @@ async function main(): Promise<void> {
   );
   for (const pair of options.pairs) console.log(`PLAN ${pairLabel(pair)}`);
   if (rawArgs.includes('--dry-run')) return;
+
+  if (!options.snapshotId && rawArgs.includes('--snapshot')) {
+    options.snapshotId = await ensureSnapshot({
+      root: ROOT,
+      repoUrl: options.repoUrl,
+      revision: options.revision,
+      vcpus: options.vcpus,
+    });
+  }
   await runPairs(options);
 }
 
