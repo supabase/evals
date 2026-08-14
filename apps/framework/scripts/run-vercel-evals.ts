@@ -350,26 +350,6 @@ async function createSandbox(
 
 const UNKNOWN_ERROR_RETRY_LIMIT = 2;
 
-const CREDENTIAL_ERROR_NAMES = new Set([
-  'LocalOidcContextError',
-  'VercelOidcContextError',
-]);
-
-/**
- * Detects the SDK's local credential-resolution failures (bad/missing OIDC
- * token, incomplete explicit credentials). These throw before any HTTP
- * request, so retrying can't change the outcome.
- * https://github.com/vercel/sandbox/blob/main/packages/vercel-sandbox/src/utils/get-credentials.ts
- */
-function isCredentialError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  if (CREDENTIAL_ERROR_NAMES.has(error.name)) return true;
-  return (
-    error.message.startsWith('Missing credentials parameters') ||
-    error.message.startsWith('Invalid Vercel OIDC token')
-  );
-}
-
 const NETWORK_ERROR_CODES = new Set([
   'ECONNRESET',
   'ECONNREFUSED',
@@ -397,10 +377,9 @@ function isNetworkError(error: unknown): boolean {
  * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L10-L17
  *
  * Everything else happens outside that HTTP boundary, so it's not covered
- * by the SDK's documented policy. Known-deterministic credential errors
- * bail immediately, known network faults get the full retry budget, and
- * anything unrecognized gets a couple of attempts rather than a guess in
- * either direction.
+ * by the SDK's documented policy. Known network faults get the full retry
+ * budget, and anything unrecognized gets a couple of attempts rather than a
+ * guess in either direction.
  */
 export function isRetryableSandboxCreateError(
   error: unknown,
@@ -410,24 +389,18 @@ export function isRetryableSandboxCreateError(
     const { status } = error.response;
     return status === 429 || status >= 500;
   }
-  if (isCredentialError(error)) return false;
   if (isNetworkError(error)) return true;
   return attemptNumber <= UNKNOWN_ERROR_RETRY_LIMIT;
 }
 
-/** True for a non-APIError that isn't a known credential or network error. */
+/** True for a non-APIError that isn't a known network error. */
 function isUnrecognizedSandboxCreateError(error: unknown): boolean {
-  return (
-    !(error instanceof APIError) &&
-    !isCredentialError(error) &&
-    !isNetworkError(error)
-  );
+  return !(error instanceof APIError) && !isNetworkError(error);
 }
 
 /** True when no amount of retrying at any level could fix this. */
 export function isTerminalSandboxCreateError(error: unknown): boolean {
-  if (error instanceof APIError) return !isRetryableSandboxCreateError(error, 1);
-  return isCredentialError(error);
+  return error instanceof APIError && !isRetryableSandboxCreateError(error, 1);
 }
 
 /**
@@ -542,10 +515,11 @@ function requireEnv(name: string, hint: string): string {
 type VercelCredentials = ReturnType<typeof vercelCredentialsFromEnv>;
 
 /** Returns explicit credentials because the SDK does not infer all local vars. */
-function vercelCredentialsFromEnv():
-  | { token: string; teamId: string; projectId: string }
-  | Record<string, never> {
-  if (process.env.VERCEL_OIDC_TOKEN) return {};
+function vercelCredentialsFromEnv(): {
+  token: string;
+  teamId: string;
+  projectId: string;
+} {
   return {
     token: requireEnv('VERCEL_TOKEN', 'missing Vercel token'),
     teamId: requireEnv('VERCEL_TEAM_ID', 'missing Vercel team ID'),

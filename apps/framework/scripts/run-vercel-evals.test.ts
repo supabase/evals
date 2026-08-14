@@ -65,23 +65,6 @@ describe('Vercel eval controller', () => {
     expect(isRetryableSandboxCreateError(apiError(400), 1)).toBe(false);
   });
 
-  it('bails immediately on a bad OIDC token', () => {
-    const localOidc = Object.assign(
-      new Error('Could not get credentials from OIDC context.'),
-      { name: 'LocalOidcContextError' }
-    );
-    const vercelOidc = Object.assign(
-      new Error('Could not get credentials from OIDC context.'),
-      { name: 'VercelOidcContextError' }
-    );
-    const invalidToken = new Error('Invalid Vercel OIDC token: bad payload');
-
-    expect(isRetryableSandboxCreateError(localOidc, 1)).toBe(false);
-    expect(isRetryableSandboxCreateError(vercelOidc, 1)).toBe(false);
-    expect(isRetryableSandboxCreateError(invalidToken, 1)).toBe(false);
-    expect(isRetryableSandboxCreateError(localOidc, 12)).toBe(false);
-  });
-
   it('retries a real network error through the full attempt budget', () => {
     const networkError = new TypeError('fetch failed', {
       cause: Object.assign(new Error('read ECONNRESET'), {
@@ -99,15 +82,10 @@ describe('Vercel eval controller', () => {
     expect(isRetryableSandboxCreateError(mystery, 3)).toBe(false);
   });
 
-  it('marks credential errors and definitive 4xx as terminal', () => {
+  it('marks definitive 4xx API responses as terminal', () => {
     const apiError = (status: number) =>
       new APIError(new Response(null, { status }));
-    const credentialError = Object.assign(
-      new Error('Could not get credentials from OIDC context.'),
-      { name: 'LocalOidcContextError' }
-    );
 
-    expect(isTerminalSandboxCreateError(credentialError)).toBe(true);
     expect(isTerminalSandboxCreateError(apiError(401))).toBe(true);
     expect(isTerminalSandboxCreateError(apiError(400))).toBe(true);
   });
