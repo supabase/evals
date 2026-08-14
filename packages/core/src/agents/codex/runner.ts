@@ -63,6 +63,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
     mcpServers,
     reasoningEffort,
     timeoutSec,
+    onStdout,
   }) {
     const codex = npmGlobalBin('codex');
     if (Object.keys(mcpServers).length > 0) {
@@ -95,7 +96,11 @@ export const codexRunner: AgentRunner<CodexModel> = {
     // both staged as files, fed on stdin.
     const command = await sandbox.exec(
       `{ cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath}; } | ${codex} ${flags}`,
-      { timeoutMs: timeoutSec * 1000, env: { OPENAI_API_KEY: apiKey } }
+      {
+        timeoutMs: timeoutSec * 1000,
+        env: { OPENAI_API_KEY: apiKey },
+        onStdout,
+      }
     );
     return { command, raw: command.stdout };
   },

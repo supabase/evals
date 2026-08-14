@@ -372,6 +372,8 @@ export type AgentRunArgs = {
    */
   sandbox?: AgentSandbox;
   timeoutSec: number;
+  /** Receives raw JSONL chunks emitted by a CLI agent during its run. */
+  onStdout?: (chunk: string) => void;
 };
 
 export type AgentRunResult = {

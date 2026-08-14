@@ -86,16 +86,18 @@ describe('opencode runner', () => {
 /** Capture the `--model` flag, run env, and written config from one exec. */
 async function captureExec(
   model: string,
-  opts: { mcp?: boolean } = {}
+  opts: { mcp?: boolean; onStdout?: (chunk: string) => void } = {}
 ): Promise<{
   runCommand: string;
   runEnv: Record<string, string> | undefined;
   config: Record<string, unknown> | undefined;
+  runOnStdout: ((chunk: string) => void) | undefined;
 }> {
   const ok: CommandResult = { ok: true, exitCode: 0, stdout: '', stderr: '' };
   let runCommand = '';
   let runEnv: Record<string, string> | undefined;
   let config: Record<string, unknown> | undefined;
+  let runOnStdout: ((chunk: string) => void) | undefined;
   await createOpencodeRunner(model).exec({
     sandbox: {
       workspace: '/w',
@@ -106,6 +108,7 @@ async function captureExec(
         } else if (cmd.includes(' run ')) {
           runCommand = cmd;
           runEnv = options?.env;
+          runOnStdout = options?.onStdout;
         }
         return ok;
       },
@@ -117,8 +120,9 @@ async function captureExec(
     userPromptPath: '/u',
     mcpServers: opts.mcp ? { supabase: { command: 'srv' } } : {},
     timeoutSec: 1,
+    onStdout: opts.onStdout,
   });
-  return { runCommand, runEnv, config };
+  return { runCommand, runEnv, config, runOnStdout };
 }
 
 describe('opencode runner exec routing', () => {
@@ -138,5 +142,11 @@ describe('opencode runner exec routing', () => {
     expect(config?.agent).toEqual({ title: { disable: true } });
     expect(config?.mcp).toEqual({});
     expect(runCommand).toContain('OPENCODE_CONFIG=');
+  });
+
+  it('forwards live CLI output to the sandbox', async () => {
+    const onStdout = () => undefined;
+    const { runOnStdout } = await captureExec('openai/gpt-5.4', { onStdout });
+    expect(runOnStdout).toBe(onStdout);
   });
 });

@@ -104,6 +104,7 @@ export function createCliAgent<M extends string = string>(
         mcpServers: rewriteLoopback(args.mcpServers ?? {}),
         reasoningEffort: options.reasoningEffort,
         timeoutSec: args.timeoutSec,
+        onStdout: args.onStdout,
       });
 
       const { events } = raw ? parser.parseTranscript(raw) : { events: [] };

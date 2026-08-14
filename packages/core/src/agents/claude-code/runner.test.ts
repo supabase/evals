@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { claudeCodeRunner } from './runner.js';
 import type { CommandResult } from '../../index.js';
 
@@ -53,5 +53,32 @@ describe('claudeCodeRunner.deriveStopReason', () => {
     expect(derive(undefined, timedOut)).toBe('timeout');
     expect(derive('not json\n', failed)).toBe('error_exit_1');
     expect(derive(undefined, ok)).toBe('stop');
+  });
+});
+
+describe('claudeCodeRunner.exec', () => {
+  it('forwards live CLI output to the sandbox', async () => {
+    const onStdout = vi.fn();
+    let received: ((chunk: string) => void) | undefined;
+
+    await claudeCodeRunner.exec({
+      sandbox: {
+        workspace: '/work',
+        exec: async (_command, options) => {
+          received = options?.onStdout;
+          return ok;
+        },
+        readFile: async () => '',
+      },
+      model: claudeCodeRunner.defaultModel,
+      apiKey: 'key',
+      systemPromptPath: '/system',
+      userPromptPath: '/user',
+      mcpServers: {},
+      timeoutSec: 1,
+      onStdout,
+    });
+
+    expect(received).toBe(onStdout);
   });
 });

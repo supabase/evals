@@ -45,6 +45,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     mcpServers,
     reasoningEffort,
     timeoutSec,
+    onStdout,
   }) {
     const claude = npmGlobalBin('claude');
     const serverNames = Object.keys(mcpServers);
@@ -83,6 +84,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       {
         timeoutMs: timeoutSec * 1000,
         env: { ANTHROPIC_API_KEY: apiKey },
+        onStdout,
       }
     );
     return { command, raw: command.stdout };

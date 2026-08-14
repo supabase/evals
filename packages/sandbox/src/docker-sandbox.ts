@@ -84,6 +84,8 @@ export interface DockerSandboxOptions {
 export interface RunCommandOptions {
   env?: Record<string, string>;
   timeoutMs?: number;
+  onStdout?: (chunk: string) => void;
+  onStderr?: (chunk: string) => void;
 }
 
 export class DockerSandbox {
@@ -339,7 +341,13 @@ export class DockerSandbox {
 
   private async execCommand(
     command: string,
-    options: { env?: Record<string, string>; user: string; timeoutMs?: number }
+    options: {
+      env?: Record<string, string>;
+      user: string;
+      timeoutMs?: number;
+      onStdout?: (chunk: string) => void;
+      onStderr?: (chunk: string) => void;
+    }
   ): Promise<SandboxCommandResult> {
     this.assertRunning();
     const timeoutMs = options.timeoutMs ?? this.defaultTimeoutMs;
@@ -368,7 +376,11 @@ export class DockerSandbox {
         '-c',
         command,
       ],
-      { timeoutMs: timeoutMs + CLIENT_TIMEOUT_HEADROOM_MS }
+      {
+        timeoutMs: timeoutMs + CLIENT_TIMEOUT_HEADROOM_MS,
+        onStdout: options.onStdout,
+        onStderr: options.onStderr,
+      }
     );
 
     // coreutils timeout exits 124 on TERM-after-timeout, 137 on the KILL
@@ -430,7 +442,12 @@ export class DockerSandbox {
 /** Run the host docker CLI. `input` is piped to stdin (e.g. `docker build -`). */
 export async function dockerCli(
   args: string[],
-  options: { timeoutMs?: number; input?: string } = {}
+  options: {
+    timeoutMs?: number;
+    input?: string;
+    onStdout?: (chunk: string) => void;
+    onStderr?: (chunk: string) => void;
+  } = {}
 ): Promise<SandboxCommandResult> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   try {
@@ -438,6 +455,12 @@ export async function dockerCli(
       timeout: timeoutMs,
       killSignal: 'SIGKILL',
       maxBuffer: MAX_OUTPUT_BYTES,
+    });
+    promise.child.stdout?.on('data', (chunk: Buffer) => {
+      options.onStdout?.(chunk.toString());
+    });
+    promise.child.stderr?.on('data', (chunk: Buffer) => {
+      options.onStderr?.(chunk.toString());
     });
     if (options.input !== undefined) {
       promise.child.stdin?.write(options.input);

@@ -77,6 +77,15 @@ const TIMEOUT_SEC = Number(readFlag('timeout-sec') ?? 720);
 const CONCURRENCY = Number(readFlag('concurrency') ?? 1);
 const STOP_ON_PASS = !args.has('--run-all-attempts');
 const DEBUG = args.has('--debug');
+const AGENT_STREAM_PREFIX = '__EVALS_AGENT_STREAM__=';
+const liveAgentOutput =
+  process.env.EVALS_STREAM_AGENT_OUTPUT === '1'
+    ? (chunk: string) => {
+        process.stdout.write(
+          `${AGENT_STREAM_PREFIX}${Buffer.from(chunk).toString('base64')}\n`
+        );
+      }
+    : undefined;
 
 async function loadExperiments() {
   const dir = join(ROOT, 'experiments');
@@ -450,6 +459,7 @@ async function runOne(
         sandbox: session.sandbox,
         mcpServers: session.mcpServers,
         timeoutSec: TIMEOUT_SEC,
+        onStdout: liveAgentOutput,
       });
       lastToolCalls = run.toolCalls;
       lastTranscript = run.transcript;
@@ -536,6 +546,7 @@ async function runOne(
       mcpServers: session.mcpServers,
       sandbox: cliSandbox?.sandbox,
       timeoutSec: TIMEOUT_SEC,
+      onStdout: liveAgentOutput,
     });
     lastToolCalls = run.toolCalls;
     lastTranscript = run.transcript;
