@@ -302,16 +302,24 @@ jobs:
         env:
           EVAL_PAIRS: ${{ needs.prepare.outputs.pairs }}
           EVAL_REVISION: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          # Optional warm-boot snapshot to reuse across runs (built out-of-band).
+          # Unset -> cold boots, so this can never regress the default path.
+          EVAL_SNAPSHOT_ID: ${{ vars.EVAL_SNAPSHOT_ID }}
         shell: bash
         run: |
           set -euo pipefail
 
-          pnpm --filter @supabase-evals/framework eval:vercel -- \
-            --pairs-json "$EVAL_PAIRS" \
-            --revision "$EVAL_REVISION" \
-            --runs "${{ needs.prepare.outputs.runs }}" \
-            --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}" \
+          args=(
+            --pairs-json "$EVAL_PAIRS"
+            --revision "$EVAL_REVISION"
+            --runs "${{ needs.prepare.outputs.runs }}"
+            --timeout-sec "${{ needs.prepare.outputs.timeout_sec }}"
             --concurrency "${{ needs.prepare.outputs.sandbox_concurrency }}"
+          )
+          if [ -n "${EVAL_SNAPSHOT_ID:-}" ]; then
+            args+=(--snapshot-id "$EVAL_SNAPSHOT_ID")
+          fi
+          pnpm --filter @supabase-evals/framework eval:vercel -- "${args[@]}"
 
       - name: Upload raw results
         if: always()
