@@ -14,6 +14,7 @@ import { readFlag } from '../lib/cli-args.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const execFileAsync = promisify(execFile);
+/** Base for sandbox URLs printed during runs */
 const SANDBOX_DASHBOARD_URL =
   'https://vercel.com/supabase/evals-runner/sandboxes';
 const AGENT_ENV_NAMES = [
@@ -292,8 +293,12 @@ async function createSandbox(
     retries: 12,
     minTimeout: 0,
     onFailedAttempt: async ({ error, attemptNumber, retriesLeft }) => {
-      const wait =
-        retryAfterMs(error) ?? Math.min(2 ** attemptNumber * 1_000, 20_000);
+      const retryAfter = getRetryAfterMs(error);
+      // Jitter so on top of server's `Retry-After` so concurrent pairs hitting
+      // the same rate limit don't all retry in lockstep.
+      const wait = retryAfter
+        ? retryAfter * (1 + Math.random() * 0.4)
+        : Math.min(2 ** attemptNumber * 1_000, 20_000) * (0.8 + Math.random() * 0.4);
       console.warn(
         `${label} sandbox create attempt ${attemptNumber} failed${retriesLeft > 0 ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
       );
@@ -303,8 +308,12 @@ async function createSandbox(
   });
 }
 
-/** Reads the Sandbox API's Retry-After header (seconds), converted to milliseconds. */
-function retryAfterMs(error: unknown): number | undefined {
+/**
+ * Reads the Sandbox API's Retry-After header (seconds), converted to milliseconds.
+ * The SDK's own retry layer reads the same header on 429s:
+ * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L57-L64
+ */
+function getRetryAfterMs(error: unknown): number | undefined {
   if (!(error instanceof APIError)) return undefined;
   const seconds = Number(error.response.headers.get('Retry-After'));
   return seconds > 0 ? seconds * 1_000 : undefined;
