@@ -525,7 +525,7 @@ async function main(): Promise<void> {
     repoUrl: readFlag(rawArgs, 'repo-url') ?? repositoryUrl(),
     outputDir: resolve(
       ROOT,
-      readFlag(rawArgs, 'output-dir') ?? 'downloaded-results'
+      readFlag(rawArgs, 'output-dir') ?? 'results/downloaded'
     ),
     runs: positiveInteger(readFlag(rawArgs, 'runs') ?? '2', 'runs'),
     timeoutSec: positiveInteger(
