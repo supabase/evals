@@ -32,7 +32,7 @@
       {
         "name": "suggested relevant next steps for a Supabase + Next.js project",
         "passed": true,
-        "judgeNotes": "The response includes concrete Supabase/Next.js next steps: running `supabase start`, linking a hosted project, installing `@supabase/supabase-js`, setting `NEXT_PUBLIC_SUPABASE_URL` and anon key in `.env.local`, and creating migrations/schema."
+        "judgeNotes": "The response includes concrete Supabase/Next.js next steps: running `supabase start`, linking a hosted project, installing `@supabase/supabase-js`/`@supabase/ssr`, adding Next.js env vars, and creating migrations/schema."
       },
       {
         "name": "attempted `npx plugins add supabase-community/supabase-plugin`",
@@ -103,7 +103,7 @@
       {
         "name": "anon holds no write grant anywhere in the public schema",
         "passed": false,
-        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings"
+        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items"
       },
       {
         "name": "no client role holds a write grant on the weather feed",
@@ -113,7 +113,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-dee45cee, todo-a-edit-dee45cee, todo-a-delete-dee45cee"
+        "notes": "titles: todo-a-f3da8b8c, todo-a-edit-f3da8b8c, todo-a-delete-f3da8b8c"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -122,7 +122,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-dee45cee"
+        "notes": "titles: todo-b-f3da8b8c"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -161,12 +161,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-dee45cee"
+        "notes": "names: list-f3da8b8c"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-dee45cee"
+        "notes": "titles: item-f3da8b8c"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -247,7 +247,7 @@
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.has_list_access, private.is_list_owner"
+        "notes": "verified private.is_list_participant, private.is_list_owner"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -278,14 +278,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guide content on Row Level Security: concepts, syntax for enabling RLS, policy creation syntax, best practices, performance recommendations (indexing, wrapping functions in SELECT, security definer functions to avoid recursive RLS, specifying roles), and any recommendations for multi-tenant / shared-access patterns. Give as much detail and exact SQL syntax as possible.",
+          "query": "Extract the full guide content about Row Level Security in Supabase Postgres: key concepts, syntax, best practices, examples for policies (select, insert, update, delete), performance recommendations, and how to enable RLS, and any recommended patterns for security definer functions, indexing for RLS, multi-tenant/shared access patterns.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 9213
+          "resultChars": 5783
         }
       ]
     },
