@@ -20,7 +20,7 @@ Two separate apps, so one access pattern cannot be applied to everything.
 
 `using (true)` is correct on the weather feed and catastrophic on todos. The feed is also the only place `anon` has to be granted something deliberately, which is what makes "anon sees nothing" on the other tables mean something.
 
-Those six are what the migration seeds and what the probes drive. They are not the limit of what the scorer measures. The RLS, view and grant checks range over everything in `public`, minus what an extension owns, so a view or a table the agent adds is measured as well. A view over `todos` without `security_invoker` hands out every row the policies withhold, and it is not one of the six.
+Those six are what the migration seeds and what the probes drive. They are not the limit of what the scorer measures. Each check ranges over the relation kinds it applies to across `public`, so agent-added tables, partitions, views, and materialized views are measured too. The RLS and invoker checks skip what an extension owns, and the grant and materialized-view probes do not. A view over `todos` without `security_invoker` hands out every row the policies withhold, and it is not one of the six.
 
 `list_members` is the pressure point, because a policy on it that checks membership against itself raises `42P17`. Membership has more than one safe implementation, so the scorer proves the outcome through the access probes rather than requiring a design.
 

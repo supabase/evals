@@ -605,7 +605,7 @@ export async function checkWeatherFeed(
       notes: describeFeedWrites(authedWrites),
     },
     {
-      name: 'the weather feed fixture survived both write attempts',
+      name: 'the harness restored the weather feed fixture after both write attempts',
       passed: !anonWrites.restoreError && !authedWrites.restoreError,
       notes:
         [anonWrites.restoreError, authedWrites.restoreError]
