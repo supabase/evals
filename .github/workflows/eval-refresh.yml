@@ -390,7 +390,18 @@ jobs:
 
           echo "count=${#missing[@]}" >> "$GITHUB_OUTPUT"
 
-          if [ "${#missing[@]}" -gt 0 ]; then
+          if [ "${#missing[@]}" -eq "$total" ]; then
+            echo "::warning::No results published: all $total eval pairs never finished (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
+            {
+              echo "## :warning: No results published"
+              echo ""
+              echo "All $total eval pairs never finished, likely because \`run-evals\` hit its timeout or failed partway through:"
+              echo ""
+              echo '```'
+              printf '%s\n' "${missing[@]}"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${#missing[@]}" -gt 0 ]; then
             echo "::warning::Publishing PARTIAL results: ${#missing[@]} of $total eval pairs never finished (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
             {
               echo "## :warning: Partial results published"
@@ -511,5 +522,5 @@ jobs:
           steps.audit.outcome == 'success' &&
           steps.audit.outputs.count != '0'
         run: |
-          echo "::error::${{ steps.audit.outputs.count }} eval pair(s) never finished. Results were published, but this run needs a follow-up to complete the refresh."
+          echo "::error::${{ steps.audit.outputs.count }} eval pair(s) never finished. This run needs a follow-up to complete the refresh."
           exit 1
