@@ -261,9 +261,8 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.pairs != '[]'
     runs-on: ubuntu-latest
-    # A 237-pair run under heavy rate-limit contention still finished in
-    # ~28 min (https://github.com/supabase/evals/actions/runs/31802584549).
-    # 60 min gives ~2x margin without risking a multi-hour wedge.
+    # 60 min gives ~2x margin over the slowest observed run:
+    # https://github.com/supabase/evals/actions/runs/31802584549
     timeout-minutes: 60
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

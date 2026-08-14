@@ -373,13 +373,11 @@ function isNetworkError(error: unknown): boolean {
 }
 
 /**
- * Matches the SDK's retry policy for API responses (429s and 5xx):
+ * Based on the SDK's retry policy for API responses (429s and 5xx):
  * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L10-L17
  *
- * Everything else happens outside that HTTP boundary, so it's not covered
- * by the SDK's documented policy. Known network faults get the full retry
- * budget, and anything unrecognized gets a couple of attempts rather than a
- * guess in either direction.
+ * Other known network faults get the full retry budget. Anything unrecognized
+ * gets a few retries and warning on job since we can't tell if it's transient.
  */
 export function isRetryableSandboxCreateError(
   error: unknown,
