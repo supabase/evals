@@ -1,5 +1,11 @@
+import { APIError } from '@vercel/sandbox';
 import { describe, expect, it } from 'vitest';
-import { parsePairs, runBounded, tagValue } from './run-vercel-evals.js';
+import {
+  isRetryableSandboxCreateError,
+  parsePairs,
+  runBounded,
+  tagValue,
+} from './run-vercel-evals.js';
 
 describe('Vercel eval controller', () => {
   it('bounds concurrent work and lets independent failures settle', async () => {
@@ -47,5 +53,15 @@ describe('Vercel eval controller', () => {
     expect(() => parsePairs('[{"eval_id":"eval-1"}]')).toThrow(
       'each pair must contain'
     );
+  });
+
+  it('retries sandbox creation only on network errors, 429s, and 5xx', () => {
+    const apiError = (status: number) =>
+      new APIError(new Response(null, { status }));
+    expect(isRetryableSandboxCreateError(apiError(429))).toBe(true);
+    expect(isRetryableSandboxCreateError(apiError(500))).toBe(true);
+    expect(isRetryableSandboxCreateError(apiError(401))).toBe(false);
+    expect(isRetryableSandboxCreateError(apiError(400))).toBe(false);
+    expect(isRetryableSandboxCreateError(new TypeError('fetch failed'))).toBe(true);
   });
 });

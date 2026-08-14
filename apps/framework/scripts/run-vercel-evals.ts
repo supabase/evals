@@ -313,7 +313,9 @@ async function createSandbox(
   return pRetry(() => Sandbox.create(createOptions), {
     retries: 12,
     minTimeout: 0,
+    shouldRetry: ({ error }) => isRetryableSandboxCreateError(error),
     onFailedAttempt: async ({ error, attemptNumber, retriesLeft }) => {
+      const retrying = retriesLeft > 0 && isRetryableSandboxCreateError(error);
       const retryAfter = getRetryAfterMs(error);
       // Jitter so on top of server's `Retry-After` so concurrent pairs hitting
       // the same rate limit don't all retry in lockstep.
@@ -322,18 +324,28 @@ async function createSandbox(
         : Math.min(2 ** attemptNumber * 1_000, 20_000) *
           (0.8 + Math.random() * 0.4);
       console.warn(
-        `${label} sandbox create attempt ${attemptNumber} failed${retriesLeft > 0 ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
+        `${label} sandbox create attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
       );
-      if (retriesLeft > 0)
-        await new Promise((resolve) => setTimeout(resolve, wait));
+      if (retrying) await new Promise((resolve) => setTimeout(resolve, wait));
     },
   });
 }
 
 /**
+ * Matches the SDK's retry policy of network errors, 429s, and 5xx.
+ * Other 4xx responses (bad token, invalid options) can never succeed.
+ * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L10-L17
+ */
+export function isRetryableSandboxCreateError(error: unknown): boolean {
+  if (!(error instanceof APIError)) return true;
+  const { status } = error.response;
+  return status === 429 || status >= 500;
+}
+
+/**
  * Reads the Sandbox API's Retry-After header (seconds), converted to milliseconds.
  * The SDK's own retry layer reads the same header on 429s:
- * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L57-L64
+ * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L56
  */
 function getRetryAfterMs(error: unknown): number | undefined {
   if (!(error instanceof APIError)) return undefined;
