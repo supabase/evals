@@ -28,6 +28,21 @@ export type ToolName =
   | 'tool_use'
   | 'unknown';
 
+/**
+ * A tool call's identity: its agent-agnostic `toolName` plus where it came
+ * from. `mcp` is attributed precisely (the parser knows the `server`), so
+ * scorers can tell our MCP server's `search_docs` apart from a same-named tool
+ * on another server or a native/hosted tool. Everything not attributable to a
+ * configured MCP server is `other` (agent built-ins, hosted tools like Codex's
+ * web_search, or custom tools).
+ *
+ * `toolName` is the bare tool name with any agent-specific MCP server prefix
+ * stripped (e.g. `query_logs`, not `mcp__supabase-mcp__query_logs`).
+ */
+export type ToolCall =
+  | { kind: 'mcp'; server: string; toolName: string }
+  | { kind: 'other'; toolName: string };
+
 /** A single normalized event in an agent transcript. */
 export interface TranscriptEvent {
   /** ISO timestamp of the event, when the agent records one. */
@@ -42,8 +57,13 @@ export interface TranscriptEvent {
   tool?: {
     /** Canonical tool name. */
     name: ToolName;
-    /** Original tool name as the agent emitted it (the scorer-facing endpoint). */
+    /** Original tool name exactly as the agent emitted it (raw; kept for tracing). */
     originalName: string;
+    /**
+     * Structured call identity (bare `toolName` + `mcp`/`other` source). Set on
+     * `tool_call` events; omitted on `tool_result` (correlated by `id`).
+     */
+    call?: ToolCall;
     /**
      * Correlation id linking a `tool_call` to its later `tool_result`. Agents
      * that interleave the two (Claude Code's `tool_use_id`) set this so the

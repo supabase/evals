@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import type { ToolName } from './transcript/types.js';
+import type { ToolCall, ToolName } from './transcript/types.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
@@ -181,7 +181,12 @@ export interface JudgeResult {
 }
 
 export interface ToolCallRecord {
-  endpoint: string;
+  /**
+   * Structured call identity: bare `toolName` plus its `mcp`/`other` source
+   * (and `server` for MCP). Replaces the old flat `endpoint` string so scorers
+   * can disambiguate an MCP server's tool from a same-named native/other tool.
+   */
+  tool: ToolCall;
   body: Record<string, unknown>;
   /**
    * Normalized, agent-agnostic views of common args, when the agent's parser
@@ -654,6 +659,14 @@ export function aiSdkAgent(options: {
       const mcpHandles = args.mcpServers
         ? await createAiSdkTools(args.mcpServers)
         : [];
+      // Map each MCP tool name to its server so tool calls can be attributed.
+      // AI SDK keys tools by their bare MCP tool name (no server prefix).
+      const mcpToolServers = new Map<string, string>();
+      for (const handle of mcpHandles) {
+        for (const toolName of Object.keys(handle.tools)) {
+          mcpToolServers.set(toolName, handle.serverName);
+        }
+      }
       const toolCalls: ToolCallRecord[] = [];
       const transcript: TranscriptPart[] = [
         { type: 'message', role: 'system', content: args.systemPrompt },
@@ -691,8 +704,12 @@ export function aiSdkAgent(options: {
               typeof input.command === 'string'
                 ? input.command
                 : undefined;
+            const toolName = event.toolCall.toolName;
+            const server = mcpToolServers.get(toolName);
             toolCalls.push({
-              endpoint: event.toolCall.toolName,
+              tool: server
+                ? { kind: 'mcp', server, toolName }
+                : { kind: 'other', toolName },
               body: input,
               command,
               loadedSkills,
@@ -810,6 +827,7 @@ type ResolvedMcpServer = {
 };
 
 type McpClientHandle = {
+  serverName: string;
   tools: ToolSet;
   close(): Promise<void>;
 };
@@ -1251,7 +1269,7 @@ async function createAiSdkTools(
   const handles: McpClientHandle[] = [];
 
   try {
-    for (const server of Object.values(mcpServers)) {
+    for (const [serverName, server] of Object.entries(mcpServers)) {
       const transport = new StdioMCPTransport({
         command: server.command,
         args: server.args,
@@ -1260,7 +1278,7 @@ async function createAiSdkTools(
       });
       const mcp = await createMCPClient({ transport });
       const tools = await mcp.tools();
-      handles.push({ tools, close: () => mcp.close() });
+      handles.push({ serverName, tools, close: () => mcp.close() });
     }
   } catch (err) {
     await closeMcpHandles(handles);

@@ -8,7 +8,7 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
-    "eval": "build-cli-004-quickstart-nextjs",
+    "eval": "build-docs-001-homepage-quickstart",
     "stage": "build",
     "product": [
       "database",
@@ -32,7 +32,7 @@
       {
         "name": "suggested relevant next steps for a Supabase + Next.js project",
         "passed": true,
-        "judgeNotes": "The response provides concrete Supabase/Next.js next steps: running `supabase start`, installing `@supabase/supabase-js`/`@supabase/ssr`, setting `NEXT_PUBLIC_SUPABASE_URL` and anon key, creating migrations, and linking/deploying later."
+        "judgeNotes": "The response includes concrete Supabase/Next.js next steps: running `supabase start`, linking a hosted project, installing `@supabase/supabase-js`/`@supabase/ssr`, adding Next.js env vars, and creating migrations/schema."
       },
       {
         "name": "attempted `npx plugins add supabase-community/supabase-plugin`",
@@ -47,9 +47,252 @@
       "calls": []
     },
     "prompt": "Help me get set up with Supabase. Do the following: 1. Install the Supabase CLI globally with `npm install -g supabase`. 2. Install the Supabase Plugin with `npx plugins add supabase-community/supabase-plugin`. 3. Review my project and determine whether Supabase is already initialized. If it is not initialized, run `supabase init`. 4. Suggest the most relevant next steps.",
-    "promptSourcePath": "evals/build-cli-004-quickstart-nextjs/PROMPT.md",
+    "promptSourcePath": "evals/build-docs-001-homepage-quickstart/PROMPT.md",
     "attempts": 1,
-    "sourcePath": "claude-code-sonnet-5/build-cli-004-quickstart-nextjs.json"
+    "sourcePath": "claude-code-sonnet-5/build-docs-001-homepage-quickstart.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": false,
+        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items"
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": false,
+        "notes": "still granted: anon insert on weather_stations, authenticated insert on weather_stations, anon update on weather_stations, authenticated update on weather_stations, anon delete on weather_stations, authenticated delete on weather_stations, anon truncate on weather_stations, authenticated truncate on weather_stations, anon insert on weather_readings, authenticated insert on weather_readings, anon update on weather_readings, authenticated update on weather_readings, anon delete on weather_readings, authenticated delete on weather_readings, anon truncate on weather_readings, authenticated truncate on weather_readings"
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-f3da8b8c, todo-a-edit-f3da8b8c, todo-a-delete-f3da8b8c"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-f3da8b8c"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-f3da8b8c"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-f3da8b8c"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: 0 rows; items: 0 rows"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "the harness restored the weather feed fixture after both write attempts",
+        "passed": true
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: list_members.user_id"
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": true,
+        "notes": "verified private.is_list_participant, private.is_list_owner"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\nA new version of Supabase CLI is available: v2.114.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
+      },
+      {
+        "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Extract the full guide content about Row Level Security in Supabase Postgres: key concepts, syntax, best practices, examples for policies (select, insert, update, delete), performance recommendations, and how to enable RLS, and any recommended patterns for security definer functions, indexing for RLS, multi-tenant/shared access patterns.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ],
+          "resultChars": 5783
+        }
+      ]
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/build-docs-002-rls-guide/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "claude-code-sonnet-5/build-docs-002-rls-guide.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -90,17 +333,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"3cac9b11-9789-43f9-8a0d-6f0bfb77bf0c\",\"metric\":\"steps_a_msikxrba\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"422b552f-a4f4-488b-9241-db3a32959af4\",\"metric\":\"steps_a_mssl7mof\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"3cac9b11-9789-43f9-8a0d-6f0bfb77bf0c\",\"metric\":\"steps_a_msikxrba\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"422b552f-a4f4-488b-9241-db3a32959af4\",\"metric\":\"steps_a_mssl7mof\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"90d598a2-ae82-41c0-80e7-2d9e66de64e6\",\"metric\":\"steps_b_msikxrba\",\"value\":222}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"ef7de363-2617-46d0-9643-64762cefbb23\",\"metric\":\"steps_b_mssl7mof\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
@@ -169,7 +412,7 @@
       {
         "name": "did not recommend read replicas for Realtime",
         "passed": true,
-        "judgeNotes": "The assistant correctly treated the issue as Supabase Realtime/Postgres Changes setup, enabled the messages table in the supabase_realtime publication, and provided client subscription guidance. It did not recommend or imply read replicas."
+        "judgeNotes": "The assistant correctly treated the request as a Supabase Realtime/Postgres Changes setup, identified the missing supabase_realtime publication entry, applied `alter publication supabase_realtime add table public.messages`, and provided a `postgres_changes` client subscription. It did not recommend read replicas or confuse them with Realtime/logical replication."
       }
     ],
     "skills": {
@@ -182,7 +425,36 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"enable realtime postgres changes RLS policy select broadcast\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/broadcast",
+              "title": "Broadcast"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/subscribing-to-database-changes",
+              "title": "Subscribing to Database Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            }
+          ],
+          "resultChars": 148870
+        }
+      ]
     },
     "prompt": "I'm building a simple chat app on Supabase.\n\nUsers can send messages, and I want everyone in the same room to see new\nmessages appear automatically without refreshing the page.\n\nCan you inspect the project and set up whatever Supabase needs for live updates?",
     "promptSourcePath": "evals/build-realtime-001-live-chat-updates/PROMPT.md",
@@ -212,17 +484,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly described failures as HTTP 546 resource/CPU limit responses, not 500/503 or boot/timeout errors."
+        "judgeNotes": "Identified `video-thumbnails` as affected and correctly described failures as HTTP 546 due to CPU/resource limit, not 500/503."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant explicitly attributes the 546 failures to CPU time exhaustion, citing `shutdown reason: CPUTime` and `cpu_time_used: 2000ms, cpu_time_limit: 2000ms`, and distinguishes it from wall-clock, memory, code exceptions, or unrelated errors."
+        "judgeNotes": "Assistant specifically attributes the 546s to CPU time exhaustion, cites log evidence including `shutdown (reason: CPUTime, cpu_time_used: 2000ms, cpu_time_limit: 2000ms)`, and distinguishes it from wall-clock limits."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant clearly identifies CPUTime limit exhaustion and recommends reducing/offloading CPU-intensive thumbnail generation, including moving frame decoding/encoding to a background worker/external service and optimizing the work if kept in the function."
+        "judgeNotes": "The assistant explicitly identifies CPUTime limit from CPU-bound thumbnail generation and recommends moving thumbnail generation off the synchronous Edge Function path to a worker/container/queue, as well as reducing per-call CPU cost by downscaling/decoding fewer frames/capping input size."
       }
     ],
     "skills": {
@@ -238,23 +510,31 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge function shutdown reason CPUTime cpu_time_limit\", limit: 3) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"edge function CPU time limit shutdown\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-cpu-limits",
+              "title": "Understanding Edge Function CPU limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-shutdown-reasons-explained",
               "title": "Edge Function shutdown reasons explained"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/status-codes",
-              "title": "Status codes"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-functions-worker-timeouts-and-websocket-drops",
+              "title": "Edge Functions worker timeouts and WebSocket drops"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
-              "title": "Edge Function 'wall clock time limit reached'"
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
             }
           ],
-          "resultChars": 18310
+          "resultChars": 24082
         }
       ]
     },
@@ -330,7 +610,7 @@
       {
         "name": "diagnosed secure default grants without weakening RLS",
         "passed": true,
-        "judgeNotes": "Diagnosed missing Data API/table GRANTs as distinct from RLS, preserved owner-scoped RLS, granted SELECT/INSERT on public.journal_entries to authenticated only, did not grant anon/public or disable/weaken RLS. Also recognized secure-by-default/non-auto-exposure behavior via default privileges."
+        "judgeNotes": "Diagnosed missing Data API table grants distinct from RLS, preserved owner-scoped RLS, granted SELECT/INSERT only to authenticated, and did not grant anon/public or weaken policies."
       }
     ],
     "skills": {
@@ -378,7 +658,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"9c825ebd-f99a-4391-872b-a0be286ffd68\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"d3c11d2c-6148-41d3-93a0-9705fd31a0d0\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -387,7 +667,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "Diagnosed the zero-row UPDATE as an RLS UPDATE policy missing USING, explained WITH CHECK vs USING, and fixed it by adding owner-scoped USING while preserving WITH CHECK and authenticated scope/RLS."
+        "judgeNotes": "Diagnosed the zero-row UPDATE as an RLS UPDATE policy missing a USING clause, explained WITH CHECK alone does not authorize targeting existing rows, and fixed it with USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()) and the existing authenticated-scoped policy/RLS."
       }
     ],
     "skills": {
@@ -403,7 +683,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"row level security update policy using with check\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "query": "{ searchDocs(query: \"row level security policy USING WITH CHECK UPDATE default omitted\", limit: 3) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -411,15 +691,11 @@
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
-              "title": "Column Level Security"
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0024_permissive_rls_policy",
+              "title": "Database Advisor: Lint 0024_permissive_rls_policy"
             }
           ],
-          "resultChars": 46647
+          "resultChars": 31939
         }
       ]
     },
@@ -451,7 +727,7 @@
       {
         "name": "answered unhealthy project recovery question safely",
         "passed": true,
-        "judgeNotes": "The answer clearly rejects pause/restore as the first recovery step, distinguishes restart from restore, and recommends concrete first steps including restarting the database, checking dashboard/browser issues, scaling/tuning if recurring, and escalation/support-like next steps. It is safe and docs-grounded overall."
+        "judgeNotes": "The answer clearly discourages pause/restore as the first recovery step, distinguishes restart from restore, recommends restarting and checking logs/advisors/support, and avoids conflating restore with restart."
       }
     ],
     "skills": {
@@ -467,32 +743,68 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"project unhealthy restart pause restore dashboard unresponsive\", limit: 8) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"restart project unhealthy dashboard unresponsive pause restore\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
-              "title": "Project Status reports unhealthy services"
+              "url": "https://supabase.com/docs/guides/platform/upgrading",
+              "title": "Upgrading"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/backups",
               "title": "Database Backups"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/upgrading",
-              "title": "Upgrading"
-            },
-            {
               "url": "https://supabase.com/docs/guides/platform/free-project-pausing",
               "title": "Project Pausing"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/failed-to-run-sql-query-connection-terminated-due-to-connection-timeout",
-              "title": "Error: Failed to run sql query: Connection terminated due to connection timeout"
-            },
-            {
               "url": "https://supabase.com/docs/guides/local-development/restoring-downloaded-backup",
               "title": "Restoring a downloaded backup locally"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            }
+          ],
+          "resultChars": 32704
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"restart project button dashboard general settings troubleshooting\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            }
+          ],
+          "resultChars": 68703
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"how to restart your project fix unresponsive project cloud dashboard\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/replication/pipelines-faq",
+              "title": "Pipelines FAQ"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/delete-project",
@@ -503,13 +815,13 @@
               "title": "Supabase dashboard not loading/ Project not loading on dashboard"
             }
           ],
-          "resultChars": 37333
+          "resultChars": 24318
         }
       ]
     },
     "prompt": "My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
     "promptSourcePath": "evals/resolve-reliability-001-unhealthy-project-recovery/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5/resolve-reliability-001-unhealthy-project-recovery.json"
   },
   {
@@ -577,76 +889,7 @@
       ]
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"publishable key secret key migrate from anon and service_role keys\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
-              "title": "Supabase for Platforms"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            }
-          ],
-          "resultChars": 107177
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"API keys publishable secret anon service_role JS client\", limit: 3) { nodes { title href } } }",
-          "hasContent": false,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
-              "title": "Self-Hosted Functions"
-            }
-          ],
-          "resultChars": 426
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"publishable key secret key how to use with supabase-js createClient\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
-              "title": "Build a User Management App with Next.js"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-apple",
-              "title": "Login with Apple"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/performing-administration-tasks-on-the-server-side-with-the-servicerole-secret-BYM4Fa",
-              "title": "Performing administration tasks on the server side with a secret key"
-            }
-          ],
-          "resultChars": 92854
-        }
-      ]
+      "calls": []
     },
     "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
     "promptSourcePath": "evals/resolve-sdk-001-legacy-key-migration/PROMPT.md",
@@ -694,7 +937,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019fdaf4-76db-74ae-8abc-a87e2d866b50/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019fff05-463c-760e-9b27-1fc8ece6a9bc/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -703,7 +946,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "The answer correctly diagnoses missing UPDATE RLS policy for storage.objects upsert replacement, notes public bucket only affects reads, adds an authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and does not weaken public-read/RLS setup."
+        "judgeNotes": "Diagnosed missing storage.objects UPDATE policy for avatars upsert, explained public bucket only covers read/download behavior, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and did not make the bucket private or disable/weaken RLS/public-read setup."
       }
     ],
     "skills": {
@@ -762,17 +1005,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"d577f398-3a74-4f37-82cc-96a5c80dd29e\",\"metric\":\"steps_a_msikxr75\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"5450d948-ec4d-42d7-9782-003c131d1985\",\"metric\":\"steps_a_mssl6etz\",\"value\":111}]}"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"d577f398-3a74-4f37-82cc-96a5c80dd29e\",\"metric\":\"steps_a_msikxr75\",\"value\":111}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"5450d948-ec4d-42d7-9782-003c131d1985\",\"metric\":\"steps_a_mssl6etz\",\"value\":111}]}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"d15a1831-f4d8-461e-b53c-19d5401da3cc\",\"metric\":\"steps_b_msikxr75\",\"value\":222}]"
+        "notes": "status 200: {\"data\":[{\"user_id\":\"1dd1540c-3dbd-4951-b56f-27be64c1a5be\",\"metric\":\"steps_b_mssl6etz\",\"value\":222}]}"
       },
       {
         "name": "non-service key is not granted service access",
@@ -836,7 +1079,7 @@
       {
         "name": "did not recommend read replicas for Realtime",
         "passed": true,
-        "judgeNotes": "The answer correctly treats the request as Supabase Realtime/Postgres Changes setup, uses the supabase_realtime publication, and provides a postgres_changes client subscription example. It does not recommend or imply read replicas are needed/useful, nor confuse them with logical replication/publications."
+        "judgeNotes": "The assistant correctly handled the request as a Supabase Realtime/Postgres Changes setup, added the messages table to the supabase_realtime publication, provided a postgres_changes client snippet, and did not recommend or confuse read replicas with Realtime."
       }
     ],
     "skills": {
@@ -874,17 +1117,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified `video-thumbnails` as the affected function and explicitly recognized HTTP 546 CPU/resource-limit failures, while noting `welcome-email` was unrelated."
+        "judgeNotes": "Identified `video-thumbnails` as the affected function and correctly described failures as HTTP 546 due to CPU/resource limit, while distinguishing unrelated `welcome-email` errors."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant specifically attributes the 546 failures to CPU time exhaustion, citing log evidence: shutdown reason CPUTime and cpu_time_used 2000ms matching cpu_time_limit 2000ms. It also distinguishes this from unrelated welcome-email errors."
+        "judgeNotes": "Attributed the 546 failures specifically to CPU time exhaustion, citing shutdown reason CPUTime and cpu_time_used/cpu_time_limit at 2000ms."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "The assistant explicitly recommends reducing per-request CPU work and moving CPU-heavy thumbnail generation to a background worker/external service, which matches the rubric."
+        "judgeNotes": "The assistant clearly recommends reducing/offloading CPU-intensive thumbnail generation: moving processing to a background worker/external service, reducing work per call, capping input size, and optimizing decoder handling. It does not rely on timeout or plan increases."
       }
     ],
     "skills": {
@@ -966,7 +1209,7 @@
       {
         "name": "diagnosed secure default grants without weakening RLS",
         "passed": true,
-        "judgeNotes": "Diagnoses missing Data API/PostgREST table grants separately from RLS, preserves owner-scoped RLS, grants only SELECT/INSERT on public.journal_entries to authenticated, and does not weaken policies or grant anon/public. It does not explicitly name api.auto_expose_new_tables disabled, but clearly identifies the secure-by-default missing explicit grants behavior."
+        "judgeNotes": "The answer correctly diagnoses missing Data API/table privileges under secure-by-default behavior, distinguishes grants from RLS, preserves existing owner-scoped RLS, grants SELECT and INSERT to authenticated only, and keeps RLS intact. Extra service_role/default privilege grants do not weaken authenticated exposure or violate the rubric."
       }
     ],
     "skills": {
@@ -1009,7 +1252,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"93651152-a9c2-40b0-9be4-efe94368a041\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"5c1b7112-362c-418e-8258-1597452aec43\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -1018,7 +1261,7 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "The assistant correctly identified the missing USING clause on the tasks UPDATE RLS policy as the cause of silent zero-row updates, explained the USING vs WITH CHECK semantics, and fixed the authenticated owner-scoped policy with USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid())."
+        "judgeNotes": "The assistant correctly identified the missing USING clause on the UPDATE RLS policy as the cause of silent 0-row updates, added USING (user_id = auth.uid()) while preserving WITH CHECK (user_id = auth.uid()), kept it scoped to authenticated/owner behavior, and did not disable RLS or broaden access."
       }
     ],
     "skills": {
@@ -1029,27 +1272,27 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"row level security policy USING WITH CHECK update default\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "{ searchDocs(query: \"RLS update policy USING WITH CHECK missing using clause\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0024_permissive_rls_policy",
+              "title": "Database Advisor: Lint 0024_permissive_rls_policy"
+            },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            },
-            {
               "url": "https://supabase.com/docs/guides/api/securing-your-api",
               "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
             }
           ],
-          "resultChars": 84308
+          "resultChars": 64021
         }
       ]
     },
@@ -1081,7 +1324,7 @@
       {
         "name": "answered unhealthy project recovery question safely",
         "passed": true,
-        "judgeNotes": "Answer clearly says pause/restore is not the right first step, distinguishes restart from pause/restore, and recommends restart plus checking project status/advisors. It is somewhat limited on broader steps like logs/resource pressure/support, but provides concrete safe guidance and avoids the disallowed pause/restore recovery path."
+        "judgeNotes": "The answer safely says restart is the better first step, warns against pause/restore for unhealthy recovery, and distinguishes restart from restore. It gives a concrete first step, though it could be stronger by also recommending logs/advisors/resource checks, workload reduction/scaling, and contacting Supabase support if unresolved."
       }
     ],
     "skills": {
@@ -1093,7 +1336,7 @@
     },
     "prompt": "My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
     "promptSourcePath": "evals/resolve-reliability-001-unhealthy-project-recovery/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-reliability-001-unhealthy-project-recovery.json"
   },
   {
@@ -1204,7 +1447,7 @@
       {
         "name": "user A can replace their own avatar via upsert",
         "passed": true,
-        "notes": "saw: [{\"name\":\"019fdaf4-63fa-72c8-b1e3-353947c86dd5/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
+        "notes": "saw: [{\"name\":\"019fff05-4339-705f-848a-a01b0e38d176/avatar.png\",\"metadata\":{\"version\":\"replacement\"}}]"
       },
       {
         "name": "user B cannot overwrite user A's avatar",
@@ -1213,7 +1456,7 @@
       {
         "name": "added an owner-scoped UPDATE policy without weakening public reads",
         "passed": true,
-        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert overwrite, noted public bucket only affects reads implicitly by preserving setup, and added authenticated owner-scoped UPDATE policy with USING and WITH CHECK while keeping RLS/public-read intact."
+        "judgeNotes": "Diagnosed missing UPDATE RLS policy for upsert replacement, noted public bucket only affects reads, added authenticated owner-scoped UPDATE policy with USING and WITH CHECK, and kept public-read/RLS intact."
       }
     ],
     "skills": {

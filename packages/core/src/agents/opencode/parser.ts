@@ -23,9 +23,13 @@
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
-import type { AgentTranscriptParser } from '../../parsers/types.js';
+import type {
+  AgentTranscriptParser,
+  ParseContext,
+} from '../../parsers/types.js';
 import {
   normalizeToolName,
   type AgentToolMap,
@@ -36,6 +40,38 @@ import {
   type ArgFieldMap,
   type ExtractedArgs,
 } from '../../parsers/shared/extract.js';
+
+/**
+ * opencode registers MCP tools as `sanitize(server) + "_" + sanitize(tool)`
+ * (opencode `packages/opencode/src/mcp/catalog.ts` @ v1.18.5), where
+ * `sanitize` replaces any char outside `[A-Za-z0-9_-]` with `_`. The join is a
+ * single `_` and both halves can contain `_`, so the split point is only
+ * recoverable by matching a known server name — which the harness supplies via
+ * `ParseContext.mcpServerNames`. Mirror opencode's `sanitize` so our prefix
+ * matches the one it built.
+ */
+const sanitizeServer = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+function mcpToolCall(originalName: string, mcpServerNames: string[]): ToolCall {
+  // Longest sanitized prefix first, so a server whose name is a prefix of
+  // another doesn't shadow the more specific match.
+  const byLongestPrefix = [...mcpServerNames].sort(
+    (a, b) => sanitizeServer(b).length - sanitizeServer(a).length
+  );
+  for (const server of byLongestPrefix) {
+    const prefix = `${sanitizeServer(server)}_`;
+    if (originalName.startsWith(prefix)) {
+      return {
+        kind: 'mcp',
+        server,
+        toolName: originalName.slice(prefix.length),
+      };
+    }
+  }
+  // Unmapped and unattributable: a custom tool, or an MCP server we weren't
+  // told about. Can't claim a server, so it's `other`.
+  return { kind: 'other', toolName: originalName };
+}
 
 /**
  * opencode's tool names → canonical names. opencode uses lowercase built-in tool
@@ -107,7 +143,8 @@ function partToEvents(
   type: string,
   part: Record<string, unknown>,
   timestamp: string | undefined,
-  raw: unknown
+  raw: unknown,
+  mcpServerNames: string[]
 ): TranscriptEvent[] {
   switch (type) {
     case 'text': {
@@ -136,15 +173,21 @@ function partToEvents(
       const status = str(state.status);
       const metadata = isRecord(state.metadata) ? state.metadata : undefined;
       // The builtin tool set is fully enumerated in OPENCODE_TOOLS, so any
-      // unmapped name is an MCP/custom tool (`<server>_<tool>`, which the
-      // shared `mcp__` fallback doesn't recognize).
+      // unmapped name is an MCP/custom tool (`<server>_<tool>`). Builtins are
+      // `other`; unmapped names are attributed to a configured MCP server by
+      // prefix (see mcpToolCall).
       const mapped = normalizeToolName(originalName, OPENCODE_TOOLS);
-      const name = mapped === 'unknown' ? 'tool_use' : mapped;
+      const isBuiltin = mapped !== 'unknown';
+      const name = isBuiltin ? mapped : 'tool_use';
+      const call: ToolCall = isBuiltin
+        ? { kind: 'other', toolName: originalName }
+        : mcpToolCall(originalName, mcpServerNames);
       const normalized: ExtractedArgs = extractArgs(args, OPENCODE_ARG_FIELDS);
 
       const tool: NonNullable<TranscriptEvent['tool']> = {
         name,
         originalName,
+        call,
         id,
         args,
       };
@@ -197,7 +240,10 @@ function loadedSkillsFromOpencodeCall(
   return [];
 }
 
-function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
+function recordToEvents(
+  data: Record<string, unknown>,
+  mcpServerNames: string[]
+): TranscriptEvent[] {
   const type = str(data.type);
   if (!type) return [];
   const timestamp = toISO(data.timestamp);
@@ -221,16 +267,17 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
 
   const part = isRecord(data.part) ? data.part : undefined;
   if (!part) return [];
-  return partToEvents(type, part, timestamp, data);
+  return partToEvents(type, part, timestamp, data, mcpServerNames);
 }
 
 export const opencodeParser: AgentTranscriptParser = {
-  parseTranscript(raw: string): ParsedTranscript {
+  parseTranscript(raw: string, ctx?: ParseContext): ParsedTranscript {
     const { records, errors } = parseJsonlRecords(raw);
+    const mcpServerNames = ctx?.mcpServerNames ?? [];
     const events: TranscriptEvent[] = [];
     for (const record of records) {
       try {
-        events.push(...recordToEvents(record));
+        events.push(...recordToEvents(record, mcpServerNames));
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
       }

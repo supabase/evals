@@ -116,7 +116,11 @@ export function createCliAgent<M extends string = string>(
         timeoutSec: args.timeoutSec,
       });
 
-      const { events } = raw ? parser.parseTranscript(raw) : { events: [] };
+      const { events } = raw
+        ? parser.parseTranscript(raw, {
+            mcpServerNames: Object.keys(args.mcpServers ?? {}),
+          })
+        : { events: [] };
       const adapted = adaptTranscript(events);
 
       // Surface run failures that would otherwise be invisible in results
