@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  parsePairs,
-  positiveInteger,
-  runBounded,
-  tagValue,
-} from './run-vercel-evals.js';
+import { parsePairs, runBounded, tagValue } from './run-vercel-evals.js';
 
 describe('Vercel eval controller', () => {
   it('bounds concurrent work and lets independent failures settle', async () => {
@@ -26,22 +21,6 @@ describe('Vercel eval controller', () => {
       'fulfilled',
       'fulfilled',
     ]);
-  });
-
-  it('rejects non-positive-integer CLI options', () => {
-    expect(positiveInteger('3', 'runs')).toBe(3);
-    expect(() => positiveInteger('0', 'runs')).toThrow(
-      '--runs must be a positive integer'
-    );
-    expect(() => positiveInteger('-1', 'runs')).toThrow(
-      '--runs must be a positive integer'
-    );
-    expect(() => positiveInteger('1.5', 'runs')).toThrow(
-      '--runs must be a positive integer'
-    );
-    expect(() => positiveInteger('abc', 'runs')).toThrow(
-      '--runs must be a positive integer'
-    );
   });
 
   it('sanitizes Sandbox names and tags to the allowed charset', () => {

@@ -4,12 +4,26 @@ import {
   type EvalSuite,
   type ExperimentSuite,
 } from '@supabase-evals/core/eval-metadata';
+import { z } from 'zod';
+
+const positiveIntegerSchema = z.coerce.number().int().min(1);
+
+/** Parses a positive integer CLI option. */
+export function positiveInteger(value: string, name: string): number {
+  const parsed = positiveIntegerSchema.safeParse(value);
+  if (!parsed.success) throw new Error(`--${name} must be a positive integer`);
+  return parsed.data;
+}
 
 /** Reads one CLI flag in either `--name value` or `--name=value` form. */
 export function readFlag(rawArgs: string[], name: string): string | undefined {
   const prefix = `--${name}=`;
   const inline = rawArgs.find((arg) => arg.startsWith(prefix));
-  if (inline) return inline.slice(prefix.length);
+  if (inline) {
+    const value = inline.slice(prefix.length);
+    if (!value) throw new Error(`--${name} requires a value`);
+    return value;
+  }
   const index = rawArgs.indexOf(`--${name}`);
   if (index === -1) return undefined;
   const value = rawArgs[index + 1];

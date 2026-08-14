@@ -10,7 +10,7 @@ import { promisify } from 'node:util';
 import pLimit from 'p-limit';
 import pRetry from 'p-retry';
 import { z } from 'zod';
-import { readFlag } from '../lib/cli-args.js';
+import { positiveInteger, readFlag } from '../lib/cli-args.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const execFileAsync = promisify(execFile);
@@ -423,15 +423,6 @@ export function parsePairs(value: string): EvalPair[] {
       'each pair must contain eval_id, experiment, experiment_suite, and eval_suite strings'
     );
   }
-  return parsed.data;
-}
-
-const positiveIntegerSchema = z.coerce.number().int().min(1);
-
-/** Parses a positive integer CLI option. */
-export function positiveInteger(value: string, name: string): number {
-  const parsed = positiveIntegerSchema.safeParse(value);
-  if (!parsed.success) throw new Error(`--${name} must be a positive integer`);
   return parsed.data;
 }
 

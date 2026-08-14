@@ -21,6 +21,7 @@ import {
 } from '@supabase-evals/sandbox';
 import {
   normalizeExperimentName,
+  positiveInteger,
   readExperimentSuiteFilters,
   readFlag,
   readRepeatedFlag,
@@ -73,9 +74,15 @@ const SELECTED_EXPERIMENT_SUITE =
   EXPERIMENT_SUITE_FILTERS.length === 1
     ? EXPERIMENT_SUITE_FILTERS[0]
     : undefined;
-const RUNS = Number(readFlag(rawArgs, 'runs') ?? 1);
-const TIMEOUT_SEC = Number(readFlag(rawArgs, 'timeout-sec') ?? 720);
-const CONCURRENCY = Number(readFlag(rawArgs, 'concurrency') ?? 1);
+const RUNS = positiveInteger(readFlag(rawArgs, 'runs') ?? '1', 'runs');
+const TIMEOUT_SEC = positiveInteger(
+  readFlag(rawArgs, 'timeout-sec') ?? '720',
+  'timeout-sec'
+);
+const CONCURRENCY = positiveInteger(
+  readFlag(rawArgs, 'concurrency') ?? '1',
+  'concurrency'
+);
 const STOP_ON_PASS = !args.has('--run-all-attempts');
 const DEBUG = args.has('--debug');
 
