@@ -22,6 +22,17 @@ const AGENT_ENV_NAMES = [
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
 ];
+/**
+ * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
+ * scoring, export). Cold image pulls alone can take ~10 min.
+ */
+const EVAL_TIMEOUT_BUFFER_MS = 25 * 60 * 1_000;
+/**
+ * Covers the sandbox steps outside the eval command timer (setup before it,
+ * pack/download after) so there's buffer time after eval timeout to read logs
+ * before the platform kills the sandbox.
+ */
+const SANDBOX_TIMEOUT_BUFFER_MS = 10 * 60 * 1_000;
 
 const evalPairSchema = z.object({
   eval_id: z.string(),
@@ -159,7 +170,10 @@ async function runPairOnce(
         depth: 1,
       },
       resources: { vcpus: options.vcpus },
-      timeout: options.runs * options.timeoutSec * 1_000 + 25 * 60 * 1_000,
+      timeout:
+        options.runs * options.timeoutSec * 1_000 +
+        EVAL_TIMEOUT_BUFFER_MS +
+        SANDBOX_TIMEOUT_BUFFER_MS,
       persistent: false,
       tags: {
         runner: 'supabase-evals',
@@ -247,7 +261,8 @@ async function runPairOnce(
           String(options.timeoutSec),
         ],
         cwd: sandbox.cwd,
-        timeoutMs: options.runs * options.timeoutSec * 1_000 + 5 * 60 * 1_000,
+        timeoutMs:
+          options.runs * options.timeoutSec * 1_000 + EVAL_TIMEOUT_BUFFER_MS,
       },
       true
     );
