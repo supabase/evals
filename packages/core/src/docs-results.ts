@@ -173,7 +173,7 @@ function resultCharCount(result: unknown): number | undefined {
 /** True when a tool call is one of the channels docs activation tracks (worth rehydrating if truncated). */
 function isDocsRelatedCall(call: ToolCallRecord): boolean {
   return (
-    call.endpoint.endsWith('search_docs') ||
+    call.tool.toolName === 'search_docs' ||
     call.name === 'web_fetch' ||
     call.name === 'web_search' ||
     shellFetchUrls(shellCommand(call)).length > 0
@@ -228,9 +228,9 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
   const calls: DocsCall[] = [];
 
   for (const call of toolCalls) {
-    const { endpoint, body, result } = call;
+    const { tool, body, result } = call;
 
-    if (endpoint.endsWith('search_docs')) {
+    if (tool.toolName === 'search_docs') {
       const graphqlQuery = extractGraphqlQuery(body);
       if (!graphqlQuery) continue;
       calls.push({

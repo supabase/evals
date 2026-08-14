@@ -70,10 +70,28 @@ describe('opencodeParser', () => {
         state: { status: 'completed', input: { schemas: ['public'] } },
       },
     });
-    const { events } = opencodeParser.parseTranscript(record);
-    const call = events.find((e) => e.type === 'tool_call');
-    expect(call?.tool?.name).toBe('tool_use');
-    expect(call?.tool?.originalName).toBe('supabase-mcp_list_tables');
+    // Without the configured server name, the `<server>_<tool>` join is
+    // unsplittable, so the server is unattributed (`other`).
+    const bare = opencodeParser.parseTranscript(record);
+    const bareCall = bare.events.find((e) => e.type === 'tool_call');
+    expect(bareCall?.tool?.name).toBe('tool_use');
+    expect(bareCall?.tool?.originalName).toBe('supabase-mcp_list_tables');
+    expect(bareCall?.tool?.call).toEqual({
+      kind: 'other',
+      toolName: 'supabase-mcp_list_tables',
+    });
+
+    // Given the configured server name, the prefix is stripped and the call is
+    // attributed to that MCP server with the bare tool name.
+    const attributed = opencodeParser.parseTranscript(record, {
+      mcpServerNames: ['supabase-mcp'],
+    });
+    const call = attributed.events.find((e) => e.type === 'tool_call');
+    expect(call?.tool?.call).toEqual({
+      kind: 'mcp',
+      server: 'supabase-mcp',
+      toolName: 'list_tables',
+    });
   });
 
   it('maps bash + write to canonical tool calls, paired with results by callID', () => {
@@ -106,7 +124,7 @@ describe('opencodeParser', () => {
     expect(adapted.steps).toBe(2); // two assistant text turns
     expect(adapted.toolCalls).toEqual([
       {
-        endpoint: 'bash',
+        tool: { kind: 'other', toolName: 'bash' },
         body: { command: 'ls -la', description: 'List files' },
         name: 'shell',
         command: 'ls -la',
@@ -115,7 +133,7 @@ describe('opencodeParser', () => {
         ts: 1782295624290, // epoch ms preserved through toISO -> parseTs
       },
       {
-        endpoint: 'write',
+        tool: { kind: 'other', toolName: 'write' },
         body: { filePath: '/work/note.txt', content: 'hi' },
         name: 'file_write',
         path: '/work/note.txt',

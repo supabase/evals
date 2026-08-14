@@ -13,6 +13,7 @@
 
 import type {
   ParsedTranscript,
+  ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
 import type { AgentTranscriptParser } from '../../parsers/types.js';
@@ -52,6 +53,32 @@ const CLAUDE_CODE_TOOLS: AgentToolMap = {
     TodoWrite: 'agent_task',
   },
 };
+
+/**
+ * Claude Code names MCP tools `mcp__<server>__<tool>` (fixture:
+ * `mcp__supabase-mcp__query_logs`). The `mcp__` marker and `__` delimiters make
+ * the server and bare tool name structurally recoverable, so scorers get an
+ * agent-agnostic `toolName` plus the originating `server`. Anything else is a
+ * built-in / native tool.
+ *
+ * Exported so tests elsewhere that need a Claude Code-shaped `ToolCall` (e.g.
+ * `docs-results.test.ts`) reuse this instead of re-deriving the split.
+ */
+export function parseClaudeCodeToolCall(rawName: string): ToolCall {
+  if (rawName.startsWith('mcp__')) {
+    // ['mcp', '<server>', '<tool...>'] — rejoin trailing segments so a tool
+    // name that itself contains '__' survives.
+    const parts = rawName.split('__');
+    if (parts.length >= 3) {
+      return {
+        kind: 'mcp',
+        server: parts[1]!,
+        toolName: parts.slice(2).join('__'),
+      };
+    }
+  }
+  return { kind: 'other', toolName: rawName };
+}
 
 /**
  * Claude Code's tool args → normalized fields. Owned here, not in shared: Read/
@@ -232,6 +259,7 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
           tool: {
             name: normalizeToolName(use.name, CLAUDE_CODE_TOOLS),
             originalName: use.name,
+            call: parseClaudeCodeToolCall(use.name),
             id: use.id,
             args: use.input,
           },

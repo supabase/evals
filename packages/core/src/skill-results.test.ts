@@ -4,12 +4,12 @@ import type { ToolCallRecord } from './index.js';
 
 /** Builds the minimal tool call record needed by skill-result tests. */
 function toolCall(
-  endpoint: string,
+  toolName: string,
   body: Record<string, unknown>,
   options: Pick<ToolCallRecord, 'command' | 'path'> = {}
 ): ToolCallRecord {
   return {
-    endpoint,
+    tool: { kind: 'other', toolName },
     body,
     ...options,
     ts: 0,
