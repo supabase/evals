@@ -1,11 +1,7 @@
 import { APIError } from '@vercel/sandbox';
 import { describe, expect, it } from 'vitest';
-import {
-  isRetryableSandboxCreateError,
-  parsePairs,
-  runBounded,
-  tagValue,
-} from './run-vercel-evals.js';
+import { parsePairs, runBounded } from './run-vercel-evals.js';
+import { isRetryableSandboxCreateError, tagValue } from './vercel-sandbox.js';
 
 describe('Vercel eval controller', () => {
   it('bounds concurrent work and lets independent failures settle', async () => {
