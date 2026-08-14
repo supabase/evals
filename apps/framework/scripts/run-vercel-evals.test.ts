@@ -2,6 +2,7 @@ import { APIError } from '@vercel/sandbox';
 import { describe, expect, it } from 'vitest';
 import {
   isRetryableSandboxCreateError,
+  isTerminalSandboxCreateError,
   parsePairs,
   runBounded,
   tagValue,
@@ -96,5 +97,34 @@ describe('Vercel eval controller', () => {
     expect(isRetryableSandboxCreateError(mystery, 1)).toBe(true);
     expect(isRetryableSandboxCreateError(mystery, 2)).toBe(true);
     expect(isRetryableSandboxCreateError(mystery, 3)).toBe(false);
+  });
+
+  it('marks credential errors and definitive 4xx as terminal', () => {
+    const apiError = (status: number) =>
+      new APIError(new Response(null, { status }));
+    const credentialError = Object.assign(
+      new Error('Could not get credentials from OIDC context.'),
+      { name: 'LocalOidcContextError' }
+    );
+
+    expect(isTerminalSandboxCreateError(credentialError)).toBe(true);
+    expect(isTerminalSandboxCreateError(apiError(401))).toBe(true);
+    expect(isTerminalSandboxCreateError(apiError(400))).toBe(true);
+  });
+
+  it('does not mark retryable or unknown errors as terminal', () => {
+    const apiError = (status: number) =>
+      new APIError(new Response(null, { status }));
+    const networkError = new TypeError('fetch failed', {
+      cause: Object.assign(new Error('read ECONNRESET'), {
+        code: 'ECONNRESET',
+      }),
+    });
+    const mystery = new Error('something we have never seen');
+
+    expect(isTerminalSandboxCreateError(apiError(429))).toBe(false);
+    expect(isTerminalSandboxCreateError(apiError(500))).toBe(false);
+    expect(isTerminalSandboxCreateError(networkError)).toBe(false);
+    expect(isTerminalSandboxCreateError(mystery)).toBe(false);
   });
 });

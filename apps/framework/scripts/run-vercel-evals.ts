@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import pLimit from 'p-limit';
-import pRetry from 'p-retry';
+import pRetry, { AbortError } from 'p-retry';
 import { z } from 'zod';
 import { positiveInteger, readFlag } from '../lib/cli-args.js';
 
@@ -310,32 +310,42 @@ async function createSandbox(
   label: string,
   createOptions: Parameters<typeof Sandbox.create>[0]
 ): Promise<Sandbox> {
-  return pRetry(() => Sandbox.create(createOptions), {
-    retries: 12,
-    minTimeout: 0,
-    shouldRetry: ({ error, attemptNumber }) =>
-      isRetryableSandboxCreateError(error, attemptNumber),
-    onFailedAttempt: async ({ error, attemptNumber, retriesLeft }) => {
-      const retrying =
-        retriesLeft > 0 && isRetryableSandboxCreateError(error, attemptNumber);
-      if (isUnrecognizedSandboxCreateError(error)) {
+  try {
+    return await pRetry(() => Sandbox.create(createOptions), {
+      retries: 12,
+      minTimeout: 0,
+      shouldRetry: ({ error, attemptNumber }) =>
+        isRetryableSandboxCreateError(error, attemptNumber),
+      onFailedAttempt: async ({ error, attemptNumber, retriesLeft }) => {
+        const retrying =
+          retriesLeft > 0 &&
+          isRetryableSandboxCreateError(error, attemptNumber);
+        if (isUnrecognizedSandboxCreateError(error)) {
+          console.warn(
+            `${label} sandbox create hit an unrecognized error type (capped at ${UNKNOWN_ERROR_RETRY_LIMIT} attempts) - consider adding it to isRetryableSandboxCreateError: ${errorMessage(error)}`
+          );
+        }
+        const retryAfter = getRetryAfterMs(error);
+        // Jitter so on top of server's `Retry-After` so concurrent pairs hitting
+        // the same rate limit don't all retry in lockstep.
+        const wait = retryAfter
+          ? retryAfter * (1 + Math.random() * 0.4)
+          : Math.min(2 ** attemptNumber * 1_000, 20_000) *
+            (0.8 + Math.random() * 0.4);
         console.warn(
-          `${label} sandbox create hit an unrecognized error type (capped at ${UNKNOWN_ERROR_RETRY_LIMIT} attempts) - consider adding it to isRetryableSandboxCreateError: ${errorMessage(error)}`
+          `${label} sandbox create attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
         );
-      }
-      const retryAfter = getRetryAfterMs(error);
-      // Jitter so on top of server's `Retry-After` so concurrent pairs hitting
-      // the same rate limit don't all retry in lockstep.
-      const wait = retryAfter
-        ? retryAfter * (1 + Math.random() * 0.4)
-        : Math.min(2 ** attemptNumber * 1_000, 20_000) *
-          (0.8 + Math.random() * 0.4);
-      console.warn(
-        `${label} sandbox create attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
-      );
-      if (retrying) await new Promise((resolve) => setTimeout(resolve, wait));
-    },
-  });
+        if (retrying) await new Promise((resolve) => setTimeout(resolve, wait));
+      },
+    });
+  } catch (error) {
+    // AbortError stops any pRetry call it bubbles through, so this also
+    // keeps runPairs' outer retry from re-attempting a doomed sandbox create.
+    if (isTerminalSandboxCreateError(error) && error instanceof Error) {
+      throw new AbortError(error);
+    }
+    throw error;
+  }
 }
 
 const UNKNOWN_ERROR_RETRY_LIMIT = 2;
@@ -412,6 +422,12 @@ function isUnrecognizedSandboxCreateError(error: unknown): boolean {
     !isCredentialError(error) &&
     !isNetworkError(error)
   );
+}
+
+/** True when no amount of retrying at any level could fix this. */
+export function isTerminalSandboxCreateError(error: unknown): boolean {
+  if (error instanceof APIError) return !isRetryableSandboxCreateError(error, 1);
+  return isCredentialError(error);
 }
 
 /**
