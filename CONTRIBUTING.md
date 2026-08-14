@@ -13,8 +13,9 @@ Then add a folder under `evals/` containing:
 
 1. `PROMPT.md` with frontmatter metadata and the task the agent sees.
 2. `EVAL.ts` with the scorer.
-3. Optional `remote/` data when the scenario needs to seed hosted project state, such as database, logs, or functions.
-4. Optional `local/` files when the scenario needs to seed a local filesystem, such as a local `supabase/` project.
+3. `solutions/` with the example solutions you scored the eval against. See [Checking your scorer](#checking-your-scorer).
+4. Optional `remote/` data when the scenario needs to seed hosted project state, such as database, logs, or functions.
+5. Optional `local/` files when the scenario needs to seed a local filesystem, such as a local `supabase/` project.
 
 If your scenario contains anything not self-explanatory, consider adding a `README.md` to the folder with a brief explanation of how it's set up and what it's testing.
 
@@ -38,6 +39,66 @@ If deterministic checks are too inflexible or convoluted, use an LLM-as-a-judge 
 
 Prefer building checks declaratively and returning the list in one place instead of accumulating checks within branching logic, so the list remains stable if one path fails.
 
+## Designing checks
+
+A check is a claim about the end state. Two decisions make it hold up.
+
+### Absent objects
+
+Decide what each check does when the thing it inspects isn't there at all, and make that outcome deliberate.
+
+| Check                                         | When the object is missing                                          |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| "RLS is enabled on `todos`"                   | Fails. The scenario requires the table.                             |
+| "The `avatars` bucket is private"             | Fails. The scenario requires the bucket.                            |
+| "No client role can read a materialized view" | Passes. A materialized view is one valid design, not a requirement. |
+
+### Finding the objects to check
+
+A check that covers a class of object should find its subjects by asking the system that owns them:
+
+- **Tables and views.** The schema catalog.
+- **Buckets.** `storage.buckets`.
+- **Deployed functions.** The Management API.
+
+Hardcoding a list of names hides whatever the agent added, such as a view over a table the prompt never mentions. A check about an object the prompt names can name it directly.
+
+## Checking your scorer
+
+A scorer that passes a broken solution, or fails a correct one, is a defect the eval ships with. Write example solutions, score them, and commit them under `solutions/` with one directory per solution.
+
+### Solution shapes
+
+Write each solution in the shape of the thing your eval measures.
+
+| The eval measures | The solution is                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| Workspace state   | Files that overlay the eval's `local/` workspace, such as a migration and its tests. |
+| Project state     | SQL and functions, shaped like the eval's `remote/` seed.                            |
+| A report          | The answer text, for evals scored on what the agent said rather than what it built.  |
+
+### What to write
+
+Write two kinds of solution:
+
+- **One green solution.** Complete, correct, and covering everything the eval scores.
+- **A few bad solutions.** Each carrying one deliberate flaw, such as `using (true)` on a table that should be owner-private, or a report that names the wrong table.
+
+**When the eval measures a document,** write the green solution from the standard the scenario should meet, not by following the page under test. A solution written from the page inherits the page's blind spots, and the checks then pass for the wrong reason. Diff the two afterward. What the page fails to teach is a finding about the page, not a defect in the scorer.
+
+### How to score them
+
+1. Write down the checks you expect each bad solution to fail. Do this before you run anything.
+2. Score the green solution. Every check should pass.
+3. Score each bad solution. The failures should match your list.
+4. Commit the list next to the solution it describes.
+
+### Reading the results
+
+- **The green solution fails a check.** Look at the solution and the check. Either could be the thing that's wrong.
+- **A bad solution fails several checks.** Expected. One flaw usually trips more than one check, so matching your list is the bar, not one failure per solution.
+- **A check reads the agent's transcript.** It has nothing to read on a solution you wrote yourself. Expect it to fail, and note that in the list.
+
 ## Adding an experiment
 
 Add a file under `experiments/` for the agent, model, and runtime setup you want to compare. Here you can configure which skills and MCP servers are available.
@@ -46,7 +107,7 @@ Select the experiment's `suite:` depending on your use case. If this experiment 
 
 ## Submitting evals for review
 
-Before submitting an eval for review, try running it locally to sanity check that it can complete without errors. It's okay if agents fail the eval, we just don't want them to be scored unfairly for framework limitations.
+Before submitting an eval for review, try running it locally to sanity check that it can complete without errors. It's okay if agents fail the eval, we just don't want them to be scored unfairly for framework limitations. Score your example solutions in the same pass, per [Checking your scorer](#checking-your-scorer).
 
 When you create a PR, use GitHub Actions to refresh the results in CI so we can verify the results in a trusted environment. Currently, results are tracked in Git and committed to the repo, so the refresh results workflow can either commit result changes directly to a branch or generate a PR to propose the change.
 
