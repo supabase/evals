@@ -298,7 +298,8 @@ async function createSandbox(
       // the same rate limit don't all retry in lockstep.
       const wait = retryAfter
         ? retryAfter * (1 + Math.random() * 0.4)
-        : Math.min(2 ** attemptNumber * 1_000, 20_000) * (0.8 + Math.random() * 0.4);
+        : Math.min(2 ** attemptNumber * 1_000, 20_000) *
+          (0.8 + Math.random() * 0.4);
       console.warn(
         `${label} sandbox create attempt ${attemptNumber} failed${retriesLeft > 0 ? `, retrying in ${Math.round(wait / 1_000)}s` : ', not retrying'}: ${errorMessage(error)}`
       );
