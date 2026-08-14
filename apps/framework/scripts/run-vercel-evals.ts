@@ -313,9 +313,16 @@ async function createSandbox(
   return pRetry(() => Sandbox.create(createOptions), {
     retries: 12,
     minTimeout: 0,
-    shouldRetry: ({ error }) => isRetryableSandboxCreateError(error),
+    shouldRetry: ({ error, attemptNumber }) =>
+      isRetryableSandboxCreateError(error, attemptNumber),
     onFailedAttempt: async ({ error, attemptNumber, retriesLeft }) => {
-      const retrying = retriesLeft > 0 && isRetryableSandboxCreateError(error);
+      const retrying =
+        retriesLeft > 0 && isRetryableSandboxCreateError(error, attemptNumber);
+      if (isUnrecognizedSandboxCreateError(error)) {
+        console.warn(
+          `${label} sandbox create hit an unrecognized error type (capped at ${UNKNOWN_ERROR_RETRY_LIMIT} attempts) - consider adding it to isRetryableSandboxCreateError: ${errorMessage(error)}`
+        );
+      }
       const retryAfter = getRetryAfterMs(error);
       // Jitter so on top of server's `Retry-After` so concurrent pairs hitting
       // the same rate limit don't all retry in lockstep.
@@ -331,15 +338,80 @@ async function createSandbox(
   });
 }
 
+const UNKNOWN_ERROR_RETRY_LIMIT = 2;
+
+const CREDENTIAL_ERROR_NAMES = new Set([
+  'LocalOidcContextError',
+  'VercelOidcContextError',
+]);
+
 /**
- * Matches the SDK's retry policy of network errors, 429s, and 5xx.
- * Other 4xx responses (bad token, invalid options) can never succeed.
- * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L10-L17
+ * Detects the SDK's local credential-resolution failures (bad/missing OIDC
+ * token, incomplete explicit credentials). These throw before any HTTP
+ * request, so retrying can't change the outcome.
+ * https://github.com/vercel/sandbox/blob/main/packages/vercel-sandbox/src/utils/get-credentials.ts
  */
-export function isRetryableSandboxCreateError(error: unknown): boolean {
-  if (!(error instanceof APIError)) return true;
-  const { status } = error.response;
-  return status === 429 || status >= 500;
+function isCredentialError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (CREDENTIAL_ERROR_NAMES.has(error.name)) return true;
+  return (
+    error.message.startsWith('Missing credentials parameters') ||
+    error.message.startsWith('Invalid Vercel OIDC token')
+  );
+}
+
+const NETWORK_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EPIPE',
+]);
+
+/**
+ * Detects a real network fault surfaced through fetch's TypeError wrapper.
+ * https://nodejs.org/api/errors.html#nodejs-error-codes
+ */
+function isNetworkError(error: unknown): boolean {
+  return (
+    error instanceof TypeError &&
+    error.cause instanceof Error &&
+    'code' in error.cause &&
+    NETWORK_ERROR_CODES.has(String(error.cause.code))
+  );
+}
+
+/**
+ * Matches the SDK's retry policy for API responses (429s and 5xx):
+ * https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/api-client/with-retry.ts#L10-L17
+ *
+ * Everything else happens outside that HTTP boundary, so it's not covered
+ * by the SDK's documented policy. Known-deterministic credential errors
+ * bail immediately, known network faults get the full retry budget, and
+ * anything unrecognized gets a couple of attempts rather than a guess in
+ * either direction.
+ */
+export function isRetryableSandboxCreateError(
+  error: unknown,
+  attemptNumber: number
+): boolean {
+  if (error instanceof APIError) {
+    const { status } = error.response;
+    return status === 429 || status >= 500;
+  }
+  if (isCredentialError(error)) return false;
+  if (isNetworkError(error)) return true;
+  return attemptNumber <= UNKNOWN_ERROR_RETRY_LIMIT;
+}
+
+/** True for a non-APIError that isn't a known credential or network error. */
+function isUnrecognizedSandboxCreateError(error: unknown): boolean {
+  return (
+    !(error instanceof APIError) &&
+    !isCredentialError(error) &&
+    !isNetworkError(error)
+  );
 }
 
 /**

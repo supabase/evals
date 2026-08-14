@@ -55,15 +55,46 @@ describe('Vercel eval controller', () => {
     );
   });
 
-  it('retries sandbox creation only on network errors, 429s, and 5xx', () => {
+  it('retries sandbox creation only on 429s and 5xx API responses', () => {
     const apiError = (status: number) =>
       new APIError(new Response(null, { status }));
-    expect(isRetryableSandboxCreateError(apiError(429))).toBe(true);
-    expect(isRetryableSandboxCreateError(apiError(500))).toBe(true);
-    expect(isRetryableSandboxCreateError(apiError(401))).toBe(false);
-    expect(isRetryableSandboxCreateError(apiError(400))).toBe(false);
-    expect(isRetryableSandboxCreateError(new TypeError('fetch failed'))).toBe(
-      true
+    expect(isRetryableSandboxCreateError(apiError(429), 1)).toBe(true);
+    expect(isRetryableSandboxCreateError(apiError(500), 1)).toBe(true);
+    expect(isRetryableSandboxCreateError(apiError(401), 1)).toBe(false);
+    expect(isRetryableSandboxCreateError(apiError(400), 1)).toBe(false);
+  });
+
+  it('bails immediately on a bad OIDC token', () => {
+    const localOidc = Object.assign(
+      new Error('Could not get credentials from OIDC context.'),
+      { name: 'LocalOidcContextError' }
     );
+    const vercelOidc = Object.assign(
+      new Error('Could not get credentials from OIDC context.'),
+      { name: 'VercelOidcContextError' }
+    );
+    const invalidToken = new Error('Invalid Vercel OIDC token: bad payload');
+
+    expect(isRetryableSandboxCreateError(localOidc, 1)).toBe(false);
+    expect(isRetryableSandboxCreateError(vercelOidc, 1)).toBe(false);
+    expect(isRetryableSandboxCreateError(invalidToken, 1)).toBe(false);
+    expect(isRetryableSandboxCreateError(localOidc, 12)).toBe(false);
+  });
+
+  it('retries a real network error through the full attempt budget', () => {
+    const networkError = new TypeError('fetch failed', {
+      cause: Object.assign(new Error('read ECONNRESET'), {
+        code: 'ECONNRESET',
+      }),
+    });
+    expect(isRetryableSandboxCreateError(networkError, 1)).toBe(true);
+    expect(isRetryableSandboxCreateError(networkError, 12)).toBe(true);
+  });
+
+  it('caps an unrecognized error to a couple of attempts', () => {
+    const mystery = new Error('something we have never seen');
+    expect(isRetryableSandboxCreateError(mystery, 1)).toBe(true);
+    expect(isRetryableSandboxCreateError(mystery, 2)).toBe(true);
+    expect(isRetryableSandboxCreateError(mystery, 3)).toBe(false);
   });
 });
