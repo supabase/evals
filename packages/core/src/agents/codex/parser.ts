@@ -21,6 +21,7 @@
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
 import type { AgentTranscriptParser } from '../../parsers/types.js';
@@ -96,12 +97,16 @@ function toolCallPair(
   args: Record<string, unknown>,
   result: unknown,
   success: boolean | undefined,
-  normalized: ExtractedArgs = {}
+  normalized: ExtractedArgs = {},
+  // MCP items pass an explicit call identity; native items default to `other`
+  // with the item-type name as the bare tool name.
+  call: ToolCall = { kind: 'other', toolName: originalName }
 ): TranscriptEvent[] {
   const name = normalizeToolName(originalName, CODEX_TOOLS);
   const tool: NonNullable<TranscriptEvent['tool']> = {
     name,
     originalName,
+    call,
     id,
     args,
   };
@@ -169,15 +174,20 @@ function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
     }
     case 'mcp_tool_call': {
       // Shape not pinned across versions — be defensive about field names and
-      // treat a missing status as unknown (not success).
-      const tool =
-        str(item.tool) ?? str(item.name) ?? str(item.server) ?? 'mcp_tool_call';
+      // treat a missing status as unknown (not success). `item.tool` is the
+      // bare tool name; `item.server` names the MCP server when present.
+      const bare = str(item.tool) ?? str(item.name) ?? 'mcp_tool_call';
+      const server = str(item.server);
       return toolCallPair(
         id,
-        tool,
+        bare,
         item,
         item.result ?? item.output,
-        statusSuccess(item.status)
+        statusSuccess(item.status),
+        {},
+        server
+          ? { kind: 'mcp', server, toolName: bare }
+          : { kind: 'other', toolName: bare }
       );
     }
     case 'web_search': {

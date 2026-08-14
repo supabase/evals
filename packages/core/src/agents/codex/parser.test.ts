@@ -77,7 +77,7 @@ describe('codexParser', () => {
     expect(adapted.steps).toBe(2); // two agent_message turns
     expect(adapted.toolCalls).toEqual([
       {
-        endpoint: 'command_execution',
+        tool: { kind: 'other', toolName: 'command_execution' },
         body: { command: "/bin/zsh -lc 'echo hi'" },
         name: 'shell',
         command: "/bin/zsh -lc 'echo hi'",
@@ -86,7 +86,7 @@ describe('codexParser', () => {
         ts: 0,
       },
       {
-        endpoint: 'file_change',
+        tool: { kind: 'other', toolName: 'file_change' },
         body: { changes: [{ path: '/work/note.txt', kind: 'add' }] },
         name: 'file_write',
         path: '/work/note.txt',
@@ -166,6 +166,45 @@ describe('codexParser', () => {
       .events.find((e) => e.type === 'tool_result');
     expect(result?.tool?.success).toBeUndefined();
     expect(result?.tool?.originalName).toBe('search_docs');
+  });
+
+  it('attributes an mcp_tool_call to its server', () => {
+    const withServer = JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'm1',
+        type: 'mcp_tool_call',
+        server: 'supabase-mcp',
+        tool: 'query_logs',
+        result: 'ok',
+      },
+    });
+    const explicit = codexParser
+      .parseTranscript(withServer)
+      .events.find((e) => e.type === 'tool_call');
+    expect(explicit?.tool?.call).toEqual({
+      kind: 'mcp',
+      server: 'supabase-mcp',
+      toolName: 'query_logs',
+    });
+
+    // No server field: falls back to `kind: 'other'` rather than guessing.
+    const noServer = JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'm2',
+        type: 'mcp_tool_call',
+        tool: 'query_logs',
+        result: 'ok',
+      },
+    });
+    const fallback = codexParser
+      .parseTranscript(noServer)
+      .events.find((e) => e.type === 'tool_call');
+    expect(fallback?.tool?.call).toEqual({
+      kind: 'other',
+      toolName: 'query_logs',
+    });
   });
 
   it("keeps a web_search item's action, which says what the hosted tool did", () => {
