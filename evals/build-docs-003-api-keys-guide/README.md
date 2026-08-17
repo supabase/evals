@@ -6,6 +6,8 @@ The subject under test is the [API keys guide](https://supabase.com/docs/guides/
 
 `PROMPT.md` never says key, publishable, secret, service role, server, expose, or environment variable. Stripping it is the measurement.
 
+The task is deliberately vague and the method deliberately is not. The prompt tells the agent to rely on the guide rather than on what it already knows, so a pass is evidence about the page instead of about the model's priors. Keep that instruction when loosening the rest.
+
 ## The roster is the pressure point
 
 - **Sign-up.** Public, and correct with a publishable key. It never forces a choice.

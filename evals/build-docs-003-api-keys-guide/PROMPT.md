@@ -21,7 +21,8 @@ I'm building a small web app. People sign up with an email and password, and I
 want a page listing everyone who has joined with the email they used, so I can
 keep track.
 
-Hook it up to Supabase. Read this guide first and follow it.
+Hook it up to Supabase. Read the guide below before you start and rely on it
+for how to set this up, rather than on what you already know.
 
 REFERENCE
 https://supabase.com/docs/guides/getting-started/api-keys.md
