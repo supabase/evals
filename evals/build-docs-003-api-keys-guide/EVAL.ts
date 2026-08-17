@@ -1,4 +1,9 @@
-import type { CheckResult, LocalStackScorer } from '@supabase-evals/core';
+import {
+  buildDocsResult,
+  type CheckResult,
+  type LocalStackEvalContext,
+  type LocalStackScorer,
+} from '@supabase-evals/core';
 
 import {
   checkEmailsHiddenFromClients,
@@ -7,6 +12,8 @@ import {
 } from './access.js';
 import { checkBundle } from './bundle.js';
 import { readStatus } from './status.js';
+
+const GUIDE_PATH = 'guides/getting-started/api-keys';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -25,7 +32,11 @@ const scorer: LocalStackScorer = async (ctx) => {
             await checkEmailsHiddenFromClients(ctx, setup.fixtures),
           ];
 
-    const checks: CheckResult[] = [...bundle, ...access];
+    const checks: CheckResult[] = [
+      ...bundle,
+      ...access,
+      checkGuideWasRead(ctx),
+    ];
 
     return {
       passed: checks.every((check) => check.passed),
@@ -47,3 +58,22 @@ const scorer: LocalStackScorer = async (ctx) => {
 };
 
 export default scorer;
+
+// A search_docs hit carries the guide's url in its result, not its request, so
+// reuse the harness's own resolution rather than scanning the raw tool call.
+function checkGuideWasRead(ctx: LocalStackEvalContext): CheckResult {
+  const calls = buildDocsResult(ctx.toolCalls).calls.filter((call) =>
+    call.pages?.some((page) => page.url.includes(GUIDE_PATH))
+  );
+  const withContent = calls.filter((call) => call.hasContent);
+  return {
+    name: 'the agent read the API keys guide the prompt referenced',
+    passed: withContent.length > 0,
+    notes:
+      withContent.length > 0
+        ? withContent.map((call) => call.source).join(', ')
+        : calls.length > 0
+          ? `reached the guide via ${calls.map((call) => call.source).join(', ')} but retrieved no page content`
+          : 'no docs call reached the guide',
+  };
+}

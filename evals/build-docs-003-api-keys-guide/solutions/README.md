@@ -41,4 +41,6 @@ One flaw usually trips several checks. Moving the lookup into the browser leaks 
 
 ## Checks that read the agent's transcript
 
-None. Every check here reads the built bundle, the workspace, or the running stack, so all four solutions are scorable without an agent run.
+One. `the agent read the API keys guide the prompt referenced` inspects the docs calls an agent made, so it fails on every solution here by construction. Nobody ran an agent.
+
+Read the scores as `n/9` with that one always red. Everything else is scorable without an agent run.

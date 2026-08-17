@@ -25,6 +25,12 @@ The subject under test is the [API keys guide](https://supabase.com/docs/guides/
 
 `src/App.tsx` points the roster at `GET /functions/v1/roster`. That costs the question of whether an agent reaches for a server unprompted, and buys a positive control the scorer can prove. The contract sits in a seed comment so `PROMPT.md` keeps its vocabulary.
 
+## The guide has to actually be read
+
+`the agent read the API keys guide the prompt referenced` matches docs calls against the guide's path. Without it, a run that never opened the page and passed on prior knowledge would read as the guide working.
+
+It resolves the url from the harness's own docs result rather than the raw tool call, because a `search_docs` hit carries the guide's url in its result rather than its request.
+
 ## Expect the env var check to fail
 
 The guide recommends no environment variable convention. No `NEXT_PUBLIC_`, no `VITE_`.
