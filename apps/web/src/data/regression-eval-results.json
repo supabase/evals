@@ -62,19 +62,35 @@
     "docs": {
       "calls": [
         {
-          "source": "web_fetch",
-          "query": "Summarize this entire guide in detail: what are the new API key types (publishable, secret), how do they differ from legacy anon/service_role keys, where to find them, how to use them in client and server code, security guidance for each, and any migration notes. Include exact terminology and any code samples shown.",
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"API keys publishable secret key getting started\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [],
+          "resultChars": 168731
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions secrets environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL default local\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
             }
           ],
-          "resultChars": 2977
+          "resultChars": 28165
         }
       ]
     },
-    "prompt": "I'm building a small web app. It has a public sign-up page, and a page where I\ncan see everyone who has signed up, with their email.\n\nWire it up to Supabase and get it ready to deploy. Read this guide first and\nfollow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
+    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
     "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-docs-003-api-keys-guide.json"
