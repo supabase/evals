@@ -1,19 +1,22 @@
 #!/usr/bin/env tsx
 /**
  * local.ts — local-dev runner. Run evals against YOUR inputs (an edited skills
- * tree, a local MCP build) with provenance receipts.
+ * tree, a local MCP build) with provenance receipts, and optionally compare
+ * against the latest published results on `origin/main`.
  *
- *   pnpm local run <eval...> [--experiment <id>] [--runs N] [--mcp <path>]
+ *   pnpm local run <eval...>     [--experiment <id>] [--runs N] [--mcp <path>]
+ *   pnpm local compare <eval...> [same flags]
  *   pnpm local experiments
  *
  * Design notes:
  * - Treatment-only: nothing here ever mutates a git tree, so concurrent
  *   sessions/worktrees cannot interfere and in-flight work is never at risk.
+ * - `compare` is a SCREEN, not causal proof: the published arm ran in the
+ *   scheduled CI world (published MCP package, prod docs index, model state
+ *   at refresh time). The receipt records the published result commit, its
+ *   parent, and its age so the gap is explicit.
  * - Explicit over magic: this does not build your MCP checkout for you; it
- *   reports what world it measured. Build it with `pnpm build` in your mcp
- *   checkout and pass `--mcp`.
- * - Gates run before any model call, because the harness SKIPs an experiment
- *   with exit 0 on missing credentials and a wasted agent run costs real money.
+ *   reports what world it measured.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
@@ -115,6 +118,14 @@ type PublishedFile = {
   committedAt: string;
 };
 
+type Baseline = {
+  row: RawEvalResult;
+  file: string;
+  commit: string;
+  parent: string;
+  committedAt: string;
+};
+
 /** Load one published export file from origin/main with its commit metadata. */
 function loadPublishedFile(file: string): PublishedFile | undefined {
   let rows: RawEvalResult[];
@@ -151,6 +162,46 @@ function loadPublished(): PublishedFile[] {
   return Object.values(PUBLISHED_EXPORTS).flatMap(
     (f) => loadPublishedFile(f) ?? []
   );
+}
+
+/**
+ * Freshest published row per requested eval for the experiment. Refuses
+ * (pre-spend) when any requested eval has no published row, listing the
+ * experiments that ARE published for it.
+ */
+function resolveBaselines(
+  evalIds: string[],
+  experiment: string,
+  files: PublishedFile[]
+): Map<string, Baseline> {
+  const best = new Map<string, Baseline>();
+  const failures: string[] = [];
+  for (const id of evalIds) {
+    const candidates: Baseline[] = files.flatMap(
+      ({ file, rows, commit, parent, committedAt }) =>
+        rows
+          .filter((row) => row.eval === id)
+          .map((row) => ({ row, file, commit, parent, committedAt }))
+    );
+    const match = candidates
+      .filter((c) => c.row.experiment === experiment)
+      .sort((a, b) => Date.parse(b.committedAt) - Date.parse(a.committedAt))[0];
+    if (match) {
+      best.set(id, match);
+      continue;
+    }
+    const alts = [...new Set(candidates.map((c) => c.row.experiment))];
+    failures.push(
+      alts.length
+        ? `no published ${experiment} result for ${id} on origin/main (published experiments: ${alts.join(', ')})`
+        : `no published result for ${id} on origin/main at all — use \`pnpm local run\` (no baseline needed)`
+    );
+  }
+  if (failures.length) {
+    for (const msg of failures) console.error(msg);
+    process.exit(1);
+  }
+  return best;
 }
 
 // ---------- eval validation (fail before spending) ----------
@@ -336,14 +387,54 @@ function reportRow(
   return `${label.padEnd(10)} passed=${String(r?.passed).padEnd(5)} checks=${checksSummary.padEnd(6)} docs.calls=${String(docsCalls).padEnd(3)} ${extra}`;
 }
 
-/** Run one eval in the treatment world, write its receipt, report. */
+/** Print the published-vs-treatment delta; true when treatment regressed. */
+function reportComparison(
+  id: string,
+  b: Baseline,
+  result: RawEvalResult
+): boolean {
+  writeFileSync(
+    join(OUT_DIR, `${id}.published.json`),
+    `${JSON.stringify({ ...b.row, publishedProvenance: { file: b.file, commit: b.commit, parent: b.parent, committedAt: b.committedAt } }, null, 1)}\n`
+  );
+  const ageDays = Math.round(
+    (Date.now() - new Date(b.committedAt).getTime()) / 86_400_000
+  );
+  console.log(
+    reportRow(
+      'published',
+      b.row,
+      `main@${b.commit.slice(0, 7)} ${b.committedAt.slice(0, 10)} (${ageDays}d old, attempts ${b.row.attempts})`
+    )
+  );
+  console.log(reportRow('treatment', result, 'your world'));
+  const d = (result.passed ? 1 : 0) - (b.row.passed ? 1 : 0);
+  console.log(
+    d > 0
+      ? '-> IMPROVED vs published (FAIL->PASS)'
+      : d < 0
+        ? '-> REGRESSED vs published (PASS->FAIL)'
+        : '-> no pass/fail change (compare checks / docs.calls)'
+  );
+  console.log(
+    'screen only: the published arm ran in the scheduled CI world — a flip is a signal, not causal proof'
+  );
+  console.log(`saved: results-local/${id}.{published,treatment}.json`);
+  return d < 0;
+}
+
+/** Run one eval in the treatment world, write its receipt, report; true when it regressed vs published. */
 function runTreatment(
   id: string,
   experiment: string,
   runs: number,
-  opts: { env: Record<string, string>; mcpPath?: string }
-): void {
-  const { env, mcpPath } = opts;
+  opts: {
+    env: Record<string, string>;
+    mcpPath?: string;
+    baseline?: Baseline;
+  }
+): boolean {
+  const { env, mcpPath, baseline } = opts;
   console.log(
     `== treatment: ${id} (${experiment}, runs=${runs}${mcpPath ? ', mcp override' : ''}) ==`
   );
@@ -368,9 +459,13 @@ function runTreatment(
     `${JSON.stringify(receipt, null, 1)}\n`
   );
 
-  console.log(`\n=== local run: ${id} (${experiment}) ===`);
+  console.log(
+    `\n=== local ${baseline ? 'compare' : 'run'}: ${id} (${experiment}) ===`
+  );
+  if (baseline) return reportComparison(id, baseline, result);
   console.log(reportRow('treatment', result, 'your world'));
   console.log(`saved: results-local/${id}.treatment.json`);
+  return false;
 }
 
 // ---------- subcommands ----------
@@ -392,15 +487,42 @@ async function cmdExperiments() {
       mod.default as ExperimentConfig
     );
     console.log(
-      `${name.padEnd(36)} ${(display.agent ?? '?').padEnd(12)} ${(display.modelId ?? '?').padEnd(22)} ${(display.reasoningEffort ?? '-').padEnd(8)} ${published.has(name) ? 'yes' : '-'}`
+      `${name.padEnd(36)} ${(display.agent ?? '?').padEnd(12)} ${(display.modelId ?? '?').padEnd(22)} ${(display.reasoningEffort ?? '-').padEnd(8)} ${published.has(name) ? 'yes (compare)' : '-'}`
     );
   }
 }
 
-const RUN_USAGE =
-  'usage: pnpm local run <eval-id...> [--experiment <id>] [--runs N] [--mcp <path>]';
+/** Expand --suite to every eval the published export carries for the experiment. */
+function expandSuite(
+  suite: string,
+  experiment: string,
+  files: PublishedFile[]
+): string[] {
+  const file = PUBLISHED_EXPORTS[suite];
+  if (!file)
+    fail(
+      `unknown suite: ${suite} (available: ${Object.keys(PUBLISHED_EXPORTS).join(', ')})`
+    );
+  const rows = files.filter((f) => f.file === file).flatMap((f) => f.rows);
+  const ids = [
+    ...new Set(
+      rows.filter((r) => r.experiment === experiment).map((r) => r.eval)
+    ),
+  ].sort();
+  if (!ids.length)
+    fail(
+      `no ${suite} rows published for ${experiment} (published experiments: ${[...new Set(rows.map((r) => r.experiment))].join(', ')})`
+    );
+  console.log(
+    `suite ${suite} for ${experiment}: ${ids.length} evals (one model run each)\n  ${ids.join('\n  ')}`
+  );
+  return ids;
+}
 
-async function cmdRun(argv: string[]) {
+const RUN_USAGE =
+  'usage: pnpm local <run|compare> <eval-id...> [--experiment <id>] [--runs N] [--mcp <path>]\n       pnpm local compare --suite <regression|benchmark> [same flags]   # every eval published for the experiment';
+
+async function cmdRunOrCompare(mode: 'run' | 'compare', argv: string[]) {
   const parsed = (() => {
     try {
       return parseArgs({
@@ -408,6 +530,7 @@ async function cmdRun(argv: string[]) {
         options: {
           experiment: { type: 'string' },
           runs: { type: 'string' },
+          suite: { type: 'string' },
           mcp: { type: 'string' },
         },
         allowPositionals: true,
@@ -419,8 +542,26 @@ async function cmdRun(argv: string[]) {
   const { values, positionals } = parsed;
   const experiment = values.experiment ?? DEFAULT_EXPERIMENT;
   validateExperiment(experiment);
-  const evalIds = positionals;
+  let published: PublishedFile[] = [];
+  if (mode === 'compare') {
+    fetchMain();
+    published = loadPublished();
+  }
+  let evalIds = positionals;
+  if (values.suite) {
+    if (mode !== 'compare')
+      fail(
+        '--suite expands from the published exports and only makes sense with compare'
+      );
+    if (evalIds.length) fail('pass either eval ids or --suite, not both');
+    evalIds = expandSuite(values.suite, experiment, published);
+  }
   if (!evalIds.length) fail(RUN_USAGE);
+
+  const baselines =
+    mode === 'compare'
+      ? resolveBaselines(evalIds, experiment, published)
+      : new Map<string, Baseline>();
 
   validateEvals(evalIds);
   // these gates are spend-relevant only for real runs; the test hook fakes them
@@ -435,10 +576,17 @@ async function cmdRun(argv: string[]) {
   if (mcpPath) env.SUPABASE_MCP_SERVER_PATH = mcpPath;
 
   mkdirSync(OUT_DIR, { recursive: true });
+  let exitCode = 0;
   for (const id of evalIds) {
-    const runs = Number(values.runs ?? 1);
-    runTreatment(id, experiment, runs, { env, mcpPath });
+    const runs = Number(values.runs ?? baselines.get(id)?.row.attempts ?? 1);
+    const regressed = runTreatment(id, experiment, runs, {
+      env,
+      mcpPath,
+      baseline: baselines.get(id),
+    });
+    if (regressed) exitCode = 1;
   }
+  process.exit(exitCode);
 }
 
 // ---------- entry ----------
@@ -446,13 +594,15 @@ async function cmdRun(argv: string[]) {
 const [command, ...rest] = process.argv.slice(2);
 switch (command) {
   case 'run':
-    await cmdRun(rest);
+  case 'compare':
+    await cmdRunOrCompare(command, rest);
     break;
   case 'experiments':
     await cmdExperiments();
     break;
   default:
-    fail(`usage: pnpm local <run|experiments> ...
-  run <eval...>   run eval(s) in your world (skills tree as-is; --mcp override)
-  experiments     list experiments (agent, model, effort, published availability)`);
+    fail(`usage: pnpm local <run|compare|experiments> ...
+  run <eval...>       run eval(s) in your world (skills tree as-is; --mcp override)
+  compare <eval...>   run + diff against the latest published result on origin/main
+  experiments         list experiments (agent, model, effort, published-baseline availability)`);
 }
