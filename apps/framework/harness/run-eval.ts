@@ -12,7 +12,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { jsonSchema, tool, type ToolSet } from 'ai';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
@@ -33,6 +33,7 @@ import {
 } from '../lib/cli-args.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
+import { resolveMcpServerPath, validateContentApi } from './mcp-launch.js';
 import {
   buildDocsResult,
   buildSkillResult,
@@ -103,6 +104,7 @@ const SMOKE = args.has('--smoke');
 const DRY = args.has('--dry');
 const STRICT = args.has('--strict');
 const MCP_PATH = readFlag(rawArgs, 'mcp');
+const CONTENT_API_URL = readFlag(rawArgs, 'content-api');
 const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
   normalizeExperimentName
 );
@@ -671,6 +673,7 @@ type Provenance = {
   generatedAt: string;
   host: { sha?: string; branch?: string; dirtyFiles: number };
   mcpOverride?: { path: string; sha?: string; dirtyFiles?: number };
+  contentApiUrl?: string;
   platform: string;
 };
 
@@ -684,7 +687,10 @@ function tryGit(args: string[], cwd: string): string | undefined {
   }
 }
 
-function collectProvenance(mcpPath?: string): Provenance {
+function collectProvenance(
+  mcpPath?: string,
+  contentApiUrl?: string
+): Provenance {
   const dirty = (cwd: string) =>
     (tryGit(['status', '--porcelain'], cwd) ?? '').split('\n').filter(Boolean)
       .length;
@@ -705,32 +711,8 @@ function collectProvenance(mcpPath?: string): Provenance {
       dirtyFiles: repository ? dirty(repository) : undefined,
     };
   }
+  if (contentApiUrl) provenance.contentApiUrl = contentApiUrl;
   return provenance;
-}
-
-function resolveMcpServerPath(raw: string): string {
-  let path = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
-  if (!existsSync(path)) throw new Error(`--mcp path does not exist: ${path}`);
-  const packageDir = join(path, 'packages', 'mcp-server-supabase');
-  if (existsSync(packageDir)) path = packageDir;
-  if (!existsSync(join(path, 'dist', 'transports', 'stdio.js'))) {
-    throw new Error(
-      `no built server at ${path} (dist/transports/stdio.js missing) — build it first:\n  pnpm install && pnpm build`
-    );
-  }
-  try {
-    const localVersion = JSON.parse(
-      readFileSync(join(path, 'package.json'), 'utf8')
-    ).version;
-    if (localVersion && localVersion !== MCP_SERVER_VERSION) {
-      console.error(
-        `note: local mcp build is v${localVersion}; the harness fixture (platform-lite) tracks the v${MCP_SERVER_VERSION} pin — endpoint drift is possible`
-      );
-    }
-  } catch {
-    // An unversioned checkout is valid when it has the expected built entry.
-  }
-  return realpathSync(path);
 }
 
 function validateJudgeKeys(evals: readonly EvalManifest[]) {
@@ -811,6 +793,10 @@ async function main() {
 
   const mcpPath = MCP_PATH ? resolveMcpServerPath(MCP_PATH) : undefined;
   if (mcpPath) process.env.SUPABASE_MCP_SERVER_PATH = mcpPath;
+  if (CONTENT_API_URL) {
+    validateContentApi(CONTENT_API_URL, mcpPath);
+    process.env.SUPABASE_CONTENT_API_URL = CONTENT_API_URL;
+  }
 
   const allExperiments = await loadExperiments();
   if (EXPERIMENT_FILTERS.length > 0) {
@@ -946,7 +932,7 @@ async function main() {
 
   validateJudgeKeys([...new Set(allWork.map(({ ev }) => ev))]);
   if (!DEBUG) console.error = () => undefined;
-  const provenance = collectProvenance(mcpPath);
+  const provenance = collectProvenance(mcpPath, CONTENT_API_URL);
 
   let localStackTurn = Promise.resolve();
   const errored: Error[] = [];
