@@ -1,6 +1,7 @@
 import type {
   AgentHarnessId,
   AgentSandbox,
+  SandboxMount,
   SkillSource,
 } from '@supabase-evals/core';
 import { createAgentEnvironment } from './agent-environment.js';
@@ -25,6 +26,12 @@ export interface BareSandboxOptions {
   cliVersion?: string;
   /** Skills to install into the sandbox. */
   skills?: readonly SkillSource[];
+  /**
+   * Extra host directories bind-mounted into the sandbox (read-only by
+   * default) — e.g. a local MCP server build the in-container agent must be
+   * able to launch. See `supabaseMcpServerMounts`.
+   */
+  mounts?: readonly SandboxMount[];
 }
 
 /**
@@ -42,6 +49,7 @@ export async function createBareSandbox(
   const env = await createAgentEnvironment({
     cliVersion: options.cliVersion,
     skills: options.skills,
+    mounts: options.mounts,
   });
   return {
     sandbox: toAgentSandbox(env.sandbox),

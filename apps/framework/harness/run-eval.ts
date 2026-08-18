@@ -35,6 +35,7 @@ import {
   buildSkillResult,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
+  supabaseMcpServerMounts,
 } from '@supabase-evals/core';
 import type {
   ExperimentConfig,
@@ -416,6 +417,7 @@ async function runOne(
               }
             : undefined,
           skills: skillSources,
+          mounts: supabaseMcpServerMounts(),
           skipCliInstall: ev.metadata.skipCliInstall,
         })
       );
@@ -496,6 +498,7 @@ async function runOne(
           await createBareSandbox({
             agent: exp.agent.id,
             skills: skillSources,
+            mounts: supabaseMcpServerMounts(),
           })
         )
       : undefined;

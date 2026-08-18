@@ -13,7 +13,7 @@
  * this builder, so adding/removing an environment component happens in one place.
  */
 
-import type { SkillSource } from '@supabase-evals/core';
+import type { SandboxMount, SkillSource } from '@supabase-evals/core';
 import { DockerSandbox } from './docker-sandbox.js';
 import {
   ensureSupabaseSandboxImage,
@@ -45,6 +45,12 @@ export interface AgentEnvironmentOptions {
    * mode. This is the only difference between the two environments.
    */
   localStack?: LocalStackSetup;
+  /**
+   * Extra host directories bind-mounted into the sandbox (read-only by
+   * default) — e.g. a local MCP server build the in-container agent must be
+   * able to launch.
+   */
+  mounts?: readonly SandboxMount[];
 }
 
 export interface AgentEnvironment {
@@ -71,6 +77,7 @@ export async function createAgentEnvironment(
     // stack and instead reaches host-side platform-lite over the default bridge
     // via host.docker.internal — so bridge there.
     network: options.localStack ? 'host' : undefined,
+    mounts: options.mounts,
   });
   try {
     if (options.localStack) {
