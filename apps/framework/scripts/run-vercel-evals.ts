@@ -654,6 +654,7 @@ async function main(): Promise<void> {
   );
   for (const pair of options.pairs) console.log(`PLAN ${pairLabel(pair)}`);
   if (rawArgs.includes('--dry-run')) return;
+  if (options.pairs.length === 0) return;
   await runPairs(options);
 }
 
