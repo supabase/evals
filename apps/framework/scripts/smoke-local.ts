@@ -15,9 +15,16 @@ import { tmpdir } from 'node:os';
 const ROOT = join(import.meta.dirname, '..', '..', '..');
 const SANDBOX = mkdtempSync(join(tmpdir(), 'smoke-eval-strict-'));
 const EXPERIMENT = 'claude-code-sonnet-5';
-const evalIds = readdirSync(join(ROOT, 'evals')).filter((id) =>
-  existsSync(join(ROOT, 'evals', id, 'EVAL.ts'))
-);
+const evalIds = readdirSync(join(ROOT, 'evals')).filter((id) => {
+  const prompt = join(ROOT, 'evals', id, 'PROMPT.md');
+  if (!existsSync(prompt)) {
+    console.warn(
+      `SKIP ${id} (eval is absent from this checkout: evals/${id}/PROMPT.md not found)`
+    );
+    return false;
+  }
+  return existsSync(join(ROOT, 'evals', id, 'EVAL.ts'));
+});
 const EVAL = evalIds[0];
 assert.ok(EVAL, 'no eval fixture found');
 const JUDGED_EVAL = evalIds.find((id) =>
