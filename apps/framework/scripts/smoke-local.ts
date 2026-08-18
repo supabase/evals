@@ -88,7 +88,7 @@ try {
       EVAL,
     ]);
     check('unknown experiment is refused', () => {
-      assert.equal(result.status, 1);
+      assert.equal(result.status, 1, result.output);
       assert.match(result.output, /no experiment matched: bogus-model/);
     });
   }
@@ -102,7 +102,7 @@ try {
       'not-an-eval-dir',
     ]);
     check('unknown eval is refused', () => {
-      assert.equal(result.status, 1);
+      assert.equal(result.status, 1, result.output);
       assert.match(result.output, /no eval matched: not-an-eval-dir/);
     });
   }
@@ -113,7 +113,7 @@ try {
       { ANTHROPIC_API_KEY: '' }
     );
     check('strict refuses a missing agent key', () => {
-      assert.equal(result.status, 1);
+      assert.equal(result.status, 1, result.output);
       assert.match(result.output, /ANTHROPIC_API_KEY/);
     });
   }
@@ -123,7 +123,7 @@ try {
       ANTHROPIC_API_KEY: '',
     });
     check('default mode keeps the missing-key skip', () => {
-      assert.equal(result.status, 0);
+      assert.equal(result.status, 0, result.output);
       assert.match(result.output, new RegExp(`SKIP ${EXPERIMENT}`));
     });
   }
@@ -136,7 +136,7 @@ try {
       { LOCAL_SKILLS_ROOT: emptySkills }
     );
     check('strict refuses missing experiment skills', () => {
-      assert.equal(result.status, 1);
+      assert.equal(result.status, 1, result.output);
       assert.match(result.output, /declares skills this checkout is missing/);
       assert.match(result.output, /git submodule update --init/);
     });
@@ -148,7 +148,7 @@ try {
       { OPENAI_API_KEY: '', LOCAL_EVAL_CMD: '' }
     );
     check('judged eval without OPENAI_API_KEY is refused pre-spend', () => {
-      assert.equal(result.status, 1);
+      assert.equal(result.status, 1, result.output);
       assert.match(result.output, /score with the LLM judge/);
       assert.match(result.output, /add OPENAI_API_KEY/);
     });
@@ -165,7 +165,7 @@ try {
       '/definitely/not/a/path',
     ]);
     check('missing MCP override path is refused', () => {
-      assert.equal(result.status, 1);
+      assert.equal(result.status, 1, result.output);
       assert.match(result.output, /--mcp path does not exist/);
     });
   }
@@ -186,7 +186,7 @@ try {
       mcpCheckout,
     ]);
     check('unbuilt MCP override is refused with a build hint', () => {
-      assert.equal(result.status, 1);
+      assert.equal(result.status, 1, result.output);
       assert.match(result.output, /no built server at .*mcp-server-supabase/);
       assert.match(result.output, /pnpm install && pnpm build/);
     });
@@ -206,7 +206,7 @@ try {
       mcpCheckout,
     ]);
     check('built MCP override reaches the eval path', () => {
-      assert.equal(result.status, 0);
+      assert.equal(result.status, 0, result.output);
       assert.match(result.output, new RegExp(`PASS ${EXPERIMENT} x ${EVAL}`));
     });
   }
@@ -235,7 +235,7 @@ try {
       EVAL,
     ]);
     check('strict keeps skip-existing intentional', () => {
-      assert.equal(result.status, 0);
+      assert.equal(result.status, 0, result.output);
       assert.match(result.output, /already ran/);
     });
   }
@@ -246,7 +246,7 @@ try {
       OPENAI_API_KEY: '',
     });
     check('strict keeps list planning free of credential gates', () => {
-      assert.equal(result.status, 0);
+      assert.equal(result.status, 0, result.output);
       assert.match(result.output, /claude-code-sonnet-5/);
     });
   }
