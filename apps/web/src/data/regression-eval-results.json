@@ -53,6 +53,11 @@
       {
         "name": "no client role can read another user's email",
         "passed": true
+      },
+      {
+        "name": "the agent read the API keys guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
       }
     ],
     "skills": {
@@ -62,35 +67,19 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"API keys publishable secret key getting started\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [],
-          "resultChars": 168731
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Edge Functions secrets environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL default local\", limit: 3) { nodes { title href content } } }",
+          "source": "web_fetch",
+          "query": "Summarize this entire guide in detail: what API keys Supabase has (publishable/anon, secret/service_role), what each is for, security implications, how RLS relates to these keys, and any guidance on using the service_role key or exposing user data like emails. Include all specifics.",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/functions/secrets",
-              "title": "Environment Variables"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
-              "title": "Self-Hosted Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 28165
+          "resultChars": 2229
         }
       ]
     },
-    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
+    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
     "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
     "attempts": 1,
     "sourcePath": "claude-code-sonnet-5/build-docs-003-api-keys-guide.json"
