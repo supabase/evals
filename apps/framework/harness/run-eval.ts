@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -15,6 +16,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { jsonSchema, tool, type ToolSet } from 'ai';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
+import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
 import {
   createBareSandbox,
   frontmatterDescription,
@@ -723,7 +725,7 @@ function validateStrictSkills(
 ) {
   if (!STRICT) return;
   const missing = skillNames.filter(
-    (name) => !existsSync(join(SKILLS_ROOT, name))
+    (name) => !existsSync(join(SKILLS_ROOT, name, 'SKILL.md'))
   );
   if (missing.length > 0) {
     throw new Error(
@@ -731,20 +733,25 @@ function validateStrictSkills(
     );
   }
 }
-
 function fakeRun(out: string, experiment: string, evalId: string): RunResult {
   const command = process.env.LOCAL_EVAL_CMD;
   if (!command) throw new Error('LOCAL_EVAL_CMD is required');
   mkdirSync(dirname(out), { recursive: true });
+  const fakeOut = `${out}.fake`;
   const result = spawnSync(command, {
     shell: true,
     stdio: 'inherit',
-    env: { ...process.env, RES: out, EVAL: evalId, EXPERIMENT: experiment },
+    env: { ...process.env, RES: fakeOut, EVAL: evalId, EXPERIMENT: experiment },
   });
   if (result.status !== 0) {
+    rmSync(fakeOut, { force: true });
     throw new Error(`LOCAL_EVAL_CMD failed for ${experiment} x ${evalId}`);
   }
-  return JSON.parse(readFileSync(out, 'utf8')) as RunResult;
+  try {
+    return JSON.parse(readFileSync(fakeOut, 'utf8')) as RunResult;
+  } finally {
+    rmSync(fakeOut, { force: true });
+  }
 }
 
 async function main() {
@@ -871,8 +878,19 @@ async function main() {
     for (const ev of suiteFiltered) {
       const out = resultPath(name, ev);
       if (!FORCE && existsSync(out)) {
-        console.log(`SKIP ${name} x ${ev.id} (already ran)`);
-        continue;
+        let existingResultIsValid = false;
+        try {
+          existingResultIsValid = rawEvalResultSchema.safeParse(
+            JSON.parse(readFileSync(out, 'utf8'))
+          ).success;
+        } catch {
+          // A partial write is incomplete work and must run again.
+        }
+        if (existingResultIsValid) {
+          console.log(`SKIP ${name} x ${ev.id} (already ran)`);
+          continue;
+        }
+        console.log(`RERUN ${name} x ${ev.id} (existing result is invalid)`);
       }
       if (ev.mode === 'local-stack' && !config.localStack) {
         const message =
@@ -898,6 +916,7 @@ async function main() {
 
   validateJudgeKeys([...new Set(allWork.map(({ ev }) => ev))]);
   if (!DEBUG) console.error = () => undefined;
+  const provenance = collectProvenance(mcpPath);
 
   let localStackTurn = Promise.resolve();
   const errored: Error[] = [];
@@ -913,22 +932,22 @@ async function main() {
           : await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
         const experimentDisplay = getExperimentDisplayMetadata(config);
-        writeFileSync(
-          out,
-          JSON.stringify(
-            {
-              experiment: name,
-              experimentSuite: SELECTED_EXPERIMENT_SUITE ?? config.suite?.[0],
-              experimentDisplay,
-              eval: ev.id,
-              ...ev.metadata,
-              ...res,
-              provenance: collectProvenance(mcpPath),
-            },
-            null,
-            2
-          )
+        const resultJson = JSON.stringify(
+          {
+            experiment: name,
+            experimentSuite: SELECTED_EXPERIMENT_SUITE ?? config.suite?.[0],
+            experimentDisplay,
+            eval: ev.id,
+            ...ev.metadata,
+            ...res,
+            provenance,
+          },
+          null,
+          2
         );
+        const temporaryOut = `${out}.tmp`;
+        writeFileSync(temporaryOut, resultJson);
+        renameSync(temporaryOut, out);
         const elapsed = Math.round((Date.now() - start) / 1000);
         console.log(
           `${res.passed ? '✅ PASS' : '❌ FAIL'} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`
