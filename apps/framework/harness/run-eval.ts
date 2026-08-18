@@ -80,6 +80,7 @@ const CLI_ARGS = {
   ],
   valueFlags: [
     'mcp',
+    'content-api',
     'experiment',
     'eval',
     'suite',
@@ -90,7 +91,7 @@ const CLI_ARGS = {
   ],
   positionals: ['list'],
   usage:
-    'Usage: pnpm eval -- [list] [--skip-existing] [--smoke] [--dry] [--strict] [--run-all-attempts] [--debug] [--mcp PATH] [--experiment NAME] [--eval ID] [--suite SUITE] [--experiment-suite SUITE] [--runs N] [--timeout-sec N] [--concurrency N]',
+    'Usage: pnpm eval -- [list] [--skip-existing] [--smoke] [--dry] [--strict] [--run-all-attempts] [--debug] [--mcp PATH] [--content-api URL] [--experiment NAME] [--eval ID] [--suite SUITE] [--experiment-suite SUITE] [--runs N] [--timeout-sec N] [--concurrency N]',
 } as const;
 try {
   validateCliArgs(rawArgs, CLI_ARGS);

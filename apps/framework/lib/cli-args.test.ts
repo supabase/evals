@@ -85,7 +85,13 @@ describe('run-eval argument validation', () => {
   });
 
   it('accepts a valid list invocation', () => {
-    const result = run('list', '--experiment-suite', 'benchmark');
+    const result = run(
+      'list',
+      '--experiment-suite',
+      'benchmark',
+      '--content-api',
+      'http://127.0.0.1:9999'
+    );
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('codex-gpt-5.6');
   });
