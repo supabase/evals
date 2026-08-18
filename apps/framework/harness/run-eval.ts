@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   cpSync,
   existsSync,
@@ -10,7 +11,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { join, dirname, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { jsonSchema, tool, type ToolSet } from 'ai';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
@@ -32,8 +33,9 @@ import { viteBuild, vitestRun } from './project-runner.js';
 import {
   buildDocsResult,
   buildSkillResult,
-  rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
+  MCP_SERVER_VERSION,
+  rehydrateTruncatedDocsResults,
   supabaseMcpServerMounts,
 } from '@supabase-evals/core';
 import type {
@@ -53,6 +55,8 @@ import type {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..', '..', '..');
+const RESULTS_ROOT = process.env.LOCAL_RESULTS_ROOT ?? ROOT;
+const SKILLS_ROOT = process.env.LOCAL_SKILLS_ROOT ?? join(ROOT, 'skills');
 
 // Fixed identifiers for the mocked hosted project a local-stack eval links to.
 // Both must satisfy the CLI's format checks: ref is `^[a-z]{20}$`, token is
@@ -65,6 +69,8 @@ const args = new Set(rawArgs);
 const FORCE = !args.has('--skip-existing');
 const SMOKE = args.has('--smoke');
 const DRY = args.has('--dry');
+const STRICT = args.has('--strict');
+const MCP_PATH = readFlag(rawArgs, 'mcp');
 const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
   normalizeExperimentName
 );
@@ -163,7 +169,7 @@ type ToolsSkill = { name: string; description: string; body: string };
 function loadToolsSkills(skillNames: string[]): ToolsSkill[] {
   const skills: ToolsSkill[] = [];
   for (const name of skillNames) {
-    const p = join(ROOT, 'skills', name, 'SKILL.md');
+    const p = join(SKILLS_ROOT, name, 'SKILL.md');
     if (!existsSync(p)) {
       console.warn(
         `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`
@@ -250,7 +256,7 @@ function resolveSkillSources(
 ): Array<{ name: string; dir: string }> {
   const sources: Array<{ name: string; dir: string }> = [];
   for (const name of skillNames) {
-    const dir = join(ROOT, 'skills', name);
+    const dir = join(SKILLS_ROOT, name);
     if (!existsSync(dir)) {
       console.warn(
         `SKILL ${name} not found at skills/${name} — ensure the submodule is initialised (\`git submodule update --init\`); skipping`
@@ -263,12 +269,12 @@ function resolveSkillSources(
 }
 
 function resultPath(modelName: string, ev: Pick<EvalManifest, 'id' | 'mode'>) {
-  return join(ROOT, 'results', modelName, `${ev.id}.json`);
+  return join(RESULTS_ROOT, 'results', modelName, `${ev.id}.json`);
 }
 
 function workspacePath(modelName: string, evalId: string, attempt: number) {
   return join(
-    ROOT,
+    RESULTS_ROOT,
     'results',
     modelName,
     evalId,
@@ -339,22 +345,21 @@ function disposable<T extends { close(): Promise<unknown> }>(
     },
   });
 }
+type RunResult = ScoreResult & {
+  attempts: number;
+  skills: SkillResult;
+  docs: DocsResult;
+  toolCalls: ToolCallRecord[];
+  transcript: TranscriptPart[];
+  agentReport: string;
+  stoppedReason: string;
+};
 
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
   ev: EvalManifest
-): Promise<
-  ScoreResult & {
-    attempts: number;
-    skills: SkillResult;
-    docs: DocsResult;
-    toolCalls: ToolCallRecord[];
-    transcript: TranscriptPart[];
-    agentReport: string;
-    stoppedReason: string;
-  }
-> {
+): Promise<RunResult> {
   const prompt = parseEvalMarkdown(
     readFileSync(ev.promptPath, 'utf8'),
     ev.promptPath
@@ -630,39 +635,151 @@ async function runConcurrent<T>(
   );
   await Promise.all(workers);
 }
+type Provenance = {
+  generatedAt: string;
+  host: { sha?: string; branch?: string; dirtyFiles: number };
+  mcpOverride?: { path: string; sha?: string; dirtyFiles?: number };
+  platform: string;
+};
+
+function tryGit(args: string[], cwd: string): string | undefined {
+  try {
+    return execFileSync('git', args, { cwd, maxBuffer: 1 << 28 })
+      .toString()
+      .trim();
+  } catch {
+    return undefined;
+  }
+}
+
+function collectProvenance(mcpPath?: string): Provenance {
+  const dirty = (cwd: string) =>
+    (tryGit(['status', '--porcelain'], cwd) ?? '').split('\n').filter(Boolean)
+      .length;
+  const provenance: Provenance = {
+    generatedAt: new Date().toISOString(),
+    host: {
+      sha: tryGit(['rev-parse', 'HEAD'], ROOT),
+      branch: tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], ROOT),
+      dirtyFiles: dirty(ROOT),
+    },
+    platform: `${process.platform}/${process.arch} node ${process.version}`,
+  };
+  if (mcpPath) {
+    const repository = tryGit(['rev-parse', '--show-toplevel'], mcpPath);
+    provenance.mcpOverride = {
+      path: mcpPath,
+      sha: repository ? tryGit(['rev-parse', 'HEAD'], repository) : undefined,
+      dirtyFiles: repository ? dirty(repository) : undefined,
+    };
+  }
+  return provenance;
+}
+
+function resolveMcpServerPath(raw: string): string {
+  let path = isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
+  if (!existsSync(path)) throw new Error(`--mcp path does not exist: ${path}`);
+  const packageDir = join(path, 'packages', 'mcp-server-supabase');
+  if (existsSync(packageDir)) path = packageDir;
+  if (!existsSync(join(path, 'dist', 'transports', 'stdio.js'))) {
+    throw new Error(
+      `no built server at ${path} (dist/transports/stdio.js missing) — build it first:\n  pnpm install && pnpm build`
+    );
+  }
+  try {
+    const localVersion = JSON.parse(
+      readFileSync(join(path, 'package.json'), 'utf8')
+    ).version;
+    if (localVersion && localVersion !== MCP_SERVER_VERSION) {
+      console.error(
+        `note: local mcp build is v${localVersion}; the harness fixture (platform-lite) tracks the v${MCP_SERVER_VERSION} pin — endpoint drift is possible`
+      );
+    }
+  } catch {
+    // An unversioned checkout is valid when it has the expected built entry.
+  }
+  return realpathSync(path);
+}
+
+function validateJudgeKeys(evals: readonly EvalManifest[]) {
+  if (process.env.OPENAI_API_KEY || DRY) return;
+  const judged = evals
+    .filter(
+      (ev) =>
+        existsSync(ev.evalPath) &&
+        /\bjudge\b/.test(readFileSync(ev.evalPath, 'utf8'))
+    )
+    .map((ev) => ev.id);
+  if (judged.length > 0) {
+    throw new Error(
+      `these evals score with the LLM judge (OpenAI-backed, regardless of the agent under test): ${judged.join(', ')}\nadd OPENAI_API_KEY to .env at the repo root before running them`
+    );
+  }
+}
+
+function validateStrictSkills(
+  experiment: string,
+  skillNames: readonly string[]
+) {
+  if (!STRICT) return;
+  const missing = skillNames.filter(
+    (name) => !existsSync(join(SKILLS_ROOT, name))
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `experiment ${experiment} declares skills this checkout is missing: ${missing.join(', ')}\ninitialise the skills submodule first: git submodule update --init`
+    );
+  }
+}
+
+function fakeRun(out: string, experiment: string, evalId: string): RunResult {
+  const command = process.env.LOCAL_EVAL_CMD;
+  if (!command) throw new Error('LOCAL_EVAL_CMD is required');
+  mkdirSync(dirname(out), { recursive: true });
+  const result = spawnSync(command, {
+    shell: true,
+    stdio: 'inherit',
+    env: { ...process.env, RES: out, EVAL: evalId, EXPERIMENT: experiment },
+  });
+  if (result.status !== 0) {
+    throw new Error(`LOCAL_EVAL_CMD failed for ${experiment} x ${evalId}`);
+  }
+  return JSON.parse(readFileSync(out, 'utf8')) as RunResult;
+}
 
 async function main() {
-  if (rawArgs.filter((a) => a !== '--')[0] === 'list') {
+  if (rawArgs.filter((arg) => arg !== '--')[0] === 'list') {
     const experiments = await loadExperiments();
     let filtered =
       EXPERIMENT_SUITE_FILTERS.length > 0
         ? experiments.filter(
-            (e) =>
-              e.config.suite !== undefined &&
-              e.config.suite.some((suite) =>
+            (experiment) =>
+              experiment.config.suite !== undefined &&
+              experiment.config.suite.some((suite) =>
                 EXPERIMENT_SUITE_FILTERS.includes(suite)
               )
           )
         : experiments;
     if (EVAL_FILTERS.length > 0) {
-      // Drop experiments that would skipEval every requested eval, so callers
-      // building an experiment x eval matrix (e.g. the eval-refresh workflow)
-      // don't plan a pair that will produce no results — and no artifact —
-      // to upload.
-      const evals = discoverEvals().filter((ev) =>
-        EVAL_FILTERS.includes(ev.id)
+      const evals = discoverEvals().filter((evaluation) =>
+        EVAL_FILTERS.includes(evaluation.id)
       );
       filtered = filtered.filter(({ config }) =>
-        evals.some((ev) => !config.skipEval?.(ev))
+        evals.some((evaluation) => !config.skipEval?.(evaluation))
       );
     }
-    console.log(JSON.stringify(filtered.map((e) => e.name)));
+    console.log(JSON.stringify(filtered.map((experiment) => experiment.name)));
     return;
   }
 
+  const mcpPath = MCP_PATH ? resolveMcpServerPath(MCP_PATH) : undefined;
+  if (mcpPath) process.env.SUPABASE_MCP_SERVER_PATH = mcpPath;
+
   const allExperiments = await loadExperiments();
   if (EXPERIMENT_FILTERS.length > 0) {
-    const experimentNames = new Set(allExperiments.map(({ name }) => name));
+    const experimentNames = new Set(
+      allExperiments.map((experiment) => experiment.name)
+    );
     const missing = EXPERIMENT_FILTERS.filter(
       (name) => !experimentNames.has(name)
     );
@@ -672,26 +789,27 @@ async function main() {
   }
 
   const experiments = allExperiments.filter(({ name, config }) => {
-    if (EXPERIMENT_FILTERS.length > 0 && !EXPERIMENT_FILTERS.includes(name))
+    if (EXPERIMENT_FILTERS.length > 0 && !EXPERIMENT_FILTERS.includes(name)) {
       return false;
+    }
     if (
       EXPERIMENT_SUITE_FILTERS.length > 0 &&
       (config.suite === undefined ||
         !config.suite.some((suite) => EXPERIMENT_SUITE_FILTERS.includes(suite)))
-    )
+    ) {
       return false;
+    }
     return true;
   });
-  if (EXPERIMENT_FILTERS.length > 0) {
-    if (experiments.length === 0) {
-      throw new Error(
-        `no experiments matched experiment=${EXPERIMENT_FILTERS.join(',')}`
-      );
-    }
+  if (EXPERIMENT_FILTERS.length > 0 && experiments.length === 0) {
+    throw new Error(
+      `no experiments matched experiment=${EXPERIMENT_FILTERS.join(',')}`
+    );
   }
+
   const evals = discoverEvals();
   if (EVAL_FILTERS.length > 0) {
-    const evalIds = new Set(evals.map((e) => e.id));
+    const evalIds = new Set(evals.map((evaluation) => evaluation.id));
     const missing = EVAL_FILTERS.filter((evalId) => !evalIds.has(evalId));
     if (missing.length > 0) {
       throw new Error(`no eval matched: ${missing.join(',')}`);
@@ -700,17 +818,19 @@ async function main() {
 
   const filtered = SMOKE
     ? Object.values(
-        evals.reduce<Record<string, EvalManifest>>((acc, e) => {
-          acc[e.stage] ??= e;
+        evals.reduce<Record<string, EvalManifest>>((acc, evaluation) => {
+          acc[evaluation.stage] ??= evaluation;
           return acc;
         }, {})
       )
     : EVAL_FILTERS.length > 0
-      ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
+      ? evals.filter((evaluation) => EVAL_FILTERS.includes(evaluation.id))
       : evals;
   const suiteFiltered =
     SUITE_FILTERS.length > 0
-      ? filtered.filter((e) => SUITE_FILTERS.includes(e.suite))
+      ? filtered.filter((evaluation) =>
+          SUITE_FILTERS.includes(evaluation.suite)
+        )
       : filtered;
 
   if (suiteFiltered.length === 0) {
@@ -723,9 +843,7 @@ async function main() {
     throw new Error(`no evals matched ${filter}`);
   }
 
-  // Suppress noisy supabase-js logs from expected failures; --debug keeps them visible.
   const stderr = console.error;
-  if (!DEBUG) console.error = () => undefined;
 
   console.log(
     `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
@@ -742,8 +860,10 @@ async function main() {
     if (!DRY) {
       try {
         config.agent.assertReady();
-      } catch (e) {
-        stderr(`SKIP ${name} (${e instanceof Error ? e.message : String(e)})`);
+      } catch (error) {
+        const message = `${name} (${error instanceof Error ? error.message : String(error)})`;
+        if (STRICT) throw new Error(message, { cause: error });
+        stderr(`SKIP ${message}`);
         continue;
       }
     }
@@ -755,15 +875,19 @@ async function main() {
         continue;
       }
       if (ev.mode === 'local-stack' && !config.localStack) {
-        console.log(
-          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`
-        );
+        const message =
+          `${name} x ${ev.id} (no local stack runtime — add ` +
+          '`localStack: localStackRuntime()` from "@supabase-evals/sandbox" ' +
+          `to experiments/${name}.ts)`;
+        if (STRICT) throw new Error(message);
+        console.log(`SKIP ${message}`);
         continue;
       }
       if (config.skipEval?.(ev)) {
         console.log(`SKIP ${name} x ${ev.id} (skipEval)`);
         continue;
       }
+      validateStrictSkills(name, ev.metadata.skills ?? config.skills);
       if (DRY) {
         console.log(formatPlanLine(name, config, ev));
         continue;
@@ -771,6 +895,9 @@ async function main() {
       allWork.push({ name, config, ev });
     }
   }
+
+  validateJudgeKeys([...new Set(allWork.map(({ ev }) => ev))]);
+  if (!DEBUG) console.error = () => undefined;
 
   let localStackTurn = Promise.resolve();
   const errored: Error[] = [];
@@ -781,7 +908,9 @@ async function main() {
     console.log(`⏳ RUN  ${name} x ${ev.id}`);
     const run = async () => {
       try {
-        const res = await runOne(name, config, ev);
+        const res = process.env.LOCAL_EVAL_CMD
+          ? fakeRun(out, name, ev.id)
+          : await runOne(name, config, ev);
         mkdirSync(dirname(out), { recursive: true });
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
@@ -794,6 +923,7 @@ async function main() {
               eval: ev.id,
               ...ev.metadata,
               ...res,
+              provenance: collectProvenance(mcpPath),
             },
             null,
             2
@@ -803,24 +933,17 @@ async function main() {
         console.log(
           `${res.passed ? '✅ PASS' : '❌ FAIL'} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`
         );
-      } catch (e) {
-        errored.push(new Error(`${name} x ${ev.id}`, { cause: e }));
+      } catch (error) {
+        errored.push(new Error(`${name} x ${ev.id}`, { cause: error }));
         const elapsed = Math.round((Date.now() - start) / 1000);
         stderr(
-          `💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`
+          `💥 ERR  ${name} x ${ev.id}: ${error instanceof Error ? error.message : String(error)} (${elapsed}s)`
         );
       }
     };
     if (ev.mode !== 'local-stack') return run();
-    const prev = localStackTurn;
-    let release!: () => void;
-    localStackTurn = new Promise((r) => (release = r));
-    await prev;
-    try {
-      await run();
-    } finally {
-      release();
-    }
+    localStackTurn = localStackTurn.then(run);
+    await localStackTurn;
   };
 
   await runConcurrent(allWork, CONCURRENCY, runWork);
