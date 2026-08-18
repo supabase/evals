@@ -75,12 +75,17 @@ function runEval(args: string[], env: Record<string, string> = {}) {
 }
 
 let passed = 0;
-function check(name: string, assertion: () => void) {
+function check(name: string, assertion: () => void, diagnostic?: string) {
   try {
     assertion();
     passed += 1;
   } catch (error) {
     console.error(`FAIL: ${name}`);
+    if (diagnostic) {
+      throw new Error(`${name} failed\n\nChild output:\n${diagnostic}`, {
+        cause: error,
+      });
+    }
     throw error;
   }
 }
@@ -150,6 +155,22 @@ try {
   }
 
   {
+    const partialSkills = join(SANDBOX, 'partial-skills');
+    mkdirSync(join(partialSkills, 'supabase'), { recursive: true });
+    mkdirSync(join(partialSkills, 'supabase-postgres-best-practices'), {
+      recursive: true,
+    });
+    const result = runEval(
+      ['--strict', '--experiment', EXPERIMENT, '--eval', EVAL],
+      { LOCAL_SKILLS_ROOT: partialSkills }
+    );
+    check('strict refuses skill directories without SKILL.md', () => {
+      assert.equal(result.status, 1, result.output);
+      assert.match(result.output, /declares skills this checkout is missing/);
+    });
+  }
+
+  {
     const result = runEval(
       ['--strict', '--experiment', EXPERIMENT, '--eval', JUDGED_EVAL],
       { OPENAI_API_KEY: '', LOCAL_EVAL_CMD: '' }
@@ -202,35 +223,55 @@ try {
   mkdirSync(join(mcpPackage, 'dist', 'transports'), { recursive: true });
   writeFileSync(join(mcpPackage, 'dist', 'transports', 'stdio.js'), '');
 
+  const receiptRun = runEval([
+    '--strict',
+    '--experiment',
+    EXPERIMENT,
+    '--eval',
+    EVAL,
+    '--mcp',
+    mcpCheckout,
+  ]);
+  check('built MCP override reaches the eval path', () => {
+    assert.equal(receiptRun.status, 0, receiptRun.output);
+    assert.match(receiptRun.output, new RegExp(`PASS ${EXPERIMENT} x ${EVAL}`));
+  });
+
+  const resultPath = join(SANDBOX, 'results', EXPERIMENT, `${EVAL}.json`);
+  check(
+    'result receipt stays under results experiment subdirectory',
+    () => {
+      const receipt = JSON.parse(readFileSync(resultPath, 'utf8'));
+      assert.equal(receipt.eval, EVAL);
+      assert.equal(receipt.experiment, EXPERIMENT);
+      assert.ok(receipt.provenance.generatedAt);
+      assert.equal(receipt.provenance.host.sha.length, 40);
+      assert.match(
+        receipt.provenance.mcpOverride.path,
+        /packages[/\\]mcp-server-supabase$/
+      );
+      assert.equal(existsSync(join(SANDBOX, 'results-local')), false);
+    },
+    receiptRun.output
+  );
+
   {
+    writeFileSync(resultPath, '{');
     const result = runEval([
       '--strict',
+      '--skip-existing',
       '--experiment',
       EXPERIMENT,
       '--eval',
       EVAL,
-      '--mcp',
-      mcpCheckout,
     ]);
-    check('built MCP override reaches the eval path', () => {
+    check('skip-existing reruns a corrupt result', () => {
       assert.equal(result.status, 0, result.output);
+      assert.match(result.output, /existing result is invalid/);
       assert.match(result.output, new RegExp(`PASS ${EXPERIMENT} x ${EVAL}`));
+      assert.doesNotThrow(() => JSON.parse(readFileSync(resultPath, 'utf8')));
     });
   }
-
-  const resultPath = join(SANDBOX, 'results', EXPERIMENT, `${EVAL}.json`);
-  const receipt = JSON.parse(readFileSync(resultPath, 'utf8'));
-  check('result receipt stays under results experiment subdirectory', () => {
-    assert.equal(receipt.eval, EVAL);
-    assert.equal(receipt.experiment, EXPERIMENT);
-    assert.ok(receipt.provenance.generatedAt);
-    assert.equal(receipt.provenance.host.sha.length, 40);
-    assert.match(
-      receipt.provenance.mcpOverride.path,
-      /packages[/\\]mcp-server-supabase$/
-    );
-    assert.equal(existsSync(join(SANDBOX, 'results-local')), false);
-  });
 
   {
     const result = runEval([
