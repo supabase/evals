@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { positiveInteger, readFlag } from './cli-args.js';
+import { positiveInteger, readFlag, validateCliArgs } from './cli-args.js';
 
 describe('readFlag', () => {
   it('reads flags in both --name value and --name=value form', () => {
@@ -14,6 +14,39 @@ describe('readFlag', () => {
     );
     expect(() => readFlag(['--runs='], 'runs')).toThrow(
       '--runs requires a value'
+    );
+  });
+});
+
+describe('validateCliArgs', () => {
+  const definition = {
+    booleanFlags: ['strict', 'smoke'],
+    valueFlags: ['mcp', 'eval'],
+    positionals: ['list'],
+    usage: 'Usage: pnpm eval -- [list] [options]',
+  };
+
+  it('accepts declared flags, values, separators, and positionals', () => {
+    expect(() =>
+      validateCliArgs(
+        ['--', 'list', '--strict', '--mcp', './server', '--eval=id'],
+        definition
+      )
+    ).not.toThrow();
+  });
+
+  it('rejects unknown flags with a close-match hint and usage', () => {
+    expect(() => validateCliArgs(['--strcit'], definition)).toThrow(
+      'unknown argument: --strcit\nDid you mean --strict?\n\nUsage:'
+    );
+    expect(() => validateCliArgs(['--mpc', './server'], definition)).toThrow(
+      'unknown argument: --mpc\nDid you mean --mcp?\n\nUsage:'
+    );
+  });
+
+  it('rejects unexpected positionals', () => {
+    expect(() => validateCliArgs(['run'], definition)).toThrow(
+      'unexpected argument: run\n\nUsage:'
     );
   });
 });

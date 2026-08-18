@@ -15,6 +15,86 @@ export function positiveInteger(value: string, name: string): number {
   return parsed.data;
 }
 
+export interface CliArgsDefinition {
+  booleanFlags: readonly string[];
+  valueFlags: readonly string[];
+  positionals?: readonly string[];
+  usage: string;
+}
+
+function editDistance(left: string, right: string): number {
+  const previous = Array.from(
+    { length: right.length + 1 },
+    (_, index) => index
+  );
+
+  for (let leftIndex = 0; leftIndex < left.length; leftIndex += 1) {
+    let diagonal = previous[0] ?? 0;
+    previous[0] = leftIndex + 1;
+    for (let rightIndex = 0; rightIndex < right.length; rightIndex += 1) {
+      const above = previous[rightIndex + 1] ?? 0;
+      const next =
+        left[leftIndex] === right[rightIndex]
+          ? diagonal
+          : 1 + Math.min(diagonal, above, previous[rightIndex] ?? 0);
+      diagonal = above;
+      previous[rightIndex + 1] = next;
+    }
+  }
+
+  return previous[right.length] ?? left.length;
+}
+
+function suggestion(
+  token: string,
+  flags: readonly string[]
+): string | undefined {
+  const closest = flags
+    .map((flag) => ({
+      flag: `--${flag}`,
+      distance: editDistance(token, `--${flag}`),
+    }))
+    .sort((left, right) => left.distance - right.distance)[0];
+  if (!closest || closest.distance > 3) return undefined;
+  return closest.flag;
+}
+
+/** Rejects tokens that are not part of a command's declared CLI surface. */
+export function validateCliArgs(
+  rawArgs: readonly string[],
+  definition: CliArgsDefinition
+): void {
+  const positionals = new Set(definition.positionals ?? []);
+  const knownFlags = [...definition.booleanFlags, ...definition.valueFlags];
+
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const token = rawArgs[index];
+    if (!token || token === '--') continue;
+
+    if (!token.startsWith('--')) {
+      if (positionals.delete(token)) continue;
+      throw new Error(`unexpected argument: ${token}\n\n${definition.usage}`);
+    }
+
+    const equalsIndex = token.indexOf('=');
+    const name = token.slice(2, equalsIndex === -1 ? undefined : equalsIndex);
+    if (definition.booleanFlags.includes(name) && equalsIndex === -1) continue;
+    if (definition.valueFlags.includes(name)) {
+      const value = rawArgs[index + 1];
+      if (equalsIndex === -1 && value && !value.startsWith('--')) index += 1;
+      continue;
+    }
+
+    const hint = suggestion(
+      token.slice(0, equalsIndex === -1 ? undefined : equalsIndex),
+      knownFlags
+    );
+    throw new Error(
+      `unknown argument: ${token}${hint ? `\nDid you mean ${hint}?` : ''}\n\n${definition.usage}`
+    );
+  }
+}
+
 /** Reads one CLI flag in either `--name value` or `--name=value` form. */
 export function readFlag(rawArgs: string[], name: string): string | undefined {
   const prefix = `--${name}=`;

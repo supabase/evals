@@ -29,6 +29,7 @@ import {
   readFlag,
   readRepeatedFlag,
   readSuiteFilters,
+  validateCliArgs,
 } from '../lib/cli-args.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
@@ -67,6 +68,35 @@ const HOSTED_PROJECT_REF = 'evalshostedprojectxy';
 const HOSTED_ACCESS_TOKEN = 'sbp_' + '0'.repeat(40);
 
 const rawArgs = process.argv.slice(2);
+const CLI_ARGS = {
+  booleanFlags: [
+    'skip-existing',
+    'smoke',
+    'dry',
+    'strict',
+    'run-all-attempts',
+    'debug',
+  ],
+  valueFlags: [
+    'mcp',
+    'experiment',
+    'eval',
+    'suite',
+    'experiment-suite',
+    'runs',
+    'timeout-sec',
+    'concurrency',
+  ],
+  positionals: ['list'],
+  usage:
+    'Usage: pnpm eval -- [list] [--skip-existing] [--smoke] [--dry] [--strict] [--run-all-attempts] [--debug] [--mcp PATH] [--experiment NAME] [--eval ID] [--suite SUITE] [--experiment-suite SUITE] [--runs N] [--timeout-sec N] [--concurrency N]',
+} as const;
+try {
+  validateCliArgs(rawArgs, CLI_ARGS);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}
 const args = new Set(rawArgs);
 const FORCE = !args.has('--skip-existing');
 const SMOKE = args.has('--smoke');
