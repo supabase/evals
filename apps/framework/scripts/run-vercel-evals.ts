@@ -51,6 +51,7 @@ interface RunnerOptions {
   timeoutSec: number;
   concurrency: number;
   vcpus: number;
+  strict: boolean;
 }
 
 interface PairOptions extends RunnerOptions {
@@ -255,6 +256,7 @@ async function runPairOnce(
         args: [
           'eval',
           '--',
+          ...(options.strict ? ['--strict'] : []),
           '--experiment',
           pair.experiment,
           '--experiment-suite',
@@ -622,6 +624,7 @@ async function main(): Promise<void> {
       'concurrency'
     ),
     vcpus: positiveInteger(readFlag(rawArgs, 'vcpus') ?? '4', 'vcpus'),
+    strict: rawArgs.includes('--strict'),
   };
 
   console.log(
