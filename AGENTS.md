@@ -10,44 +10,44 @@ three inputs a change usually targets: the **skills** tree (in this repo),
 the **MCP server** (external checkout), and **docs** content (external
 supabase/supabase checkout).
 
-## Verifying a change against the evals (`pnpm local`)
+## Verifying a change against the evals (`pnpm eval`)
 
-Use the local runner for all "did my change help / did it regress?" work.
-It never mutates git state, so it is safe alongside in-flight work.
+Use `pnpm eval` for local and scheduled runs. It reads the current skills tree
+and writes the result with its provenance receipt to
+`results/<experiment>/<eval>.json`.
 
 ```bash
-pnpm local run <eval-id...> [--experiment <id>] [--runs N] [--mcp <path>] [--content-api <url>]
-pnpm local experiments                         # experiments + which have published results
-pnpm local docs <up|seed|api|down> --docs <path-to-supabase-monorepo>
+pnpm eval -- --strict --eval <eval-id> --experiment <id> --runs 3
+pnpm eval -- list
+pnpm docs:local <up|seed|api|down> --docs <path-to-supabase-monorepo>
 ```
+
+Use `--strict` for verification. It makes missing credentials, skills, local
+stack support, and other error-class skips fail with exit 1. Intentional
+`--skip-existing` and eval-filter skips stay nonfatal.
 
 Per input:
 
-- **Skill edited** (in `skills/`): no sync step — `pnpm local run <eval>`.
-- **MCP server edited** (external checkout): `pnpm build` in that checkout,
-  then `pnpm local run <eval> --mcp <checkout-path>`.
-- **Docs page edited** (external supabase/supabase checkout):
-  `pnpm local docs seed --yes` to re-embed (**~$0.12 OpenAI — see spend
-  rules**), keep `pnpm local docs api` running in a separate terminal, then
-  `pnpm local run <eval> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>`.
-  `--content-api` needs `--mcp` while the harness pin is below v0.10.0: the
-  `--content-api-url` flag it forwards landed in supabase/mcp#343 and shipped in
-  v0.10.0, so the pinned package ignores it and `search_docs` would query
-  production docs while the receipt claimed otherwise. The runner refuses
-  pre-spend, and stops asking for `--mcp` once the pin reaches v0.10.0.
-  **`docs seed` currently fails against a vanilla docs checkout**: the pipeline
-  unconditionally loads its lint-warnings source, which needs a GitHub App
-  (`DOCS_GITHUB_APP_*`, no token fallback), and one `Promise.all` makes that
-  fatal. It aborts before embedding, so a retry costs nothing but achieves
-  nothing — don't loop on it. The leg needs an index seeded another way until a
-  skip flag lands upstream.
-  Score docs evals on retrieval (`docs.calls`, canary content coming back out of
-  `search_docs`), not on the answer text: tools mode also exposes
-  `WebSearch`/`WebFetch`, and an edit that contradicts the live page invites the
-  agent to fetch production and reject the local content as injection (observed).
+- **Skill edited** (in `skills/`): no sync step. Run `pnpm eval -- --strict
+  --eval <eval-id>`.
+- **MCP server edited** (external checkout): build that checkout, then add
+  `--mcp <checkout-path>`. The runner validates the built server before spend.
+- **Docs page edited** (external supabase/supabase checkout): use
+  `pnpm docs:local up`, `seed`, and `api` for the local index lifecycle. Seeding
+  costs about $0.12 OpenAI and asks before it starts. Keep `api` running, then
+  use `pnpm eval -- --strict --eval <eval-id> --content-api
+  http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>`.
+  `--content-api` needs `--mcp` while the harness pin is below v0.10.0. The
+  runner refuses a build without the `--content-api-url` flag before spend.
+  The docs checkout must include the lint-warnings authentication fix from
+  supabase/supabase#48364 or provide its required GitHub credentials.
 
-Receipts land in `results-local/` (git-ignored): treatment provenance, meaning
-the host SHA + dirty state and the override paths with their git state.
+Score docs evals on retrieval (`docs.calls` and content returned by
+`search_docs`). Tools-mode agents can also fetch production pages, which can
+hide a local retrieval failure.
+
+Receipts include the host state, MCP override state, and content API URL in the
+canonical result under `results/`.
 
 ## Interpreting results — rules, not suggestions
 
@@ -65,8 +65,8 @@ the host SHA + dirty state and the override paths with their git state.
 - **Docs changes: the eval must be able to see the docs.** Use a tools-mode
   (`interface: mcp`) eval whose answer lives in the edited page and is
   reached via `search_docs`. CLI-scaffold evals can pass regardless of docs.
-- **Custom evals work the same way.** `pnpm local run` does not need the eval
-  to appear in any published export.
+- **Custom evals work the same way.** `pnpm eval -- --strict --eval <id>` does
+  not require a published result.
 
 ## Validating a dependency PR (e.g. supabase/mcp)
 
@@ -88,13 +88,12 @@ the host SHA + dirty state and the override paths with their git state.
 
 ## Spend rules
 
-- Eval runs cost model tokens; `pnpm local docs seed` costs **~$0.12 OpenAI
-  per invocation**. State the cost and get user confirmation before
-  running paid steps the user did not explicitly request.
-- The runner refuses pre-spend on invalid eval metadata, unknown
-  experiments, and bad `--mcp` paths — do not work around these gates.
-- Zero-cost checks: `pnpm --filter @supabase-evals/framework test:local`
-  (runner self-test), `pnpm local experiments`, `pnpm eval:dry`.
+- Eval runs cost model tokens. `pnpm docs:local seed` costs about $0.12 OpenAI
+  per invocation. State the cost and get user confirmation before unrequested
+  paid steps.
+- Strict mode refuses pre-spend errors. Do not work around these gates.
+- Zero-cost checks: `pnpm --filter @supabase-evals/framework test:local`,
+  `pnpm eval -- list`, and `pnpm eval:dry`.
 
 ## Conventions
 
@@ -105,8 +104,7 @@ the host SHA + dirty state and the override paths with their git state.
 - Model/agent selection = experiment id. To test an unlisted model, add a
   small `experiments/<name>.ts` (copy an existing file's shape) rather than
   editing a published experiment in place.
-- `results/`, `results-local/`, and `.local-docs/` are outputs — never
-  commit their contents.
+- `results/` and `.local-docs/` are outputs. Never commit their contents.
 - Verify with `pnpm check` (typecheck + core/sandbox tests) and
   `pnpm format:check` (biome) before pushing.
 - New evals: follow [CONTRIBUTING.md](CONTRIBUTING.md) (suite choice,

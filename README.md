@@ -78,62 +78,55 @@ Start the web app development server:
 pnpm web
 ```
 
-## Local development loop (`pnpm local`)
+## Local development loop (`pnpm eval`)
 
-Testing a change to an agent input — a skill, a local build of
-[`mcp-server-supabase`](https://github.com/supabase/mcp), or an edited docs
-page — against the evals, without touching git state:
+Use the same entrypoint for local verification and scheduled runs:
 
 ```bash
-pnpm local run <eval-id> [--experiment <id>] [--mcp <path>] [--content-api <url>]
-pnpm local experiments                      # list experiments + which have published results
+pnpm eval -- --strict --eval <eval-id> --experiment <id> --runs 3
+pnpm eval -- list
 ```
 
-- **Skills**: edit the skills tree in this repo and just `run` — the harness
-  reads it as-is.
-- **MCP**: clone + build the mcp repo anywhere, then `--mcp <path-to-checkout>`
-  (sets `SUPABASE_MCP_SERVER_PATH`, so `search_docs` and friends run your build).
-- **Docs**: serve a local docs content API from your own supabase/supabase
-  checkout, then point runs at it:
+`--strict` changes error-class skips into exit 1 failures. It catches missing
+credentials, skills, local stack support, and invalid overrides before spend.
+Every completed run writes its result and provenance receipt to
+`results/<experiment>/<eval>.json`.
+
+- **Skills**: edit the skills tree in this repo. The harness reads it as-is.
+- **MCP**: build a local
+  [`mcp-server-supabase`](https://github.com/supabase/mcp) checkout, then add
+  `--mcp <path-to-checkout>`. The runner validates the built entrypoint first.
+- **Docs**: serve a local docs content API from a supabase/supabase checkout:
 
   ```bash
-  pnpm local docs up --docs <path-to-supabase-monorepo>
-  pnpm local docs seed        # full embed via the docs app's pipeline (~$0.12 OpenAI; asks first)
-  pnpm local docs api         # keep running in a separate terminal
-  # --content-api needs a local mcp build while the harness pin is below v0.10.0:
-  # the --content-api-url flag landed in supabase/mcp#343 and shipped in v0.10.0,
-  # so the pinned server ignores it and search_docs would silently hit production
-  # docs. Refused pre-spend; --mcp stops being required once the pin catches up.
-  pnpm local run <eval-id> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>
+  pnpm docs:local up --docs <path-to-supabase-monorepo>
+  pnpm docs:local seed
+  pnpm docs:local api
+  pnpm eval -- --strict --eval <eval-id> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>
+  pnpm docs:local down
   ```
 
-  **Known limitation — `docs seed` needs a docs checkout containing
-  [supabase/supabase#48364](https://github.com/supabase/supabase/pull/48364).**
-  Without it, `fetchAllSources()` unconditionally awaits the lint warnings source,
-  whose loader requires the docs GitHub App, and one shared `Promise.all` turns
-  that into a full abort before any embedding (so it costs nothing). That PR adds
-  a token rung below the App, `GH_TOKEN` then `GITHUB_TOKEN`, which is all a
-  contributor needs: `export GH_TOKEN=$(gh auth token)`. Until it merges, check
-  that branch out in the checkout you pass to `--docs`.
+  Keep `docs:local api` running during the eval. Seeding uses the docs app
+  pipeline, costs about $0.12 OpenAI, and asks before it starts.
 
-  Verified end to end against a checkout carrying it, with the `NEXT_PUBLIC_MISC_*`
-  wiring `docs seed` supplies: the seed completes (1901 sources, 7890 sections) and
-  a tools-mode eval's `search_docs` returns content that exists only in the local
-  index. Two rough edges to expect, both upstream: the seed exits 0 while silently
-  failing 22 `/reference/{javascript,dart}` pages whose sections exceed the
-  embedding model's 8192-token limit, and a local index has no partner-integration
-  pages, since that source reads the hosted misc project. Neither blocked the
-  tested guide-page eval, but an eval whose answer lives in those reference pages
-  would find them missing from the index.
+  `--content-api` needs a local MCP build while the harness pin is below
+  v0.10.0. The runner refuses an older build without the
+  `--content-api-url` flag before spend. This requirement ends when the pin
+  reaches v0.10.0.
 
-Every run writes a provenance receipt to `results-local/` (host SHA + dirty
-state, override paths and their git state), so the world a result came from is
-recorded in the artifact rather than in your memory.
+  The docs checkout must include
+  [supabase/supabase#48364](https://github.com/supabase/supabase/pull/48364) or
+  provide the credentials required by the lint-warnings source. Without that
+  fix, the seed stops before embedding.
 
-Keys go in `.env` at the repo root: `ANTHROPIC_API_KEY`, and `OPENAI_API_KEY`
-for the docs loop and for judge-scored evals (the LLM judge is an OpenAI
-grader model, regardless of the agent under test). Zero-cost self-test: `pnpm --filter
-@supabase-evals/framework test:local`.
+Keys go in `.env` at the repo root. Agent providers use their matching keys.
+Docs seeding and judge-scored evals use `OPENAI_API_KEY`.
+
+Run the zero-cost controller self-test with:
+
+```bash
+pnpm --filter @supabase-evals/framework test:local
+```
 
 ## Eval Shape
 
