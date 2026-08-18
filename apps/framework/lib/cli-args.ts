@@ -64,15 +64,18 @@ export function validateCliArgs(
   rawArgs: readonly string[],
   definition: CliArgsDefinition
 ): void {
-  const positionals = new Set(definition.positionals ?? []);
+  const positionals = definition.positionals ?? [];
   const knownFlags = [...definition.booleanFlags, ...definition.valueFlags];
+  let hasArgument = false;
 
   for (let index = 0; index < rawArgs.length; index += 1) {
     const token = rawArgs[index];
     if (!token || token === '--') continue;
+    const isFirstArgument = !hasArgument;
+    hasArgument = true;
 
     if (!token.startsWith('--')) {
-      if (positionals.delete(token)) continue;
+      if (isFirstArgument && positionals.includes(token)) continue;
       throw new Error(`unexpected argument: ${token}\n\n${definition.usage}`);
     }
 

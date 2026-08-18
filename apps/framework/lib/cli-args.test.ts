@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { positiveInteger, readFlag, validateCliArgs } from './cli-args.js';
 
@@ -48,6 +50,44 @@ describe('validateCliArgs', () => {
     expect(() => validateCliArgs(['run'], definition)).toThrow(
       'unexpected argument: run\n\nUsage:'
     );
+  });
+
+  it('only accepts positionals in the command position', () => {
+    expect(() => validateCliArgs(['--strict', 'list'], definition)).toThrow(
+      'unexpected argument: list\n\nUsage:'
+    );
+  });
+});
+
+describe('run-eval argument validation', () => {
+  const frameworkRoot = join(import.meta.dirname, '..');
+
+  function run(...args: string[]) {
+    return spawnSync(
+      process.execPath,
+      ['--import', 'tsx/esm', 'harness/run-eval.ts', ...args],
+      {
+        cwd: frameworkRoot,
+        encoding: 'utf8',
+      }
+    );
+  }
+
+  it.each([
+    ['--strcit', '--strict'],
+    ['--mpc', '--mcp'],
+  ])('rejects unknown argument %s before running', (token, hint) => {
+    const result = run(token, './server');
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`unknown argument: ${token}`);
+    expect(result.stderr).toContain(`Did you mean ${hint}?`);
+    expect(result.stderr).toContain('Usage: pnpm eval');
+  });
+
+  it('accepts a valid list invocation', () => {
+    const result = run('list', '--experiment-suite', 'benchmark');
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('codex-gpt-5.6');
   });
 });
 
