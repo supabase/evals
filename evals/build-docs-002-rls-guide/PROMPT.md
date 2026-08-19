@@ -27,4 +27,4 @@ I'm building two separate apps:
 Set up the database access rules for me. Read this guide first and follow it.
 
 REFERENCE
-https://supabase.com/docs/guides/database/postgres/row-level-security.md
+https://docs-git-docs-rls-tests-in-procedure-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md

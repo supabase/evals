@@ -71,7 +71,12 @@ function extractGraphqlQuery(
  */
 function isSupabaseApexUrl(value: string): boolean {
   try {
-    return new URL(value).hostname === 'supabase.com';
+    const { hostname } = new URL(value);
+    if (hostname === 'supabase.com') return true;
+    // SCRATCH (do not merge): accept docs preview deployments so an eval can be
+    // pointed at an unmerged docs PR. Without this the preview fetch is dropped
+    // and the "agent read the guide" check fails even though it did.
+    return /^docs-git-[a-z0-9-]+-supabase\.vercel\.app$/.test(hostname);
   } catch {
     return false;
   }
