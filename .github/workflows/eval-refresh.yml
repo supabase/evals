@@ -505,6 +505,8 @@ jobs:
 
       - name: Merge scheduled results pull request
         # The app is on the ruleset's bypass list, so no review is required.
+        # --admin skips gh's own mergeStateStatus precheck, which doesn't account
+        # for bypass lists and intermittently refuses a merge the API allows.
         # Skips the merge when results are partial, so it stays open for review.
         if: >-
           github.event_name == 'schedule' &&
@@ -512,7 +514,7 @@ jobs:
           steps.audit.outputs.count == '0'
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --squash --delete-branch
+        run: gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --squash --delete-branch --admin
 
       - name: Require complete results
         # Runs last so partial results still publish, but the job still fails.
