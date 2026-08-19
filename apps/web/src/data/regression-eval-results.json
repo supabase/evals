@@ -73,7 +73,7 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "row level security is enabled on every table in the public schema",
@@ -111,7 +111,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-81eed205, todo-a-edit-81eed205, todo-a-delete-81eed205"
+        "notes": "titles: todo-a-d87b0f43, todo-a-edit-d87b0f43, todo-a-delete-d87b0f43"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -120,7 +120,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-81eed205"
+        "notes": "titles: todo-b-d87b0f43"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -159,12 +159,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-81eed205"
+        "notes": "names: list-d87b0f43"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-81eed205"
+        "notes": "titles: item-d87b0f43"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -244,22 +244,22 @@
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.user_list_ids"
+        "notes": "verified private.is_list_owner, private.can_access_list"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "3 file(s): supabase/tests/todos_rls_test.sql, supabase/tests/lists_rls_test.sql, supabase/tests/weather_rls_test.sql"
+        "notes": "6 file(s): supabase/tests/todos_rls.test.sql, supabase/tests/lists_rls.test.sql, supabase/tests/list_members_rls.test.sql, supabase/tests/list_items_rls.test.sql, supabase/tests/weather_stations_rls.test.sql, supabase/tests/weather_readings_rls.test.sql"
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": true,
-        "notes": "34 passed, 0 failed, exit 0"
+        "notes": "36 passed, 0 failed, exit 0"
       },
       {
         "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
-        "passed": true,
-        "judgeNotes": "All six required tables are asserted against, both anon and authenticated roles are covered with identity switching, and the suite includes allowed and denied outcomes for select/insert/update/delete with allowed writes checked via RETURNING."
+        "passed": false,
+        "judgeNotes": "Fails: allowed writes are often proved only with lives_ok and not by checking state (e.g. allowed inserts into todos/list_members/list_items and allowed deletes from list_members). Also using-filtered denied updates/deletes assert empty RETURNING results but do not assert the target rows remained unchanged (e.g. todos update, lists update/delete). All six required tables are exercised and both anon/auth roles are covered."
       },
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
@@ -275,20 +275,20 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full content of this guide on Postgres Row Level Security in Supabase. I need all details: concepts, syntax, best practices, performance recommendations, patterns for policies (select/insert/update/delete), auth.uid() usage, examples for multi-tenant/shared data patterns, and any warnings or gotchas mentioned.",
+          "query": "Extract the complete guide content: all guidance, best practices, syntax examples, gotchas, performance tips, and recommended patterns for setting up Row Level Security policies in Supabase/Postgres. Include exact code examples verbatim.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-rls-tests-in-procedure-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 11642
+          "resultChars": 8130
         }
       ]
     },
     "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://docs-git-docs-rls-tests-in-procedure-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md",
     "promptSourcePath": "evals/build-docs-002-rls-guide/PROMPT.md",
-    "attempts": 1,
+    "attempts": 2,
     "sourcePath": "claude-code-sonnet-5/build-docs-002-rls-guide.json"
   },
   {
