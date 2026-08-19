@@ -111,7 +111,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-e13a8825, todo-a-edit-e13a8825, todo-a-delete-e13a8825"
+        "notes": "titles: todo-a-52ad5cbf, todo-a-edit-52ad5cbf, todo-a-delete-52ad5cbf"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -120,7 +120,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-e13a8825"
+        "notes": "titles: todo-b-52ad5cbf"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -158,13 +158,13 @@
       },
       {
         "name": "a member who does not own the list still reads it",
-        "passed": true,
-        "notes": "names: list-e13a8825"
+        "passed": false,
+        "notes": "error 42P17: infinite recursion detected in policy for relation \"lists\""
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-e13a8825"
+        "notes": "titles: item-52ad5cbf"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -189,8 +189,8 @@
       },
       {
         "name": "a non-member reads neither the list nor its items",
-        "passed": true,
-        "notes": "lists: ; items: "
+        "passed": false,
+        "notes": "lists: error 42P17: infinite recursion detected in policy for relation \"lists\"; items: "
       },
       {
         "name": "signed-out visitors read neither lists nor list items",
@@ -199,7 +199,8 @@
       },
       {
         "name": "no membership policy recurses into itself",
-        "passed": true
+        "passed": false,
+        "notes": "42P17: infinite recursion detected in policy for relation \"lists\""
       },
       {
         "name": "signed-out visitors read the weather feed",
@@ -244,22 +245,22 @@
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.is_list_owner, private.is_list_member, private.can_access_list"
+        "notes": "verified private.can_access_list"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "5 file(s): supabase/tests/todos_rls.test.sql, supabase/tests/lists_rls.test.sql, supabase/tests/list_items_rls.test.sql, supabase/tests/weather_rls.test.sql, supabase/tests/list_members_rls.test.sql"
+        "notes": "4 file(s): supabase/tests/todos.test.sql, supabase/tests/lists_and_members.test.sql, supabase/tests/list_items.test.sql, supabase/tests/weather.test.sql"
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": false,
-        "notes": "28 passed, 3 failed, exit 1"
+        "notes": "27 passed, 0 failed, exit 1"
       },
       {
         "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
-        "passed": false,
-        "judgeNotes": "Allowed writes are often proven only with lives_ok, without asserting state changed (e.g. todos insert, list_members insert/delete, list_items insert/update). Denied using-filtered updates/deletes are asserted with is_empty returning 0 rows rather than verifying the target rows remained unchanged."
+        "passed": true,
+        "judgeNotes": "All six required tables are asserted by name, both anon and authenticated roles are covered with identity switching, allowed and denied outcomes exist for select/insert/update/delete, and allowed writes are verified via returned changed state."
       },
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
@@ -275,14 +276,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guide content on Row Level Security best practices: policy syntax, performance recommendations (indexing, wrapping functions in select, specifying roles, minimizing joins), multi-tenancy/sharing patterns, and any example policies for auth.uid(), security definer functions, etc. Give as much verbatim detail as possible.",
+          "query": "Extract the full content of this guide about Row Level Security in Postgres/Supabase, including all best practices, recommended patterns, performance guidance, and code examples verbatim.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-rls-tests-in-procedure-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 7133
+          "resultChars": 4489
         }
       ]
     },
