@@ -14,6 +14,7 @@
 import type {
   ParsedTranscript,
   ToolCall,
+  TokenUsage,
   TranscriptEvent,
 } from '../../transcript/types.js';
 import type { AgentTranscriptParser } from '../../parsers/types.js';
@@ -106,6 +107,42 @@ function getStringContent(data: Record<string, unknown>): string | undefined {
   const message = data.message as Record<string, unknown> | undefined;
   if (message && typeof message.content === 'string') return message.content;
   return undefined;
+}
+
+/**
+ * Token usage from an assistant line's `message.usage` — the raw Anthropic
+ * Messages API shape (`input_tokens`, `output_tokens`,
+ * `cache_read_input_tokens`). Undefined when the line carries none (e.g. a
+ * plain `--print` result line with no usage block).
+ */
+function extractUsage(data: Record<string, unknown>): TokenUsage | undefined {
+  const message = data.message as Record<string, unknown> | undefined;
+  const usage = isRecord(message?.usage) ? message.usage : undefined;
+  if (!usage) return undefined;
+  const inputTokens =
+    typeof usage.input_tokens === 'number' ? usage.input_tokens : undefined;
+  const outputTokens =
+    typeof usage.output_tokens === 'number' ? usage.output_tokens : undefined;
+  const cacheReadTokens =
+    typeof usage.cache_read_input_tokens === 'number'
+      ? usage.cache_read_input_tokens
+      : undefined;
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    cacheReadTokens === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    totalTokens:
+      inputTokens !== undefined && outputTokens !== undefined
+        ? inputTokens + outputTokens
+        : undefined,
+  };
 }
 
 /** Join all `text` blocks (or a plain string body) into one string. */
@@ -232,9 +269,16 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
       }
     }
   } else if (type === 'assistant' || data.role === 'assistant') {
+    // One assistant JSONL line's `message.usage` covers everything on that
+    // line (text + tool_use blocks together). Attach it to the LAST event the
+    // line produces below — a line is often tool_use-only (no text, e.g.
+    // loading a skill), so usage can't unconditionally go on a text message.
+    const usage = extractUsage(data);
+    const lineEvents: TranscriptEvent[] = [];
+
     const content = extractText(data);
     if (content) {
-      events.push({
+      lineEvents.push({
         timestamp,
         type: 'message',
         role: 'assistant',
@@ -244,7 +288,7 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
     }
     const thinking = extractThinking(data);
     if (thinking) {
-      events.push({
+      lineEvents.push({
         timestamp,
         type: 'thinking',
         content: thinking,
@@ -252,7 +296,7 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
       });
     }
     for (const use of extractToolUses(data)) {
-      events.push(
+      lineEvents.push(
         enrich({
           timestamp,
           type: 'tool_call',
@@ -267,6 +311,19 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
         })
       );
     }
+    if (usage) {
+      // message and tool_call carry usage; thinking does not.
+      for (let i = lineEvents.length - 1; i >= 0; i--) {
+        if (
+          lineEvents[i].type === 'message' ||
+          lineEvents[i].type === 'tool_call'
+        ) {
+          lineEvents[i] = { ...lineEvents[i], usage };
+          break;
+        }
+      }
+    }
+    events.push(...lineEvents);
   } else if (type === 'system') {
     const content = extractText(data);
     if (content) {

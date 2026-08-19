@@ -43,6 +43,21 @@ export type ToolCall =
   | { kind: 'mcp'; server: string; toolName: string }
   | { kind: 'other'; toolName: string };
 
+/**
+ * Token usage for one LLM turn, normalized across agents. `inputTokens`/
+ * `outputTokens` are the numbers every agent reports; `cacheReadTokens` is set
+ * when the agent reports it (ai-sdk, Claude Code) and omitted when it doesn't
+ * (Codex, OpenCode use coarser turn-level totals with no cache breakdown). All
+ * fields are per-turn, not cumulative — sum across the transcript for a
+ * running total.
+ */
+export interface TokenUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  totalTokens?: number;
+}
+
 /** A single normalized event in an agent transcript. */
 export interface TranscriptEvent {
   /** ISO timestamp of the event, when the agent records one. */
@@ -53,6 +68,13 @@ export interface TranscriptEvent {
   role?: 'user' | 'assistant' | 'system';
   /** Text content (for `message`, `thinking`, `error`). */
   content?: string;
+  /**
+   * Token usage for the turn that closed with this event. A turn's LAST
+   * `message` or `tool_call` event carries it — a turn is often tool-call-only
+   * (e.g. loading a skill produces no text), so usage isn't always on a
+   * message. Absent from every other event in the turn.
+   */
+  usage?: TokenUsage;
   /** For `tool_call` / `tool_result` events. */
   tool?: {
     /** Canonical tool name. */
