@@ -501,6 +501,8 @@ async function smokeFrontendBuildTooling() {
       '  expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();',
       '  expect(process.env.OPENAI_API_KEY).toBeUndefined();',
       '  expect(process.env.AI_GATEWAY_API_KEY).toBeUndefined();',
+      '  // PATH is always set in a real env, so this catches a blocklist regression the checks above would miss.',
+      '  expect(process.env.PATH).toBeUndefined();',
       '});',
       '',
     ].join('\n')
