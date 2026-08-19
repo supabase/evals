@@ -26,6 +26,7 @@ const scorer: ToolScorer = async (ctx) => {
       await checkAdminCanDeleteAnyDocumentInOrg(ctx),
       await checkAdminCannotAffectAnotherOrg(ctx),
       await checkWithCheckBlocksOrgReassignment(ctx),
+      await checkCanSeeOwnOrgMembershipRoster(ctx),
       await checkCannotSeeAnotherOrgsMembershipRoster(ctx),
       await checkOtherOrgRoleDoesNotLeakIn(ctx),
       await checkOwnOrgAdminRoleStillWorks(ctx),
@@ -51,13 +52,16 @@ type UserQueryResult = { rows: Record<string, unknown>[]; error: Error | null };
  * technique shown in RLS testing guide:
  * (https://supabase.com/docs/guides/local-development/testing/overview).
  *
+ * Other scorers impersonate over PostgREST. This one needs a transaction per
+ * check and lite doesn't support Prefer: tx=rollback, so it stays in SQL.
+ * (https://github.com/supabase/lite/blob/eb02d45e98840e4639ac23f1e36fe50f36c98077/FEATURES.md#L79)
+ *
  * Returns errors (incl. RLS-blocked writes) as values instead of throwing.
  */
 async function runAsUser(
   ctx: ToolEvalContext,
   sub: string,
-  body: string,
-  finish: 'COMMIT' | 'ROLLBACK' = 'COMMIT'
+  body: string
 ): Promise<UserQueryResult> {
   try {
     const { rows } = await ctx.query(stripIndent`
@@ -65,8 +69,10 @@ async function runAsUser(
       SET LOCAL ROLE authenticated;
       SET LOCAL request.jwt.claim.sub = '${sub}';
       SET LOCAL request.jwt.claim.role = 'authenticated';
+      -- auth.uid() reads claim.sub, auth.jwt() reads the claims JSON. Set both.
+      SET LOCAL request.jwt.claims = '{"sub":"${sub}","role":"authenticated"}';
       ${body}
-      ${finish};
+      ROLLBACK;
     `);
     return { rows, error: null };
   } catch (error) {
@@ -76,6 +82,16 @@ async function runAsUser(
       error: error instanceof Error ? error : new Error(String(error)),
     };
   }
+}
+
+/**
+ * A denied write raises 42501 (insufficient_privilege), or for UPDATE and
+ * DELETE quietly matches no rows.
+ */
+function isDeniedOrEmpty(result: UserQueryResult): boolean {
+  const { error, rows } = result;
+  if (!error) return rows.length === 0;
+  return 'code' in error && error.code === '42501';
 }
 
 async function checkRlsEnabled(ctx: ToolEvalContext): Promise<CheckResult> {
@@ -114,10 +130,11 @@ async function checkViewerCannotInsert(
     VIEWER_A,
     stripIndent`
       INSERT INTO documents (org_id, owner_id, title, body)
-      VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail');
+      VALUES ('${ORG_A}', '${VIEWER_A}', 'viewer insert', 'should fail')
+      RETURNING id;
     `
   );
-  return { name: 'viewer cannot insert', passed: Boolean(result.error) };
+  return { name: 'viewer cannot insert', passed: isDeniedOrEmpty(result) };
 }
 
 async function checkEditorCanInsertOwnOrgDocument(
@@ -130,8 +147,7 @@ async function checkEditorCanInsertOwnOrgDocument(
       INSERT INTO documents (org_id, owner_id, title, body)
       VALUES ('${ORG_A}', '${EDITOR_A}', 'editor insert', 'allowed')
       RETURNING id;
-    `,
-    'ROLLBACK'
+    `
   );
   return {
     name: 'editor can insert own org document',
@@ -150,8 +166,7 @@ async function checkEditorCanUpdateOwnDocument(
       SET body = 'editor changed own document'
       WHERE id = '10000000-0000-0000-0000-000000000002'
       RETURNING id;
-    `,
-    'ROLLBACK'
+    `
   );
   return {
     name: 'editor can update own document',
@@ -170,12 +185,11 @@ async function checkEditorCannotUpdateAnotherUsersDocument(
       SET body = 'editor changed admin document'
       WHERE id = '10000000-0000-0000-0000-000000000001'
       RETURNING id;
-    `,
-    'ROLLBACK'
+    `
   );
   return {
     name: "editor cannot update another user's document",
-    passed: Boolean(result.error) || result.rows.length === 0,
+    passed: isDeniedOrEmpty(result),
   };
 }
 
@@ -185,12 +199,11 @@ async function checkEditorCannotDeleteAnotherUsersDocument(
   const result = await runAsUser(
     ctx,
     EDITOR_A,
-    `DELETE FROM documents WHERE id = '10000000-0000-0000-0000-000000000001' RETURNING id;`,
-    'ROLLBACK'
+    `DELETE FROM documents WHERE id = '10000000-0000-0000-0000-000000000001' RETURNING id;`
   );
   return {
     name: "editor cannot delete another user's document",
-    passed: Boolean(result.error) || result.rows.length === 0,
+    passed: isDeniedOrEmpty(result),
   };
 }
 
@@ -205,8 +218,7 @@ async function checkAdminCanUpdateAnyDocumentInOrg(
       SET body = 'admin changed editor document'
       WHERE id = '10000000-0000-0000-0000-000000000002'
       RETURNING id;
-    `,
-    'ROLLBACK'
+    `
   );
   return {
     name: 'admin can update any document in their org',
@@ -220,8 +232,7 @@ async function checkAdminCanDeleteAnyDocumentInOrg(
   const result = await runAsUser(
     ctx,
     ADMIN_A,
-    `DELETE FROM documents WHERE id = '10000000-0000-0000-0000-000000000002' RETURNING id;`,
-    'ROLLBACK'
+    `DELETE FROM documents WHERE id = '10000000-0000-0000-0000-000000000002' RETURNING id;`
   );
   return {
     name: 'admin can delete any document in their org',
@@ -240,12 +251,11 @@ async function checkAdminCannotAffectAnotherOrg(
       SET body = 'admin touched another org'
       WHERE id = '20000000-0000-0000-0000-000000000001'
       RETURNING id;
-    `,
-    'ROLLBACK'
+    `
   );
   return {
     name: 'admin cannot affect another org',
-    passed: Boolean(result.error) || result.rows.length === 0,
+    passed: isDeniedOrEmpty(result),
   };
 }
 
@@ -260,12 +270,29 @@ async function checkWithCheckBlocksOrgReassignment(
       SET org_id = '${ORG_B}'
       WHERE id = '10000000-0000-0000-0000-000000000002'
       RETURNING id;
-    `,
-    'ROLLBACK'
+    `
   );
   return {
     name: 'WITH CHECK blocks editor from moving document to another org',
-    passed: Boolean(result.error) || result.rows.length === 0,
+    passed: isDeniedOrEmpty(result),
+  };
+}
+
+/**
+ * Without this, an agent that enables RLS on memberships and writes no policies
+ * scores the same as one that scoped the roster per org.
+ */
+async function checkCanSeeOwnOrgMembershipRoster(
+  ctx: ToolEvalContext
+): Promise<CheckResult> {
+  const result = await runAsUser(
+    ctx,
+    EDITOR_A,
+    `SELECT user_id FROM memberships WHERE org_id = '${ORG_A}';`
+  );
+  return {
+    name: "editor can still see their own org's roster",
+    passed: !result.error && result.rows.length === 4,
   };
 }
 
@@ -279,7 +306,7 @@ async function checkCannotSeeAnotherOrgsMembershipRoster(
   );
   return {
     name: "cannot see another org's membership roster",
-    passed: Boolean(result.error) || result.rows.length === 0,
+    passed: isDeniedOrEmpty(result),
   };
 }
 
@@ -301,12 +328,11 @@ async function checkOtherOrgRoleDoesNotLeakIn(
       SET body = 'multi-org user tried to act as admin here'
       WHERE id = '10000000-0000-0000-0000-000000000001'
       RETURNING id;
-    `,
-    'ROLLBACK'
+    `
   );
   return {
     name: "a viewer role in one org doesn't grant admin power in another org",
-    passed: Boolean(result.error) || result.rows.length === 0,
+    passed: isDeniedOrEmpty(result),
   };
 }
 
@@ -321,8 +347,7 @@ async function checkOwnOrgAdminRoleStillWorks(
       SET body = 'multi-org user acting as admin in their own org'
       WHERE id = '20000000-0000-0000-0000-000000000001'
       RETURNING id;
-    `,
-    'ROLLBACK'
+    `
   );
   return {
     name: 'multi-org user can act as admin in the org where they hold that role',
