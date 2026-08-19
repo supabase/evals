@@ -504,9 +504,9 @@ jobs:
           delete-branch: true
 
       - name: Merge scheduled results pull request
-        # The app is on the ruleset's bypass list, so no review is required.
-        # --admin skips gh's own mergeStateStatus precheck, which doesn't account
-        # for bypass lists and intermittently refuses a merge the API allows.
+        # --admin merges without the required review, which the bypass list
+        # entitles the app to.
+        # https://cli.github.com/manual/gh_pr_merge
         # Skips the merge when results are partial, so it stays open for review.
         if: >-
           github.event_name == 'schedule' &&
