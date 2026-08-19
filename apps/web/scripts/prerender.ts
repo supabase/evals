@@ -17,7 +17,12 @@ const MIN_TABLE_ROWS = 3
 /** Rendered by App when the results file parses to nothing. */
 const EMPTY_STATE = "No result files found"
 
-function fail(reason) {
+/** Whatever was thrown may not be an Error, and the reason still has to read well. */
+function messageOf(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function fail(reason: string): never {
   console.error(
     [
       `prerender failed: ${reason}`,
@@ -37,7 +42,9 @@ let render
 try {
   ;({ render } = await import(pathToFileURL(serverEntryFile).href))
 } catch (error) {
-  fail(`could not import ${path.relative(appDir, serverEntryFile)} (${error.message})`)
+  fail(
+    `could not import ${path.relative(appDir, serverEntryFile)} (${messageOf(error)})`
+  )
 }
 
 if (typeof render !== "function") {
@@ -48,7 +55,7 @@ let markup = ""
 try {
   markup = await render()
 } catch (error) {
-  fail(`render() threw (${error.message})`)
+  fail(`render() threw (${messageOf(error)})`)
 }
 
 if (markup.includes(EMPTY_STATE)) {
@@ -67,7 +74,10 @@ if (!html.includes(ROOT_DIV)) {
   fail(`${path.relative(appDir, htmlFile)} has no ${ROOT_DIV} to replace`)
 }
 
-const prerendered = html.replace(ROOT_DIV, () => `<div id="root">${markup}</div>`)
+const prerendered = html.replace(
+  ROOT_DIV,
+  () => `<div id="root">${markup}</div>`
+)
 if (prerendered.includes(ROOT_DIV)) {
   fail(`${path.relative(appDir, htmlFile)} still has an empty ${ROOT_DIV}`)
 }
