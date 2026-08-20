@@ -10,14 +10,23 @@ import { localStackRuntime } from '@supabase-evals/sandbox';
 
 /**
  * A CLI-version arm of the version matrix: the `claude-code-sonnet-5`
- * configuration with exactly one variable changed — the Supabase CLI version
- * installed into the local-stack sandbox. Arms exist to compare agent
- * capability across CLI versions (see `pnpm compare-results`), so they only
- * run evals where the version under test can matter:
+ * configuration run without skills, with exactly one variable across arms —
+ * the Supabase CLI version installed into the local-stack sandbox.
+ *
+ * Arms run `skills: []` (CLI-2221): the matrix measures raw CLI capability,
+ * and a skill can paper over (or trip on) a CLI change. A with-skills version
+ * pair can be added later if the no-skills signal proves out.
+ *
+ * Arms exist to compare agent capability across CLI versions (see
+ * `pnpm compare-results`), so they only run evals where the version under
+ * test can matter:
  *
  * - Evals that pin `cliVersion` in frontmatter are skipped: the frontmatter
  *   pin overrides the experiment's version (see localStackRuntime), so the
  *   arm's version would silently not apply.
+ * - Evals with `skipCliInstall` are skipped: the agent installs its own CLI
+ *   there, so the arm's version is never installed at all (and there is no
+ *   pre-run version probe to record).
  * - Evals whose `interface` isn't `cli` are skipped: they never touch the CLI
  *   under test, so running them would duplicate the base experiment's results
  *   at full cost. (This also drops the few local-stack evals that boot a
@@ -49,10 +58,11 @@ export function cliVersionArm(options: {
       mcpServers: [supabaseMcpServer()],
     }),
     localStack: localStackRuntime({ cliVersion }),
-    skills: ['supabase', 'supabase-postgres-best-practices'],
+    skills: [],
     skipEval: (ev) =>
       cliVersion === undefined ||
       ev.metadata.cliVersion !== undefined ||
+      ev.metadata.skipCliInstall === true ||
       ev.metadata.interface !== 'cli',
   });
 }

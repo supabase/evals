@@ -475,15 +475,17 @@ jobs:
           fi
 
       - name: Publish CLI version delta
-        # CLI version matrix (CLI-2221): when the beta version arm ran, render
+        # CLI version matrix (CLI-2221): when both version arms ran, render
         # the pin-vs-beta delta table into the run summary and keep it as an
-        # artifact. Informational only — a human reviews the delta and files
-        # supabase/cli issues for real regressions; nothing is gated on it.
+        # artifact. The arms share one no-skills configuration and differ only
+        # in cliVersion, so the delta isolates the CLI. Informational only —
+        # a human reviews the delta and files supabase/cli issues for real
+        # regressions; nothing is gated on it.
         shell: bash
         run: |
           set -euo pipefail
 
-          baseline=results/claude-code-sonnet-5
+          baseline=results/claude-code-sonnet-5-cli-pin
           candidate=results/claude-code-sonnet-5-cli-beta
           if [ ! -d "$baseline" ] || [ ! -d "$candidate" ]; then
             echo "No CLI version arm in this run — skipping the delta report"

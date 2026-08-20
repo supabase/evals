@@ -141,24 +141,24 @@ pnpm --filter @supabase-evals/sandbox test:docker
 
 Local-stack evals install a pinned Supabase CLI (`SUPABASE_CLI_VERSION` in `packages/sandbox/src/supabase.ts`). The CLI version matrix compares agent capability across CLI versions, so the CLI team gets a signal when a release adds or breaks an agent capability:
 
-- **Version arms** are experiments that differ from `claude-code-sonnet-5` only in `localStackRuntime({ cliVersion })` (built by `experiments/lib/cli-version-matrix.ts`). Arms skip evals that pin `cliVersion` in frontmatter (a frontmatter pin overrides the experiment's version, so the arm's version would silently not apply) and evals whose `interface` isn't `cli` (they never touch the CLI under test).
+- **Version arms** are experiments sharing one no-skills configuration that differ only in `localStackRuntime({ cliVersion })` (built by `experiments/lib/cli-version-matrix.ts`): `claude-code-sonnet-5-cli-pin` (the repository pin) and `claude-code-sonnet-5-cli-beta` (the latest supabase/cli prerelease, from `SUPABASE_CLI_BETA_VERSION`; skips every eval when unset). Arms run without skills so the delta measures raw CLI capability, and they skip evals where the version under test can't apply: frontmatter `cliVersion` pins (they override the experiment's version), `skipCliInstall` evals (the agent installs its own CLI), and evals whose `interface` isn't `cli`.
 - Every local-stack result records `resolvedCliVersion` — the `supabase --version` actually reported inside the sandbox — so reports never trust the requested pin.
 
-Run a manual version A/B (the repository pin vs the stable arm's snapshot version):
+Run a manual version A/B (the repository pin vs a beta version you resolve yourself):
 
 ```bash
-pnpm eval -- --suite regression --runs 2 \
+SUPABASE_CLI_BETA_VERSION=2.115.1-beta.6 pnpm eval -- --suite regression --runs 2 \
   --experiment claude-code-sonnet-5-cli-pin \
-  --experiment claude-code-sonnet-5-cli-stable
+  --experiment claude-code-sonnet-5-cli-beta
 
 pnpm compare-results -- \
   --baseline results/claude-code-sonnet-5-cli-pin \
-  --candidate results/claude-code-sonnet-5-cli-stable
+  --candidate results/claude-code-sonnet-5-cli-beta
 ```
 
 `compare-results` prints a per-scenario markdown verdict table — `IMPROVED (FAIL→PASS)`, `REGRESSED (PASS→FAIL)`, or the checks-score delta — pasteable into Slack or a Linear comment (`--output delta.md` to also write a file).
 
-The nightly regression cron (`eval-refresh.yml`) additionally runs `claude-code-sonnet-5-cli-beta`, installing the latest supabase/cli prerelease (resolved at workflow time into `SUPABASE_CLI_BETA_VERSION`), and publishes the pin-vs-beta delta table as the workflow run summary plus a `cli-version-delta` artifact. The delta is informational only: a person reviews it and files supabase/cli issues for real regressions.
+The nightly regression cron (`eval-refresh.yml`) runs both arms, resolving the latest supabase/cli prerelease into `SUPABASE_CLI_BETA_VERSION`, and publishes the pin-vs-beta delta table as the workflow run summary plus a `cli-version-delta` artifact. The delta is informational only: a person reviews it and files supabase/cli issues for real regressions.
 
 ## Skills
 
