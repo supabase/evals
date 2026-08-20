@@ -73,7 +73,7 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "row level security is enabled on every table in the public schema",
@@ -111,7 +111,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-2bd77433, todo-a-edit-2bd77433, todo-a-delete-2bd77433"
+        "notes": "titles: todo-a-13bddb6d, todo-a-edit-13bddb6d, todo-a-delete-13bddb6d"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -120,7 +120,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-2bd77433"
+        "notes": "titles: todo-b-13bddb6d"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -159,12 +159,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-2bd77433"
+        "notes": "names: list-13bddb6d"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-2bd77433"
+        "notes": "titles: item-13bddb6d"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -244,22 +244,22 @@
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.can_access_list, private.list_ids_for_user"
+        "notes": "verified private.user_accessible_list_ids, private.is_list_owner"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "3 file(s): supabase/tests/todos_rls.test.sql, supabase/tests/lists_rls.test.sql, supabase/tests/weather_rls.test.sql"
+        "notes": "5 file(s): supabase/tests/todos_rls_test.sql, supabase/tests/lists_rls_test.sql, supabase/tests/list_members_rls_test.sql, supabase/tests/list_items_rls_test.sql, supabase/tests/weather_rls_test.sql"
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": true,
-        "notes": "25 passed, 0 failed, exit 0"
+        "notes": "39 passed, 0 failed, exit 0"
       },
       {
         "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
-        "passed": false,
-        "judgeNotes": "Denied update/delete via RLS USING on todos only assert empty RETURNING results, not that the target row remained unchanged afterward."
+        "passed": true,
+        "judgeNotes": "All six required tables are asserted against by name. The suite covers anon and authenticated roles, switches authenticated identities across cases, includes allowed and denied select/insert/update/delete outcomes, verifies allowed writes via returned/follow-up state, and handles using-filtered denied updates/deletes with empty results plus state checks rather than expecting errors."
       },
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
@@ -275,14 +275,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guide content about Row Level Security in Postgres/Supabase: best practices, syntax, patterns for policies (select/insert/update/delete), performance recommendations, examples for multi-tenant/shared data, security definer functions, and any specific recommended patterns (e.g. using (select auth.uid()), indexing, security invoker views, etc). Give as much detail and as many code examples as possible verbatim.",
+          "query": "Extract the FULL content of this guide verbatim, especially all code examples, best practices, recommended patterns, warnings, and any specific do's/don'ts for writing Row Level Security policies in Supabase/Postgres. Include exact SQL syntax patterns recommended (e.g. how to reference auth.uid(), use of security definer functions, indexing advice, performance tips, policy structure for SELECT/INSERT/UPDATE/DELETE, multi-tenant patterns, sharing patterns, public read patterns, testing recommendations, etc).",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-rls-tests-in-procedure-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 7769
+          "resultChars": 9479
         }
       ]
     },
