@@ -64,11 +64,9 @@ export async function checkTestCoverage(
     files.map(async (file) => `-- ${file}\n${await ctx.readFile(file)}`)
   );
 
-  // The default judge runs at reasoningEffort 'low', which grades this rubric
-  // inconsistently across runs: the same suite draws a different complaint each
-  // time, and two of the three name coverage the suite has. The rubric is seven
-  // compound conditions over every test file at once, so raise the effort
-  // rather than lengthening it further.
+  // Judge (reasoningEffort 'low') is non-deterministic here. Same suite, different
+  // complaint each run. Rubric has seven compound conditions over every test file;
+  // raising effort rather than simplifying/retrying.
   const verdict = await judge({
     input: sources.join('\n\n'),
     providerOptions: {
