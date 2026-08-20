@@ -11,6 +11,10 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import {
+  CONTENT_API_FLAG_MIN_VERSION,
+  supportsContentApiFlag,
+} from '../harness/mcp-launch.js';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..');
 const SANDBOX = mkdtempSync(join(tmpdir(), 'smoke-eval-strict-'));
@@ -91,6 +95,30 @@ function check(name: string, assertion: () => void, diagnostic?: string) {
 }
 
 try {
+  check('versions below the content API flag release are not capable', () => {
+    for (const version of ['0.8.1', '0.9.0', '0.9.9', '0.1.0']) {
+      assert.equal(supportsContentApiFlag(version), false, version);
+    }
+  });
+  check('the content API flag release and newer are capable', () => {
+    for (const version of [CONTENT_API_FLAG_MIN_VERSION, '0.10.1', '1.0.0']) {
+      assert.equal(supportsContentApiFlag(version), true, version);
+    }
+  });
+  check('content API prereleases are not capable', () => {
+    for (const version of ['0.10.0-dev.1', '0.11.0-beta', '1.0.0-rc.1']) {
+      assert.equal(supportsContentApiFlag(version), false, version);
+    }
+  });
+  check('malformed content API versions throw', () => {
+    for (const version of ['0.10.foo', '0.10', '', 'latest', 'v0.10.0']) {
+      assert.throws(
+        () => supportsContentApiFlag(version),
+        /not a MAJOR\.MINOR\.PATCH version/
+      );
+    }
+  });
+
   {
     const result = runEval([
       '--strict',
@@ -222,6 +250,69 @@ try {
 
   mkdirSync(join(mcpPackage, 'dist', 'transports'), { recursive: true });
   writeFileSync(join(mcpPackage, 'dist', 'transports', 'stdio.js'), '');
+  {
+    const result = runEval([
+      '--strict',
+      '--experiment',
+      EXPERIMENT,
+      '--eval',
+      EVAL,
+      '--content-api',
+      'http://127.0.0.1:3001',
+      '--mcp',
+      mcpCheckout,
+    ]);
+    check('MCP build without the content API flag is refused', () => {
+      assert.equal(result.status, 1, result.output);
+      assert.match(result.output, /no --content-api-url flag/);
+    });
+  }
+
+  writeFileSync(
+    join(mcpPackage, 'dist', 'transports', 'stdio.js'),
+    'process.env.SUPABASE_CONTENT_API_URL\n'
+  );
+  {
+    const result = runEval([
+      '--strict',
+      '--experiment',
+      EXPERIMENT,
+      '--eval',
+      EVAL,
+      '--content-api',
+      'http://127.0.0.1:3001',
+      '--mcp',
+      mcpCheckout,
+    ]);
+    check('MCP env fallback without the content API flag is refused', () => {
+      assert.equal(result.status, 1, result.output);
+      assert.match(result.output, /no --content-api-url flag/);
+    });
+  }
+
+  writeFileSync(
+    join(mcpPackage, 'dist', 'transports', 'stdio.js'),
+    `// parser does not support 'content-api-url': legacy build
+console.error("unsupported '--content-api-url' option");
+`
+  );
+  {
+    const result = runEval([
+      '--strict',
+      '--experiment',
+      EXPERIMENT,
+      '--eval',
+      EVAL,
+      '--content-api',
+      'http://127.0.0.1:3001',
+      '--mcp',
+      mcpCheckout,
+    ]);
+    check('MCP comments and diagnostics do not prove flag support', () => {
+      assert.equal(result.status, 1, result.output);
+      assert.match(result.output, /no --content-api-url flag/);
+    });
+  }
 
   const receiptRun = runEval([
     '--strict',
@@ -272,6 +363,39 @@ try {
       assert.doesNotThrow(() => JSON.parse(readFileSync(resultPath, 'utf8')));
     });
   }
+  writeFileSync(
+    join(mcpPackage, 'dist', 'transports', 'stdio.js'),
+    `const options = {
+  'content-api-url': { type: 'string' },
+};
+`
+  );
+  const contentApiRun = runEval([
+    '--strict',
+    '--experiment',
+    EXPERIMENT,
+    '--eval',
+    EVAL,
+    '--content-api',
+    'http://127.0.0.1:3001',
+    '--mcp',
+    mcpCheckout,
+  ]);
+  check('MCP build with the content API flag reaches the eval path', () => {
+    assert.equal(contentApiRun.status, 0, contentApiRun.output);
+    assert.match(
+      contentApiRun.output,
+      new RegExp(`PASS ${EXPERIMENT} x ${EVAL}`)
+    );
+  });
+  check(
+    'content API override is recorded in the receipt',
+    () => {
+      const receipt = JSON.parse(readFileSync(resultPath, 'utf8'));
+      assert.equal(receipt.provenance.contentApiUrl, 'http://127.0.0.1:3001');
+    },
+    contentApiRun.output
+  );
 
   {
     const result = runEval([
