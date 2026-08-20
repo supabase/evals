@@ -2,7 +2,7 @@
 
 import { APIError, Sandbox } from '@vercel/sandbox';
 import { execFile, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -51,6 +51,7 @@ interface RunnerOptions {
   timeoutSec: number;
   concurrency: number;
   vcpus: number;
+  strict: boolean;
 }
 
 interface PairOptions extends RunnerOptions {
@@ -255,6 +256,7 @@ async function runPairOnce(
         args: [
           'eval',
           '--',
+          ...(options.strict ? ['--strict'] : []),
           '--experiment',
           pair.experiment,
           '--experiment-suite',
@@ -503,6 +505,29 @@ export function parsePairs(value: string): EvalPair[] {
   return parsed.data;
 }
 
+/**
+ * Drops pairs published by a newer main revision when this checkout does not
+ * contain their prompt. Existing local evals still reach run-eval validation.
+ */
+export function filterLocallyAvailablePairs(
+  pairs: readonly EvalPair[],
+  evalsRoot = join(ROOT, 'evals'),
+  note: (message: string) => void = console.warn
+): EvalPair[] {
+  const missing = new Set<string>();
+  const available = pairs.filter((pair) => {
+    if (existsSync(join(evalsRoot, pair.eval_id, 'PROMPT.md'))) return true;
+    missing.add(pair.eval_id);
+    return false;
+  });
+  for (const evalId of missing) {
+    note(
+      `SKIP ${evalId} (published eval is absent from this checkout: evals/${evalId}/PROMPT.md not found)`
+    );
+  }
+  return available;
+}
+
 /** Returns an environment variable or a useful configuration error. */
 function requireEnv(name: string, hint: string): string {
   const value = process.env[name];
@@ -603,9 +628,8 @@ async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2).filter((arg) => arg !== '--');
   const pairsValue = readFlag(rawArgs, 'pairs-json') ?? process.env.EVAL_PAIRS;
   if (!pairsValue) throw new Error('--pairs-json or EVAL_PAIRS is required');
-
   const options: RunnerOptions = {
-    pairs: parsePairs(pairsValue),
+    pairs: filterLocallyAvailablePairs(parsePairs(pairsValue)),
     revision: readFlag(rawArgs, 'revision') ?? currentRevision(),
     repoUrl: readFlag(rawArgs, 'repo-url') ?? repositoryUrl(),
     outputDir: resolve(
@@ -622,6 +646,7 @@ async function main(): Promise<void> {
       'concurrency'
     ),
     vcpus: positiveInteger(readFlag(rawArgs, 'vcpus') ?? '4', 'vcpus'),
+    strict: rawArgs.includes('--strict'),
   };
 
   console.log(
@@ -629,6 +654,7 @@ async function main(): Promise<void> {
   );
   for (const pair of options.pairs) console.log(`PLAN ${pairLabel(pair)}`);
   if (rawArgs.includes('--dry-run')) return;
+  if (options.pairs.length === 0) return;
   await runPairs(options);
 }
 
