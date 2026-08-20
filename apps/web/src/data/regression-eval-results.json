@@ -111,7 +111,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-91820894, todo-a-edit-91820894, todo-a-delete-91820894"
+        "notes": "titles: todo-a-9ce5f629, todo-a-edit-9ce5f629, todo-a-delete-9ce5f629"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -120,7 +120,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-91820894"
+        "notes": "titles: todo-b-9ce5f629"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -159,12 +159,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-91820894"
+        "notes": "names: list-9ce5f629"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-91820894"
+        "notes": "titles: item-9ce5f629"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -244,22 +244,22 @@
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.user_list_ids, private.add_owner_as_list_member"
+        "notes": "verified private.is_list_owner, private.is_list_member"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "6 file(s): supabase/tests/todos_rls.test.sql, supabase/tests/weather_stations_rls.test.sql, supabase/tests/weather_readings_rls.test.sql, supabase/tests/lists_rls.test.sql, supabase/tests/list_members_rls.test.sql, supabase/tests/list_items_rls.test.sql"
+        "notes": "3 file(s): supabase/tests/todos_rls.test.sql, supabase/tests/lists_rls.test.sql, supabase/tests/weather_rls.test.sql"
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
-        "passed": false,
-        "notes": "78 passed, 2 failed, exit 1"
+        "passed": true,
+        "notes": "20 passed, 0 failed, exit 0"
       },
       {
         "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
-        "passed": true,
-        "judgeNotes": "Covers all six required tables with assertions, both roles, role/identity switching, allowed and denied outcomes for all CRUD operations, and allowed writes are checked via RETURNING/results or later state checks. Denied USING-filtered writes are asserted as empty/no-op rather than expected errors."
+        "passed": false,
+        "judgeNotes": "Missing required coverage: no allowed update, no delete allowed/denied tests. The denied todos update is policy-filtered but only asserts zero returned rows, not that the row remained unchanged."
       },
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
@@ -275,14 +275,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full content of this guide about Postgres Row Level Security in Supabase. I need all the details: concepts, best practices, syntax examples, policy patterns (especially for multi-tenant/shared data and public read-only data), performance recommendations, and any gotchas or things to avoid.",
+          "query": "Extract the full content of this guide about Row Level Security in Postgres/Supabase. I need all details: concepts, syntax, best practices, performance recommendations, examples of policies, how to enable RLS, helper functions (auth.uid() etc), and any specific recommendations/gotchas mentioned.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-rls-tests-in-procedure-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 12539
+          "resultChars": 8355
         }
       ]
     },
