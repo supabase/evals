@@ -383,6 +383,24 @@ describe('cliVersion frontmatter', () => {
     expect(metadata.cliVersion).toBe('2.109.1');
   });
 
+  it('accepts an npm beta channel version', () => {
+    const { metadata } = parseEvalMarkdown(
+      [
+        '---',
+        'stage: resolve',
+        'suite: regression',
+        'interface: cli',
+        'cliVersion: 2.115.1-beta.6',
+        'product: database',
+        'topic: migrations',
+        '---',
+        'Fix it.',
+      ].join('\n')
+    );
+
+    expect(metadata.cliVersion).toBe('2.115.1-beta.6');
+  });
+
   it('rejects a non-semver CLI version', () => {
     expect(() =>
       parseEvalMarkdown(

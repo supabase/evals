@@ -99,7 +99,8 @@ export type ExperimentDisplayMetadata = z.infer<
 export const evalInterfaceSchema = z.enum(['mcp', 'cli']);
 export const EVAL_INTERFACES = evalInterfaceSchema.options;
 export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
-const cliVersionSchema = z.string().regex(/^\d+\.\d+\.\d+$/);
+// GitHub/npm release tags: stable `X.Y.Z` or the beta channel `X.Y.Z-beta.N`.
+const cliVersionSchema = z.string().regex(/^\d+\.\d+\.\d+(-beta\.\d+)?$/);
 
 export type EvalMetadata = {
   stage: EvalStage;
