@@ -1,6 +1,4 @@
-import { execFileSync } from "node:child_process"
-import { readFileSync, statSync } from "node:fs"
-import path from "node:path"
+import { readFileSync } from "node:fs"
 import type { Plugin } from "vite"
 
 /**
@@ -50,36 +48,6 @@ function readResults(resultsFile: string): RawResult[] {
   const parsed: unknown = JSON.parse(readFileSync(resultsFile, "utf8"))
 
   return Array.isArray(parsed) ? (parsed as RawResult[]) : []
-}
-
-/**
- * The results carry no date, so use the commit that last touched them. Neither
- * lookup may throw: this runs inside the Vercel build.
- */
-function getDateModified(resultsFile: string) {
-  try {
-    const lastCommitted = execFileSync(
-      "git",
-      ["log", "-1", "--format=%cI", "--", resultsFile],
-      {
-        cwd: path.dirname(resultsFile),
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      }
-    ).trim()
-
-    if (lastCommitted) {
-      return lastCommitted
-    }
-  } catch {
-    // No git available (or no history for the file): fall back to the mtime.
-  }
-
-  try {
-    return statSync(resultsFile).mtime.toISOString()
-  } catch {
-    return undefined
-  }
 }
 
 function buildVariableMeasured(results: RawResult[]) {
@@ -140,7 +108,6 @@ function buildGraph(resultsFile: string) {
   )
   const products = unique(results.flatMap((result) => result.product ?? []))
   const topics = unique(results.flatMap((result) => result.topic ?? []))
-  const dateModified = getDateModified(resultsFile)
 
   return {
     "@context": "https://schema.org",
@@ -154,7 +121,9 @@ function buildGraph(resultsFile: string) {
         inLanguage: "en",
         isAccessibleForFree: true,
         license: "https://www.apache.org/licenses/LICENSE-2.0",
-        ...(dateModified ? { dateModified } : {}),
+        // No `dateModified`: the results JSON carries no timestamp of its
+        // own, and a git-derived date is unreliable because Vercel
+        // shallow-clones the repo at `--depth=10`.
         keywords: [...stages, ...products, ...topics],
         size: {
           "@type": "QuantitativeValue",
