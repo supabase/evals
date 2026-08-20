@@ -352,7 +352,7 @@ function formatActionsForJudge(toolCalls: ToolCallRecord[]): string {
         outcome = `\n   output: ${truncMiddle(res, 600)}`;
       }
 
-      return `#${i + 1} [${tc.endpoint}] ${truncHead(String(action), 300)}${outcome}`;
+      return `#${i + 1} [${tc.tool.toolName}] ${truncHead(String(action), 300)}${outcome}`;
     })
     .join('\n');
 }

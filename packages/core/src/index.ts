@@ -1,14 +1,20 @@
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { createHash, createHmac } from 'node:crypto';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { promisify } from 'node:util';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import type { ToolName } from './transcript/types.js';
+import type { ToolCall, ToolName } from './transcript/types.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
@@ -181,7 +187,12 @@ export interface JudgeResult {
 }
 
 export interface ToolCallRecord {
-  endpoint: string;
+  /**
+   * Structured call identity: bare `toolName` plus its `mcp`/`other` source
+   * (and `server` for MCP). Replaces the old flat `endpoint` string so scorers
+   * can disambiguate an MCP server's tool from a same-named native/other tool.
+   */
+  tool: ToolCall;
   body: Record<string, unknown>;
   /**
    * Normalized, agent-agnostic views of common args, when the agent's parser
@@ -404,6 +415,20 @@ export type AgentHarness = {
  */
 export type SkillSource = { name: string; dir: string };
 
+/**
+ * A host directory bind-mounted into the agent sandbox. Read-only by default;
+ * mounted at the identical container path unless `containerPath` overrides it
+ * (identical paths let one command config work on both host and container).
+ */
+export type SandboxMount = {
+  /** Host directory to mount. */
+  hostPath: string;
+  /** Mount point inside the container; defaults to `hostPath`. */
+  containerPath?: string;
+  /** Mount read-only (default true). */
+  readonly?: boolean;
+};
+
 export type LocalStackSessionArgs = {
   /** Supabase CLI version this scenario requires, overriding the runtime default. */
   cliVersion?: string;
@@ -439,6 +464,12 @@ export type LocalStackSessionArgs = {
    * instead, so they ignore this.
    */
   skills?: readonly SkillSource[];
+  /**
+   * Extra host directories to bind-mount into the sandbox (read-only by
+   * default) — e.g. a local MCP server build the in-container agent must be
+   * able to launch. See `supabaseMcpServerMounts`.
+   */
+  mounts?: readonly SandboxMount[];
   /**
    * Skip installing the real Supabase CLI into the sandbox (from
    * `skipCliInstall:` frontmatter), for scenarios whose prompt has the agent
@@ -642,6 +673,14 @@ export function aiSdkAgent(options: {
       const mcpHandles = args.mcpServers
         ? await createAiSdkTools(args.mcpServers)
         : [];
+      // Map each MCP tool name to its server so tool calls can be attributed.
+      // AI SDK keys tools by their bare MCP tool name (no server prefix).
+      const mcpToolServers = new Map<string, string>();
+      for (const handle of mcpHandles) {
+        for (const toolName of Object.keys(handle.tools)) {
+          mcpToolServers.set(toolName, handle.serverName);
+        }
+      }
       const toolCalls: ToolCallRecord[] = [];
       const transcript: TranscriptPart[] = [
         { type: 'message', role: 'system', content: args.systemPrompt },
@@ -679,8 +718,12 @@ export function aiSdkAgent(options: {
               typeof input.command === 'string'
                 ? input.command
                 : undefined;
+            const toolName = event.toolCall.toolName;
+            const server = mcpToolServers.get(toolName);
             toolCalls.push({
-              endpoint: event.toolCall.toolName,
+              tool: server
+                ? { kind: 'mcp', server, toolName }
+                : { kind: 'other', toolName },
               body: input,
               command,
               loadedSkills,
@@ -798,6 +841,7 @@ type ResolvedMcpServer = {
 };
 
 type McpClientHandle = {
+  serverName: string;
   tools: ToolSet;
   close(): Promise<void>;
 };
@@ -911,8 +955,9 @@ export function supabaseMcpServer(
   return {
     name: 'supabase-mcp',
     async createConfig({ apiUrl, accessToken } = {}) {
-      const args = [
-        `@supabase/mcp-server-supabase@${version}`,
+      // Server flags are identical whether we launch the published package via
+      // npx or a local build directly with node.
+      const serverArgs = [
         // The server refuses to boot without a token; with only platform-
         // independent features (docs) it never authenticates against the
         // management API, so a well-formed throwaway is enough.
@@ -924,10 +969,109 @@ export function supabaseMcpServer(
       // Only point the server at a platform when one is given. `docs` is
       // platform-independent (it queries the public docs GraphQL API), so a
       // docs-only server runs standalone with no `--api-url`.
-      if (apiUrl) args.push('--api-url', apiUrl);
-      return { config: { command: 'npx', args } };
+      if (apiUrl) serverArgs.push('--api-url', apiUrl);
+
+      const local = resolveLocalMcpServer();
+      if (local) {
+        // `node`, not process.execPath: CLI agents run this command INSIDE the
+        // sandbox container, where the host's node binary path does not exist.
+        // Both container and host resolve `node` via PATH.
+        return {
+          config: { command: 'node', args: [local.entry, ...serverArgs] },
+        };
+      }
+
+      return {
+        config: {
+          command: 'npx',
+          args: [`@supabase/mcp-server-supabase@${version}`, ...serverArgs],
+        },
+      };
     },
   };
+}
+
+/**
+ * SUPABASE_MCP_SERVER_PATH swaps the published npx package for a local build
+ * (a repo/package dir or a direct .js/.mjs/.cjs entrypoint), so a workspace
+ * can test an unpublished server change without publishing to npm. Relative
+ * paths resolve against the evals checkout root (not the process CWD), so
+ * `submodules/mcp/packages/mcp-server-supabase` works from any directory.
+ *
+ * Memoized per env value: createConfig and the sandbox mounts both resolve,
+ * and each resolution spawns git (anchor + mount root) — cache so repeat
+ * calls within a run cost nothing. Keyed on the raw env string because tests
+ * (and in principle callers) change it between calls; the not-found error
+ * path is deliberately uncached so a fixed build is picked up on retry.
+ */
+type LocalMcpServer = { entry: string; baseDir: string; mountRoot: string };
+let localMcpServerCache: { key: string; value: LocalMcpServer } | null = null;
+
+function resolveLocalMcpServer(): LocalMcpServer | null {
+  const localServerPath = process.env.SUPABASE_MCP_SERVER_PATH;
+  if (!localServerPath) return null;
+  if (localMcpServerCache?.key === localServerPath)
+    return localMcpServerCache.value;
+
+  const anchor =
+    gitToplevel(dirname(fileURLToPath(import.meta.url))) ?? process.cwd();
+  const isEntryFile = /\.[cm]?js$/.test(localServerPath);
+  const base = resolve(anchor, localServerPath);
+  const probe = isEntryFile
+    ? base
+    : join(base, 'dist', 'transports', 'stdio.js');
+  if (!existsSync(probe)) {
+    throw new Error(
+      `SUPABASE_MCP_SERVER_PATH resolved to ${probe}, which does not exist — ` +
+        `build the server first (pnpm install && pnpm build in the mcp checkout); ` +
+        `see README "Running against an exact MCP server revision".`
+    );
+  }
+  // One filesystem view for command AND mount: the sandbox bind-mounts the
+  // realpath (Docker resolves sources against the daemon's view), so the
+  // command must reference the same view — an override under a symlinked dir
+  // (macOS /tmp -> /private/tmp) would otherwise exec a path that does not
+  // exist in-container. Canonicalize the BASE once and derive the entry from
+  // it (never realpath the entry separately: a symlinked dist/ target could
+  // resolve outside the mounted baseDir).
+  const realBase = realpathSync(base);
+  const baseDir = isEntryFile ? dirname(realBase) : realBase;
+  const value: LocalMcpServer = {
+    entry: isEntryFile
+      ? realBase
+      : join(realBase, 'dist', 'transports', 'stdio.js'),
+    baseDir,
+    // The whole git toplevel (not just dist/) because the build is unbundled:
+    // it requires its node_modules at runtime.
+    mountRoot: gitToplevel(baseDir) ?? baseDir,
+  };
+  localMcpServerCache = { key: localServerPath, value };
+  return value;
+}
+
+function gitToplevel(dir: string): string | null {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: dir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sandbox mounts required to launch the SUPABASE_MCP_SERVER_PATH build inside
+ * a containerized agent sandbox. A CLI agent's MCP command runs INSIDE the
+ * container, where the host build is invisible — so the build's checkout is
+ * bind-mounted read-only at its identical (real) path, letting the same
+ * config work on both sides, with host rebuilds visible immediately (no
+ * re-copy). Empty when unset.
+ */
+export function supabaseMcpServerMounts(): SandboxMount[] {
+  const local = resolveLocalMcpServer();
+  return local ? [{ hostPath: local.mountRoot, readonly: true }] : [];
 }
 
 export function executorMcpServer(): McpServerDefinition {
@@ -1239,7 +1383,7 @@ async function createAiSdkTools(
   const handles: McpClientHandle[] = [];
 
   try {
-    for (const server of Object.values(mcpServers)) {
+    for (const [serverName, server] of Object.entries(mcpServers)) {
       const transport = new StdioMCPTransport({
         command: server.command,
         args: server.args,
@@ -1248,7 +1392,7 @@ async function createAiSdkTools(
       });
       const mcp = await createMCPClient({ transport });
       const tools = await mcp.tools();
-      handles.push({ tools, close: () => mcp.close() });
+      handles.push({ serverName, tools, close: () => mcp.close() });
     }
   } catch (err) {
     await closeMcpHandles(handles);

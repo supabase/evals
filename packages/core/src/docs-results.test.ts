@@ -1,19 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
+import { parseClaudeCodeToolCall } from './agents/claude-code/parser.js';
 import {
   buildDocsResult,
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';
 import type { ToolCallRecord } from './index.js';
 
-/** Builds the minimal tool call record needed by docs-result tests. */
+/** Builds the minimal tool call record needed by docs-result tests, from a raw
+ * agent tool name (Claude Code's `mcp__server__tool` shape). */
 function toolCall(
-  endpoint: string,
+  rawName: string,
   body: Record<string, unknown>,
   options: Partial<
     Pick<ToolCallRecord, 'url' | 'result' | 'name' | 'command' | 'error'>
   > = {}
 ): ToolCallRecord {
-  return { endpoint, body, ...options, ts: 0 };
+  return { tool: parseClaudeCodeToolCall(rawName), body, ...options, ts: 0 };
 }
 
 describe('buildDocsResult', () => {

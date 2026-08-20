@@ -21,7 +21,9 @@ import {
 } from '@supabase-evals/sandbox';
 import {
   normalizeExperimentName,
+  positiveInteger,
   readExperimentSuiteFilters,
+  readFlag,
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
@@ -32,6 +34,7 @@ import {
   buildSkillResult,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
+  supabaseMcpServerMounts,
 } from '@supabase-evals/core';
 import type {
   ExperimentConfig,
@@ -72,9 +75,15 @@ const SELECTED_EXPERIMENT_SUITE =
   EXPERIMENT_SUITE_FILTERS.length === 1
     ? EXPERIMENT_SUITE_FILTERS[0]
     : undefined;
-const RUNS = Number(readFlag('runs') ?? 1);
-const TIMEOUT_SEC = Number(readFlag('timeout-sec') ?? 720);
-const CONCURRENCY = Number(readFlag('concurrency') ?? 1);
+const RUNS = positiveInteger(readFlag(rawArgs, 'runs') ?? '1', 'runs');
+const TIMEOUT_SEC = positiveInteger(
+  readFlag(rawArgs, 'timeout-sec') ?? '720',
+  'timeout-sec'
+);
+const CONCURRENCY = positiveInteger(
+  readFlag(rawArgs, 'concurrency') ?? '1',
+  'concurrency'
+);
 const STOP_ON_PASS = !args.has('--run-all-attempts');
 const DEBUG = args.has('--debug');
 
@@ -89,22 +98,6 @@ async function loadExperiments() {
     });
   }
   return out;
-}
-
-function readFlag(name: string): string | undefined {
-  const prefix = `--${name}=`;
-  const inline = rawArgs.find((arg) => arg.startsWith(prefix));
-  if (inline) return inline.slice(prefix.length);
-
-  const idx = rawArgs.indexOf(`--${name}`);
-  if (idx !== -1) {
-    const value = rawArgs[idx + 1];
-    if (!value || value.startsWith('--')) {
-      throw new Error(`--${name} requires a value`);
-    }
-    return value;
-  }
-  return undefined;
 }
 
 /**
@@ -439,6 +432,7 @@ async function runOne(
               }
             : undefined,
           skills: skillSources,
+          mounts: supabaseMcpServerMounts(),
           skipCliInstall: ev.metadata.skipCliInstall,
         })
       );
@@ -508,7 +502,12 @@ async function runOne(
     // platform-lite via host.docker.internal (so platform-lite binds 0.0.0.0).
     // An in-process agent runs host-side with no sandbox.
     await using cliSandbox = agentRunsInSandbox
-      ? disposable(await createBareSandbox({ skills: skillSources }))
+      ? disposable(
+          await createBareSandbox({
+            skills: skillSources,
+            mounts: supabaseMcpServerMounts(),
+          })
+        )
       : undefined;
     await using session = disposable(
       await exp.runtime.startSession({

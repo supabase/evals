@@ -9,7 +9,7 @@
  */
 
 import type { ToolCallRecord, TranscriptPart } from '../index.js';
-import type { TranscriptEvent } from '../transcript/types.js';
+import type { ToolCall, TranscriptEvent } from '../transcript/types.js';
 
 export interface AdaptedTranscript {
   transcript: TranscriptPart[];
@@ -56,15 +56,20 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
       const resolved = event.tool.id
         ? resultsById.get(event.tool.id)
         : undefined;
+      // Parsers set `call` on tool_call events; fall back defensively.
+      const call: ToolCall = event.tool.call ?? {
+        kind: 'other',
+        toolName: event.tool.originalName,
+      };
       transcript.push({
         type: 'tool_call',
-        name: event.tool.originalName,
+        name: call.toolName,
         input: body,
         output: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
       });
       toolCalls.push({
-        endpoint: event.tool.originalName,
+        tool: call,
         body,
         // Normalized views the parser extracted, for agent-agnostic scorers.
         name: event.tool.name,

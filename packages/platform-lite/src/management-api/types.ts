@@ -1265,6 +1265,34 @@ export interface paths {
          *
          *     Note: Unless the `sql` parameter is provided, only edge_logs will be queried. See the [log query docs](/docs/guides/telemetry/logs?queryGroups=product&product=postgres&queryGroups=source&source=edge_logs#querying-with-the-logs-explorer:~:text=logs%20from%20the-,Sources,-drop%2Ddown%3A) for all available sources.
          */
+        get: operations["v1-get-project-logs-all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{ref}/analytics/endpoints/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gets all project's logs in a single log stream
+         * @description Executes an SQL or LQL query on the project's unified logs stream.
+         *
+         *     Either the `iso_timestamp_start` and `iso_timestamp_end` parameters must be provided.
+         *     If both are not provided, only the last 1 minute of logs will be queried.
+         *     The timestamp range must be no more than 24 hours and is rounded to the nearest minute. If the range is more than 24 hours, a validation error will be thrown.
+         *
+         *     Filter by the `source` column to specify specific log sources, such as edge_logs, postgres_logs, etc.
+         *
+         *     Note: SQL must be written in **ClickHouse SQL dialect**.
+         */
         get: operations["v1-get-project-logs"];
         put?: never;
         post?: never;
@@ -9436,6 +9464,54 @@ export interface operations {
             };
         };
     };
+    "v1-get-project-logs-all": {
+        parameters: {
+            query?: {
+                /** @description Custom SQL query to execute on the logs. See [querying logs](/docs/guides/telemetry/logs?queryGroups=product&product=postgres&queryGroups=source&source=edge_logs#querying-with-the-logs-explorer) for more details. */
+                sql?: string;
+                iso_timestamp_start?: string;
+                iso_timestamp_end?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project ref */
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     "v1-get-project-logs": {
         parameters: {
             query?: {
@@ -9463,6 +9539,13 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Usage exceeded. Enable additional usage to continue querying */
+            402: {
                 headers: {
                     [name: string]: unknown;
                 };
