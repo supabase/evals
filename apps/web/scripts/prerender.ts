@@ -12,8 +12,8 @@ const htmlFile = path.join(appDir, "dist", "index.html")
 const serverEntryFile = path.join(appDir, "dist-ssr", "entry-server.js")
 
 const ROOT_DIV = '<div id="root"></div>'
-/** The default view renders a header row plus one row per model, so this is a floor. */
-const MIN_TABLE_ROWS = 3
+/** The results table renders one header row above its data rows. */
+const HEADER_ROWS = 1
 /** Rendered by App when the results file parses to nothing. */
 const EMPTY_STATE = "No result files found"
 
@@ -39,8 +39,11 @@ function fail(reason: string): never {
 }
 
 let render
+let expectedTableRows
 try {
-  ;({ render } = await import(pathToFileURL(serverEntryFile).href))
+  ;({ render, expectedTableRows } = await import(
+    pathToFileURL(serverEntryFile).href
+  ))
 } catch (error) {
   fail(
     `could not import ${path.relative(appDir, serverEntryFile)} (${messageOf(error)})`
@@ -49,6 +52,14 @@ try {
 
 if (typeof render !== "function") {
   fail(`${path.relative(appDir, serverEntryFile)} does not export render()`)
+}
+
+// The entry counts the rows from the app's own defaults, so the expectation
+// below tracks the default view rather than a hand-written floor.
+if (typeof expectedTableRows !== "number" || expectedTableRows < 1) {
+  fail(
+    `${path.relative(appDir, serverEntryFile)} exported expectedTableRows as ${String(expectedTableRows)}, so the default view has no rows to render`
+  )
 }
 
 let markup = ""
@@ -62,10 +73,15 @@ if (markup.includes(EMPTY_STATE)) {
   fail("the app rendered its empty state, so the results data did not load")
 }
 
+const expectedRows = expectedTableRows + HEADER_ROWS
 const tableRows = markup.match(/<tr\b/g)?.length ?? 0
-if (!markup.includes("<table") || tableRows < MIN_TABLE_ROWS) {
+if (!markup.includes("<table")) {
+  fail("the rendered markup has no results table")
+}
+
+if (tableRows !== expectedRows) {
   fail(
-    `the rendered markup has no results table (found ${tableRows} table rows, expected at least ${MIN_TABLE_ROWS})`
+    `the rendered table has ${tableRows} rows, expected ${expectedRows} (${expectedTableRows} data rows plus a header)`
   )
 }
 

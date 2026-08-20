@@ -110,6 +110,14 @@ export function getVisibleExperiments(sourceResults: ParsedResult[]) {
   ).sort((a, b) => a.localeCompare(b))
 }
 
+/** The runs shown when the results view is set to one experiment suite. */
+export function getSuiteResults(
+  suite: ExperimentSuite,
+  sourceResults = sortedResults
+) {
+  return sourceResults.filter((result) => result.experimentSuite === suite)
+}
+
 export function getExperimentDisplay(experiment: string) {
   return sortedResults.find((result) => result.experiment === experiment)
     ?.experimentDisplay
