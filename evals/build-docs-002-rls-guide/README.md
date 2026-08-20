@@ -28,14 +28,6 @@ The probes use three users. The list owner, an outsider, and a member who neithe
 
 Nothing in the migration says who may read or write what.
 
-## The eval runs with and without skills
-
-The no-skills run is the measurement of the guide. The default skill set states several of the answers outright, so a pass with skills installed is not evidence that the page taught anything.
-
-The with-skills run is still worth having. A user who already has the skill installed can paste this same prompt, and that is a real scenario to measure. Read the two cells as different questions rather than as one score, and use the no-skills cell when the question is whether the guide works.
-
-This eval therefore pins no `skills` override. Sibling `build-docs-` evals whose prompt has the agent install its own tooling keep `skills: []`, because preinstalled skills make "can the agent install the skill" meaningless.
-
 ## The prompt never asks for tests
 
 Whether the agent arrives at pgTAP is itself a measurement. If agents do not write tests here, that says something about how reachable testing is from the guide.
