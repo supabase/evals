@@ -111,7 +111,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-d87b0f43, todo-a-edit-d87b0f43, todo-a-delete-d87b0f43"
+        "notes": "titles: todo-a-e99ee3ca, todo-a-edit-e99ee3ca, todo-a-delete-e99ee3ca"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -120,7 +120,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-d87b0f43"
+        "notes": "titles: todo-b-e99ee3ca"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -159,12 +159,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-d87b0f43"
+        "notes": "names: list-e99ee3ca"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-d87b0f43"
+        "notes": "titles: item-e99ee3ca"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -239,27 +239,28 @@
       },
       {
         "name": "columns the policies filter on have a btree index",
-        "passed": true
+        "passed": false,
+        "notes": "no complete btree index leading with: list_members.user_id"
       },
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.is_list_owner, private.can_access_list"
+        "notes": "verified private.can_access_list, private.is_list_owner"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
         "passed": true,
-        "notes": "6 file(s): supabase/tests/todos_rls.test.sql, supabase/tests/lists_rls.test.sql, supabase/tests/list_members_rls.test.sql, supabase/tests/list_items_rls.test.sql, supabase/tests/weather_stations_rls.test.sql, supabase/tests/weather_readings_rls.test.sql"
+        "notes": "3 file(s): supabase/tests/todos_rls.test.sql, supabase/tests/lists_rls.test.sql, supabase/tests/weather_rls.test.sql"
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": true,
-        "notes": "36 passed, 0 failed, exit 0"
+        "notes": "22 passed, 0 failed, exit 0"
       },
       {
         "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
         "passed": false,
-        "judgeNotes": "Fails: allowed writes are often proved only with lives_ok and not by checking state (e.g. allowed inserts into todos/list_members/list_items and allowed deletes from list_members). Also using-filtered denied updates/deletes assert empty RETURNING results but do not assert the target rows remained unchanged (e.g. todos update, lists update/delete). All six required tables are exercised and both anon/auth roles are covered."
+        "judgeNotes": "Denied update/delete cases that are filtered by USING only assert zero returned rows, not that the target rows remained unchanged. In particular, the denied update on todos and denied delete on list_items should verify the original rows are still intact."
       },
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
@@ -275,14 +276,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the complete guide content: all guidance, best practices, syntax examples, gotchas, performance tips, and recommended patterns for setting up Row Level Security policies in Supabase/Postgres. Include exact code examples verbatim.",
+          "query": "Extract the full content of this guide about Row Level Security in Postgres/Supabase. I need the complete guidance including best practices, syntax examples, performance recommendations, common patterns (like policies for own data, shared data, public read access), and any specific recommendations about writing RLS policies, indexes, functions, roles (authenticated/anon), etc. Please provide as much verbatim detail as possible, especially code examples.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-rls-tests-in-procedure-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 8130
+          "resultChars": 8834
         }
       ]
     },
