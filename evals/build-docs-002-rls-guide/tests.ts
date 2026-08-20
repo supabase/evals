@@ -64,8 +64,16 @@ export async function checkTestCoverage(
     files.map(async (file) => `-- ${file}\n${await ctx.readFile(file)}`)
   );
 
+  // The default judge runs at reasoningEffort 'low', which grades this rubric
+  // inconsistently across runs: the same suite draws a different complaint each
+  // time, and two of the three name coverage the suite has. The rubric is seven
+  // compound conditions over every test file at once, so raise the effort
+  // rather than lengthening it further.
   const verdict = await judge({
     input: sources.join('\n\n'),
+    providerOptions: {
+      openai: { reasoningEffort: 'high', textVerbosity: 'low' },
+    },
     rubric: stripIndent`
       You are reviewing pgTAP test files written to prove that Row Level
       Security policies on a Postgres database behave correctly.
