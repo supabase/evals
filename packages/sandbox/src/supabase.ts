@@ -152,6 +152,39 @@ export async function installSupabaseCli(
   );
 }
 
+/**
+ * Extract the CLI version from `supabase --version` output. Matches the first
+ * semver-shaped token (prerelease suffixes like `2.115.1-beta.6` included), so
+ * it tolerates both the bare-number output and any `supabase version x.y.z`
+ * wrapping. Returns undefined when no version is present (e.g. an error blob).
+ */
+export function parseSupabaseCliVersion(output: string): string | undefined {
+  return output.match(/\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.]*)?/)?.[0];
+}
+
+/**
+ * Report the CLI version actually installed in the sandbox, as ground truth
+ * for result metadata: eval frontmatter can override a requested experiment
+ * pin (frontmatter wins in localStackRuntime), so the requested version and
+ * the installed one can genuinely differ. Best-effort — returns undefined
+ * (with a warning) rather than failing the session over a probe.
+ */
+export async function resolveInstalledCliVersion(
+  sandbox: DockerSandbox
+): Promise<string | undefined> {
+  const result = await sandbox.runShell('supabase --version');
+  const version = result.ok
+    ? parseSupabaseCliVersion(result.stdout)
+    : undefined;
+  if (!version) {
+    console.warn(
+      '[sandbox] could not resolve `supabase --version`:',
+      (result.stderr || result.stdout).slice(0, 200)
+    );
+  }
+  return version;
+}
+
 export interface SetupSupabaseSandboxOptions {
   /** Supabase CLI version to install into the sandbox (pinned default). */
   cliVersion?: string;

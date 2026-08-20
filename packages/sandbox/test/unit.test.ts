@@ -12,6 +12,7 @@ import {
   buildServiceWrapperScript,
   buildSupabaseStartCommand,
   computeExcludedServices,
+  parseSupabaseCliVersion,
   startSupabaseProject,
 } from '../src/supabase.js';
 import type { DockerSandbox } from '../src/docker-sandbox.js';
@@ -162,6 +163,24 @@ describe('buildServiceWrapperScript', () => {
     );
     expect(script).not.toContain('--dns-resolver');
     expect(script).not.toContain('"$1" = "link"');
+  });
+});
+
+describe('parseSupabaseCliVersion', () => {
+  it('parses a bare version number', () => {
+    expect(parseSupabaseCliVersion('2.67.1\n')).toBe('2.67.1');
+  });
+
+  it('parses a wrapped version line', () => {
+    expect(parseSupabaseCliVersion('supabase version 2.115.0')).toBe('2.115.0');
+  });
+
+  it('keeps prerelease suffixes (beta-channel builds)', () => {
+    expect(parseSupabaseCliVersion('2.115.1-beta.6\n')).toBe('2.115.1-beta.6');
+  });
+
+  it('returns undefined when no version is present', () => {
+    expect(parseSupabaseCliVersion('command not found')).toBeUndefined();
   });
 });
 

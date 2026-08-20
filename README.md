@@ -137,6 +137,29 @@ Test the sandbox plumbing without an agent run (Docker required, not part of `pn
 pnpm --filter @supabase-evals/sandbox test:docker
 ```
 
+## CLI version matrix
+
+Local-stack evals install a pinned Supabase CLI (`SUPABASE_CLI_VERSION` in `packages/sandbox/src/supabase.ts`). The CLI version matrix compares agent capability across CLI versions, so the CLI team gets a signal when a release adds or breaks an agent capability:
+
+- **Version arms** are experiments that differ from `claude-code-sonnet-5` only in `localStackRuntime({ cliVersion })` (built by `experiments/lib/cli-version-matrix.ts`). Arms skip evals that pin `cliVersion` in frontmatter (a frontmatter pin overrides the experiment's version, so the arm's version would silently not apply) and evals whose `interface` isn't `cli` (they never touch the CLI under test).
+- Every local-stack result records `resolvedCliVersion` — the `supabase --version` actually reported inside the sandbox — so reports never trust the requested pin.
+
+Run a manual version A/B (the repository pin vs the stable arm's snapshot version):
+
+```bash
+pnpm eval -- --suite regression --runs 2 \
+  --experiment claude-code-sonnet-5-cli-pin \
+  --experiment claude-code-sonnet-5-cli-stable
+
+pnpm compare-results -- \
+  --baseline results/claude-code-sonnet-5-cli-pin \
+  --candidate results/claude-code-sonnet-5-cli-stable
+```
+
+`compare-results` prints a per-scenario markdown verdict table — `IMPROVED (FAIL→PASS)`, `REGRESSED (PASS→FAIL)`, or the checks-score delta — pasteable into Slack or a Linear comment (`--output delta.md` to also write a file).
+
+The nightly regression cron (`eval-refresh.yml`) additionally runs `claude-code-sonnet-5-cli-beta`, installing the latest supabase/cli prerelease (resolved at workflow time into `SUPABASE_CLI_BETA_VERSION`), and publishes the pin-vs-beta delta table as the workflow run summary plus a `cli-version-delta` artifact. The delta is informational only: a person reviews it and files supabase/cli issues for real regressions.
+
 ## Skills
 
 Skills come from [`supabase/agent-skills`](https://github.com/supabase/agent-skills), pinned as a git submodule at `submodules/agent-skills`. The `skills/` directory contains symlinks into the submodule.

@@ -79,6 +79,7 @@ jobs:
       sandbox_concurrency: ${{ steps.inputs.outputs.sandbox_concurrency }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
       do_merge: ${{ steps.inputs.outputs.do_merge }}
+      cli_beta_version: ${{ steps.cli-beta.outputs.version }}
     steps:
       - name: Prepare inputs
         id: inputs
@@ -143,6 +144,28 @@ jobs:
             echo "do_merge=$do_merge"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Resolve CLI beta version
+        # CLI version matrix (CLI-2221): resolve the supabase/cli beta channel
+        # (latest prerelease) for the claude-code-sonnet-5-cli-beta version arm.
+        # Scheduled + manual runs only: PR-labeled runs leave the variable
+        # unset, so the beta arm skips every eval and adds no pairs there.
+        id: cli-beta
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="$(gh api 'repos/supabase/cli/releases?per_page=20' \
+            --jq '[.[] | select(.prerelease and (.draft | not))][0].tag_name // empty')"
+          if [ -z "$tag" ]; then
+            echo "::error::could not resolve the supabase/cli beta version (no prerelease among the latest 20 releases)"
+            exit 1
+          fi
+          echo "Resolved supabase/cli beta channel: $tag"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
@@ -164,6 +187,9 @@ jobs:
         id: discover
         env:
           GH_TOKEN: ${{ github.token }}
+          # The beta version arm's skipEval drops every eval when this is
+          # unset, which also drops the arm from `pnpm eval list` here.
+          SUPABASE_CLI_BETA_VERSION: ${{ steps.cli-beta.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -271,6 +297,9 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # Forwarded into each sandbox's .env by run-vercel-evals so the beta
+      # version arm (claude-code-sonnet-5-cli-beta) knows which CLI to install.
+      SUPABASE_CLI_BETA_VERSION: ${{ needs.prepare.outputs.cli_beta_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -444,6 +473,36 @@ jobs:
             fi
             pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
           fi
+
+      - name: Publish CLI version delta
+        # CLI version matrix (CLI-2221): when the beta version arm ran, render
+        # the pin-vs-beta delta table into the run summary and keep it as an
+        # artifact. Informational only — a human reviews the delta and files
+        # supabase/cli issues for real regressions; nothing is gated on it.
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          baseline=results/claude-code-sonnet-5
+          candidate=results/claude-code-sonnet-5-cli-beta
+          if [ ! -d "$baseline" ] || [ ! -d "$candidate" ]; then
+            echo "No CLI version arm in this run — skipping the delta report"
+            exit 0
+          fi
+
+          pnpm --filter @supabase-evals/framework compare-results -- \
+            --baseline "$baseline" \
+            --candidate "$candidate" \
+            --output cli-version-delta.md
+          cat cli-version-delta.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload CLI version delta
+        if: hashFiles('cli-version-delta.md') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cli-version-delta
+          path: cli-version-delta.md
+          retention-days: 30
 
       - name: Upload exported results
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'

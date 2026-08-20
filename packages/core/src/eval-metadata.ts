@@ -338,6 +338,11 @@ const evalResultShape = {
   suite: evalSuiteSchema.optional(),
   interface: evalInterfaceSchema.optional(),
   cliVersion: cliVersionSchema.optional(),
+  // CLI version actually reported by `supabase --version` inside the sandbox
+  // (ground truth vs the requested pin — frontmatter can override an
+  // experiment's version). Plain string, not cliVersionSchema: the installed
+  // build can be a prerelease (e.g. `2.115.1-beta.6`).
+  resolvedCliVersion: z.string().optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
   attempts: z.number().optional(),

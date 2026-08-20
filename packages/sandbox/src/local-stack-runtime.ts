@@ -11,7 +11,10 @@ import {
 } from '@supabase-evals/core';
 import { DockerSandbox } from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
-import { teardownSupabaseProject } from './supabase.js';
+import {
+  resolveInstalledCliVersion,
+  teardownSupabaseProject,
+} from './supabase.js';
 import { buildSkillsPrompt } from './skills.js';
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
@@ -103,6 +106,13 @@ export function localStackRuntime(
       });
       const sandbox = env.sandbox;
 
+      // Probe the installed CLI for its actual version so results record what
+      // ran, not what was requested. Skipped when the scenario has the agent
+      // install the CLI itself (nothing to probe before the agent starts).
+      const resolvedCliVersion = skipCliInstall
+        ? undefined
+        : await resolveInstalledCliVersion(sandbox);
+
       const mcpServers = await resolveMcpServers(options, hosted);
 
       let baseAddendum =
@@ -120,6 +130,7 @@ export function localStackRuntime(
         tools: buildLocalStackTools(sandbox),
         sandbox: toAgentSandbox(sandbox),
         mcpServers,
+        resolvedCliVersion,
         promptAddendum: [baseAddendum, buildSkillsPrompt(env.skills)]
           .filter(Boolean)
           .join('\n\n'),

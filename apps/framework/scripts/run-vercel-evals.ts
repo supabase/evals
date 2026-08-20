@@ -21,6 +21,10 @@ const AGENT_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
+  // CLI version matrix: the beta channel version resolved by eval-refresh.
+  // The in-sandbox `pnpm eval` loads it from .env, where the beta version arm
+  // experiment (claude-code-sonnet-5-cli-beta) reads it.
+  'SUPABASE_CLI_BETA_VERSION',
 ];
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,

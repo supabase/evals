@@ -125,6 +125,9 @@ async function readResultFile(
     suite: promptData?.suite ?? parsedResult.suite,
     interface: promptData?.interface ?? parsedResult.interface,
     cliVersion: promptData?.cliVersion ?? parsedResult.cliVersion,
+    // Always from the result snapshot, never the prompt: this is the version
+    // the sandbox actually reported, not an authored value.
+    resolvedCliVersion: parsedResult.resolvedCliVersion,
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
     skills: parsedResult.skills,

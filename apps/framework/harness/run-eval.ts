@@ -353,6 +353,7 @@ async function runOne(
     transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
+    resolvedCliVersion: string | undefined;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -384,6 +385,7 @@ async function runOne(
   let lastTranscript: TranscriptPart[] = [];
   let lastAgentReport = '';
   let lastStoppedReason = 'not_started';
+  let lastResolvedCliVersion: string | undefined;
 
   for (let attempt = 1; attempt <= RUNS; attempt += 1) {
     if (ev.mode === 'local-stack') {
@@ -436,6 +438,8 @@ async function runOne(
           skipCliInstall: ev.metadata.skipCliInstall,
         })
       );
+
+      lastResolvedCliVersion = session.resolvedCliVersion;
 
       const run = await exp.agent.run({
         systemPrompt: buildSystemPrompt('local-stack', session.promptAddendum),
@@ -490,6 +494,7 @@ async function runOne(
           transcript: run.transcript,
           agentReport: run.agentReport,
           stoppedReason: run.stoppedReason,
+          resolvedCliVersion: session.resolvedCliVersion,
         };
       }
       logRetryAttempt(expName, ev, attempt, last);
@@ -561,6 +566,8 @@ async function runOne(
         transcript: run.transcript,
         agentReport: run.agentReport,
         stoppedReason: run.stoppedReason,
+        // Tools mode never installs the CLI, so there is no version to record.
+        resolvedCliVersion: undefined,
       };
     }
     logRetryAttempt(expName, ev, attempt, last);
@@ -575,6 +582,7 @@ async function runOne(
     transcript: lastTranscript,
     agentReport: lastAgentReport,
     stoppedReason: lastStoppedReason,
+    resolvedCliVersion: lastResolvedCliVersion,
   };
 }
 

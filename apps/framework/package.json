@@ -4,15 +4,16 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "check": "pnpm typecheck && pnpm test:framework && pnpm test:vercel-runner",
+    "check": "pnpm typecheck && pnpm test:framework && pnpm test:unit",
     "eval": "node --env-file=../../.env --import tsx/esm harness/run-eval.ts",
     "eval:dry": "node --env-file=../../.env --import tsx/esm harness/run-eval.ts --dry",
     "eval:smoke": "node --env-file=../../.env --import tsx/esm harness/run-eval.ts --smoke",
     "eval:vercel": "node --env-file=../../.env --import tsx/esm scripts/run-vercel-evals.ts",
     "typecheck": "tsc --noEmit",
     "test:framework": "node --env-file-if-exists=../../.env --import tsx/esm scripts/smoke-framework.ts",
-    "test:vercel-runner": "vitest run scripts/run-vercel-evals.test.ts lib/cli-args.test.ts",
+    "test:unit": "vitest run scripts/run-vercel-evals.test.ts scripts/compare-results.test.ts lib/cli-args.test.ts",
     "export-results": "node --import tsx/esm scripts/export-results.ts",
+    "compare-results": "node --import tsx/esm scripts/compare-results.ts",
     "demo:mcp": "node --env-file=../../.env --import tsx/esm scripts/mcp-demo.ts",
     "demo:executor": "node --env-file=../../.env --import tsx/esm scripts/executor-demo.ts"
   },

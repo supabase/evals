@@ -522,6 +522,14 @@ export type LocalStackSession = {
    */
   mcpServers?: Record<string, McpServerConfig>;
   promptAddendum?: string;
+  /**
+   * CLI version actually reported by `supabase --version` inside the sandbox —
+   * ground truth for result metadata, never trusted from the requested pin
+   * (eval frontmatter can override an experiment's version, so the two can
+   * differ). Undefined when no CLI was installed (`skipCliInstall`) or the
+   * probe failed.
+   */
+  resolvedCliVersion?: string;
   scoringContext: LocalStackScoringContext;
   /**
    * Copy the agent's workspace out of the sandbox to a host directory, so

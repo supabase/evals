@@ -10,6 +10,8 @@ export {
   computeExcludedServices,
   ensureSupabaseSandboxImage,
   installSupabaseCli,
+  parseSupabaseCliVersion,
+  resolveInstalledCliVersion,
   buildSupabaseStartCommand,
   startSupabaseProject,
   setupSupabaseSandbox,
