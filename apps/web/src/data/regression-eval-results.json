@@ -59,7 +59,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-b12d87f1, todo-a-edit-b12d87f1, todo-a-delete-b12d87f1"
+        "notes": "titles: todo-a-5fe5b526, todo-a-edit-5fe5b526, todo-a-delete-5fe5b526"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -68,7 +68,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-b12d87f1"
+        "notes": "titles: todo-b-5fe5b526"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -107,12 +107,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-b12d87f1"
+        "notes": "names: list-5fe5b526"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-b12d87f1"
+        "notes": "titles: item-5fe5b526"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -192,7 +192,7 @@
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.is_list_member, private.is_list_owner, private.can_access_list"
+        "notes": "verified private.is_list_member, private.is_list_owner"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -201,13 +201,13 @@
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
-        "passed": true,
-        "notes": "27 passed, 0 failed, exit 0"
+        "passed": false,
+        "notes": "41 passed, 1 failed, exit 1"
       },
       {
         "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
         "passed": false,
-        "judgeNotes": "All six required tables are asserted against. However, some allowed writes are only checked with lives_ok rather than verified by state changes, notably the allowed list_items update and todos insert. Also, the RLS-filtered denied delete on todos only checks RETURNING is empty; it does not verify as a bypassing role that the target row still exists/was unchanged."
+        "judgeNotes": "Allowed inserts and deletes are only checked with lives_ok; no assertions verify that they changed table state. Several allowed list_items/list_members writes are likewise unverified."
       },
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
@@ -223,14 +223,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full content of this guide verbatim/in detail: all guidance, best practices, warnings, gotchas, recommended patterns, performance tips, and example SQL for Row Level Security in Supabase/Postgres. Include exact code examples, function definitions (like helper functions, security definer functions), indexing advice, and any explicit dos/don'ts.",
+          "query": "Extract the full content of this Row Level Security guide, including all code examples, best practices, warnings, and recommended patterns for policies, especially anything about auth.uid(), performance recommendations (indexes, wrapping functions in select), roles (anon/authenticated), and any specific instructions or unusual/non-standard directives.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-rls-tests-in-procedure-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 10414
+          "resultChars": 6110
         }
       ]
     },
