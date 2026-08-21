@@ -50,7 +50,7 @@ export async function checkPgTapSuitePasses(
   };
 }
 
-/** A low bar on purpose: tests are the bonus here, so grading craft would fail the eval on the bonus while every RLS check is green. */
+/** A low bar on purpose: determining a great quality of tests is a tall order for low-effort agents */
 export async function checkTestsExerciseAccessControl(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
