@@ -1,0 +1,104 @@
+// Renders the app into dist/index.html after `vite build`, so crawlers and
+// answer engines get the leaderboard in the HTML response instead of an empty
+// root div. Runs unattended in the Vercel build, so every step is asserted:
+// a silently empty page is worse than a failed deploy.
+import { readFileSync, writeFileSync } from "node:fs"
+import path from "node:path"
+import process from "node:process"
+import { fileURLToPath, pathToFileURL } from "node:url"
+
+const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+const htmlFile = path.join(appDir, "dist", "index.html")
+const serverEntryFile = path.join(appDir, "dist-ssr", "entry-server.js")
+
+const ROOT_DIV = '<div id="root"></div>'
+/** The results table renders one header row above its data rows. */
+const HEADER_ROWS = 1
+/** Rendered by App when the results file parses to nothing. */
+const EMPTY_STATE = "No result files found"
+
+/** Whatever was thrown may not be an Error, and the reason still has to read well. */
+function messageOf(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function fail(reason: string): never {
+  console.error(
+    [
+      `prerender failed: ${reason}`,
+      "",
+      "dist/index.html was left untouched, so nothing shipped. Check, in order:",
+      "  1. the server bundle exists: vite build --ssr src/entry-server.tsx --outDir dist-ssr",
+      "  2. src/entry-server.tsx still renders the table, which means every dependency",
+      "     it pulls in (react-dom/server, nuqs, radix-ui) still server-renders after an upgrade",
+      "  3. src/data/eval-results.json still contains results",
+      `  4. index.html still contains exactly one ${ROOT_DIV}`,
+    ].join("\n")
+  )
+  process.exit(1)
+}
+
+let render
+let expectedTableRows
+try {
+  ;({ render, expectedTableRows } = await import(
+    pathToFileURL(serverEntryFile).href
+  ))
+} catch (error) {
+  fail(
+    `could not import ${path.relative(appDir, serverEntryFile)} (${messageOf(error)})`
+  )
+}
+
+if (typeof render !== "function") {
+  fail(`${path.relative(appDir, serverEntryFile)} does not export render()`)
+}
+
+// The entry counts the rows from the app's own defaults, so the expectation
+// below tracks the default view rather than a hand-written floor.
+if (typeof expectedTableRows !== "number" || expectedTableRows < 1) {
+  fail(
+    `${path.relative(appDir, serverEntryFile)} exported expectedTableRows as ${String(expectedTableRows)}, so the default view has no rows to render`
+  )
+}
+
+let markup = ""
+try {
+  markup = await render()
+} catch (error) {
+  fail(`render() threw (${messageOf(error)})`)
+}
+
+if (markup.includes(EMPTY_STATE)) {
+  fail("the app rendered its empty state, so the results data did not load")
+}
+
+const expectedRows = expectedTableRows + HEADER_ROWS
+const tableRows = markup.match(/<tr\b/g)?.length ?? 0
+if (!markup.includes("<table")) {
+  fail("the rendered markup has no results table")
+}
+
+if (tableRows !== expectedRows) {
+  fail(
+    `the rendered table has ${tableRows} rows, expected ${expectedRows} (${expectedTableRows} data rows plus a header)`
+  )
+}
+
+const html = readFileSync(htmlFile, "utf8")
+if (!html.includes(ROOT_DIV)) {
+  fail(`${path.relative(appDir, htmlFile)} has no ${ROOT_DIV} to replace`)
+}
+
+const prerendered = html.replace(
+  ROOT_DIV,
+  () => `<div id="root">${markup}</div>`
+)
+if (prerendered.includes(ROOT_DIV)) {
+  fail(`${path.relative(appDir, htmlFile)} still has an empty ${ROOT_DIV}`)
+}
+
+writeFileSync(htmlFile, prerendered)
+console.log(
+  `prerender: wrote ${path.relative(appDir, htmlFile)} (${tableRows} table rows, ${markup.length} bytes of markup)`
+)
