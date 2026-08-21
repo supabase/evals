@@ -50,11 +50,18 @@ export async function checkPgTapSuitePasses(
   };
 }
 
-export async function checkTestCoverage(
+/**
+ * A deliberately low bar. Tests are the bonus in this eval, so this credits
+ * writing a real RLS test at all and does not grade craft. Earlier versions
+ * required all six tables, allow and deny per operation, and state
+ * verification on allowed writes; each of those redded the whole eval over the
+ * bonus while every RLS check was green.
+ */
+export async function checkTestsExerciseAccessControl(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const name =
-    'tests assert allow and deny per operation on the seeded tables, for anon and authenticated';
+    'the pgTAP tests exercise access control on the application tables rather than standing in as placeholders';
   const files = await listTestFiles(ctx);
   if (files.length === 0) {
     return { name, passed: false, notes: 'no test files to review' };
@@ -67,45 +74,40 @@ export async function checkTestCoverage(
   const verdict = await judge({
     input: sources.join('\n\n'),
     rubric: stripIndent`
-      You are reviewing pgTAP test files written to prove that Row Level
-      Security policies on a Postgres database behave correctly.
+      You are reviewing pgTAP test files written against a Postgres database
+      that holds a to-do app (\`todos\`, \`lists\`, \`list_members\`,
+      \`list_items\`) and a public weather feed (\`weather_stations\`,
+      \`weather_readings\`).
 
-      The database holds a to-do app (\`todos\` private to each user, plus
-      \`lists\`, \`list_members\`, and \`list_items\` shared with the members of
-      a list) and a public weather feed (\`weather_stations\` and
-      \`weather_readings\`, readable by everyone and writable by no client).
+      This is a deliberately low bar. Writing a real Row Level Security test at
+      all is what earns a pass. Do not grade thoroughness, breadth, or style.
 
-      Pass only if the tests, taken together, do all of the following:
-      - Assert something against every one of these six tables, by name:
-        \`todos\`, \`lists\`, \`list_members\`, \`list_items\`,
-        \`weather_stations\`, \`weather_readings\`. Naming a table in a comment,
-        in an assertion description, or in setup that no assertion reads does
-        not count. If any of the six is missing, fail and say which.
-      - Exercise those tables, not scratch tables the suite created for
+      Pass if all of these hold:
+      - At least one assertion runs against one of the application's own tables
+        above, rather than only against scratch tables the suite created for
         itself.
-      - Assert both an allowed and a denied outcome for each of select,
-        insert, update, and delete.
-      - Assert that an allowed write actually changed state, not merely that it
-        raised nothing.
-      - Cover the \`anon\` role as well as the \`authenticated\` role.
-      - Switch role and identity per case, for example with
-        \`set local role authenticated;\` and
-        \`set local request.jwt.claim.sub = '<uuid>';\`.
-      - Where an update or delete is denied because the policy's \`using\`
-        clause filters the target row out, assert that the row is unchanged
-        rather than that an error was raised. Nothing is raised in that case.
+      - At least one assertion expects access to be allowed, and at least one
+        expects access to be denied.
+      - The suite sets a role or an identity at least once, for example with
+        \`set local role\`, \`set local request.jwt.claims\`, or
+        \`set local request.jwt.claim.sub\`.
 
-      Expecting an error on a write is correct, and must not be penalised,
-      when the denial comes from a \`with check\` violation or from a missing
-      grant — both of those really do raise. Any assertion style is
-      acceptable, including results_eq, is, ok, lives_ok, throws_ok, and
-      policies_are, and helper wrappers around them are fine. Judge coverage,
-      not phrasing.
+      Explicitly acceptable, and never a reason to fail:
+      - Covering only some of the six tables.
+      - Covering only one role.
+      - Proving an allowed write with \`lives_ok\` and nothing else.
+      - Not verifying that an allowed write changed state.
+      - Not checking that a row filtered out by a \`using\` clause is intact.
+      - Missing some of select, insert, update, or delete.
+      - Any assertion style, including results_eq, is, ok, lives_ok,
+        throws_ok, and policies_are, plus helper wrappers around them.
 
-      Fail if the tests only cover the happy path, only cover one role, never
-      switch identity between cases, assert that a \`using\`-filtered update or
-      delete raises an error, or prove an allowed write only by the absence of
-      an error.
+      Fail only when the suite asserts nothing about access control. Examples
+      of a fail: a file of \`select ok(true)\` placeholders, assertions that
+      never touch the application's tables, or a suite with no allowed case or
+      no denied case anywhere.
+
+      When it is a close call, pass.
     `,
   });
 

@@ -32,4 +32,10 @@ Nothing in the migration says who may read or write what.
 
 Whether the agent arrives at pgTAP is itself a measurement. If agents do not write tests here, that says something about how reachable testing is from the guide.
 
-Coverage is judged, not pattern-matched. Two mechanical gates were tried and both failed in the same way: searching the file text counts a comment as a test, and searching the assertion descriptions rejects a correct suite that passes no description. Each fix in one direction made the other worse. The judge reads the sources with the six tables written into its rubric, and the suite's exit status proves the assertions ran.
+Tests are the bonus, not the subject. The judge that reads them is scoped to match: it credits writing a real RLS test and does not grade craft.
+
+The rubric is soft on purpose. It asks for one assertion against an application table, one allowed case, one denied case, and a role or identity set at least once. Partial table coverage, a single role, missing operations, and proving an allowed write with `lives_ok` alone are all listed as acceptable, and ties go to a pass.
+
+An earlier version graded craft, requiring all six tables, allow and deny per operation, both roles, and state verification on allowed writes. Its verdicts were correct and still unusable, because what it graded was whichever suite the agent happened to write that run. Four runs against the same guide scored 43, 42, 41, and 43 out of 43, so the eval reported the RLS guide as failing on the strength of the cherry while all 40 RLS checks were green. Raising the judge's model and reasoning effort did not change that, because the variance was never in the judge.
+
+What the soft rubric still catches is a suite that tests nothing, such as eight `ok(true)` placeholders. That is the floor worth holding.
