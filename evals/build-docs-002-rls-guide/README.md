@@ -32,4 +32,4 @@ Nothing in the migration says who may read or write what.
 
 Whether the agent arrives at pgTAP is itself a measurement. If agents do not write tests here, that says something about how reachable testing is from the guide.
 
-Coverage is judged against a low bar: one assertion on an application table, one allowed case, one denied case, and a role set at least once. Grading craft instead fails the whole eval on the bonus while every RLS check is green.
+Coverage is judged against a low bar: one assertion on an application table, one allowed case, one denied case, and a role set at least once. 
