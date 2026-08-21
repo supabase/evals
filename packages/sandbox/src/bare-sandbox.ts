@@ -1,4 +1,5 @@
 import type {
+  AgentHarnessId,
   AgentSandbox,
   SandboxMount,
   SkillSource,
@@ -9,9 +10,28 @@ import { buildSkillsPrompt } from './skills.js';
 
 export interface BareSandboxHandle {
   sandbox: AgentSandbox;
-  /** Skills-discovery text to fold into the agent's system prompt. */
+  /**
+   * Skills-discovery text to fold into the agent's system prompt. Empty for
+   * every CLI harness — each discovers the installed skills natively and
+   * advertises them to the model itself (see `buildSkillsPrompt`).
+   */
   promptAddendum: string;
   close(): Promise<void>;
+}
+
+export interface BareSandboxOptions {
+  /** Harness driving this sandbox; decides whether skills are advertised in the prompt. */
+  agent: AgentHarnessId;
+  /** Supabase CLI version baked into the sandbox image. */
+  cliVersion?: string;
+  /** Skills to install into the sandbox. */
+  skills?: readonly SkillSource[];
+  /**
+   * Extra host directories bind-mounted into the sandbox (read-only by
+   * default) — e.g. a local MCP server build the in-container agent must be
+   * able to launch. See `supabaseMcpServerMounts`.
+   */
+  mounts?: readonly SandboxMount[];
 }
 
 /**
@@ -24,11 +44,7 @@ export interface BareSandboxHandle {
  * platform-lite via `host.docker.internal` on the default bridge).
  */
 export async function createBareSandbox(
-  options: {
-    cliVersion?: string;
-    skills?: readonly SkillSource[];
-    mounts?: readonly SandboxMount[];
-  } = {}
+  options: BareSandboxOptions
 ): Promise<BareSandboxHandle> {
   const env = await createAgentEnvironment({
     cliVersion: options.cliVersion,
@@ -37,7 +53,7 @@ export async function createBareSandbox(
   });
   return {
     sandbox: toAgentSandbox(env.sandbox),
-    promptAddendum: buildSkillsPrompt(env.skills),
+    promptAddendum: buildSkillsPrompt(options.agent, env.skills),
     close: env.close,
   };
 }

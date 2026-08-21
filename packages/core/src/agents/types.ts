@@ -54,8 +54,13 @@ export interface RunnerExecArgs<M extends string = string> {
   sandbox: AgentSandbox;
   model: M;
   apiKey: string;
-  /** Shell path to a file holding the system prompt (skills + task framing). */
-  systemPromptPath: string;
+  /**
+   * Shell path to a file holding the system prompt (e.g. the installed-skills
+   * listing). Undefined when the harness has no system prompt for this agent —
+   * the runner must then leave the CLI's own prompt untouched: omit the flag, or
+   * for a CLI with no system-prompt flag, pass the user prompt on its own.
+   */
+  systemPromptPath?: string;
   /** Shell path to a file holding the user prompt (the task). */
   userPromptPath: string;
   /** MCP servers to expose, already loopback-rewritten. Empty when none. */

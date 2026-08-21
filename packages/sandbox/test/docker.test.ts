@@ -18,7 +18,11 @@ import {
   SUPABASE_CLI_VERSION,
   teardownSupabaseProject,
 } from '../src/supabase.js';
-import { installSkills, SKILLS_INSTALL_DIR } from '../src/skills.js';
+import {
+  installSkills,
+  SKILLS_INSTALL_DIR,
+  SKILLS_INSTALL_DIRS,
+} from '../src/skills.js';
 
 const TEST_TIMEOUT_MS = 600_000;
 
@@ -200,18 +204,30 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
               dir: `${SKILLS_INSTALL_DIR}/demo-skill`,
             },
           ]);
-          // The full skill tree (including bundled references) is reachable in
-          // the workspace via the agent's file tools.
-          expect(
-            await sandbox.fileExists(
-              `${SKILLS_INSTALL_DIR}/demo-skill/SKILL.md`
-            )
-          ).toBe(true);
-          expect(
-            await sandbox.readFile(
-              `${SKILLS_INSTALL_DIR}/demo-skill/references/extra.md`
-            )
-          ).toBe('extra content');
+          // The full skill tree (including bundled references) lands in every
+          // CLI harness's native project scope: .claude/skills for Claude Code,
+          // .agents/skills for Codex and OpenCode.
+          for (const installDir of SKILLS_INSTALL_DIRS) {
+            expect(
+              await sandbox.fileExists(`${installDir}/demo-skill/SKILL.md`)
+            ).toBe(true);
+            expect(
+              await sandbox.readFile(
+                `${installDir}/demo-skill/references/extra.md`
+              )
+            ).toBe('extra content');
+          }
+          // …and nowhere else. Without an explicit --agent the CLI installs for
+          // every one of the ~71 agents it knows, littering the exported, scored
+          // workspace with dozens of stray roots (including non-dotted ones).
+          for (const stray of [
+            '.aider-desk',
+            '.factory',
+            '.windsurf',
+            'data',
+          ]) {
+            expect(await sandbox.folderExists(stray)).toBe(false);
+          }
         } finally {
           rmSync(src, { recursive: true, force: true });
           await sandbox.stop();
