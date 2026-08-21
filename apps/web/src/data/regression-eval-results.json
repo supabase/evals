@@ -102,18 +102,16 @@
       },
       {
         "name": "anon holds no write grant anywhere in the public schema",
-        "passed": false,
-        "notes": "still granted: anon insert on todos, anon update on todos, anon delete on todos, anon truncate on todos, anon insert on lists, anon update on lists, anon delete on lists, anon truncate on lists, anon insert on list_members, anon update on list_members, anon delete on list_members, anon truncate on list_members, anon insert on list_items, anon update on list_items, anon delete on list_items, anon truncate on list_items, anon insert on weather_stations, anon update on weather_stations, anon delete on weather_stations, anon truncate on weather_stations, anon insert on weather_readings, anon update on weather_readings, anon delete on weather_readings, anon truncate on weather_readings"
+        "passed": true
       },
       {
         "name": "no client role holds a write grant on the weather feed",
-        "passed": false,
-        "notes": "still granted: anon insert on weather_stations, authenticated insert on weather_stations, anon update on weather_stations, authenticated update on weather_stations, anon delete on weather_stations, authenticated delete on weather_stations, anon truncate on weather_stations, authenticated truncate on weather_stations, anon insert on weather_readings, authenticated insert on weather_readings, anon update on weather_readings, authenticated update on weather_readings, anon delete on weather_readings, authenticated delete on weather_readings, anon truncate on weather_readings, authenticated truncate on weather_readings"
+        "passed": true
       },
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-af8973fb, todo-a-edit-af8973fb, todo-a-delete-af8973fb"
+        "notes": "titles: todo-a-fc4465ed, todo-a-edit-fc4465ed, todo-a-delete-fc4465ed"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -122,12 +120,12 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-af8973fb"
+        "notes": "titles: todo-b-fc4465ed"
       },
       {
         "name": "signed-out visitors read no todos",
         "passed": true,
-        "notes": "0 rows"
+        "notes": "error 42501: permission denied for table todos"
       },
       {
         "name": "a signed-in user creates a todo of their own",
@@ -161,12 +159,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-af8973fb"
+        "notes": "names: list-fc4465ed"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-af8973fb"
+        "notes": "titles: item-fc4465ed"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -187,7 +185,7 @@
       {
         "name": "signed-out visitors cannot read the membership table",
         "passed": true,
-        "notes": "0 rows"
+        "notes": "error 42501: permission denied for table list_members"
       },
       {
         "name": "a non-member reads neither the list nor its items",
@@ -197,7 +195,7 @@
       {
         "name": "signed-out visitors read neither lists nor list items",
         "passed": true,
-        "notes": "lists: 0 rows; items: 0 rows"
+        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
       },
       {
         "name": "no membership policy recurses into itself",
@@ -216,12 +214,12 @@
       {
         "name": "signed-out visitors cannot write to the weather feed",
         "passed": true,
-        "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
       },
       {
         "name": "signed-in users cannot write to the weather feed",
         "passed": true,
-        "notes": "insert error 42501: new row violates row-level security policy for table \"weather_readings\"; reading survived delete; reading unchanged; no row injected"
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
       },
       {
         "name": "the harness restored the weather feed fixture after both write attempts",
@@ -246,7 +244,7 @@
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.is_list_member, private.is_list_owner"
+        "notes": "verified private.is_list_owner, private.is_list_member, private.has_list_access"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -256,7 +254,7 @@
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": false,
-        "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\nA new version of Supabase CLI is available: v2.115.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
+        "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.01 usr +  0.00 sys =  0.01 CPU)\nResult: NOTESTS\nConnecting to local database...\nA new version of Supabase CLI is available: v2.115.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
       },
       {
         "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
@@ -282,14 +280,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guidance on Row Level Security: policy syntax, best practices (using select wrapping for auth.uid(), TO clause, indexing, performance tips), examples for multi-tenant/ownership patterns, and any recommendations relevant to designing RLS for a todo app with sharing and a public read-only dashboard.",
+          "query": "Extract the full guidance on Row Level Security in Supabase/Postgres: enabling RLS, policy syntax, best practices, performance recommendations (indexing, wrapping functions in SELECT, security definer functions, roles), policies for select/insert/update/delete, multi-tenant and sharing patterns, and any auth.uid() usage patterns. Give me the complete detailed content, not just a summary.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 5563
+          "resultChars": 12051
         }
       ]
     },
@@ -1280,7 +1278,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-cfd997df, todo-a-edit-cfd997df, todo-a-delete-cfd997df"
+        "notes": "titles: todo-a-59740be7, todo-a-edit-59740be7, todo-a-delete-59740be7"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -1289,7 +1287,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-cfd997df"
+        "notes": "titles: todo-b-59740be7"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -1328,12 +1326,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-cfd997df"
+        "notes": "names: list-59740be7"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-cfd997df"
+        "notes": "titles: item-59740be7"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -1408,12 +1406,13 @@
       },
       {
         "name": "columns the policies filter on have a btree index",
-        "passed": true
+        "passed": false,
+        "notes": "no complete btree index leading with: list_members.user_id"
       },
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
-        "passed": true,
-        "notes": "verified private.is_list_member, private.is_list_owner"
+        "passed": false,
+        "notes": "callable over the API: public.is_list_owner, public.can_access_list"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -1444,14 +1443,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guide content about Row Level Security in Supabase: key concepts, syntax for enabling RLS, policy structure, best practices, performance recommendations, examples for SELECT/INSERT/UPDATE/DELETE, use of auth.uid(), security definer functions, and any warnings/gotchas mentioned.",
+          "query": "Summarize the full guide on Row Level Security: how to enable RLS, policy syntax (CREATE POLICY, USING, WITH CHECK), roles (anon, authenticated), best practices, performance tips (indexing, wrapping functions in select, security definer functions to avoid recursive RLS), policies with joins/related tables, and any example patterns for multi-tenant/shared data and public read access.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 6536
+          "resultChars": 3266
         }
       ]
     },
