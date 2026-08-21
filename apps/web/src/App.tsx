@@ -7,7 +7,7 @@ import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 import { SiteHero } from "@/components/site-hero"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { sortedResults } from "@/lib/eval-results"
+import { getSuiteResults, sortedResults } from "@/lib/eval-results"
 import { resultsQueryKeys, resultsQueryParsers } from "@/lib/url-state"
 
 export function App() {
@@ -18,9 +18,7 @@ export function App() {
       clearOnDefault: false,
     }
   )
-  const suiteResults = sortedResults.filter(
-    (result) => result.experimentSuite === experimentSuite
-  )
+  const suiteResults = getSuiteResults(experimentSuite)
 
   return (
     <TooltipProvider delayDuration={200}>
