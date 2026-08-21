@@ -111,7 +111,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-b348c7bd, todo-a-edit-b348c7bd, todo-a-delete-b348c7bd"
+        "notes": "titles: todo-a-fc4465ed, todo-a-edit-fc4465ed, todo-a-delete-fc4465ed"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -120,7 +120,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-b348c7bd"
+        "notes": "titles: todo-b-fc4465ed"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -159,12 +159,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-b348c7bd"
+        "notes": "names: list-fc4465ed"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-b348c7bd"
+        "notes": "titles: item-fc4465ed"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -239,13 +239,12 @@
       },
       {
         "name": "columns the policies filter on have a btree index",
-        "passed": false,
-        "notes": "no complete btree index leading with: list_members.user_id"
+        "passed": true
       },
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.is_list_owner, private.is_list_member"
+        "notes": "verified private.is_list_owner, private.is_list_member, private.has_list_access"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -255,10 +254,10 @@
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": false,
-        "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\nA new version of Supabase CLI is available: v2.115.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
+        "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.01 usr +  0.00 sys =  0.01 CPU)\nResult: NOTESTS\nConnecting to local database...\nA new version of Supabase CLI is available: v2.115.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
       },
       {
-        "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
         "passed": false,
         "notes": "no test files to review"
       },
@@ -274,50 +273,21 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize the full guide: key concepts of RLS, how policies work (permissive vs restrictive, for select/insert/update/delete, USING vs WITH CHECK), auth.uid() usage, helper functions, SECURITY DEFINER function patterns for avoiding recursive policies (e.g. team/membership checks), performance recommendations (wrapping functions in select, indexing), and any guidance on granting EXECUTE on SECURITY DEFINER functions to roles when used inside RLS policies. Include exact SQL examples shown in the doc.",
+          "query": "Extract the full guidance on Row Level Security in Supabase/Postgres: enabling RLS, policy syntax, best practices, performance recommendations (indexing, wrapping functions in SELECT, security definer functions, roles), policies for select/insert/update/delete, multi-tenant and sharing patterns, and any auth.uid() usage patterns. Give me the complete detailed content, not just a summary.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 5329
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"RLS policy security definer function bypass recursion grant execute authenticated\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
-              "title": "Anonymous Sign-Ins"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            }
-          ],
-          "resultChars": 93836
+          "resultChars": 12051
         }
       ]
     },
@@ -1308,7 +1278,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-4f7dc182, todo-a-edit-4f7dc182, todo-a-delete-4f7dc182"
+        "notes": "titles: todo-a-59740be7, todo-a-edit-59740be7, todo-a-delete-59740be7"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -1317,7 +1287,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-4f7dc182"
+        "notes": "titles: todo-b-59740be7"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -1356,12 +1326,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-4f7dc182"
+        "notes": "names: list-59740be7"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-4f7dc182"
+        "notes": "titles: item-59740be7"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -1436,12 +1406,13 @@
       },
       {
         "name": "columns the policies filter on have a btree index",
-        "passed": true
+        "passed": false,
+        "notes": "no complete btree index leading with: list_members.user_id"
       },
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
-        "passed": true,
-        "notes": "verified private.is_list_member, private.is_list_owner"
+        "passed": false,
+        "notes": "callable over the API: public.is_list_owner, public.can_access_list"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
@@ -1454,7 +1425,7 @@
         "notes": "no test summary found; exit 0; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\nA new version of Supabase CLI is available: v2.115.0 (currently installed v2.67.1)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli\n"
       },
       {
-        "name": "tests assert allow and deny per operation on the seeded tables, for anon and authenticated",
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
         "passed": false,
         "notes": "no test files to review"
       },
@@ -1472,14 +1443,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guide content about Row Level Security in Supabase/Postgres: concepts, syntax, best practices, examples for policies, performance recommendations, and any gotchas (e.g., using auth.uid(), security definer functions, indexing recommendations, policies for select/insert/update/delete, multiple policies, roles like authenticated/anon).",
+          "query": "Summarize the full guide on Row Level Security: how to enable RLS, policy syntax (CREATE POLICY, USING, WITH CHECK), roles (anon, authenticated), best practices, performance tips (indexing, wrapping functions in select, security definer functions to avoid recursive RLS), policies with joins/related tables, and any example patterns for multi-tenant/shared data and public read access.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ],
-          "resultChars": 6623
+          "resultChars": 3266
         }
       ]
     },
