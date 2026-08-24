@@ -8584,6 +8584,108 @@
     "docs": {
       "calls": [
         {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"row level security policies select insert update anon authenticated local development migrations seed supabase cli\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on CLICommandReference { title href content } ... on ManagementApiReference { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            }
+          ],
+          "resultChars": 83775
+        }
+      ]
+    },
+    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
+    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.4-mini/build-cli-001-bootstrap-app/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-001-bootstrap-app",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "todos table is created by a migration file",
+        "passed": true
+      },
+      {
+        "name": "todos table exists with at least 2 seeded rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "row level security is enabled on todos",
+        "passed": true
+      },
+      {
+        "name": "a SELECT policy targets the authenticated role",
+        "passed": true
+      },
+      {
+        "name": "REST API returns no todos to anonymous requests",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "REST API returns the todos to authenticated requests",
+        "passed": true,
+        "notes": "2 rows"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
           "source": "shell_fetch",
           "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,120p'\"",
           "hasContent": true,
@@ -8592,17 +8694,13 @@
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 6745
+          "resultChars": 6693
         },
         {
           "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"local development migrations RLS select authenticated anon expose table data api\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "query": "query { searchDocs(query: \"Exposing a table to the Data API authenticated RLS Supabase\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } totalCount } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
             {
               "url": "https://supabase.com/docs/guides/api/securing-your-api",
               "title": "Securing your API"
@@ -8612,21 +8710,174 @@
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-flutter",
-              "title": "Build a User Management App with Flutter"
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0023_sensitive_columns_exposed",
+              "title": "Database Advisor: Lint 0023_sensitive_columns_exposed"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
-              "title": "Build a User Management App with Next.js"
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0027_pg_graphql_authenticated_table_exposed",
+              "title": "Database Advisor: Lint 0027_pg_graphql_authenticated_table_exposed"
             }
           ],
-          "resultChars": 152845
+          "resultChars": 65518
         },
         {
           "source": "search_docs",
-          "query": "query {\n  searchDocs(query: \"Securing your API grants authenticated anon RLS select policy\", limit: 3) {\n    nodes { title href content }\n  }\n}",
+          "query": "query { searchDocs(query: \"Supabase migrations local development migration new db pull declarative schema\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on CLICommandReference { title href content } } totalCount } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-angular",
+              "title": "Build a User Management App with Angular"
+            }
+          ],
+          "resultChars": 122992
+        }
+      ]
+    },
+    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
+    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.4-mini/build-cli-001-bootstrap-app/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-001-bootstrap-app",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "todos table is created by a migration file",
+        "passed": true
+      },
+      {
+        "name": "todos table exists with at least 2 seeded rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "row level security is enabled on todos",
+        "passed": true
+      },
+      {
+        "name": "a SELECT policy targets the authenticated role",
+        "passed": true
+      },
+      {
+        "name": "REST API returns no todos to anonymous requests",
+        "passed": true,
+        "notes": "0 rows"
+      },
+      {
+        "name": "REST API returns the todos to authenticated requests",
+        "passed": true,
+        "notes": "2 rows"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,160p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 9005
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Expose table to Data API anon authenticated RLS select policy grant\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0026_pg_graphql_anon_table_exposed",
+              "title": "Database Advisor: Lint 0026_pg_graphql_anon_table_exposed"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0027_pg_graphql_authenticated_table_exposed",
+              "title": "Database Advisor: Lint 0027_pg_graphql_authenticated_table_exposed"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            }
+          ],
+          "resultChars": 69068
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"row level security authenticated select policy using auth.uid grant select anon authenticated\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
             {
               "url": "https://supabase.com/docs/guides/api/securing-your-api",
               "title": "Securing your API"
@@ -8636,18 +8887,18 @@
               "title": "Anonymous Sign-Ins"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
             }
           ],
-          "resultChars": 63887
+          "resultChars": 100693
         }
       ]
     },
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
     "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "codex-gpt-5.4-mini/build-cli-001-bootstrap-app.json"
+    "run": 3,
+    "sourcePath": "codex-gpt-5.4-mini/build-cli-001-bootstrap-app/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -8702,7 +8953,93 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query SearchDocs {\n  searchDocs(query: \"declarative database schemas local development migration generate supabase schema_paths\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "query": "query { searchDocs(query: \"declarative database schemas local development add column migration\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/replication/ducklake",
+              "title": "DuckLake destination"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 84592
+        }
+      ]
+    },
+    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
+    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.4-mini/build-cli-002-declarative-schema/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-002-declarative-schema",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "declarative-schema",
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase db diff used to generate the migration",
+        "passed": true
+      },
+      {
+        "name": "schema file updated to include description column",
+        "passed": true
+      },
+      {
+        "name": "a new migration was generated for the change",
+        "passed": true
+      },
+      {
+        "name": "description column exists in the live database",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"declarative database schemas supabase local development schema_paths generate migration\", limit: 5) { nodes { title href content ... on Guide { subsections { totalCount } } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -8722,7 +9059,7 @@
               "title": "Database Migrations"
             }
           ],
-          "resultChars": 65847
+          "resultChars": 65991
         },
         {
           "source": "shell_fetch",
@@ -8733,14 +9070,100 @@
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 6745
+          "resultChars": 6693
         }
       ]
     },
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "codex-gpt-5.4-mini/build-cli-002-declarative-schema.json"
+    "run": 2,
+    "sourcePath": "codex-gpt-5.4-mini/build-cli-002-declarative-schema/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-002-declarative-schema",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "declarative-schema",
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase db diff used to generate the migration",
+        "passed": true
+      },
+      {
+        "name": "schema file updated to include description column",
+        "passed": true
+      },
+      {
+        "name": "a new migration was generated for the change",
+        "passed": true
+      },
+      {
+        "name": "description column exists in the live database",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query {\n  searchDocs(query: \"declarative database schemas schema_paths local development add column to table migration diff\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 82866
+        }
+      ]
+    },
+    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
+    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.4-mini/build-cli-002-declarative-schema/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -11488,7 +11911,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies as deny-all for Data API, kept RLS enabled, created authenticated SELECT policy scoped to user_id = auth.uid(), and created authenticated INSERT policy with WITH CHECK enforcing user_id = auth.uid()."
+        "judgeNotes": "Correctly diagnosed deny-all RLS with no policies, kept RLS enabled, and created authenticated owner-scoped SELECT and INSERT policies using auth.uid() with USING and WITH CHECK."
       }
     ],
     "skills": {
@@ -11505,7 +11928,132 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Exposing a Table to the Data API RLS bookmarks anon authenticated GRANT\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Data API expose table grants anon authenticated RLS bookmarks\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on CLICommandReference { title href content } ... on ManagementApiReference { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
+            }
+          ],
+          "resultChars": 86288
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth.uid request.jwt.claims request.jwt.claim.sub Supabase\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv",
+              "title": "RLS Performance and Best Practices"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            }
+          ],
+          "resultChars": 42370
+        }
+      ]
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-dataapi-001-empty-results/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Correctly diagnosed deny-all RLS with no policies, kept RLS enabled, and created authenticated-only owner-scoped SELECT and INSERT policies using auth.uid(), including WITH CHECK for inserts."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Exposing a Table to the Data API RLS GRANT anon authenticated bookmarks\", limit: 5) { nodes { __typename title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -11525,18 +12073,90 @@
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0013_rls_disabled_in_public",
-              "title": "Database Advisor: Lint 0013_rls_disabled_in_public"
+              "url": "https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0026_pg_graphql_anon_table_exposed",
+              "title": "Database Advisor: Lint 0026_pg_graphql_anon_table_exposed"
             }
           ],
-          "resultChars": 58013
+          "resultChars": 64045
         }
       ]
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "codex-gpt-5.4-mini/resolve-dataapi-001-empty-results.json"
+    "run": 2,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-dataapi-001-empty-results/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Correctly diagnosed deny-all RLS with no policies, kept RLS enabled, and created authenticated-only SELECT and INSERT policies scoped to user_id = auth.uid() using USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-dataapi-001-empty-results/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
