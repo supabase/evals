@@ -200,12 +200,14 @@ async function runPairOnce(
         EVAL_TIMEOUT_BUFFER_MS +
         SANDBOX_TIMEOUT_BUFFER_MS,
       persistent: false,
+      // The platform caps a Sandbox at five tags, so each one has to earn its
+      // slot by being something worth filtering the dashboard on. `run` used to
+      // mean the workflow run, which now collides with a scored run index.
       tags: {
-        runner: 'supabase-evals',
-        run: process.env.GITHUB_RUN_ID ?? 'local',
+        workflow_run: process.env.GITHUB_RUN_ID ?? 'local',
         experiment: tagValue(pair.experiment),
         eval: tagValue(pair.eval_id),
-        attempt: String(options.attempt),
+        run_index: String(run),
       },
     });
     console.log(
@@ -606,11 +608,7 @@ function jobLabel(pair: EvalPair, run: number): string {
   return `[${pair.experiment} x ${pair.eval_id} run ${run}]`;
 }
 
-/**
- * Produces a unique dashboard-safe Sandbox name. The run index goes in the
- * name rather than a tag: the platform caps a Sandbox at five tags and the
- * existing five are already spoken for.
- */
+/** Produces a unique dashboard-safe Sandbox name. */
 function sandboxName(pair: EvalPair, run: number): string {
   const suffix = Math.random().toString(36).slice(2, 8);
   return `${tagValue(pair.experiment).slice(0, 30)}--${tagValue(pair.eval_id).slice(0, 40)}--r${run}--${suffix}`;
