@@ -103,6 +103,7 @@ export { parseEvalMarkdown } from './eval-markdown.js';
 export { buildSkillResult } from './skill-results.js';
 export {
   buildDocsResult,
+  checkDocsGuideRead,
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';
 export type { DocsResultSandbox } from './docs-results.js';
