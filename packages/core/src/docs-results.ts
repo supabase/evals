@@ -369,9 +369,6 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
  * Whether the agent retrieved the guide at `path`, and by what route. A
  * search_docs hit carries the url in its result, not its request, so this
  * reads the harness's resolution rather than raw tool calls.
- *
- * Nothing here reads the prompt. The caller owns passing a path its
- * PROMPT.md points at.
  */
 export function checkDocsGuideRead(
   toolCalls: ToolCallRecord[],
