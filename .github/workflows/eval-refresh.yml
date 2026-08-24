@@ -382,15 +382,28 @@ jobs:
 
           pairs='${{ needs.prepare.outputs.pairs }}'
           total="$(jq 'length' <<< "$pairs")"
+          # A pair needs every requested run, not just a directory: a pair that
+          # returned 2 of 3 runs would otherwise publish an average weighted
+          # differently from its neighbours. export-results --runs drops such a
+          # pair from the output; this is what makes the job fail over it.
+          expected="${{ needs.prepare.outputs.runs }}"
           missing=()
           while IFS= read -r key; do
-            [ -d "results/downloaded/raw-results-$key" ] || missing+=("$key")
+            dir="results/downloaded/raw-results-$key"
+            # Counted only when the directory exists: `find` on a missing path
+            # fails, and pipefail would abort this step instead of reporting the
+            # pair as having produced nothing.
+            found=0
+            if [ -d "$dir" ]; then
+              found="$(find "$dir" -name result.json | wc -l | tr -d ' ')"
+            fi
+            [ "$found" = "$expected" ] || missing+=("$key ($found/$expected runs)")
           done < <(jq -r '.[] | "\(.experiment)__\(.eval_id)"' <<< "$pairs")
 
           echo "count=${#missing[@]}" >> "$GITHUB_OUTPUT"
 
           if [ "${#missing[@]}" -eq "$total" ]; then
-            echo "::warning::No results published: all $total eval pairs never finished (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
+            echo "::warning::No results published: all $total eval pairs are missing runs (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
             {
               echo "## :warning: No results published"
               echo ""
@@ -401,11 +414,11 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           elif [ "${#missing[@]}" -gt 0 ]; then
-            echo "::warning::Publishing PARTIAL results: ${#missing[@]} of $total eval pairs never finished (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
+            echo "::warning::Publishing PARTIAL results: ${#missing[@]} of $total eval pairs are missing runs (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
             {
               echo "## :warning: Partial results published"
               echo ""
-              echo "${#missing[@]} of $total eval pairs never finished, likely because \`run-evals\` hit its timeout or failed partway through. Only the completed pairs below were published:"
+              echo "${#missing[@]} of $total eval pairs are missing runs, likely because \`run-evals\` hit its timeout or failed partway through. Only the pairs with a complete set of runs were published; these were not:"
               echo ""
               echo '```'
               printf '%s\n' "${missing[@]}"
@@ -523,5 +536,5 @@ jobs:
           steps.audit.outcome == 'success' &&
           steps.audit.outputs.count != '0'
         run: |
-          echo "::error::${{ steps.audit.outputs.count }} eval pair(s) never finished. This run needs a follow-up to complete the refresh."
+          echo "::error::${{ steps.audit.outputs.count }} eval pair(s) are missing runs. This run needs a follow-up to complete the refresh."
           exit 1
