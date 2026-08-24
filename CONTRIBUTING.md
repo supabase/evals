@@ -22,8 +22,6 @@ If your scenario contains anything not self-explanatory, consider adding a `READ
 
 Every new scenario needs a `motivation:` defined in `PROMPT.md` frontmatter that cites some evidence for the scenario being a part of the Supabase user journey, ideally a pain point. Examples include support tickets, GitHub issues, Linear issues, or social media threads.
 
-Every scenario also needs an `interface:` of either `mcp` or `cli`, naming the surface the agent acts on Supabase through. It's a tracked benchmark dimension, so the schema rejects a scenario without it. Scenarios that ship a `local/` Supabase project are `cli`; scenarios that run against the mocked hosted project through the MCP/tool surface are `mcp`.
-
 For new **benchmark** scenarios, we need to see at least one agent, ideally more, failing the new scenario to ensure we're getting signal from results. If agents are already acing your scenario, consider hardening it with a more ambiguous or misleading prompt, unusual seed data, or subtle footgun. Run locally and review agent failures to ensure they're legitimate reasoning mistakes, not eval framework limitations. We also want to keep benchmarks representative of the user journey. Review the [Evals coverage table](https://app.hex.tech/supabase/app/Evals-033abDlwqlTbW5ktgwFffU/latest) and make sure you're not over-indexing on a niche use case.
 
 ## Writing prompts
