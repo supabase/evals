@@ -53,8 +53,25 @@ interface RunnerOptions {
   vcpus: number;
 }
 
+/**
+ * One scored run of one pair: the unit of Sandbox work. A pair's runs are
+ * independent samples, so each gets its own ephemeral Sandbox and they overlap
+ * under the same `concurrency` cap rather than running back to back in one.
+ */
+export type EvalJob = { pair: EvalPair; run: number };
+
+export function expandJobs(
+  pairs: readonly EvalPair[],
+  runs: number
+): EvalJob[] {
+  return pairs.flatMap((pair) =>
+    Array.from({ length: runs }, (_, index) => ({ pair, run: index + 1 }))
+  );
+}
+
 interface PairOptions extends RunnerOptions {
   pair: EvalPair;
+  run: number;
   attempt: number;
 }
 
@@ -88,11 +105,16 @@ export async function runBounded<T, R>(
 /** Runs all pairs and reports failures only after independent work finishes. */
 async function runPairs(options: RunnerOptions): Promise<void> {
   const credentials = vercelCredentialsFromEnv();
+  const jobs = expandJobs(options.pairs, options.runs);
+  console.log(
+    `${options.pairs.length} pair(s) x ${options.runs} run(s) = ${jobs.length} sandbox job(s), ` +
+      `max ${options.concurrency} at a time`
+  );
 
   const results = await runBounded(
-    options.pairs,
+    jobs,
     options.concurrency,
-    async (pair) => {
+    async ({ pair, run }) => {
       try {
         await pRetry(
           (attempt) =>
@@ -100,6 +122,7 @@ async function runPairs(options: RunnerOptions): Promise<void> {
               {
                 ...options,
                 pair,
+                run,
                 attempt,
               },
               credentials
@@ -118,15 +141,15 @@ async function runPairs(options: RunnerOptions): Promise<void> {
             }) => {
               const retrying = retriesLeft > 0;
               console.warn(
-                `${pairLabel(pair)} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(errorMessage(error))}`
+                `${jobLabel(pair, run)} attempt ${attemptNumber} failed${retrying ? `, retrying in ${Math.round(retryDelay / 1000)}s` : ', not retrying'}: ${firstLine(errorMessage(error))}`
               );
             },
           }
         );
-        console.log(`SANDBOX OK ${pairLabel(pair)}`);
+        console.log(`SANDBOX OK ${jobLabel(pair, run)}`);
       } catch (error) {
         console.error(
-          `SANDBOX FAILED ${pairLabel(pair)}: ${errorMessage(error)}`
+          `SANDBOX FAILED ${jobLabel(pair, run)}: ${errorMessage(error)}`
         );
         throw error;
       }
@@ -135,33 +158,35 @@ async function runPairs(options: RunnerOptions): Promise<void> {
 
   const failures: string[] = [];
   for (let index = 0; index < results.length; index += 1) {
-    const pair = options.pairs[index];
+    const job = jobs[index];
     const result = results[index];
-    if (!pair || !result || result.status === 'fulfilled') continue;
-    failures.push(`${pairLabel(pair)}: ${errorMessage(result.reason)}`);
+    if (!job || !result || result.status === 'fulfilled') continue;
+    failures.push(
+      `${jobLabel(job.pair, job.run)}: ${errorMessage(result.reason)}`
+    );
   }
 
   if (failures.length > 0) {
     throw new AggregateError(
       failures.map((message) => new Error(message)),
-      `${failures.length} Sandbox eval pair(s) failed`
+      `${failures.length} Sandbox eval run(s) failed`
     );
   }
 }
 
-/** Runs one pair in a fresh Sandbox and downloads its complete result tree. */
+/** Runs one scored run of a pair in a fresh Sandbox and downloads its result. */
 async function runPairOnce(
   options: PairOptions,
   credentials: VercelCredentials
 ): Promise<void> {
-  const { pair } = options;
-  const label = pairLabel(pair);
+  const { pair, run } = options;
+  const label = jobLabel(pair, run);
   let sandbox: Sandbox | undefined;
 
   try {
     sandbox = await createSandbox(label, {
       ...credentials,
-      name: sandboxName(pair),
+      name: sandboxName(pair, run),
       runtime: 'node24',
       source: {
         type: 'git',
@@ -171,7 +196,7 @@ async function runPairOnce(
       },
       resources: { vcpus: options.vcpus },
       timeout:
-        options.runs * options.timeoutSec * 1_000 +
+        options.timeoutSec * 1_000 +
         EVAL_TIMEOUT_BUFFER_MS +
         SANDBOX_TIMEOUT_BUFFER_MS,
       persistent: false,
@@ -181,6 +206,7 @@ async function runPairOnce(
         experiment: tagValue(pair.experiment),
         eval: tagValue(pair.eval_id),
         attempt: String(options.attempt),
+        run_index: String(run),
       },
     });
     console.log(
@@ -261,14 +287,13 @@ async function runPairOnce(
           pair.experiment_suite,
           '--eval',
           pair.eval_id,
-          '--runs',
-          String(options.runs),
+          '--run-index',
+          String(run),
           '--timeout-sec',
           String(options.timeoutSec),
         ],
         cwd: sandbox.cwd,
-        timeoutMs:
-          options.runs * options.timeoutSec * 1_000 + EVAL_TIMEOUT_BUFFER_MS,
+        timeoutMs: options.timeoutSec * 1_000 + EVAL_TIMEOUT_BUFFER_MS,
       },
       true
     );
@@ -278,7 +303,7 @@ async function runPairOnce(
       cmd: 'test',
       args: [
         '-f',
-        `results/${pair.experiment}/${pair.eval_id}/run-1/result.json`,
+        `results/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
       ],
       cwd: sandbox.cwd,
       timeoutMs: 30_000,
@@ -296,7 +321,7 @@ async function runPairOnce(
       cwd: sandbox.cwd,
       timeoutMs: 3 * 60 * 1_000,
     });
-    await downloadResults(sandbox, pair, options.outputDir);
+    await downloadResults(sandbox, pair, run, options.outputDir);
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error(String(error));
@@ -452,10 +477,16 @@ async function runSandboxCommand(
   throw new SandboxCommandError(step, result.exitCode, output);
 }
 
-/** Downloads and extracts one pair into the aggregate artifact directory. */
+/**
+ * Downloads one run into the pair's artifact directory. Sibling runs of the
+ * same pair land in the same directory from their own Sandboxes, so only this
+ * run's subtree is cleared — replacing the whole directory would delete the
+ * runs that already finished.
+ */
 async function downloadResults(
   sandbox: Sandbox,
   pair: EvalPair,
+  run: number,
   outputDir: string
 ): Promise<void> {
   const staging = mkdtempSync(join(tmpdir(), 'vercel-eval-results-'));
@@ -468,10 +499,13 @@ async function downloadResults(
       { mkdirRecursive: true }
     );
     if (!downloaded) throw new Error('results archive was missing');
-    rmSync(destination, { recursive: true, force: true });
+    rmSync(join(destination, pair.eval_id, `run-${run}`), {
+      recursive: true,
+      force: true,
+    });
     mkdirSync(destination, { recursive: true });
     await execFileAsync('tar', ['-xzf', archive, '-C', destination]);
-    console.log(`${pairLabel(pair)} results downloaded to ${destination}`);
+    console.log(`${jobLabel(pair, run)} results downloaded to ${destination}`);
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
@@ -568,10 +602,15 @@ function pairLabel(pair: EvalPair): string {
   return `[${pair.experiment} x ${pair.eval_id}]`;
 }
 
+/** Same, plus the run index, since a pair's runs interleave in the log. */
+function jobLabel(pair: EvalPair, run: number): string {
+  return `[${pair.experiment} x ${pair.eval_id} run ${run}]`;
+}
+
 /** Produces a unique dashboard-safe Sandbox name. */
-function sandboxName(pair: EvalPair): string {
+function sandboxName(pair: EvalPair, run: number): string {
   const suffix = Math.random().toString(36).slice(2, 8);
-  return `${tagValue(pair.experiment).slice(0, 35)}--${tagValue(pair.eval_id).slice(0, 45)}--${suffix}`;
+  return `${tagValue(pair.experiment).slice(0, 30)}--${tagValue(pair.eval_id).slice(0, 40)}--r${run}--${suffix}`;
 }
 
 /** Sanitizes metadata for Sandbox names and tags. */

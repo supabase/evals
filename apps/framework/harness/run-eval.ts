@@ -76,6 +76,17 @@ const SELECTED_EXPERIMENT_SUITE =
     ? EXPERIMENT_SUITE_FILTERS[0]
     : undefined;
 const RUNS = positiveInteger(readFlag(rawArgs, 'runs') ?? '1', 'runs');
+// One specific scored run, by index. The Vercel controller gives each Sandbox
+// its own index so a pair's runs can be spread across Sandboxes and still land
+// in stable, non-colliding run directories.
+const RUN_INDEX_FLAG = readFlag(rawArgs, 'run-index');
+const RUN_INDEX = RUN_INDEX_FLAG
+  ? positiveInteger(RUN_INDEX_FLAG, 'run-index')
+  : undefined;
+const RUN_INDEXES =
+  RUN_INDEX === undefined
+    ? Array.from({ length: RUNS }, (_, index) => index + 1)
+    : [RUN_INDEX];
 const TIMEOUT_SEC = positiveInteger(
   readFlag(rawArgs, 'timeout-sec') ?? '720',
   'timeout-sec'
@@ -671,7 +682,8 @@ async function main() {
 
   console.log(
     `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
-      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}`
+      `runs=${RUN_INDEXES.join(',')}, timeout=${TIMEOUT_SEC}s, ` +
+      `concurrency=${CONCURRENCY}`
   );
 
   // One work item per experiment x eval x run: `--runs N` means exactly N
@@ -708,7 +720,7 @@ async function main() {
         console.log(formatPlanLine(name, config, ev));
         continue;
       }
-      for (let run = 1; run <= RUNS; run += 1) {
+      for (const run of RUN_INDEXES) {
         if (!FORCE && existsSync(resultPath(name, ev.id, run))) {
           console.log(`SKIP ${name} x ${ev.id} run ${run} (already ran)`);
           continue;
@@ -728,7 +740,7 @@ async function main() {
     run: runIndex,
   }: (typeof allWork)[number]) => {
     const out = resultPath(name, ev.id, runIndex);
-    const label = `${name} x ${ev.id} run ${runIndex}/${RUNS}`;
+    const label = `${name} x ${ev.id} run ${runIndex}`;
     const start = Date.now();
     console.log(`⏳ RUN  ${label}`);
     const run = async () => {

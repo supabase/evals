@@ -20,11 +20,11 @@ on:
         required: true
         default: "benchmark,no-skills"
       runs:
-        description: "Attempts per experiment/eval pair"
+        description: "Independent scored runs per experiment/eval pair"
         required: true
-        default: "2"
+        default: "3"
       timeout_sec:
-        description: "Timeout per attempt in seconds"
+        description: "Timeout per run in seconds"
         required: true
         default: "720"
       sandbox_concurrency:
@@ -99,7 +99,7 @@ jobs:
             eval_id=""
             suite="regression"
             experiment_suite="regression"
-            runs="2"
+            runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
           else
@@ -107,7 +107,7 @@ jobs:
             eval_id=""
             suite="benchmark,regression"
             experiment_suite="benchmark,no-skills,regression"
-            runs="2"
+            runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
           fi
@@ -430,7 +430,7 @@ jobs:
           done < <(jq -r '.[].experiment' <<< "$pairs" | sort -u)
 
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
-            export_args=(--suite benchmark --output apps/web/src/data/eval-results.json)
+            export_args=(--suite benchmark --runs "${{ needs.prepare.outputs.runs }}" --output apps/web/src/data/eval-results.json)
             if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
               export_args+=(--merge)
             fi
@@ -438,7 +438,7 @@ jobs:
           fi
 
           if jq -e 'any(.[]; .eval_suite == "regression")' <<< "$pairs" > /dev/null; then
-            export_args=(--suite regression --output apps/web/src/data/regression-eval-results.json)
+            export_args=(--suite regression --runs "${{ needs.prepare.outputs.runs }}" --output apps/web/src/data/regression-eval-results.json)
             if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
               export_args+=(--merge)
             fi
