@@ -5543,12 +5543,12 @@
       {
         "name": "HNSW index on the embedding column",
         "passed": true,
-        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
       },
       {
         "name": "index operator class matches the search operator",
         "passed": true,
-        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
       },
       {
         "name": "user A search returns only own sections, best match first",
@@ -5581,7 +5581,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"semantic search edge functions pgvector gte-small match_document_sections\", limit: 3) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"gte-small embedding dimensions Supabase.ai Session semantic search edge function\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -5589,42 +5589,174 @@
               "title": "Semantic Search"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/full-text-search",
-              "title": "Full Text Search"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/hybrid-search",
-              "title": "Hybrid search"
-            }
-          ],
-          "resultChars": 61699
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"vector extension schema best practice extensions schema\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
               "url": "https://supabase.com/docs/guides/ai/semantic-search",
               "title": "Semantic search"
             },
             {
-              "url": "https://supabase.com/docs/guides/realtime/getting_started",
-              "title": "Getting Started with Realtime"
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
-              "title": "RAG with Permissions"
+              "url": "https://supabase.com/docs/guides/functions/ai-models",
+              "title": "Running AI Models"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/choosing-compute-addon",
+              "title": "Choosing your Compute Add-on"
             }
           ],
-          "resultChars": 46198
+          "resultChars": 87280
         }
       ]
     },
     "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
     "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-sonnet-5/build-vectors-001-rag-with-permissions.json"
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5/build-vectors-001-rag-with-permissions/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-vectors-001-rag-with-permissions",
+    "stage": "build",
+    "product": [
+      "database",
+      "vectors"
+    ],
+    "topic": [
+      "sql",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <#>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_ip_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
+    "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5/build-vectors-001-rag-with-permissions/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-vectors-001-rag-with-permissions",
+    "stage": "build",
+    "product": [
+      "database",
+      "vectors"
+    ],
+    "topic": [
+      "sql",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "document_sections.embedding is vector(384)",
+        "passed": true,
+        "notes": "vector(384)"
+      },
+      {
+        "name": "HNSW index on the embedding column",
+        "passed": true,
+        "notes": "CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "index operator class matches the search operator",
+        "passed": true,
+        "notes": "function operators: <=>\nindexes: CREATE INDEX document_sections_embedding_idx ON public.document_sections USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "name": "user A search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user B search returns only own sections, best match first",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own sections through the API",
+        "passed": true
+      },
+      {
+        "name": "user A reads only own documents through the API",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "We're adding semantic search to our internal knowledge base app. I already wrote the edge functions, but search doesn't work yet. Can you set up whatever the database needs to make search work end to end?\n\nSome documents are confidential, so users should only have access to documents they own.",
+    "promptSourcePath": "evals/build-vectors-001-rag-with-permissions/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5/build-vectors-001-rag-with-permissions/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -5929,7 +6061,7 @@
       {
         "name": "diagnosed and explained session revocation",
         "passed": true,
-        "judgeNotes": "The answer identifies the soft-delete-only bug, implements real revocation by deleting auth.sessions and banning the auth user, adds RLS checks to close the data-access stale-JWT window, and consistently explains that stateless JWTs remain locally valid until expiry. It also correctly distinguishes frontend publishable/anon keys from server-only secret/service_role keys and notes secret bypasses RLS."
+        "judgeNotes": "Correctly diagnoses the soft-delete-only flow, revokes sessions/refresh tokens and blocks future authentication, adds RLS protection against stale JWT data access, accurately explains stateless access-token expiry behavior, and distinguishes frontend publishable keys from server-only RLS-bypassing secret keys."
       }
     ],
     "skills": {
@@ -5946,8 +6078,195 @@
     },
     "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
     "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
-    "attempts": 2,
-    "sourcePath": "claude-code-sonnet-5/investigate-auth-001-deleted-user-access.json"
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5/investigate-auth-001-deleted-user-access/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-auth-001-deleted-user-access",
+    "stage": "investigate",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": false,
+    "checks": [
+      {
+        "name": "victim session active before delete-account",
+        "passed": true
+      },
+      {
+        "name": "delete_account flow ran for the victim",
+        "passed": true
+      },
+      {
+        "name": "delete-account revokes the user's sessions",
+        "passed": true,
+        "notes": "sessions left: 0"
+      },
+      {
+        "name": "deleted user's refresh token is rejected",
+        "passed": true
+      },
+      {
+        "name": "deleted user cannot sign back in",
+        "passed": false,
+        "notes": "deleted account can still sign in"
+      },
+      {
+        "name": "other users keep their sessions and access",
+        "passed": true
+      },
+      {
+        "name": "diagnosed and explained session revocation",
+        "passed": false,
+        "judgeNotes": "The fix bans the auth user and deletes sessions but does not delete the auth user/identity as required. It also fails to clearly explain that stateless access-token JWTs remain valid for purely local validation (for example getClaims() or signature/expiry middleware) until expiry, despite correctly closing the current RLS data paths and explaining publishable versus secret keys."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5/investigate-auth-001-deleted-user-access/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "investigate-auth-001-deleted-user-access",
+    "stage": "investigate",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": false,
+    "checks": [
+      {
+        "name": "victim session active before delete-account",
+        "passed": true
+      },
+      {
+        "name": "delete_account flow ran for the victim",
+        "passed": true
+      },
+      {
+        "name": "delete-account revokes the user's sessions",
+        "passed": true,
+        "notes": "sessions left: 0"
+      },
+      {
+        "name": "deleted user's refresh token is rejected",
+        "passed": true
+      },
+      {
+        "name": "deleted user cannot sign back in",
+        "passed": false,
+        "notes": "deleted account can still sign in"
+      },
+      {
+        "name": "other users keep their sessions and access",
+        "passed": true
+      },
+      {
+        "name": "diagnosed and explained session revocation",
+        "passed": true,
+        "judgeNotes": "Correctly identified the cosmetic soft delete, implemented real login/session/refresh revocation via permanent ban and session deletion, closed current Data API access through RLS, accurately explained residual stateless-JWT validity for local validation, and correctly distinguished frontend publishable keys from server-only RLS-bypassing secret keys."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"publishable key secret key anon service_role migration RLS\", limit: 5) { nodes { title href ... on Guide { content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
+              "title": "Build a Social Auth App with Expo React Native"
+            }
+          ],
+          "resultChars": 149036
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Understanding API keys publishable secret key row level security bypass\", limit: 2) { nodes { title href ... on Guide { content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            }
+          ],
+          "resultChars": 26644
+        }
+      ]
+    },
+    "prompt": "Last week support removed a user through our app's delete-account flow — the\napp calls the `delete_account` function over RPC as the signed-in user. This\nmorning that same person was back: still signed in, reading and saving their\ndata like nothing happened.\n\nFigure out why the account still works, fix the flow so a deleted account\nloses access, and tell me whether there is any window where they could still\nget in after the fix.\n\nOne more thing while you're at it: we're migrating off the legacy\nanon/service_role API keys to the new publishable and secret keys, and the\nteam isn't sure which one belongs in the frontend and what each means for\nRLS. Give us a quick rundown.",
+    "promptSourcePath": "evals/investigate-auth-001-deleted-user-access/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5/investigate-auth-001-deleted-user-access/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -6091,6 +6410,53 @@
     ],
     "suite": "benchmark",
     "interface": "mcp",
+    "passed": false,
+    "checks": [
+      {
+        "name": "created auth sessions",
+        "passed": false,
+        "notes": "Internal server error"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5/resolve-dataapi-001-empty-results/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
     "passed": true,
     "checks": [
       {
@@ -6120,7 +6486,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "The assistant correctly diagnosed RLS enabled with no policies causing deny-all Data API results, kept RLS enabled, created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() with WITH CHECK for insert, and verified behavior."
+        "judgeNotes": "Correctly diagnosed deny-all RLS with no policies, kept RLS enabled, and added authenticated-only SELECT and INSERT policies scoped by user_id = auth.uid() using USING and WITH CHECK."
       }
     ],
     "skills": {
@@ -6137,8 +6503,79 @@
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-sonnet-5/resolve-dataapi-001-empty-results.json"
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5/resolve-dataapi-001-empty-results/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Correctly diagnosed deny-all RLS, kept RLS enabled, and added authenticated owner-scoped SELECT and INSERT policies using auth.uid(), including WITH CHECK for inserts."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5/resolve-dataapi-001-empty-results/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -11323,7 +11760,691 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"row level security policy auth.uid select using with check memberships supabase\", limit: 5) { nodes { __typename title href content } } }",
+          "query": "query { searchDocs(query: \"row level security auth.uid policy workspace tenant isolation notes\", limit: 5) { nodes { title href content ... on Guide { subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#customizing-the-audience-claim",
+              "title": "Customizing the audience claim"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#custom-access-token-hooks",
+              "title": "Custom access token hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#example-1-multi-platform-application",
+              "title": "Example 1: Multi-platform application"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#real-world-examples",
+              "title": "Real-world examples"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#pattern-4-client-specific-data-access",
+              "title": "Pattern 4: Client-specific data access"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#pattern-3-restrict-sensitive-data-from-oauth-clients",
+              "title": "Pattern 3: Restrict sensitive data from OAuth clients"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#pattern-2-grant-multiple-clients-read-only-access",
+              "title": "Pattern 2: Grant multiple clients read-only access"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#pattern-1-grant-specific-client-full-access",
+              "title": "Pattern 1: Grant specific client full access"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#common-rls-patterns-for-oauth",
+              "title": "Common RLS patterns for OAuth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#extracting-oauth-claims-in-rls",
+              "title": "Extracting OAuth claims in RLS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#token-structure",
+              "title": "Token structure"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#how-oauth-tokens-work-with-rls",
+              "title": "How OAuth tokens work with RLS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#cant-differentiate-between-users-and-oauth-clients",
+              "title": "Can't differentiate between users and OAuth clients"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#policy-too-permissive",
+              "title": "Policy too permissive"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#policy-not-working-for-oauth-client",
+              "title": "Policy not working for OAuth client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#testing-your-policies",
+              "title": "Testing your policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#3-regularly-audit-oauth-clients",
+              "title": "3. Regularly audit OAuth clients"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#2-separate-policies-for-oauth-clients",
+              "title": "2. Separate policies for OAuth clients"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#1-principle-of-least-privilege",
+              "title": "1. Principle of least privilege"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#security-best-practices",
+              "title": "Security best practices"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security#adding-client-specific-claims",
+              "title": "Adding client-specific claims"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#realtime",
+              "title": "Realtime"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#studio-single-sign-on",
+              "title": "Studio Single Sign-On"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#studio",
+              "title": "Studio"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#log-drains",
+              "title": "Log drains"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#read-replicas",
+              "title": "Read replicas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#terraform-provider",
+              "title": "Terraform provider"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#branching",
+              "title": "Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#ssl-enforcement",
+              "title": "SSL enforcement"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#network-restrictions",
+              "title": "Network restrictions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#custom-domains",
+              "title": "Custom domains"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#smart-content-delivery-network",
+              "title": "Smart Content Delivery Network"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#management-api",
+              "title": "Management API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#cli",
+              "title": "CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#project-management",
+              "title": "Project management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#npm-compatibility",
+              "title": "NPM compatibility"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database-backups",
+              "title": "Database backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#platform",
+              "title": "Platform"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#replication",
+              "title": "Replication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#secrets-and-encryption",
+              "title": "Secrets and encryption"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database-webhooks",
+              "title": "Database webhooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auto-generated-graphql-api-via-pg_graphql",
+              "title": "Auto-generated GraphQL API via pg_graphql"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auto-generated-rest-api-via-postgrest",
+              "title": "Auto-generated REST API via PostgREST"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#vector-database",
+              "title": "Vector database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#postgres-database",
+              "title": "Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database",
+              "title": "Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#regional-invocations",
+              "title": "Regional invocations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#deno-edge-functions",
+              "title": "Deno Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#feature-status",
+              "title": "Feature status"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#private-alpha",
+              "title": "Private alpha"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#client-libraries",
+              "title": "Client libraries"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#public-alpha",
+              "title": "Public alpha"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#beta",
+              "title": "Beta"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#generally-available",
+              "title": "Generally available"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#edge-functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#s3-compatibility",
+              "title": "S3 compatibility"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#resumable-uploads",
+              "title": "Resumable uploads"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#image-transformations",
+              "title": "Image transformations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#content-delivery-network",
+              "title": "Content Delivery Network"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#file-storage",
+              "title": "File storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#server-side-auth",
+              "title": "Server-Side Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#captcha-protection",
+              "title": "CAPTCHA protection"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#authorization-via-row-level-security",
+              "title": "Authorization via Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#passwordless-login",
+              "title": "Passwordless login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#phone-logins",
+              "title": "Phone logins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#social-login",
+              "title": "Social login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#email-login",
+              "title": "Email login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#presence",
+              "title": "Presence"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#broadcast",
+              "title": "Broadcast"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#postgres-changes",
+              "title": "Postgres changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#provider-tokens",
+              "title": "Provider tokens"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#authorization",
+              "title": "Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#authenticator-app",
+              "title": "Authenticator app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#authentication",
+              "title": "Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#access-token",
+              "title": "Access token"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#time-based-one-time-password-totp",
+              "title": "Time-based one-time password (TOTP)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#single-sign-on-sso",
+              "title": "Single-sign on (SSO)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#session",
+              "title": "Session"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#saml",
+              "title": "SAML"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#row-level-security-policies-rls",
+              "title": "Row level security policies (RLS)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#replay-attack",
+              "title": "Replay attack"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#refresh-token-flow",
+              "title": "Refresh token flow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#refresh-token",
+              "title": "Refresh token"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#provider-refresh-token",
+              "title": "Provider refresh token"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#pkce",
+              "title": "PKCE"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#password-strength",
+              "title": "Password strength"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#password-hashing-function",
+              "title": "Password hashing function"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#one-time-password-otp",
+              "title": "One-time password (OTP)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#oidc",
+              "title": "OIDC"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#oauth",
+              "title": "OAuth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#nonce",
+              "title": "Nonce"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#multi-factor-authentication-mfa-or-2fa",
+              "title": "Multi-factor authentication (MFA or 2FA)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#jwt-signing-secret",
+              "title": "JWT signing secret"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#json-web-token-jwt",
+              "title": "JSON Web Token (JWT)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary#identity-provider",
+              "title": "Identity provider"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started",
+              "title": "Getting Started with Realtime"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#essential-best-practices",
+              "title": "Essential best practices"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#framework-examples",
+              "title": "Framework examples"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#advanced-topics",
+              "title": "Advanced topics"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#security--configuration",
+              "title": "Security & configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#core-features",
+              "title": "Core features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#when-to-use-postgres-changes",
+              "title": "When to use Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#when-to-use-presence",
+              "title": "When to use Presence"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#when-to-use-broadcast",
+              "title": "When to use Broadcast"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#choose-the-right-feature",
+              "title": "Choose the right feature"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#clean-up-subscriptions",
+              "title": "Clean up subscriptions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#follow-naming-conventions",
+              "title": "Follow naming conventions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#use-private-channels",
+              "title": "Use private channels"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#quick-start",
+              "title": "Quick start"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#1-install-the-client-library",
+              "title": "1. Install the client library"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#2-initialize-the-client",
+              "title": "2. Initialize the client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#3-create-your-first-channel",
+              "title": "3. Create your first Channel"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#4-set-up-authorization",
+              "title": "4. Set up authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#5-send-and-receive-messages",
+              "title": "5. Send and receive messages"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#51-using-client-libraries",
+              "title": "5.1 using client libraries"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#52-using-httprest-api",
+              "title": "5.2 using HTTP/REST API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#53-using-database-triggers",
+              "title": "5.3 using database triggers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started#integration-guides",
+              "title": "Integration guides"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
+              "title": "Multi-Factor Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#enforce-for-new-users-only",
+              "title": "Enforce for new users only"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#enforce-for-all-users-new-and-existing",
+              "title": "Enforce for all users (new and existing)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#database",
+              "title": "Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#example-react",
+              "title": "Example: React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#enforce-rules-for-mfa-logins",
+              "title": "Enforce rules for MFA logins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#add-unenroll-flow",
+              "title": "Add unenroll flow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#adding-to-your-app",
+              "title": "Adding to your app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#overview",
+              "title": "Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#frequently-asked-questions",
+              "title": "Frequently asked questions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#apis",
+              "title": "APIs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#server-side-rendering",
+              "title": "Server-Side Rendering"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa#enforce-only-for-users-that-have-opted-in",
+              "title": "Enforce only for users that have opted-in"
+            }
+          ],
+          "resultChars": 163783
+        }
+      ]
+    },
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase RLS policy auth.uid workspace membership select policy using exists notes org_id\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/firebase-auth",
+              "title": "Firebase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            }
+          ],
+          "resultChars": 68074
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth.uid request.jwt.claims current_setting sub supabase\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -11331,8 +12452,36 @@
               "title": "Realtime Authorization"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
-              "title": "Clerk"
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv",
+              "title": "RLS Performance and Best Practices"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            }
+          ],
+          "resultChars": 108993
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth.uid current_setting request.jwt.claims sub returns the ID of the user making the request\", limit: 10) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
             },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
@@ -11343,18 +12492,127 @@
               "title": "RAG with Permissions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/third-party/firebase-auth",
-              "title": "Firebase Auth"
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/auth-error-401-invalid-claim-missing-sub--AFwMR",
+              "title": "Auth error: {401: invalid claim: missing sub}"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/partner-integration-guide",
+              "title": "Supabase Partner Integration Guide"
             }
           ],
-          "resultChars": 75855
+          "resultChars": 152122
         }
       ]
     },
     "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
     "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "codex-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak.json"
+    "run": 2,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-security-002-rls-cross-tenant-leak",
+    "stage": "resolve",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS enabled on notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A sees only org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot read org A notes",
+        "passed": true
+      },
+      {
+        "name": "tenant A author can update own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot update org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant B author can delete own note",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot delete org A note",
+        "passed": true
+      },
+      {
+        "name": "tenant A can insert note in own org",
+        "passed": true
+      },
+      {
+        "name": "tenant B cannot insert into org A",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog breaking-change Supabase August 2026 changelog",
+          "pages": []
+        }
+      ]
+    },
+    "prompt": "A customer reported that notes showed up in the wrong workspace.\n\nCan you investigate what is going on and fix it?",
+    "promptSourcePath": "evals/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.4-mini/resolve-security-002-rls-cross-tenant-leak/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini-no-skills",
