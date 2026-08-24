@@ -9625,6 +9625,193 @@
       {
         "name": "user A cannot force-read user B note",
         "passed": true,
+        "notes": "status=200"
+      },
+      {
+        "name": "user B cannot force-read user A note",
+        "passed": true,
+        "notes": "status=200"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,140p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 7649
+        },
+        {
+          "source": "search_docs",
+          "query": "query {\n  searchDocs(query: \"Edge Functions auth verify_jwt createClient auth.getUser request headers\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/websockets",
+              "title": "Handling WebSockets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-codes",
+              "title": "Error codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/resumable-websockets",
+              "title": "Resumable WebSockets with Edge Functions"
+            }
+          ],
+          "resultChars": 35432
+        }
+      ]
+    },
+    "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
+    "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.4-mini/build-functions-004-service-role-bypass/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-004-service-role-bypass",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects missing auth",
+        "passed": true,
+        "notes": "status=401"
+      },
+      {
+        "name": "user A reads own note",
+        "passed": true,
+        "notes": "status=200"
+      },
+      {
+        "name": "reads only with the caller's JWT",
+        "passed": true,
+        "notes": "bearer_tokens=2, all_match=true"
+      },
+      {
+        "name": "user A cannot force-read user B note",
+        "passed": true,
+        "notes": "status=200"
+      },
+      {
+        "name": "user B cannot force-read user A note",
+        "passed": true,
+        "notes": "status=200"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
+    "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.4-mini/build-functions-004-service-role-bypass/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-004-service-role-bypass",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects missing auth",
+        "passed": true,
+        "notes": "status=401"
+      },
+      {
+        "name": "user A reads own note",
+        "passed": true,
+        "notes": "status=200"
+      },
+      {
+        "name": "reads only with the caller's JWT",
+        "passed": true,
+        "notes": "bearer_tokens=2, all_match=true"
+      },
+      {
+        "name": "user A cannot force-read user B note",
+        "passed": true,
         "notes": "status=403"
       },
       {
@@ -9639,56 +9826,46 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Edge Functions verify_jwt auth.getUser Bearer token\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Edge Function auth JWT supabase-js getUser private notes RLS\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth-headers",
-              "title": "Authorization headers"
-            },
             {
               "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
               "title": "Integrating With Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/error-codes",
-              "title": "Error codes"
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
-              "title": "Self-Hosted Functions"
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/status-codes",
-              "title": "Status codes"
-            }
-          ],
-          "resultChars": 32605
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,120p'\"",
-          "hasContent": true,
-          "pages": [
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
             {
-              "url": "https://supabase.com/changelog.md"
+              "url": "https://supabase.com/docs/guides/auth/third-party/firebase-auth",
+              "title": "Firebase Auth"
             }
           ],
-          "resultChars": 6745
+          "resultChars": 46990
         }
       ]
     },
     "prompt": "I built an Edge Function called `private-notes` for showing a user's saved\nprivate notes.\n\nCan you check whether there's any way one user could see another user's notes?\n\nPlease fix and deploy it if needed.",
     "promptSourcePath": "evals/build-functions-004-service-role-bypass/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "codex-gpt-5.4-mini/build-functions-004-service-role-bypass.json"
+    "run": 3,
+    "sourcePath": "codex-gpt-5.4-mini/build-functions-004-service-role-bypass/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
@@ -10142,7 +10319,7 @@
       {
         "name": "user A lists only own files",
         "passed": true,
-        "notes": "saw: 019fdc8d-2d5c-7238-bdd6-e937eefa55fb/receipt-alpha.pdf, 019fdc8d-2d5c-7238-bdd6-e937eefa55fb/receipt-beta.pdf"
+        "notes": "saw: 01a03585-b069-7076-9bb7-8dee8597d5c7/receipt-alpha.pdf, 01a03585-b069-7076-9bb7-8dee8597d5c7/receipt-beta.pdf"
       },
       {
         "name": "user B cannot read user A files",
@@ -10163,7 +10340,7 @@
       {
         "name": "configured private per-user storage access",
         "passed": true,
-        "judgeNotes": "Creates private user-files bucket, owner-scoped SELECT and INSERT policies for authenticated role using first folder segment = auth.uid(), keeps RLS intact (no disabling), and provides createSignedUrl with a 15-minute expiry. Extra UPDATE/DELETE policies are acceptable."
+        "judgeNotes": "Private bucket, authenticated owner-scoped SELECT/INSERT policies, enabled RLS, and expiring createSignedUrl usage are all present."
       }
     ],
     "skills": {
@@ -10180,80 +10357,35 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"storage bucket policies objects path owner user id signed URL supabase\", limit: 5) { nodes { __typename title href ... on Guide { content } ... on TroubleshootingGuide { content } ... on ClientLibraryFunctionReference { content language methodName } } } }",
+          "query": "query { searchDocs(query: \"storage policies upload download private bucket user_id prefix signed urls createSignedUrl\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on TroubleshootingGuide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
-              "title": "Build a User Management App with Next.js"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/serving/downloads",
-              "title": "Serving assets from Storage"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage",
-              "title": "Storage"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
-              "title": "Build a User Management App with SvelteKit"
-            }
-          ],
-          "resultChars": 119861
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"storage.objects policy owner path prefix foldername user id signed URL createSignedUrl\", limit: 10) { nodes { __typename title href ... on Guide { content } ... on TroubleshootingGuide { content } ... on ClientLibraryFunctionReference { content language methodName } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createsignedurls"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createsigneduploadurl"
-            },
             {
               "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
               "title": "Storage Buckets"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/cdn/smart-cdn",
-              "title": "Smart CDN"
             },
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/why-cant-i-uploadlistetc-my-public-bucket-Z6CmGt",
               "title": "Why can't I upload/list/etc my public bucket?"
             },
             {
-              "url": "https://supabase.com/docs/reference/swift/storage-from-createsigneduploadurl",
-              "title": "from.createSignedUploadURL()"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/security/product-security",
-              "title": "Secure configuration of Supabase products"
-            },
-            {
               "url": "https://supabase.com/docs/guides/storage/serving/downloads",
               "title": "Serving assets from Storage"
             },
             {
-              "url": "https://supabase.com/docs/reference/swift/storage-from-createsignedurls",
-              "title": "from.createSignedUrls()"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/s3/compatibility",
+              "title": "S3 Compatibility"
             }
           ],
-          "resultChars": 17609
+          "resultChars": 54592
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"storage access control policy examples foldername auth uid owner\", limit: 10) { nodes { __typename title href ... on Guide { content } ... on TroubleshootingGuide { content } } } }",
+          "query": "query { searchDocs(query: \"storage access control policies storage.objects bucket id prefix object name user id path\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -10265,56 +10397,291 @@
               "title": "Secure configuration of Supabase products"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/security/ownership",
-              "title": "Ownership"
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/quickstart",
-              "title": "Storage Quickstart"
+              "url": "https://supabase.com/docs/guides/storage/cdn/fundamentals",
+              "title": "Storage CDN"
+            }
+          ],
+          "resultChars": 11866
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"createSignedUrl supabase-js storage signed URL private bucket\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/serving/downloads",
+              "title": "Serving assets from Storage"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
-              "title": "Multiple SSO Providers"
+              "url": "https://supabase.com/docs/guides/storage/serving/image-transformations",
+              "title": "Storage Image Transformations"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
-              "title": "Copy Objects"
+              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/storage-image-transformations",
+              "title": "Manage Storage Image Transformations usage"
             },
+            {
+              "url": "https://supabase.com/docs/guides/storage/uploads/resumable-uploads",
+              "title": "Resumable Uploads"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createsigneduploadurl"
+            }
+          ],
+          "resultChars": 47064
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage.foldername helper functions first path segment object name\", limit: 5) { nodes { __typename ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
               "title": "Storage Helper Functions"
+            }
+          ],
+          "resultChars": 3882
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage.from('bucket').upload bucket must exist bucket policies storage.buckets\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
             },
             {
               "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
               "title": "Storage Buckets"
             },
             {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createbucket"
+            }
+          ],
+          "resultChars": 18227
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage.buckets rls policy create bucket select insert private bucket storage.createbucket\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/product-security",
+              "title": "Secure configuration of Supabase products"
+            },
+            {
               "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
               "title": "Configure S3 Storage"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/supabase-storage-inefficient-folder-operations-and-hierarchical-rls-challenges-b05a4d",
-              "title": "Supabase Storage: Inefficient folder operations and hierarchical RLS challenges"
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
             }
           ],
-          "resultChars": 60503
-        },
+          "resultChars": 33138
+        }
+      ]
+    },
+    "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.4-mini/build-storage-001-private-bucket-access/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 01a03585-cb5b-71e9-b2fe-0991ddece1a6/receipt-alpha.pdf, 01a03585-cb5b-71e9-b2fe-0991ddece1a6/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Private bucket, authenticated owner-scoped SELECT/INSERT policies, enabled RLS, and expiring createSignedUrl code are all present."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"storage object ownership owner column path prefix foldername access control\", limit: 10) { nodes { __typename title href ... on Guide { content } ... on TroubleshootingGuide { content } } } }",
+          "query": "{ searchDocs(query:\"storage signed url bucket policies upload download owner user id path RLS supabase storage\", limit: 10) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/storage/security/ownership",
-              "title": "Ownership"
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/supabase-storage-inefficient-folder-operations-and-hierarchical-rls-challenges-b05a4d",
-              "title": "Supabase Storage: Inefficient folder operations and hierarchical RLS challenges"
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
             },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-react",
+              "title": "Build a User Management App with React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-angular",
+              "title": "Build a User Management App with Angular"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/custom-roles",
+              "title": "Custom Roles"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-flutter",
+              "title": "Build a User Management App with Flutter"
+            }
+          ],
+          "resultChars": 222549
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"Storage access control private bucket RLS owner_id storage.objects createSignedUrl temporary link expires\", limit: 10) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/product-security",
+              "title": "Secure configuration of Supabase products"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/serving/downloads",
+              "title": "Serving assets from Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/cdn/smart-cdn",
+              "title": "Smart CDN"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/design",
+              "title": "The Storage Schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/cdn/fundamentals",
+              "title": "Storage CDN"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/custom-roles",
+              "title": "Custom Roles"
+            }
+          ],
+          "resultChars": 35720
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"storage object ownership owner_id upload path user id foldername name policies insert select update storage.objects\", limit: 10) { nodes { __typename ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
               "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
             },
             {
               "url": "https://supabase.com/docs/guides/security/product-security",
@@ -10325,23 +10692,144 @@
               "title": "The Storage Schema"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
-              "title": "Storage Helper Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
-            },
-            {
               "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
               "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/ownership",
+              "title": "Ownership"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/custom-roles",
+              "title": "Custom Roles"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/quickstart",
+              "title": "Storage Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/storage-size",
+              "title": "Manage Storage size usage"
             }
           ],
-          "resultChars": 32342
+          "resultChars": 43340
+        }
+      ]
+    },
+    "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
+    "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.4-mini/build-storage-001-private-bucket-access/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.4-mini",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.4-mini",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-001-private-bucket-access",
+    "stage": "build",
+    "product": [
+      "storage",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "bucket user-files exists",
+        "passed": true
+      },
+      {
+        "name": "bucket user-files is private",
+        "passed": true
+      },
+      {
+        "name": "RLS still enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "user A lists only own files",
+        "passed": true,
+        "notes": "saw: 01a03585-72db-7154-bf54-43db93e0866e/receipt-alpha.pdf, 01a03585-72db-7154-bf54-43db93e0866e/receipt-beta.pdf"
+      },
+      {
+        "name": "user B cannot read user A files",
+        "passed": true
+      },
+      {
+        "name": "anon reads no files",
+        "passed": true
+      },
+      {
+        "name": "user A can upload into own folder",
+        "passed": true
+      },
+      {
+        "name": "user B cannot upload into user A folder",
+        "passed": true
+      },
+      {
+        "name": "configured private per-user storage access",
+        "passed": true,
+        "judgeNotes": "Private bucket, authenticated owner-path SELECT/INSERT policies, RLS retained, and expiring createSignedUrl usage are all provided."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage policies signed URL bucket SQL create bucket public private uploaded files own user id\", limit: 5) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href language methodName content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-angular",
+              "title": "Build a User Management App with Angular"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-cant-i-uploadlistetc-my-public-bucket-Z6CmGt",
+              "title": "Why can't I upload/list/etc my public bucket?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-angular",
+              "title": "Build a User Management App with Ionic Angular"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native",
+              "title": "Build a User Management App with Expo React Native"
+            }
+          ],
+          "resultChars": 103415
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js createSignedUrl storage from bucket expiresIn share file temporary link\", limit: 3) { nodes { __typename title href ... on ClientLibraryFunctionReference { content language methodName } } } }",
+          "query": "query { searchDocs(query: \"supabase storage policy bucket private own folder owner uid path prefix signed url createSignedUrl example\", limit: 10) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href language methodName content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -10349,21 +10837,90 @@
               "title": "Serving assets from Storage"
             },
             {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/serving/image-transformations",
+              "title": "Storage Image Transformations"
+            },
+            {
               "url": "https://supabase.com/docs/guides/platform/manage-your-usage/storage-image-transformations",
               "title": "Manage Storage Image Transformations usage"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl"
+              "url": "https://supabase.com/docs/guides/storage/uploads/resumable-uploads",
+              "title": "Resumable Uploads"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/quickstart",
+              "title": "Storage Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/firebase-storage",
+              "title": "Migrated from Firebase Storage to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
             }
           ],
-          "resultChars": 1476
+          "resultChars": 81618
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage.objects owner prefix folder auth.uid path_tokens policy example own files user id\", limit: 10) { nodes { __typename ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href language methodName content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/ownership",
+              "title": "Ownership"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/quickstart",
+              "title": "Storage Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/product-security",
+              "title": "Secure configuration of Supabase products"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            }
+          ],
+          "resultChars": 46821
         }
       ]
     },
     "prompt": "Our app lets signed-in users keep personal files like receipts and bank\nstatements. These files are private — a user must only ever be able to upload\nand download their own. The app uploads each file under a path that starts\nwith the owner's user id, e.g. `<user_id>/receipt-march.pdf`.\n\nSet up a `user-files` bucket on our project and lock it down that way.\n\nUsers also sometimes share one of their files with someone else through a\ntemporary link that expires. Include the supabase-js code the app should use\nfor that.",
     "promptSourcePath": "evals/build-storage-001-private-bucket-access/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "codex-gpt-5.4-mini/build-storage-001-private-bucket-access.json"
+    "run": 3,
+    "sourcePath": "codex-gpt-5.4-mini/build-storage-001-private-bucket-access/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-5.4-mini",
