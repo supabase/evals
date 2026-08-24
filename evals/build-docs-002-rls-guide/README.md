@@ -32,4 +32,4 @@ Nothing in the migration says who may read or write what.
 
 Whether the agent arrives at pgTAP is itself a measurement. If agents do not write tests here, that says something about how reachable testing is from the guide.
 
-Coverage is judged, not pattern-matched. Two mechanical gates were tried and both failed in the same way: searching the file text counts a comment as a test, and searching the assertion descriptions rejects a correct suite that passes no description. Each fix in one direction made the other worse. The judge reads the sources with the six tables written into its rubric, and the suite's exit status proves the assertions ran.
+Coverage is judged against a low bar: one assertion on an application table, one allowed case, one denied case, and a role set at least once. 
