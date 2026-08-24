@@ -31,12 +31,26 @@ describe('buildSystemPrompt', () => {
     }
   });
 
-  it('passes a CLI harness only the runtime blocks, with no base prompt', () => {
+  it('drops blocks a caller hands it for a CLI harness', () => {
+    // The producers gate their own output, so this should never happen — but a
+    // block that did reach a CLI harness would fail silently, leaving the eval
+    // measuring our prompt rather than the agent's own behaviour. A new
+    // experiment pairing a CLI harness with an MCP server that carries a
+    // `promptAddendum` is the way in; the assembler refuses it regardless.
     for (const agent of CLI_AGENTS) {
-      expect(
-        buildSystemPrompt(agent, 'local-stack', 'Addendum.', 'Skills listing.')
-      ).toBe('Addendum.\n\nSkills listing.');
+      for (const mode of MODES) {
+        expect(
+          buildSystemPrompt(agent, mode, 'Addendum.', 'Skills listing.')
+        ).toBe('');
+      }
     }
+  });
+
+  it('keeps the runtime blocks for ai-sdk, in order, after the base prompt', () => {
+    const base = buildSystemPrompt('ai-sdk', 'local-stack');
+    expect(
+      buildSystemPrompt('ai-sdk', 'local-stack', 'Addendum.', 'Skills listing.')
+    ).toBe(`${base}\n\nAddendum.\n\nSkills listing.`);
   });
 
   it('assembles to nothing at all for a CLI harness, even with skills', () => {
@@ -85,9 +99,9 @@ describe('buildSystemPrompt', () => {
   });
 
   it('drops empty blocks instead of leaving blank gaps', () => {
-    expect(
-      buildSystemPrompt('claude-code', 'tools', '', 'Skills listing.')
-    ).toBe('Skills listing.');
+    expect(buildSystemPrompt('ai-sdk', 'tools', '', 'Skills listing.')).toBe(
+      `${buildSystemPrompt('ai-sdk', 'tools')}\n\nSkills listing.`
+    );
     expect(buildSystemPrompt('ai-sdk', 'tools', '', '')).not.toMatch(/\n\n$/);
   });
 });
