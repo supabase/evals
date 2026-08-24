@@ -25,8 +25,16 @@ import {
 export type GroupBy = "model" | "stage" | "product" | "eval"
 
 /**
+ * The sample set a run belongs to: every scored run of one agent against one
+ * eval. Runs of the same pair collapse into a single sidebar row.
+ */
+export function runGroupKey(result: ParsedResult) {
+  return `${result.experiment}::${result.eval}`
+}
+
+/**
  * What the user clicked: a key on one of the axes, whichever axis it came
- * from, and optionally the single run identified by a score cell.
+ * from, and optionally the run or sample set identified by a score cell.
  */
 export type TableSelection = {
   dimension: GroupBy
@@ -170,19 +178,26 @@ export function dimensionShortTitle(dimension: Dimension, key: string) {
 }
 
 /**
- * Builds a sheet selection from any table axis. A score cell only points all
- * the way to a run when its row/column intersection is unambiguous; aggregate
- * cells still open the row's complete sheet.
+ * Builds a sheet selection from any table axis. A score cell points at a single
+ * run when its row/column intersection is one run, or at that pair's sample set
+ * when the cell is the several runs of one agent against one eval; other
+ * aggregate cells still open the row's complete sheet.
  */
 export function tableSelection(
   dimension: Dimension,
   key: string,
   cellRuns: ParsedResult[] = []
 ): TableSelection {
+  const groups = new Set(cellRuns.map(runGroupKey))
+
   return {
     dimension: dimension.id,
     key,
-    ...(cellRuns.length === 1 ? { expandedRun: cellRuns[0].sourcePath } : {}),
+    ...(cellRuns.length === 1
+      ? { expandedRun: cellRuns[0].sourcePath }
+      : groups.size === 1
+        ? { expandedRun: runGroupKey(cellRuns[0]) }
+        : {}),
   }
 }
 

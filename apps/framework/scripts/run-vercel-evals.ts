@@ -272,9 +272,14 @@ async function runPairOnce(
       },
       true
     );
+    // Every scored run lands in its own `run-<n>/result.json`; the first one
+    // existing is enough to prove the harness produced results to pack.
     await runSandboxCommand(sandbox, label, 'validate result', {
       cmd: 'test',
-      args: ['-f', `results/${pair.experiment}/${pair.eval_id}.json`],
+      args: [
+        '-f',
+        `results/${pair.experiment}/${pair.eval_id}/run-1/result.json`,
+      ],
       cwd: sandbox.cwd,
       timeoutMs: 30_000,
     });
