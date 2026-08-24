@@ -109,7 +109,7 @@ async function loadExperiments() {
  * `interface` is otherwise a benchmark dimension (KPI), not a runtime switch.
  */
 function resolveEvalMode(
-  interfaceKind: EvalInterface | undefined,
+  interfaceKind: EvalInterface,
   hasLocal: boolean
 ): EvalMode {
   if (interfaceKind === 'cli' || hasLocal) return 'local-stack';

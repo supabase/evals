@@ -90,6 +90,8 @@ export type ExperimentDisplayMetadata = z.infer<
  * Interface(s) the agent uses to act on Supabase — a benchmark dimension
  * (cross-team KPI), not the runtime switch. `mcp` = the platform-lite MCP/tool
  * surface; `cli` = the real Supabase CLI inside a local-stack Docker sandbox.
+ * Required on every scenario, so each one is categorized on this dimension
+ * rather than silently exported without a value.
  *
  * Whether a sandbox boots is decided separately by the presence of a `local/`
  * directory (see the eval runner): `local/` ⇒ sandbox, otherwise the in-memory
@@ -106,7 +108,7 @@ export type EvalMetadata = {
   product: EvalProduct[];
   topic: EvalTopic[];
   suite: EvalSuite;
-  interface?: EvalInterface;
+  interface: EvalInterface;
   /** Supabase CLI version this scenario requires (sandbox evals only). */
   cliVersion?: string;
   /**
@@ -157,7 +159,7 @@ export const evalMetadataSchema = z.object({
   product: z.array(evalProductSchema).min(1),
   topic: z.array(evalTopicSchema).min(1),
   suite: evalSuiteSchema,
-  interface: evalInterfaceSchema.optional(),
+  interface: evalInterfaceSchema,
   cliVersion: cliVersionSchema.optional(),
   services: z.array(z.string().min(1)).optional(),
   // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);
@@ -336,6 +338,9 @@ const evalResultShape = {
   product: z.array(evalProductSchema).optional(),
   topic: z.array(evalTopicSchema).optional(),
   suite: evalSuiteSchema.optional(),
+  // Stays optional even though authoring now requires it: result files are
+  // snapshots that predate the requirement, and export-results backfills the
+  // value from the eval's current PROMPT.md anyway.
   interface: evalInterfaceSchema.optional(),
   cliVersion: cliVersionSchema.optional(),
   passed: z.boolean().optional(),
