@@ -27,9 +27,38 @@
     />
     <meta property="og:image" content="https://supabase.com/evals/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Supabase Evals" />
+    <meta
+      name="twitter:description"
+      content="See how agents perform on real Supabase tasks in our open-source benchmark for AI coding agents."
+    />
+    <meta name="twitter:image" content="https://supabase.com/evals/og.png" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <script>
+      // Apply the stored theme before the prerendered markup paints, otherwise a
+      // dark-mode visitor sees a light flash until the ThemeProvider effect runs.
+      // Keep the storage key and class names in sync with
+      // src/components/theme-provider.tsx.
+      ;(function () {
+        try {
+          var stored = localStorage.getItem("theme")
+          var resolved =
+            stored === "dark" || stored === "light"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+          var root = document.documentElement
+          root.classList.remove("light", "dark")
+          root.classList.add(resolved)
+        } catch {
+          // Storage or matchMedia unavailable: leave the default styling alone.
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/entry-client.tsx"></script>
   </body>
 </html>

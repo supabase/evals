@@ -618,10 +618,10 @@ const judgeOutputSchema = z.object({
   notes: z.string(),
 });
 
-const DEFAULT_JUDGE_MODEL = openai('gpt-5.5');
+const DEFAULT_JUDGE_MODEL = openai('gpt-5.6-sol');
 const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   openai: {
-    reasoningEffort: 'low',
+    reasoningEffort: 'medium',
     textVerbosity: 'low',
   },
 };

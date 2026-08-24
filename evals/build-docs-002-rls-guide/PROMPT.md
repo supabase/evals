@@ -14,7 +14,6 @@ services:
   - kong
   - postgrest
   - realtime
-skills: []
 motivation: the Row Level Security guide is the reference agents are pointed at for RLS, and getting RLS wrong leaks user data. This eval determines whether the guide is effective at getting an agent to best-practice policies when a user asks for help building an app and never mentions security. The prompt deliberately omits that vocabulary, so read README.md before editing it.
 ---
 

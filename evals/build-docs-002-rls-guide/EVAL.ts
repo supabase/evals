@@ -30,7 +30,7 @@ import {
 } from './access.js';
 import {
   checkPgTapSuitePasses,
-  checkTestCoverage,
+  checkTestsExerciseAccessControl,
   checkTestFilesExist,
 } from './tests.js';
 
@@ -81,7 +81,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       checkSecurityDefinersAreSafe(functions),
       testFiles,
       suite,
-      await checkTestCoverage(ctx),
+      await checkTestsExerciseAccessControl(ctx),
       checkGuideWasRead(ctx),
     ];
 

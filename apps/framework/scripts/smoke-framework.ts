@@ -475,20 +475,59 @@ async function smokeFrontendBuildTooling() {
   cpSync(join(ROOT, FRONTEND_EVAL, 'tests'), join(workspace, 'tests'), {
     recursive: true,
   });
+  writeFileSync(join(workspace, 'src', 'App.tsx'), GOOD_FRONTEND_APP);
   writeFileSync(
-    join(workspace, '.env.local'),
+    join(workspace, 'vite.config.ts'),
     [
-      'VITE_SUPABASE_URL=http://supabase-evals.local',
-      'VITE_SUPABASE_ANON_KEY=supabase-evals-anon-key',
+      "import { defineConfig } from 'vite';",
+      "import react from '@vitejs/plugin-react';",
+      '',
+      'if (',
+      '  process.env.ANTHROPIC_API_KEY ||',
+      '  process.env.OPENAI_API_KEY ||',
+      '  process.env.AI_GATEWAY_API_KEY',
+      ") throw new Error('inherited LLM credential');",
+      '',
+      'export default defineConfig({ plugins: [react()] });',
       '',
     ].join('\n')
   );
-  writeFileSync(join(workspace, 'src', 'App.tsx'), GOOD_FRONTEND_APP);
+  writeFileSync(
+    join(workspace, 'tests', 'environment.test.ts'),
+    [
+      "import { expect, test } from 'vitest';",
+      '',
+      "test('does not inherit LLM credentials', () => {",
+      '  expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();',
+      '  expect(process.env.OPENAI_API_KEY).toBeUndefined();',
+      '  expect(process.env.AI_GATEWAY_API_KEY).toBeUndefined();',
+      '  // PATH is always set in a real env, so this catches a blocklist regression the checks above would miss.',
+      '  expect(process.env.PATH).toBeUndefined();',
+      '});',
+      '',
+    ].join('\n')
+  );
 
-  const build = await viteBuild(workspace);
-  assert.equal(build.ok, true, build.stderr || build.stdout);
-  const vitest = await vitestRun(workspace);
-  assert.equal(vitest.ok, true, vitest.stderr || vitest.stdout);
+  const originalEnv = {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
+  };
+  process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+  process.env.OPENAI_API_KEY = 'test-openai-key';
+  process.env.AI_GATEWAY_API_KEY = 'test-ai-gateway-key';
+
+  try {
+    const build = await viteBuild(workspace);
+    assert.equal(build.ok, true, build.stderr || build.stdout);
+    const vitest = await vitestRun(workspace);
+    assert.equal(vitest.ok, true, vitest.stderr || vitest.stdout);
+  } finally {
+    for (const [name, value] of Object.entries(originalEnv)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
 
   console.log('PASS frontend vite/react/supalite build + test tooling');
 }

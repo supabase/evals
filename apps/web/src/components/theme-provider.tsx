@@ -85,6 +85,11 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
+    // This initialiser also runs during the prerender, where there is no storage.
+    if (typeof localStorage === "undefined") {
+      return defaultTheme
+    }
+
     const storedTheme = localStorage.getItem(storageKey)
     if (isTheme(storedTheme)) {
       return storedTheme

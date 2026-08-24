@@ -50,11 +50,12 @@ export async function checkPgTapSuitePasses(
   };
 }
 
-export async function checkTestCoverage(
+/** A low bar on purpose: determining a great quality of tests is a tall order for low-effort agents */
+export async function checkTestsExerciseAccessControl(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
   const name =
-    'tests assert allow and deny per operation on the seeded tables, for anon and authenticated';
+    'the pgTAP tests exercise access control on the application tables rather than standing in as placeholders';
   const files = await listTestFiles(ctx);
   if (files.length === 0) {
     return { name, passed: false, notes: 'no test files to review' };
@@ -67,45 +68,28 @@ export async function checkTestCoverage(
   const verdict = await judge({
     input: sources.join('\n\n'),
     rubric: stripIndent`
-      You are reviewing pgTAP test files written to prove that Row Level
-      Security policies on a Postgres database behave correctly.
+      You are reviewing pgTAP tests for a Postgres database holding a to-do app
+      (\`todos\`, \`lists\`, \`list_members\`, \`list_items\`) and a public
+      weather feed (\`weather_stations\`, \`weather_readings\`).
 
-      The database holds a to-do app (\`todos\` private to each user, plus
-      \`lists\`, \`list_members\`, and \`list_items\` shared with the members of
-      a list) and a public weather feed (\`weather_stations\` and
-      \`weather_readings\`, readable by everyone and writable by no client).
+      This is a low bar. Writing a real Row Level Security test earns a pass.
+      Do not grade thoroughness, breadth, or style.
 
-      Pass only if the tests, taken together, do all of the following:
-      - Assert something against every one of these six tables, by name:
-        \`todos\`, \`lists\`, \`list_members\`, \`list_items\`,
-        \`weather_stations\`, \`weather_readings\`. Naming a table in a comment,
-        in an assertion description, or in setup that no assertion reads does
-        not count. If any of the six is missing, fail and say which.
-      - Exercise those tables, not scratch tables the suite created for
-        itself.
-      - Assert both an allowed and a denied outcome for each of select,
-        insert, update, and delete.
-      - Assert that an allowed write actually changed state, not merely that it
-        raised nothing.
-      - Cover the \`anon\` role as well as the \`authenticated\` role.
-      - Switch role and identity per case, for example with
-        \`set local role authenticated;\` and
-        \`set local request.jwt.claim.sub = '<uuid>';\`.
-      - Where an update or delete is denied because the policy's \`using\`
-        clause filters the target row out, assert that the row is unchanged
-        rather than that an error was raised. Nothing is raised in that case.
+      Pass when all three hold:
+      - An assertion runs against one of those tables, not only against scratch
+        tables the suite made for itself.
+      - Something is asserted to be allowed, and something to be denied.
+      - A role or identity is set at least once, such as \`set local role\` or
+        \`set local request.jwt.claims\`.
 
-      Expecting an error on a write is correct, and must not be penalised,
-      when the denial comes from a \`with check\` violation or from a missing
-      grant — both of those really do raise. Any assertion style is
-      acceptable, including results_eq, is, ok, lives_ok, throws_ok, and
-      policies_are, and helper wrappers around them are fine. Judge coverage,
-      not phrasing.
+      Partial coverage of tables, roles, and operations is fine. So is proving
+      an allowed write with \`lives_ok\` alone, without checking that state
+      changed or that a \`using\`-filtered row is intact. Any assertion style
+      counts.
 
-      Fail if the tests only cover the happy path, only cover one role, never
-      switch identity between cases, assert that a \`using\`-filtered update or
-      delete raises an error, or prove an allowed write only by the absence of
-      an error.
+      Fail only when nothing about access control is asserted, such as
+      \`ok(true)\` placeholders or assertions that never touch those tables.
+      On a close call, pass.
     `,
   });
 
