@@ -24,10 +24,6 @@ import {
 
 export type GroupBy = "model" | "stage" | "product" | "eval"
 
-/**
- * The sample set a run belongs to: every scored run of one agent against one
- * eval. Runs of the same pair collapse into a single sidebar row.
- */
 export function runGroupKey(result: ParsedResult) {
   return `${result.experiment}::${result.eval}`
 }
@@ -180,8 +176,8 @@ export function dimensionShortTitle(dimension: Dimension, key: string) {
 /**
  * Builds a sheet selection from any table axis. A score cell points at a single
  * run when its row/column intersection is one run, or at that pair's sample set
- * when the cell is the several runs of one agent against one eval; other
- * aggregate cells still open the row's complete sheet.
+ * when the cell holds several runs of one agent against one eval. Other
+ * aggregate cells open the row's complete sheet.
  */
 export function tableSelection(
   dimension: Dimension,

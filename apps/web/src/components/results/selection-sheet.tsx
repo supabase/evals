@@ -33,7 +33,6 @@ import { scoreResults, type ParsedResult } from "@/lib/eval-results"
 import { selectionQueryKeys, selectionQueryParsers } from "@/lib/url-state"
 import { cn } from "@/lib/utils"
 
-/** The affordance that a row opens: a chevron that turns as it expands. */
 function RowChevron({ expanded }: { expanded: boolean }) {
   return (
     <ChevronRightIcon
@@ -46,18 +45,13 @@ function RowChevron({ expanded }: { expanded: boolean }) {
   )
 }
 
-/** How many of a run's checks passed, as a preview of what expanding it shows. */
 function checksLabel(run: ParsedResult) {
   if (!run.checks?.length) return null
   const passed = run.checks.filter((check) => check.passed).length
   return `${passed}/${run.checks.length} checks`
 }
 
-/**
- * What the sheet expands to when a run inside a sample set is clicked. Closing
- * a run falls back to its group, so collapsing one run does not also collapse
- * the group it was listed under.
- */
+// Collapsing a run falls back to expanding its group, not closing everything.
 export function nextGroupRunExpansion(
   current: string | null,
   groupKey: string,
@@ -66,7 +60,6 @@ export function nextGroupRunExpansion(
   return current === sourcePath ? groupKey : sourcePath
 }
 
-/** One run's cell on a sheet column; the first column is the row header. */
 function RunCell({
   facet,
   run,
@@ -106,7 +99,6 @@ function RunCell({
   )
 }
 
-/** The expanded detail panel for one run, spanning the sheet's columns. */
 function DetailsRow({ columns, run }: { columns: number; run: ParsedResult }) {
   return (
     <tr>
@@ -120,11 +112,7 @@ function DetailsRow({ columns, run }: { columns: number; run: ParsedResult }) {
   )
 }
 
-/**
- * The runs of one pair (agent x eval), in run order, keyed by that pair. Groups
- * keep the order of the first run so the sheet's column sort still drives the
- * list.
- */
+// Groups keep the order of their first run, so the sheet's column sort still drives the list.
 export function groupRuns(orderedRuns: ParsedResult[]) {
   const groups = new Map<string, ParsedResult[]>()
 

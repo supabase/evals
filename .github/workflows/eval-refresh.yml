@@ -382,23 +382,14 @@ jobs:
 
           pairs='${{ needs.prepare.outputs.pairs }}'
           total="$(jq 'length' <<< "$pairs")"
-          # A pair needs every requested run, not just a directory: a pair that
-          # returned 2 of 3 runs would otherwise publish an average weighted
-          # differently from its neighbours. export-results --runs drops such a
-          # pair from the output; this is what makes the job fail over it.
+          # A pair needs every requested run, not just a directory, since a
+          # partial pair would otherwise skew the average against its neighbours.
           expected="${{ needs.prepare.outputs.runs }}"
           missing=()
           while IFS= read -r key; do
             dir="results/downloaded/raw-results-$key"
-            # Counted only when the directory exists: `find` on a missing path
-            # fails, and pipefail would abort this step instead of reporting the
-            # pair as having produced nothing.
             found=0
             if [ -d "$dir" ]; then
-              # Scoped to `<eval>/run-<n>/result.json` exactly: a local-stack
-              # eval exports its workspace under the run directory, and a stray
-              # result.json in there would otherwise inflate the count and fail
-              # a pair that actually finished.
               found="$(find "$dir" -mindepth 3 -maxdepth 3 -path '*/run-*/result.json' | wc -l | tr -d ' ')"
             fi
             [ "$found" = "$expected" ] || missing+=("$key ($found/$expected runs)")

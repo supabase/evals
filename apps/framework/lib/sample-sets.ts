@@ -1,13 +1,5 @@
-/**
- * A pair's sample set is the scored runs it contributes to the export. Row
- * counting is what averages a pair's score, so a suite where one pair carries
- * two rows and its neighbours carry three weights them unequally — the mix is
- * the bug, not any single count. Only the controller's `--runs` knows how many
- * were asked for: runs 1 and 2 on disk look complete on their own.
- *
- * Incomplete pairs are dropped rather than failing the whole export, matching
- * how a refresh publishes the pairs that finished and warns about the rest.
- */
+// Drops pairs missing runs so a partial refresh doesn't average scores across
+// an uneven number of samples per pair.
 
 type SampleRow = { experiment: string; eval: string };
 

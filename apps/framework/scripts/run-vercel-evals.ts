@@ -53,11 +53,7 @@ interface RunnerOptions {
   vcpus: number;
 }
 
-/**
- * One scored run of one pair: the unit of Sandbox work. A pair's runs are
- * independent samples, so each gets its own ephemeral Sandbox and they overlap
- * under the same `concurrency` cap rather than running back to back in one.
- */
+// A pair's runs are independent samples, so each gets its own Sandbox job.
 export type EvalJob = { pair: EvalPair; run: number };
 
 export function expandJobs(
@@ -174,7 +170,6 @@ async function runPairs(options: RunnerOptions): Promise<void> {
   }
 }
 
-/** Runs one scored run of a pair in a fresh Sandbox and downloads its result. */
 async function runPairOnce(
   options: PairOptions,
   credentials: VercelCredentials
@@ -200,9 +195,7 @@ async function runPairOnce(
         EVAL_TIMEOUT_BUFFER_MS +
         SANDBOX_TIMEOUT_BUFFER_MS,
       persistent: false,
-      // The platform caps a Sandbox at five tags, so each one has to earn its
-      // slot by being something worth filtering the dashboard on. `run` used to
-      // mean the workflow run, which now collides with a scored run index.
+      // Sandboxes cap out at five tags.
       tags: {
         workflow_run: process.env.GITHUB_RUN_ID ?? 'local',
         experiment: tagValue(pair.experiment),
@@ -298,8 +291,6 @@ async function runPairOnce(
       },
       true
     );
-    // Every scored run lands in its own `run-<n>/result.json`; the first one
-    // existing is enough to prove the harness produced results to pack.
     await runSandboxCommand(sandbox, label, 'validate result', {
       cmd: 'test',
       args: [
@@ -478,12 +469,8 @@ async function runSandboxCommand(
   throw new SandboxCommandError(step, result.exitCode, output);
 }
 
-/**
- * Downloads one run into the pair's artifact directory. Sibling runs of the
- * same pair land in the same directory from their own Sandboxes, so only this
- * run's subtree is cleared — replacing the whole directory would delete the
- * runs that already finished.
- */
+// Only clears this run's subtree, since sibling runs of the same pair land
+// in the same directory from their own Sandboxes.
 async function downloadResults(
   sandbox: Sandbox,
   pair: EvalPair,
@@ -603,7 +590,6 @@ function pairLabel(pair: EvalPair): string {
   return `[${pair.experiment} x ${pair.eval_id}]`;
 }
 
-/** Same, plus the run index, since a pair's runs interleave in the log. */
 function jobLabel(pair: EvalPair, run: number): string {
   return `[${pair.experiment} x ${pair.eval_id} run ${run}]`;
 }

@@ -76,9 +76,7 @@ const SELECTED_EXPERIMENT_SUITE =
     ? EXPERIMENT_SUITE_FILTERS[0]
     : undefined;
 const RUNS = positiveInteger(readFlag(rawArgs, 'runs') ?? '1', 'runs');
-// One specific scored run, by index. The Vercel controller gives each Sandbox
-// its own index so a pair's runs can be spread across Sandboxes and still land
-// in stable, non-colliding run directories.
+// Lets the Vercel controller run one specific index in its own Sandbox.
 const RUN_INDEX_FLAG = readFlag(rawArgs, 'run-index');
 const RUN_INDEX = RUN_INDEX_FLAG
   ? positiveInteger(RUN_INDEX_FLAG, 'run-index')
@@ -272,7 +270,6 @@ function resolveSkillSources(
   return sources;
 }
 
-/** One scored run's own directory: `results/<experiment>/<eval>/run-<n>/`. */
 function runDir(modelName: string, evalId: string, run: number) {
   return join(ROOT, 'results', modelName, evalId, `run-${run}`);
 }
@@ -348,7 +345,6 @@ function disposable<T extends { close(): Promise<unknown> }>(
   });
 }
 
-/** Executes exactly one scored run of a pair and returns its complete result. */
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
@@ -387,20 +383,15 @@ async function runOne(
     | ToolScorer
     | LocalStackScorer;
   if (ev.mode === 'local-stack') {
-    // Local-stack mode: the experiment's local-stack tool surface provides
-    // the sandbox session; one fresh session per scored run.
+    // One fresh local-stack session per scored run.
     if (!exp.localStack) {
       throw new Error(
         `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
           `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`
       );
     }
-    // When the eval links to a hosted project, boot a platform-lite backend
-    // (bound to 0.0.0.0 so the sandbox reaches it via host.docker.internal)
-    // and hand the CLI-valid ref/token to the session. Seed it from the eval's
-    // `remote/` dir (project.sql / logs.jsonl / functions) just like the tools
-    // runtime does — otherwise the hosted project boots empty and scorers that
-    // read remote state (e.g. the migration history) have nothing to assert on.
+    // Boots a platform-lite backend seeded from the eval's `remote/` dir so scorers
+    // that read remote state (e.g. migration history) have something to assert on.
     await using hostedBackend = ev.metadata.hostedProject
       ? disposable(
           await bootPlatformBackend({
@@ -408,8 +399,7 @@ async function runOne(
             ref: HOSTED_PROJECT_REF,
             accessToken: HOSTED_ACCESS_TOKEN,
             hostname: '0.0.0.0',
-            // Expose Postgres-wire too, so linked DB workflows (`db push`,
-            // `migration repair`) reach the same project over the wire.
+            // So linked DB workflows (`db push`, `migration repair`) reach the project too.
             pgWire: true,
           })
         )
@@ -445,10 +435,8 @@ async function runOne(
       mcpServers: session.mcpServers,
       timeoutSec: TIMEOUT_SEC,
     });
-    // Export the agent's workspace to the host so scorers can run host
-    // tooling (vite/vitest from the repo root) against the produced files
-    // — the tools live on the host, not in the sandbox. Withheld tests are
-    // copied in lazily, only if the scorer asks to run Vitest.
+    // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
+    // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
     const hostWorkspace = workspacePath(expName, ev.id, runIndex);
     rmSync(hostWorkspace, { recursive: true, force: true });
     await session.exportWorkspace(hostWorkspace);
@@ -487,11 +475,8 @@ async function runOne(
     };
   }
 
-  // Tools mode: the eval's tool surface is MCP (platform-lite). A CLI agent
-  // gets the same sandbox as local-stack minus the running stack — with its
-  // skills installed — and reaches the in-container MCP servers' host-side
-  // platform-lite via host.docker.internal (so platform-lite binds 0.0.0.0).
-  // An in-process agent runs host-side with no sandbox.
+  // Tools mode: a CLI agent gets a bare sandbox reaching platform-lite via
+  // host.docker.internal. An in-process agent runs host-side with no sandbox.
   await using cliSandbox = agentRunsInSandbox
     ? disposable(
         await createBareSandbox({
@@ -507,10 +492,8 @@ async function runOne(
     })
   );
 
-  // CLI agents read their installed skills from disk (the bare sandbox folds
-  // the discovery listing into its promptAddendum). In-process agents have
-  // no filesystem, so their skills are advertised in the prompt and pulled
-  // on demand via the load_skill tool.
+  // In-process agents have no filesystem, so skills are advertised in the
+  // prompt and pulled on demand via the load_skill tool instead.
   const skillsPrompt = agentRunsInSandbox
     ? cliSandbox!.promptAddendum
     : buildToolsSkillsPrompt(toolsSkills);
@@ -686,8 +669,6 @@ async function main() {
       `concurrency=${CONCURRENCY}`
   );
 
-  // One work item per experiment x eval x run: `--runs N` means exactly N
-  // independent scored runs, every one of them kept.
   const allWork: Array<{
     name: string;
     config: ExperimentConfig;
