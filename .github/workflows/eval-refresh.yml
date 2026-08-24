@@ -395,7 +395,11 @@ jobs:
             # pair as having produced nothing.
             found=0
             if [ -d "$dir" ]; then
-              found="$(find "$dir" -name result.json | wc -l | tr -d ' ')"
+              # Scoped to `<eval>/run-<n>/result.json` exactly: a local-stack
+              # eval exports its workspace under the run directory, and a stray
+              # result.json in there would otherwise inflate the count and fail
+              # a pair that actually finished.
+              found="$(find "$dir" -mindepth 3 -maxdepth 3 -path '*/run-*/result.json' | wc -l | tr -d ' ')"
             fi
             [ "$found" = "$expected" ] || missing+=("$key ($found/$expected runs)")
           done < <(jq -r '.[] | "\(.experiment)__\(.eval_id)"' <<< "$pairs")
