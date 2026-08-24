@@ -34,10 +34,17 @@ function basePromptFor(agent: AgentHarnessId, mode: EvalMode): string {
 }
 
 /**
- * Assemble the system prompt handed to the agent. Every block is optional, and
- * every one of them is ai-sdk-only (the base framing, the tool-surface addendum,
- * the skills listing), so a CLI harness ends up with `''` — the CLI engine then
- * stages no system-prompt file at all rather than an empty one.
+ * Assemble the system prompt handed to the agent. Every block is ai-sdk-only —
+ * the base framing, the tool-surface addendum, the skills listing — so a CLI
+ * harness ends up with `''`, and the CLI engine then stages no system-prompt
+ * file at all rather than an empty one.
+ *
+ * The callers' blocks are already gated by their producers, so dropping them
+ * here is belt-and-braces. It is worth the redundancy: a block reaching a CLI
+ * harness is silent — no error, no failing test, just an eval quietly measuring
+ * our prompt instead of the agent's own behaviour. An MCP server that carries a
+ * `promptAddendum` is the live path (today only `executorMcpServer`, used only
+ * by ai-sdk experiments); pairing one with a CLI harness must stay inert.
  */
 export function buildSystemPrompt(
   agent: AgentHarnessId,
@@ -45,8 +52,7 @@ export function buildSystemPrompt(
   addendum?: string,
   skillContext?: string
 ): string {
-  const blocks = [basePromptFor(agent, mode), addendum, skillContext].filter(
-    Boolean
-  );
+  const injected = agent === 'ai-sdk' ? [addendum, skillContext] : [];
+  const blocks = [basePromptFor(agent, mode), ...injected].filter(Boolean);
   return blocks.join('\n\n');
 }
