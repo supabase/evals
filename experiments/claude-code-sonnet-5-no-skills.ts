@@ -19,5 +19,8 @@ export default defineExperiment({
   localStack: localStackRuntime(),
   skills: [],
   // Evals that override `skills: []` already run under the baseline experiment. Skip them from running again here.
-  skipEval: (ev) => ev.metadata.skills?.length === 0,
+  // The second clause needs an MCP server newer than the pinned default; it runs under claude-code-sonnet-5-mcp-0-11 instead.
+  skipEval: (ev) =>
+    ev.metadata.skills?.length === 0 ||
+    ev.id === 'investigate-functions-002-edge-function-console-output',
 });
