@@ -338,10 +338,7 @@ const evalResultShape = {
   product: z.array(evalProductSchema).optional(),
   topic: z.array(evalTopicSchema).optional(),
   suite: evalSuiteSchema.optional(),
-  // Stays optional even though authoring now requires it: result files are
-  // snapshots that predate the requirement, and export-results backfills the
-  // value from the eval's current PROMPT.md anyway.
-  interface: evalInterfaceSchema.optional(),
+  interface: evalInterfaceSchema,
   cliVersion: cliVersionSchema.optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
