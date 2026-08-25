@@ -193,11 +193,11 @@ limit 100`
     ).rejects.toThrow(/unknown log seed source/i);
   });
 
-  // verbatim from mcp 0.11.0 getClickHouseLogQuery('edge-function-runtime'),
-  // limit interpolated to 100. This preset is why function_logs must stay
-  // queryable: the pin (0.11.0) includes it, so rejecting the source would be
-  // a hard error on every run, not a latent one.
-  it('runs the mcp 0.9.0 edge-function-runtime preset against its own rows', async () => {
+  // verbatim from the mcp server's
+  // getClickHouseLogQuery('edge-function-runtime'), limit interpolated to 100.
+  // This preset is why function_logs must stay queryable: the pinned server
+  // ships it, so rejecting the source would be a hard error on every run.
+  it('runs the mcp edge-function-runtime preset against its own rows', async () => {
     const result = await logsDb.query<{
       function_id: string;
       level: string;

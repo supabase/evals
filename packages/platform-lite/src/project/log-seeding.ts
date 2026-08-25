@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS function_edge_logs (
 );
 
 -- The runtime console/stdout stream, a SEPARATE stream from the
--- request/response one in function_edge_logs. mcp 0.9.0 gives it its own
+-- request/response one in function_edge_logs. The mcp server gives it its own
 -- preset ('edge-function-runtime' selects severity_text, level, event_type,
 -- function_id, execution_id, deployment_id, version), so it needs its own rows:
 -- it was a view over function_edge_logs, which made every seeded edge-function
@@ -127,11 +127,10 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --       - supabase/platform#35096: logs.all.otel unified stream + ClickHouse
 --         dialect for the getLogs PRESETS - what mcp post-#326 emits.
 --       - supabase/platform#35970: custom-SQL passthrough (timestamps
---         normalized platform-side) - what query_logs, shipped in mcp 0.10.0,
---         targets.
---     Since 0.10.0 query_logs is the only logs tool in tools/list once a
---     platform implements queryLogs; the get_logs presets stay callable but
---     hidden, so the fixture models both. It is
+--         normalized platform-side) - what query_logs targets.
+--     query_logs is the only logs tool in tools/list once a platform
+--     implements queryLogs; the get_logs presets stay callable but hidden,
+--     so the fixture models both. It is
 --     platform-internal either way: no npm package exports the schema, so
 --     fixtures must model it by hand, exactly like every other platform-lite
 --     emulation in this package.
@@ -139,8 +138,8 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --     preset SQL and the query_logs sql description - not exported as data.
 --     (mcp's /platform entrypoint DOES export logsServiceSchema, but that
 --     enumerates service PRESETS, a different namespace; and the resolved
---     package (^0.11.0) can drift ahead of the MCP_SERVER_VERSION pin the
---     harness actually runs, so importing it would track the wrong artifact.)
+--     package can drift ahead of the MCP_SERVER_VERSION pin the harness
+--     actually runs, so importing it would track the wrong artifact.)
 --     Resync this view when the pinned MCP_SERVER_VERSION moves.
 --   * UNMODELED preset sources: workflow_run_logs (branch-action) and
 --     realtime_logs (realtime) have no backing table in platform-lite.
@@ -152,9 +151,10 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --     seeded edge-function row appeared 3x (edge_logs + function_edge_logs +
 --     function_logs): count(*) and "group by source" over-reported and the
 --     console stream showed request rows. It has a real consumer, so rejecting
---     the source was not an option: mcp 0.9.0 adds an 'edge-function-runtime'
---     preset that reads exactly this source. Seed it with source
---     'edge-function-runtime'; an 'edge-function' seed no longer writes here.
+--     the source was not an option: the mcp server has an
+--     'edge-function-runtime' preset that reads exactly this source. Seed it
+--     with source 'edge-function-runtime'; an 'edge-function' seed no longer
+--     writes here.
 CREATE VIEW logs AS
   SELECT id, identifier, timestamp, ts, event_message, message, level, level AS severity_text, 'edge_logs'::text AS source,
     metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'request.method', method, 'request.path', path, 'response.status_code', status_code)) AS log_attributes
