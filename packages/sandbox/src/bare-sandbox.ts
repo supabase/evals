@@ -6,16 +6,9 @@ import type {
 } from '@supabase-evals/core';
 import { createAgentEnvironment } from './agent-environment.js';
 import { toAgentSandbox } from './local-stack-runtime.js';
-import { buildSkillsPrompt } from './skills.js';
 
 export interface BareSandboxHandle {
   sandbox: AgentSandbox;
-  /**
-   * Skills-discovery text to fold into the agent's system prompt. Empty for
-   * every CLI harness — each discovers the installed skills natively and
-   * advertises them to the model itself (see `buildSkillsPrompt`).
-   */
-  promptAddendum: string;
   close(): Promise<void>;
 }
 
@@ -53,7 +46,6 @@ export async function createBareSandbox(
   });
   return {
     sandbox: toAgentSandbox(env.sandbox),
-    promptAddendum: buildSkillsPrompt(options.agent, env.skills),
     close: env.close,
   };
 }

@@ -31,17 +31,21 @@ describe('buildSystemPrompt', () => {
     }
   });
 
-  it('drops blocks a caller hands it for a CLI harness', () => {
-    // The producers gate their own output, so this should never happen — but a
-    // block that did reach a CLI harness would fail silently, leaving the eval
-    // measuring our prompt rather than the agent's own behaviour. A new
-    // experiment pairing a CLI harness with an MCP server that carries a
-    // `promptAddendum` is the way in; the assembler refuses it regardless.
+  it('refuses blocks a caller hands it for a CLI harness', () => {
+    // The producers gate their own output, so a non-empty block here means an
+    // experiment is misconfigured. Dropping it would be as silent as injecting
+    // it, and the block may be load-bearing: `executorMcpServer`'s addendum is
+    // the pause/resume protocol its tools require.
     for (const agent of CLI_AGENTS) {
       for (const mode of MODES) {
-        expect(
-          buildSystemPrompt(agent, mode, 'Addendum.', 'Skills listing.')
-        ).toBe('');
+        expect(() => buildSystemPrompt(agent, mode, 'Addendum.')).toThrow(
+          /must receive no system prompt/
+        );
+        expect(() =>
+          buildSystemPrompt(agent, mode, undefined, 'Skills listing.')
+        ).toThrow(/must receive no system prompt/);
+        // Empty and absent blocks are the normal case, not a misconfiguration.
+        expect(buildSystemPrompt(agent, mode, '', '')).toBe('');
       }
     }
   });

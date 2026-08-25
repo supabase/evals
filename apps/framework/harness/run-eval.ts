@@ -529,7 +529,7 @@ async function runOne(
     // here. In-process agents have no filesystem, so their skills are advertised
     // in the prompt and pulled on demand via the load_skill tool.
     const skillsPrompt = agentRunsInSandbox
-      ? cliSandbox!.promptAddendum
+      ? undefined
       : buildToolsSkillsPrompt(toolsSkills);
     const systemPrompt = buildSystemPrompt(
       exp.agent.id,

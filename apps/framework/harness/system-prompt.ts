@@ -39,12 +39,14 @@ function basePromptFor(agent: AgentHarnessId, mode: EvalMode): string {
  * harness ends up with `''`, and the CLI engine then stages no system-prompt
  * file at all rather than an empty one.
  *
- * The callers' blocks are already gated by their producers, so dropping them
- * here is belt-and-braces. It is worth the redundancy: a block reaching a CLI
- * harness is silent — no error, no failing test, just an eval quietly measuring
- * our prompt instead of the agent's own behaviour. An MCP server that carries a
- * `promptAddendum` is the live path (today only `executorMcpServer`, used only
- * by ai-sdk experiments); pairing one with a CLI harness must stay inert.
+ * The callers' blocks are already gated by their producers, so a non-empty one
+ * arriving here means an experiment is misconfigured. Throw rather than drop it:
+ * dropping is as silent as injecting, and the block may be load-bearing. An MCP
+ * server carrying a `promptAddendum` is the live path in. Only
+ * `executorMcpServer` has one, and its text is the pause/resume protocol its
+ * tools require, not a tool description. A CLI harness paired with it would get
+ * the tools and none of the protocol, then stall on the first paused execution
+ * with a recorded prompt of `''` explaining nothing.
  */
 export function buildSystemPrompt(
   agent: AgentHarnessId,
@@ -52,7 +54,22 @@ export function buildSystemPrompt(
   addendum?: string,
   skillContext?: string
 ): string {
-  const injected = agent === 'ai-sdk' ? [addendum, skillContext] : [];
-  const blocks = [basePromptFor(agent, mode), ...injected].filter(Boolean);
+  if (agent !== 'ai-sdk') {
+    for (const [name, block] of [
+      ['addendum', addendum],
+      ['skill context', skillContext],
+    ] as const) {
+      if (block) {
+        throw new Error(
+          `harness ${name} was built for '${agent}', which must receive no system prompt. ` +
+            'Whatever produced it is not gated on the agent harness.'
+        );
+      }
+    }
+    return '';
+  }
+  const blocks = [basePromptFor(agent, mode), addendum, skillContext].filter(
+    Boolean
+  );
   return blocks.join('\n\n');
 }
