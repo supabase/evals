@@ -79,7 +79,7 @@ function parseEmbeddedJson(value: string): unknown {
  * The rows one payload came back with.
  *
  * A `result` array is used as-is. A `result` string is unwrapped once (see
- * `UNTRUSTED_DATA_BOUNDARY`) and then read with the same `{ result: [rows] }`
+ * `untrustedDataPayload`) and then read with the same `{ result: [rows] }`
  * rule, because the JSON the pinned server embeds is the management API body,
  * which is itself `{ result: [rows] }`.
  */
