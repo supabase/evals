@@ -122,8 +122,11 @@ export function createOpencodeRunner(
 
       // opencode has no system-prompt flag, so prepend the system prompt to the
       // task; both are staged files, joined via command substitution into the
-      // single message argument.
-      const message = `"$(cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath})"`;
+      // single message argument. With no system prompt the task is the whole
+      // message — concatenating an empty one would open it with a blank block.
+      const message = systemPromptPath
+        ? `"$(cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath})"`
+        : `"$(cat ${userPromptPath})"`;
 
       await sandbox.exec(`mkdir -p ${SCRATCH}`);
       await writeSandboxFile(
