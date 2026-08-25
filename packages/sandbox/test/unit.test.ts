@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildToolSurfaceAddendum,
   resolveSandboxPath,
   truncateOutput,
   wrapSelectAsJson,
@@ -17,9 +18,13 @@ import {
 import type { DockerSandbox } from '../src/docker-sandbox.js';
 import {
   SKILLS_CLI_VERSION,
+  SKILLS_INSTALL_AGENTS,
   SKILLS_INSTALL_DIR,
+  SKILLS_INSTALL_DIRS,
+  buildSkillsAddCommand,
   buildSkillsPrompt,
   frontmatterDescription,
+  installSkills,
 } from '../src/skills.js';
 import { ALL_SUPABASE_SERVICES } from '../src/types.js';
 
@@ -83,15 +88,17 @@ describe('frontmatterDescription', () => {
 });
 
 describe('buildSkillsPrompt', () => {
+  const entries = [
+    { name: 'supabase', description: 'Use for Supabase tasks.', dir: 'x' },
+    { name: 'pg', description: 'Postgres tips.', dir: 'y' },
+  ];
+
   it('is empty when no skills are installed', () => {
-    expect(buildSkillsPrompt([])).toBe('');
+    expect(buildSkillsPrompt('ai-sdk', [])).toBe('');
   });
 
   it('lists name+description and points at the install dir for files_read', () => {
-    const prompt = buildSkillsPrompt([
-      { name: 'supabase', description: 'Use for Supabase tasks.', dir: 'x' },
-      { name: 'pg', description: 'Postgres tips.', dir: 'y' },
-    ]);
+    const prompt = buildSkillsPrompt('ai-sdk', entries);
     expect(prompt).toContain(SKILLS_INSTALL_DIR);
     expect(prompt).toContain('files_read');
     expect(prompt).toContain('SKILL.md');
@@ -99,6 +106,137 @@ describe('buildSkillsPrompt', () => {
     expect(prompt).toContain('- pg: Postgres tips.');
     // Discovery only — the full body must not be inlined here.
     expect(prompt).not.toContain('# Body');
+  });
+
+  it('renders the same listing for every agent', () => {
+    // The listing is injected regardless of harness: each CLI also discovers
+    // the installed skills natively, so it hears about them twice.
+    for (const agent of ['claude-code', 'codex', 'opencode'] as const) {
+      expect(buildSkillsPrompt(agent, entries)).toBe(
+        buildSkillsPrompt('ai-sdk', entries)
+      );
+      expect(buildSkillsPrompt(agent, [])).toBe('');
+    }
+  });
+});
+
+describe('buildSkillsAddCommand', () => {
+  it('installs for all three CLI harnesses, source before the variadic --agent', () => {
+    const command = buildSkillsAddCommand('/tmp/staging');
+    expect(command).toBe(
+      "skills add /tmp/staging --agent claude-code codex opencode --skill '*' --copy --yes"
+    );
+    // --agent is variadic: it eats every following non-flag token. The source
+    // dir must precede it (otherwise the CLI fails with "Missing required
+    // argument: source") and a flag must terminate the agent list.
+    expect(command.indexOf('/tmp/staging')).toBeLessThan(
+      command.indexOf('--agent')
+    );
+    expect(command).toMatch(/--agent (?:[a-z-]+ )+--skill/);
+  });
+
+  it('names the agents explicitly rather than letting the CLI guess', () => {
+    // With no --agent the CLI falls back to all ~71 agents it knows, littering
+    // the exported workspace; the fallback is also install-order dependent.
+    expect(SKILLS_INSTALL_AGENTS).toEqual(['claude-code', 'codex', 'opencode']);
+    expect(buildSkillsAddCommand()).toContain('--agent');
+  });
+});
+
+describe('installSkills', () => {
+  /** A DockerSandbox stub that records shell commands and fakes the install. */
+  function fakeSandbox(present: readonly string[]) {
+    const commands: string[] = [];
+    return {
+      commands,
+      sandbox: {
+        runShellAsRoot: async (command: string) => {
+          commands.push(command);
+          return { ok: true, exitCode: 0, stdout: '', stderr: '' };
+        },
+        runShell: async (command: string) => {
+          commands.push(command);
+          return { ok: true, exitCode: 0, stdout: '', stderr: '' };
+        },
+        copyToContainer: async () => {},
+        fileExists: async (path: string) => present.includes(path),
+        readFile: async () => '---\ndescription: Demo skill.\n---\nbody',
+      } as unknown as DockerSandbox,
+    };
+  }
+
+  const installedEverywhere = SKILLS_INSTALL_DIRS.map(
+    (dir) => `${dir}/demo/SKILL.md`
+  );
+
+  it('is a no-op with no skills requested', async () => {
+    const { sandbox, commands } = fakeSandbox([]);
+    expect(await installSkills(sandbox, [])).toEqual([]);
+    expect(commands).toEqual([]);
+  });
+
+  it('runs the per-agent install and reports the .claude/skills tree', async () => {
+    const { sandbox, commands } = fakeSandbox(installedEverywhere);
+    const entries = await installSkills(sandbox, [
+      { name: 'demo', dir: '/host/demo' },
+    ]);
+    expect(entries).toEqual([
+      {
+        name: 'demo',
+        description: 'Demo skill.',
+        dir: `${SKILLS_INSTALL_DIR}/demo`,
+      },
+    ]);
+    expect(commands).toContain(buildSkillsAddCommand());
+  });
+
+  it('installs into both .claude/skills and .agents/skills', () => {
+    // .claude/skills is Claude Code's project scope; .agents/skills is Codex's
+    // and OpenCode's. Codex does not read .claude/skills at all.
+    expect(SKILLS_INSTALL_DIRS).toEqual(['.claude/skills', '.agents/skills']);
+    expect(SKILLS_INSTALL_DIR).toBe('.claude/skills');
+  });
+
+  it('throws when a skill is missing from any agent scope', async () => {
+    for (const missing of SKILLS_INSTALL_DIRS) {
+      const { sandbox } = fakeSandbox(
+        installedEverywhere.filter((p) => !p.startsWith(`${missing}/`))
+      );
+      await expect(
+        installSkills(sandbox, [{ name: 'demo', dir: '/host/demo' }])
+      ).rejects.toThrow(`no ${missing}/demo/SKILL.md`);
+    }
+  });
+});
+
+describe('buildToolSurfaceAddendum', () => {
+  it('describes the in-process tool surface for the ai-sdk agent', () => {
+    const addendum = buildToolSurfaceAddendum('ai-sdk');
+    // These are the tools buildLocalStackTools actually provides.
+    expect(addendum).toContain('bash tool');
+    expect(addendum).toContain('files tools');
+    expect(addendum).toContain('The Supabase CLI (`supabase`)');
+    expect(addendum).toContain('supabase start');
+  });
+
+  it('drops the CLI sentence when the agent installs the CLI itself', () => {
+    const addendum = buildToolSurfaceAddendum('ai-sdk', {
+      skipCliInstall: true,
+    });
+    expect(addendum).not.toContain('The Supabase CLI (`supabase`)');
+    expect(addendum).not.toContain('supabase start');
+    expect(addendum).toContain('docker, psql, git, and curl');
+  });
+
+  it('describes the same tool surface for every agent', () => {
+    for (const agent of ['claude-code', 'codex', 'opencode'] as const) {
+      expect(buildToolSurfaceAddendum(agent)).toBe(
+        buildToolSurfaceAddendum('ai-sdk')
+      );
+      expect(buildToolSurfaceAddendum(agent, { skipCliInstall: true })).toBe(
+        buildToolSurfaceAddendum('ai-sdk', { skipCliInstall: true })
+      );
+    }
   });
 });
 
