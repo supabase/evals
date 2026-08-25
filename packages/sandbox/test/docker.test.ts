@@ -217,14 +217,17 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
               )
             ).toBe('extra content');
           }
-          // …and nowhere else. Without an explicit --agent the CLI installs for
-          // every one of the ~71 agents it knows, littering the exported, scored
-          // workspace with dozens of stray roots (including non-dotted ones).
+          // …and not in the scopes the no-`--agent` fallback would create. That
+          // fallback installs for every agent the CLI knows, littering the
+          // exported, scored workspace with ~52 stray roots. This is a sample of
+          // them, not the whole set, so it catches the fallback firing rather
+          // than proving nothing else was written.
           for (const stray of [
             '.aider-desk',
             '.factory',
             '.windsurf',
             'data',
+            'skills',
           ]) {
             expect(await sandbox.folderExists(stray)).toBe(false);
           }

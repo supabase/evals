@@ -124,7 +124,7 @@ describe('buildSkillsAddCommand', () => {
   it('installs for all three CLI harnesses, source before the variadic --agent', () => {
     const command = buildSkillsAddCommand('/tmp/staging');
     expect(command).toBe(
-      "skills add /tmp/staging --agent claude-code codex opencode --skill '*' --copy --yes"
+      "skills add '/tmp/staging' --agent claude-code codex opencode --skill '*' --copy --yes"
     );
     // --agent is variadic: it eats every following non-flag token. The source
     // dir must precede it (otherwise the CLI fails with "Missing required

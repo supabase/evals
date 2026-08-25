@@ -34,10 +34,12 @@ export const SKILLS_CLI_VERSION = '1.5.11';
  * agent id has to be threaded through `createAgentEnvironment` for correctness.
  *
  * Naming them explicitly also matters. With no `--agent` flag the CLI falls
- * back to *every* agent it knows (71 at 1.5.11) when it can't detect an
- * installed one, littering the scored, exported workspace with ~53 stray
- * entries — and that fallback is order-dependent, so it would silently stop
- * producing `.claude/skills` if an agent CLI were ever installed first.
+ * back to *every* agent it knows when it cannot detect an installed one,
+ * littering the scored, exported workspace with ~52 stray entries. That
+ * fallback does happen to cover both directories we want, so it is not why
+ * skills reach an agent; it is a workspace-pollution and determinism problem.
+ * Detection depends on the surrounding environment, so naming the agents is
+ * what makes the install predictable.
  */
 export const SKILLS_INSTALL_AGENTS = [
   'claude-code',
@@ -148,7 +150,7 @@ export function buildSkillsPrompt(
 export function buildSkillsAddCommand(
   stagingDir: string = SKILLS_STAGING_DIR
 ): string {
-  return `skills add ${stagingDir} --agent ${SKILLS_INSTALL_AGENTS.join(' ')} --skill '*' --copy --yes`;
+  return `skills add '${stagingDir}' --agent ${SKILLS_INSTALL_AGENTS.join(' ')} --skill '*' --copy --yes`;
 }
 
 /**
