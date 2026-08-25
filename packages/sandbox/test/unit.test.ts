@@ -327,7 +327,6 @@ describe('services frontmatter → computeExcludedServices (regression)', () => 
       '---',
       'stage: build',
       'suite: regression',
-      'interface: cli',
       'product: [database]',
       'topic: [migrations]',
       `services: ${services}`,
@@ -362,43 +361,6 @@ describe('services frontmatter → computeExcludedServices (regression)', () => 
       buildMarkdown("[' Postgres-Meta ']")
     );
     expect(metadata.services).toEqual(['postgres-meta']);
-  });
-});
-
-describe('interface frontmatter', () => {
-  const buildMarkdown = (interfaceLine: string) =>
-    [
-      '---',
-      'stage: resolve',
-      'suite: regression',
-      interfaceLine,
-      'product: database',
-      'topic: migrations',
-      '---',
-      'Fix it.',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-  it('parses each supported interface', () => {
-    expect(
-      parseEvalMarkdown(buildMarkdown('interface: cli')).metadata.interface
-    ).toBe('cli');
-    expect(
-      parseEvalMarkdown(buildMarkdown('interface: mcp')).metadata.interface
-    ).toBe('mcp');
-  });
-
-  it('rejects a scenario with no interface, naming the source file', () => {
-    expect(() =>
-      parseEvalMarkdown(buildMarkdown(''), 'evals/some-scenario/PROMPT.md')
-    ).toThrow(/evals\/some-scenario\/PROMPT\.md.*interface/s);
-  });
-
-  it('rejects an unknown interface', () => {
-    expect(() => parseEvalMarkdown(buildMarkdown('interface: rest'))).toThrow(
-      /interface/
-    );
   });
 });
 

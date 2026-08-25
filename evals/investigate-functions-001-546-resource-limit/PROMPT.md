@@ -1,7 +1,6 @@
 ---
 stage: investigate
 suite: regression
-interface: mcp
 product:
   - edge-functions
 topic:
