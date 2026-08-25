@@ -7,6 +7,6 @@ stream. The `source: "edge-function"` rows are the separate request/response str
 (`function_edge_logs` + `edge_logs`) and carry no console content, so an agent that
 stops at the request envelopes has nothing to report but 200s.
 
-The scenario needs an MCP server that ships `query_logs` (0.10.0+). The repo-wide
-`MCP_SERVER_VERSION` is now 0.11.0, so it runs under the default experiments and
-needs no version-pinned experiment.
+The scenario needs an MCP server that ships `query_logs` (0.10.0+), which is newer
+than the repo-wide `MCP_SERVER_VERSION` pin, so it runs under
+`experiments/claude-code-sonnet-5-mcp-0-11.ts`.
