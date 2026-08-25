@@ -843,9 +843,16 @@ async function main() {
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+// Only when this file is the entry point. Importing it (a unit test reaching for
+// one of its helpers) must not dispatch a run or call process.exit.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main()
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+}

@@ -55,14 +55,15 @@ export function buildSystemPrompt(
   skillContext?: string
 ): string {
   if (agent !== 'ai-sdk') {
-    for (const [name, block] of [
+    for (const [arg, block] of [
       ['addendum', addendum],
-      ['skill context', skillContext],
+      ['skillContext', skillContext],
     ] as const) {
       if (block) {
         throw new Error(
-          `harness ${name} was built for '${agent}', which must receive no system prompt. ` +
-            'Whatever produced it is not gated on the agent harness.'
+          `buildSystemPrompt got a non-empty ${arg} for '${agent}', which must receive ` +
+            'no system prompt. Whichever runtime or MCP server produced it is not gated ' +
+            'on the agent harness.'
         );
       }
     }
