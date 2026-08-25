@@ -13,11 +13,13 @@
  *   - `.claude/skills/`  — Claude Code's project scope.
  *   - `.agents/skills/`  — Codex's and OpenCode's project scope.
  *
- * Each CLI then discovers, advertises and loads the skills itself, in its own
- * words (Codex injects a `<skills_instructions>` block, OpenCode exposes a
- * `skill` tool). `buildSkillsPrompt` renders the harness's own discovery listing
- * on top of that, for the in-process `ai-sdk` agent — which has no such
- * mechanism — and for the CLI harnesses.
+ * Each CLI then advertises its own skills to the model, in its own words, with
+ * its own loading mechanism (Codex injects a `<skills_instructions>` block,
+ * OpenCode exposes a `skill` tool). The harness injects nothing: a synthetic
+ * "read this file with this tool" listing would both duplicate and contradict
+ * what the agent's own harness tells it. The one exception is the in-process
+ * `ai-sdk` agent, which has no such mechanism — `buildSkillsPrompt` renders the
+ * listing for it alone.
  */
 
 import type { AgentHarnessId, SkillSource } from '@supabase-evals/core';
@@ -57,9 +59,9 @@ export const SKILLS_INSTALL_DIRS = [
 ] as const;
 
 /**
- * Claude Code's project scope, and the directory `buildSkillsPrompt`'s listing
- * points at — it names one concrete path, read with the harness's own file
- * tools. The CLI harnesses resolve their own paths natively.
+ * Claude Code's project scope, and the directory the `ai-sdk` discovery listing
+ * points at — that agent reads SKILL.md with the harness's own file tools, so it
+ * needs one concrete path. The CLI harnesses resolve their own paths.
  */
 export const SKILLS_INSTALL_DIR = '.claude/skills';
 
@@ -73,7 +75,7 @@ export interface SkillEntry {
   /**
    * Workspace-relative directory of the installed skill in the `.claude/skills`
    * scope (`SKILLS_INSTALL_DIR`). The same tree exists under every entry of
-   * `SKILLS_INSTALL_DIRS`; this is the one `buildSkillsPrompt` cites.
+   * `SKILLS_INSTALL_DIRS`; this is the one the `ai-sdk` listing cites.
    */
   dir: string;
 }
@@ -113,12 +115,19 @@ export function frontmatterDescription(markdown: string): string {
  * Render the skills discovery listing: only names+descriptions enter the system
  * prompt, keeping context lean. When a task matches, the agent reads that
  * skill's SKILL.md with the existing file tools (progressive disclosure).
- * Empty when no skills are installed.
+ *
+ * ai-sdk only. `files_read` is one of `buildLocalStackTools`' in-process tools,
+ * handed to the model by `aiSdkAgent` alone. Every CLI harness discovers the
+ * installed skills itself (see the module comment) and describes them to the
+ * model in its own words with its own loader, so injecting this would duplicate
+ * that listing and name a tool the agent does not have. Empty string for every
+ * CLI agent, and when no skills are installed.
  */
 export function buildSkillsPrompt(
   agent: AgentHarnessId,
   skills: readonly SkillEntry[]
 ): string {
+  if (agent !== 'ai-sdk') return '';
   if (skills.length === 0) return '';
   return [
     '## Available skills',
@@ -159,7 +168,7 @@ export function buildSkillsAddCommand(
  * `<staging>/skills/<name>` (the collection layout the CLI expects), then
  * `skills add` copies it into every project scope in `SKILLS_INSTALL_DIRS`, so
  * each CLI harness finds it through its own native discovery. Returns the
- * installed registry (name+description+dir), used for the discovery listing.
+ * installed registry (name+description+dir), used for the `ai-sdk` listing.
  * A no-op that returns `[]` when no skills are requested.
  */
 export async function installSkills(
@@ -191,7 +200,7 @@ export async function installSkills(
 
   // Confirm each skill landed in *every* agent scope — a missing one means the
   // harness that reads it would silently see no skills at all — then read the
-  // description for the discovery listing. The name is the install directory.
+  // description for the ai-sdk listing. The name is the install directory.
   const entries: SkillEntry[] = [];
   for (const source of sources) {
     for (const installDir of SKILLS_INSTALL_DIRS) {

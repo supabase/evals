@@ -10,13 +10,17 @@ import { buildSkillsPrompt } from './skills.js';
 
 export interface BareSandboxHandle {
   sandbox: AgentSandbox;
-  /** Skills-discovery text to fold into the agent's system prompt. */
+  /**
+   * Skills-discovery text to fold into the agent's system prompt. Empty for
+   * every CLI harness — each discovers the installed skills natively and
+   * advertises them to the model itself (see `buildSkillsPrompt`).
+   */
   promptAddendum: string;
   close(): Promise<void>;
 }
 
 export interface BareSandboxOptions {
-  /** Harness driving this sandbox. */
+  /** Harness driving this sandbox; decides whether skills are advertised in the prompt. */
   agent: AgentHarnessId;
   /** Supabase CLI version baked into the sandbox image. */
   cliVersion?: string;

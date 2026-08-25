@@ -132,11 +132,17 @@ export function localStackRuntime(
 /**
  * Describes the session's tool surface: the binaries installed in the workspace
  * and the in-process `bash`/`files_*` tools from `buildLocalStackTools`.
+ *
+ * ai-sdk only. Those tools exist solely for `aiSdkAgent`, which the framework
+ * drives host-side; `createCliAgent` ignores `args.tools` entirely, so a CLI
+ * agent works the same workspace through its own built-in tools and this text
+ * would name tools it does not have. Empty string for every CLI agent.
  */
 export function buildToolSurfaceAddendum(
   agent: AgentHarnessId,
   options: { skipCliInstall?: boolean } = {}
 ): string {
+  if (agent !== 'ai-sdk') return '';
   let addendum =
     'docker, psql, git, and curl are installed in the workspace. ' +
     'Use the bash tool to run commands (the working directory is always the workspace root) ' +

@@ -143,10 +143,10 @@ Skills come from [`supabase/agent-skills`](https://github.com/supabase/agent-ski
 
 To use a skill in an experiment, reference its directory name in the experiment's `skills` array.
 
-Both runtimes load skills lazily ([progressive disclosure](https://ai-sdk.dev/cookbook/guides/agent-skills)): only each skill's name+description is in the system prompt, and the agent pulls a skill's full instructions on demand. They differ only in how the body is fetched, because the tools-mode agent has no filesystem:
+Skills are always loaded lazily ([progressive disclosure](https://ai-sdk.dev/cookbook/guides/agent-skills)) — a skill's full instructions are pulled on demand, never preloaded. How that happens depends on the harness:
 
-- **Local-stack (sandbox) mode:** skills are installed into the workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network), into every project scope the CLI harnesses discover natively: `.claude/skills/` for Claude Code, `.agents/skills/` for Codex and OpenCode. Each CLI discovers the scope it reads and surfaces those skills to the model itself. The framework also still injects a listing naming them, so a CLI harness hears about them twice; removing that is a separate change.
-- **Tools mode:** no filesystem, so a `load_skill` tool returns a skill's full instructions when the agent calls it with the skill's name.
+- **CLI harnesses (Claude Code, Codex, OpenCode)** use their own built-in skills mechanism. Skills are installed into the sandbox workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network), for each harness's own project scope: `.claude/skills/` for Claude Code, `.agents/skills/` for Codex and OpenCode. Each CLI then discovers, advertises and loads the skills itself. The framework injects nothing — an agent's real-world skill-following behaviour is part of what an eval measures.
+- **The in-process `ai-sdk` harness** has no such mechanism, so the framework supplies one. In local-stack mode it lists each skill's name+description in the system prompt and the agent reads `.claude/skills/<name>/SKILL.md` with its file tools. In tools mode there is no filesystem at all, so a `load_skill` tool returns a skill's full instructions when the agent calls it with the skill's name.
 
 ## Framework Checks
 
