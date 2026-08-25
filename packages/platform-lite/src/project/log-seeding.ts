@@ -77,10 +77,13 @@ CREATE TABLE IF NOT EXISTS function_edge_logs (
   pathname text
 );
 
--- The runtime console/stdout stream, separate from the request/response stream
--- in function_edge_logs. It needs its own rows because the mcp
--- 'edge-function-runtime' preset selects columns function_edge_logs does not
--- have. Seed it with source 'edge-function-runtime'.
+-- The runtime console/stdout stream, a SEPARATE stream from the
+-- request/response one in function_edge_logs. mcp 0.9.0 gives it its own
+-- preset ('edge-function-runtime' selects severity_text, level, event_type,
+-- function_id, execution_id, deployment_id, version), so it needs its own rows:
+-- it was a view over function_edge_logs, which made every seeded edge-function
+-- request appear again as a phantom console line. Seed it with source
+-- 'edge-function-runtime'.
 CREATE TABLE IF NOT EXISTS function_logs (
   id text PRIMARY KEY,
   identifier text,
@@ -110,23 +113,47 @@ CREATE TABLE IF NOT EXISTS storage_logs (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
--- Mirror of the hosted /analytics/endpoints/logs unified stream, which exposes
--- one 'logs' relation with a 'source' discriminator and a log_attributes map.
--- Mirroring it lets ClickHouse-dialect SQL from the mcp server run here with
--- minimal translation. Column-backed attributes win over seeded metadata.
--- Nulls fall back to metadata keys.
+-- Unified ClickHouse-shaped stream: the hosted /analytics/endpoints/logs
+-- endpoint exposes one 'logs' relation with a 'source' discriminator and a
+-- log_attributes map. Mirror it so ClickHouse-dialect SQL from current mcp
+-- (get_logs presets) and from mcp's query_logs runs with minimal
+-- translation. Column-backed
+-- attributes win over seeded metadata; nulls fall back to metadata keys.
 --
--- Hand-modeled because the contract is platform-internal and no npm package
--- exports it (https://github.com/supabase/platform/pull/35096).
---
--- Two gaps to know about before writing a logs eval.
---   * workflow_run_logs (branch-action) and realtime_logs (realtime) have no
---     backing table. compileClickHouseLogsSql in debugging.ts rejects queries
---     naming them so they error loudly instead of returning 0 rows.
---   * function_logs is unioned exactly once, from its own table. As a second
---     union over function_edge_logs it made every seeded edge-function row
---     appear 3x, so count(*) over-reported and the console stream showed
---     request rows.
+-- Provenance (hand-modeled; nothing usable is importable):
+--   * The 'logs' relation shape is the hosted platform's Logflare/ClickHouse
+--     contract. Hosted serves the /analytics/endpoints/logs route today; both
+--     capability PRs have landed:
+--       - supabase/platform#35096: logs.all.otel unified stream + ClickHouse
+--         dialect for the getLogs PRESETS - what mcp main (post-#326) emits.
+--       - supabase/platform#35970: custom-SQL passthrough (timestamps
+--         normalized platform-side) - what query_logs (shipped in mcp
+--         0.10.0) targets.
+--     The fixture models both against that contract. It is
+--     platform-internal either way: no npm package exports the schema, so
+--     fixtures must model it by hand, exactly like every other platform-lite
+--     emulation in this package.
+--   * The 'source' names are the unified-stream sources referenced by mcp's
+--     preset SQL and the query_logs sql description - not exported as data.
+--     (mcp's /platform entrypoint DOES export logsServiceSchema, but that
+--     enumerates service PRESETS, a different namespace; and the resolved
+--     package's devDependency range can drift ahead of the MCP_SERVER_VERSION
+--     pin the harness actually runs, so importing it would track the wrong
+--     artifact.)
+--     Resync this view when the pinned MCP_SERVER_VERSION moves.
+--   * UNMODELED preset sources: workflow_run_logs (branch-action) and
+--     realtime_logs (realtime) have no backing table in platform-lite.
+--     compileClickHouseLogsSql (debugging.ts) rejects queries naming them so
+--     they error loudly instead of silently returning 0 rows; model them with
+--     real tables + seeds before running a branch-action/realtime logs eval.
+--   * function_logs IS modeled, from its own table, and is unioned exactly
+--     once. It used to be a second union over function_edge_logs, so a single
+--     seeded edge-function row appeared 3x (edge_logs + function_edge_logs +
+--     function_logs): count(*) and "group by source" over-reported and the
+--     console stream showed request rows. It has a real consumer, so rejecting
+--     the source was not an option: mcp 0.9.0 adds an 'edge-function-runtime'
+--     preset that reads exactly this source. Seed it with source
+--     'edge-function-runtime'; an 'edge-function' seed no longer writes here.
 CREATE VIEW logs AS
   SELECT id, identifier, timestamp, ts, event_message, message, level, level AS severity_text, 'edge_logs'::text AS source,
     metadata || jsonb_strip_nulls(jsonb_build_object('identifier', identifier, 'request.method', method, 'request.path', path, 'response.status_code', status_code)) AS log_attributes
