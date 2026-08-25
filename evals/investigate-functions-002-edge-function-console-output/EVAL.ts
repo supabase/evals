@@ -7,44 +7,13 @@ import {
   type ToolScorer,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { consoleRowEvidence } from './result-evidence.js';
 
 /**
  * The documented recovery path from the `query_logs` schema hint: list the
  * sources before reading them.
  */
 const SOURCE_DISCOVERY = /select\s+distinct\s+source/i;
-
-/**
- * Substrings that occur ONLY in this scenario's `edge-function-runtime` console
- * rows, never in the `edge-function` request-envelope rows.
- *
- * Verified against `remote/logs.jsonl`: every marker matches runtime rows only
- * and zero envelope rows (`SPRING24` 1 row, `pricing-gateway` 3, `cart_8f21ac`
- * 3, `exec-3b91d2f0` 5, `timed out after 3 retries` 2). So a result built from
- * request envelopes — statuses, methods, execution times, invocation counts —
- * cannot satisfy this, and neither can a metadata-only result of source names
- * and counts. Resync this list if the seed's console messages change.
- */
-const CONSOLE_ROW_MARKERS = [
-  'SPRING24',
-  'pricing-gateway',
-  'cart_8f21ac',
-  'exec-3b91d2f0',
-  'timed out after 3 retries',
-] as const;
-
-/**
- * Two distinct markers, not one, so a marker echoed back inside agent-authored
- * text (a failing `... like '%SPRING24%'` whose error message quotes the
- * statement) is not on its own accepted as a row that came back.
- *
- * Two is not a stricter bar in practice: every console row carrying a finding
- * the judge asks for clears it on message text alone — the coupon row has
- * `SPRING24` + `cart_8f21ac`, and each pricing-gateway timeout row has
- * `pricing-gateway` + `timed out after 3 retries`. An agent that satisfies the
- * judge necessarily read one of those rows.
- */
-const REQUIRED_MARKERS = 2;
 
 /**
  * The `query_logs` calls the agent actually made.
@@ -69,37 +38,6 @@ const REQUIRED_MARKERS = 2;
  */
 function queryLogsCalls(ctx: ToolEvalContext): ToolCallRecord[] {
   return ctx.toolCalls.filter((call) => call.tool.toolName === 'query_logs');
-}
-
-/**
- * Flatten a tool result to searchable text.
- *
- * `ToolCallRecord.result` is `unknown` and its shape is harness-specific: the
- * Claude Code parser stores the raw `tool_result` `content`
- * (`packages/core/src/agents/claude-code/parser.ts:216`), which is a plain
- * string for built-ins but an MCP content-block array
- * (`[{ type: 'text', text }]`) for `query_logs`, whose text in turn carries
- * platform-lite's `{ result: rows }` envelope
- * (`packages/platform-lite/src/management-api/debugging.ts:25-42`).
- *
- * Rather than guess which of those the harness stored, stringify anything that
- * is not already a string: none of the markers above contain a character JSON
- * escapes, so a marker nested at any depth survives verbatim.
- */
-function resultText(result: unknown): string {
-  if (result === undefined || result === null) return '';
-  if (typeof result === 'string') return result;
-  try {
-    return JSON.stringify(result) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-/** Which console-row markers a single `query_logs` result came back with. */
-function consoleRowMarkers(call: ToolCallRecord): string[] {
-  const text = resultText(call.result);
-  return CONSOLE_ROW_MARKERS.filter((marker) => text.includes(marker));
 }
 
 const scorer: ToolScorer = async (ctx) => {
@@ -128,11 +66,15 @@ const scorer: ToolScorer = async (ctx) => {
   // literals and could not see through `lower(source)`. Every patch invited the
   // next counterexample. The result does not have that problem: it either
   // contains the scenario's console rows or it does not.
-  const markersByCall = logCalls.map(consoleRowMarkers);
-  const readConsoleRows = markersByCall.some(
-    (markers) => markers.length >= REQUIRED_MARKERS
+  const evidenceByCall = logCalls.map((call) =>
+    consoleRowEvidence(call.result)
   );
-  const observedMarkers = [...new Set(markersByCall.flat())];
+  const readConsoleRows = evidenceByCall.some(
+    (evidence) => evidence.foundFinding
+  );
+  const observedMarkers = [
+    ...new Set(evidenceByCall.flatMap((evidence) => evidence.markers)),
+  ];
 
   const logQueries = logCalls
     .map((call) => call.body.sql)
