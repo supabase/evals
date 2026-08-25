@@ -2,6 +2,7 @@ import {
   judge,
   serializeTranscript,
   type CheckResult,
+  type ToolCallRecord,
   type ToolEvalContext,
   type ToolScorer,
 } from '@supabase-evals/core';
@@ -14,20 +15,41 @@ import { stripIndent } from 'common-tags';
 const SOURCE_DISCOVERY = /select\s+distinct\s+source/i;
 
 /**
- * A `source` comparison that narrows the unified stream, e.g.
- * `source = 'edge_logs'` or `source in ('edge_logs', 'function_edge_logs')`.
- * Deliberately shallow: it matches the comparison forms models actually emit
- * instead of parsing SQL, and it does not see through wrappers like
- * `lower(source) = ...`. A bare mention of `source` in a select list is not
- * narrowing and must not match here, or the broad unified-stream query this
- * check exists to accept would fail.
+ * Substrings that occur ONLY in this scenario's `edge-function-runtime` console
+ * rows, never in the `edge-function` request-envelope rows.
+ *
+ * Verified against `remote/logs.jsonl`: every marker matches runtime rows only
+ * and zero envelope rows (`SPRING24` 1 row, `pricing-gateway` 3, `cart_8f21ac`
+ * 3, `exec-3b91d2f0` 5, `timed out after 3 retries` 2). So a result built from
+ * request envelopes — statuses, methods, execution times, invocation counts —
+ * cannot satisfy this, and neither can a metadata-only result of source names
+ * and counts. Resync this list if the seed's console messages change.
  */
-const SOURCE_NARROWED = /\bsource\b\s*(=|!=|<>|(not\s+)?in\b|(not\s+)?like\b)/i;
+const CONSOLE_ROW_MARKERS = [
+  'SPRING24',
+  'pricing-gateway',
+  'cart_8f21ac',
+  'exec-3b91d2f0',
+  'timed out after 3 retries',
+] as const;
 
 /**
- * SQL from the `query_logs` calls the agent actually made.
+ * Two distinct markers, not one, so a marker echoed back inside agent-authored
+ * text (a failing `... like '%SPRING24%'` whose error message quotes the
+ * statement) is not on its own accepted as a row that came back.
  *
- * Tool-call bodies only, deliberately. This used to also read
+ * Two is not a stricter bar in practice: every console row carrying a finding
+ * the judge asks for clears it on message text alone — the coupon row has
+ * `SPRING24` + `cart_8f21ac`, and each pricing-gateway timeout row has
+ * `pricing-gateway` + `timed out after 3 retries`. An agent that satisfies the
+ * judge necessarily read one of those rows.
+ */
+const REQUIRED_MARKERS = 2;
+
+/**
+ * The `query_logs` calls the agent actually made.
+ *
+ * Tool-call records only, deliberately. This used to also read
  * `serializeTranscript(ctx.transcript, { includeToolCallInputs: true })`, but
  * `serializeTranscript` emits every message's text unconditionally, before it
  * looks at that flag (`packages/core/src/index.ts:580-582`) — so an assistant
@@ -45,33 +67,39 @@ const SOURCE_NARROWED = /\bsource\b\s*(=|!=|<>|(not\s+)?in\b|(not\s+)?like\b)/i;
  * this should also accept a `get_logs` call with
  * `service: 'edge-function-runtime'`.
  */
-function queryLogsSql(ctx: ToolEvalContext): string[] {
-  return ctx.toolCalls
-    .filter((call) => call.tool.toolName === 'query_logs')
-    .map((call) => call.body.sql)
-    .filter((sql): sql is string => typeof sql === 'string');
+function queryLogsCalls(ctx: ToolEvalContext): ToolCallRecord[] {
+  return ctx.toolCalls.filter((call) => call.tool.toolName === 'query_logs');
 }
 
 /**
- * Whether one `query_logs` statement could actually have returned the console
- * rows.
+ * Flatten a tool result to searchable text.
  *
- * Policy: pass if the SQL names `function_logs`, or if it reads the unified
- * `logs` stream without narrowing `source`. A broad unified-logs query passes
- * on purpose. The check exists to stop a pass built on narration alone, not to
- * demand a particular WHERE clause: an agent that runs one wide query over the
- * unified stream and finds the console rows has done the thing the scenario is
- * about, and failing it for not writing `source = 'function_logs'` would
- * penalise a legitimately better approach. Whether the console content was
- * actually reported is check 1's job (the judge).
+ * `ToolCallRecord.result` is `unknown` and its shape is harness-specific: the
+ * Claude Code parser stores the raw `tool_result` `content`
+ * (`packages/core/src/agents/claude-code/parser.ts:216`), which is a plain
+ * string for built-ins but an MCP content-block array
+ * (`[{ type: 'text', text }]`) for `query_logs`, whose text in turn carries
+ * platform-lite's `{ result: rows }` envelope
+ * (`packages/platform-lite/src/management-api/debugging.ts:25-42`).
  *
- * The source-discovery query is excluded because it returns source *names*, not
- * log rows, so it is not evidence the console stream was read.
+ * Rather than guess which of those the harness stored, stringify anything that
+ * is not already a string: none of the markers above contain a character JSON
+ * escapes, so a marker nested at any depth survives verbatim.
  */
-function couldReturnConsoleRows(sql: string): boolean {
-  if (SOURCE_DISCOVERY.test(sql)) return false;
-  if (/function_logs/i.test(sql)) return true;
-  return /\blogs\b/i.test(sql) && !SOURCE_NARROWED.test(sql);
+function resultText(result: unknown): string {
+  if (result === undefined || result === null) return '';
+  if (typeof result === 'string') return result;
+  try {
+    return JSON.stringify(result) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** Which console-row markers a single `query_logs` result came back with. */
+function consoleRowMarkers(call: ToolCallRecord): string[] {
+  const text = resultText(call.result);
+  return CONSOLE_ROW_MARKERS.filter((marker) => text.includes(marker));
 }
 
 const scorer: ToolScorer = async (ctx) => {
@@ -86,8 +114,29 @@ const scorer: ToolScorer = async (ctx) => {
     `,
   });
 
-  const logQueries = queryLogsSql(ctx);
-  const reachedRuntimeSource = logQueries.some(couldReturnConsoleRows);
+  const logCalls = queryLogsCalls(ctx);
+
+  // Assert on what came BACK, not on how the SQL was written.
+  //
+  // This check used to inspect the statement's shape: accept it if it named
+  // `function_logs`, or if it read the unified `logs` stream without narrowing
+  // `source`. That is unbounded, and it was wrong in both directions. A
+  // metadata-only `select source, count(*) from logs group by source` reads no
+  // log row at all yet passed as a "broad query", so an agent could supply the
+  // expected narration and never touch the console stream; meanwhile the
+  // regexes matched `function_logs` or `source =` inside comments and string
+  // literals and could not see through `lower(source)`. Every patch invited the
+  // next counterexample. The result does not have that problem: it either
+  // contains the scenario's console rows or it does not.
+  const markersByCall = logCalls.map(consoleRowMarkers);
+  const readConsoleRows = markersByCall.some(
+    (markers) => markers.length >= REQUIRED_MARKERS
+  );
+  const observedMarkers = [...new Set(markersByCall.flat())];
+
+  const logQueries = logCalls
+    .map((call) => call.body.sql)
+    .filter((sql): sql is string => typeof sql === 'string');
   const ranSourceDiscovery = logQueries.some((sql) =>
     SOURCE_DISCOVERY.test(sql)
   );
@@ -99,16 +148,22 @@ const scorer: ToolScorer = async (ctx) => {
       judgeNotes: consoleOutputSurfaced.notes,
     },
     {
-      name: 'ran a log query that could return the function console output',
-      passed: reachedRuntimeSource,
+      name: 'read the function console output from the logs',
+      passed: readConsoleRows,
       // Diagnostic only, deliberately not gated on: it separates an agent that
       // recovered via the documented `select distinct source from logs` path
       // from one that reached the console rows some other way (prior knowledge,
-      // guessing, a skill). Either way the check above decides pass/fail. Read
-      // from the same real `query_logs` SQL, so narration cannot satisfy it.
-      notes: ranSourceDiscovery
-        ? 'ran a source-discovery query (select distinct source) before reading logs'
-        : 'no source-discovery query (select distinct source) appeared in the run',
+      // guessing, a skill). Either way the marker evidence above decides
+      // pass/fail. Read from the same real `query_logs` SQL, so narration
+      // cannot satisfy it.
+      notes: [
+        ranSourceDiscovery
+          ? 'ran a source-discovery query (select distinct source) before reading logs'
+          : 'no source-discovery query (select distinct source) appeared in the run',
+        `${logCalls.length} query_logs call(s); console-row markers returned: ${
+          observedMarkers.length > 0 ? observedMarkers.join(', ') : 'none'
+        }`,
+      ].join('; '),
     },
   ];
 
