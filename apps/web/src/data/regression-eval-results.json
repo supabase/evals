@@ -306,6 +306,124 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "build-docs-003-api-keys-guide",
+    "stage": "build",
+    "product": [
+      "auth",
+      "data-api"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "vite build passed",
+        "passed": true
+      },
+      {
+        "name": "client bundle carries a publishable or anon key",
+        "passed": true
+      },
+      {
+        "name": "no secret key in the client bundle",
+        "passed": true
+      },
+      {
+        "name": "secret key absent from client source",
+        "passed": true
+      },
+      {
+        "name": "client source calls signUp",
+        "passed": true
+      },
+      {
+        "name": "no secret-bearing env var is client-exposed",
+        "passed": true
+      },
+      {
+        "name": "roster returns every signed-up email",
+        "passed": true
+      },
+      {
+        "name": "no client role can read another user's email",
+        "passed": true
+      },
+      {
+        "name": "the agent read the API keys guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the guide on API keys: publishable key vs secret key, anon/service_role legacy keys, where each should be used (client vs server), and how to fetch them via CLI/dashboard. Include exact key names and any relevant environment variables.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
+            }
+          ],
+          "resultChars": 1240
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions default environment variables SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_ANON_KEY local development\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            }
+          ],
+          "resultChars": 41771
+        }
+      ]
+    },
+    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
+    "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
+    "attempts": 1,
+    "sourcePath": "claude-code-sonnet-5/build-docs-003-api-keys-guide.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "build-functions-006-dual-auth-with-server",
     "stage": "build",
     "product": [
@@ -1356,6 +1474,119 @@
     "promptSourcePath": "evals/build-docs-002-rls-guide/PROMPT.md",
     "attempts": 2,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-002-rls-guide.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-003-api-keys-guide",
+    "stage": "build",
+    "product": [
+      "auth",
+      "data-api"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "vite build passed",
+        "passed": true
+      },
+      {
+        "name": "client bundle carries a publishable or anon key",
+        "passed": true
+      },
+      {
+        "name": "no secret key in the client bundle",
+        "passed": true
+      },
+      {
+        "name": "secret key absent from client source",
+        "passed": true
+      },
+      {
+        "name": "client source calls signUp",
+        "passed": true
+      },
+      {
+        "name": "no secret-bearing env var is client-exposed",
+        "passed": true
+      },
+      {
+        "name": "roster returns every signed-up email",
+        "passed": true
+      },
+      {
+        "name": "no client role can read another user's email",
+        "passed": true
+      },
+      {
+        "name": "the agent read the API keys guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the guidance on Supabase API keys: what keys exist (anon, service_role, publishable, secret), how they should be used on the client vs server, security implications, and any current best practices or migration notes (e.g. new key formats replacing legacy ones).",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
+            }
+          ],
+          "resultChars": 1457
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL SUPABASE_ANON_KEY default secrets\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 45031
+        }
+      ]
+    },
+    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
+    "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
+    "attempts": 2,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-003-api-keys-guide.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
