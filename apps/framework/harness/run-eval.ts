@@ -109,11 +109,24 @@ async function loadExperiments() {
  * `interface` is otherwise a benchmark dimension (KPI), not a runtime switch.
  */
 function resolveEvalMode(
-  interfaceKind: EvalInterface | undefined,
+  interfaceKind: EvalInterface,
   hasLocal: boolean
 ): EvalMode {
   if (interfaceKind === 'cli' || hasLocal) return 'local-stack';
   return 'tools';
+}
+
+/** Throws if a scenario ships a `local/` workspace but isn't declared `interface: cli`. */
+export function assertLocalMatchesInterface(
+  id: string,
+  interfaceKind: EvalInterface,
+  hasLocal: boolean
+): void {
+  if (hasLocal && interfaceKind !== 'cli') {
+    throw new Error(
+      `evals/${id}/PROMPT.md: ships a local/ workspace but declares interface: ${interfaceKind}, expected cli`
+    );
+  }
 }
 
 function discoverEvals(): EvalManifest[] {
@@ -131,6 +144,7 @@ function discoverEvals(): EvalManifest[] {
       `evals/${id}/PROMPT.md`
     ).metadata;
     const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
+    assertLocalMatchesInterface(id, metadata.interface, hasLocal);
     const mode = resolveEvalMode(metadata.interface, hasLocal);
     out.push({
       id,

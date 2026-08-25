@@ -1,6 +1,7 @@
 ---
 stage: build
 suite: other
+interface: cli
 product:
   - database
   - auth

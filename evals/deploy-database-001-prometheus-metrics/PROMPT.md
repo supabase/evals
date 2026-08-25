@@ -1,6 +1,7 @@
 ---
 stage: deploy
 suite: benchmark
+interface: cli
 product:
   - database
 topic:
