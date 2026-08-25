@@ -1260,17 +1260,17 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "surfaced the function console output",
         "passed": true,
-        "judgeNotes": "Reported console lines showing SPRING24 expired and was dropped, and pricing-gateway timed out after retries with tax falling back to zero."
+        "judgeNotes": "Reported console output showing SPRING24 expired and was dropped, plus pricing-gateway timeout after retries with zero-tax fallback."
       },
       {
         "name": "read the function console output from the logs",
-        "passed": false,
-        "notes": "ran a source-discovery query (select distinct source) before reading logs; 4 query_logs call(s); console-row markers returned: none"
+        "passed": true,
+        "notes": "ran a source-discovery query (select distinct source) before reading logs; 7 query_logs call(s); console-row markers returned: pricing-gateway, timed out after 3 retries, cart_8f21ac, SPRING24"
       }
     ],
     "skills": {
@@ -1287,7 +1287,7 @@
     },
     "prompt": "I pushed a new version of our `checkout-quote` edge function this morning and it has a bunch of `console.log` lines in it, but I can't find any of that output anywhere in the dashboard.\n\nCan you dig the output out of the project logs and tell me what the function is actually printing?",
     "promptSourcePath": "evals/investigate-functions-002-edge-function-console-output/PROMPT.md",
-    "attempts": 2,
+    "attempts": 1,
     "sourcePath": "claude-code-sonnet-5-mcp-0-11/investigate-functions-002-edge-function-console-output.json"
   },
   {
