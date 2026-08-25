@@ -1,34 +1,65 @@
 /**
- * Agent skills inside the local-stack sandbox.
+ * Agent skills inside the sandbox.
  *
  * Skills are reusable instruction sets (a SKILL.md plus bundled reference
- * files) that the agent discovers and loads on demand — the AI SDK
- * "agent skills" pattern (https://ai-sdk.dev/cookbook/guides/agent-skills).
- * Rather than preloading every skill's full text into the system prompt, the
- * sandbox advertises only each skill's name+description and tells the agent to
- * read a skill's SKILL.md (with the existing file tools) when a task matches —
- * progressive disclosure. This only works where the agent has a filesystem —
- * the sandbox. Tools-mode evals (no filesystem) inject skills into the system
- * prompt instead.
+ * files) that the agent discovers and loads on demand — progressive disclosure,
+ * rather than preloading every skill's full text into the system prompt.
  *
  * Skills are installed with Vercel's `skills` CLI (baked into the sandbox
  * image), sourcing from local directories — never the network. Each requested
- * skill is staged outside the workspace, then `skills add` copies it into the
- * workspace's `.claude/skills/` (claude-code project scope), where the agent's
- * file tools can reach the SKILL.md and the files it references.
+ * skill is staged outside the workspace, then `skills add --agent …` copies it
+ * into every project scope the CLI harnesses discover natively:
+ *
+ *   - `.claude/skills/`  — Claude Code's project scope.
+ *   - `.agents/skills/`  — Codex's and OpenCode's project scope.
+ *
+ * Each CLI then discovers, advertises and loads the skills itself, in its own
+ * words (Codex injects a `<skills_instructions>` block, OpenCode exposes a
+ * `skill` tool). `buildSkillsPrompt` renders the harness's own discovery listing
+ * on top of that, for the in-process `ai-sdk` agent — which has no such
+ * mechanism — and for the CLI harnesses.
  */
 
-import type { SkillSource } from '@supabase-evals/core';
+import type { AgentHarnessId, SkillSource } from '@supabase-evals/core';
 import type { DockerSandbox } from './docker-sandbox.js';
 
 /** Version of Vercel's `skills` CLI baked into the sandbox image (pinned). */
 export const SKILLS_CLI_VERSION = '1.5.11';
 
 /**
- * Where installed project-scoped skills are read from, relative to the
- * workspace root (the CLI's cwd during install). We install for all agents
- * (see installSkills), and `.claude/skills` is claude-code's project scope —
- * the discovery listing points the agent here.
+ * `skills add --agent` ids we install for — the three CLI harnesses that run in
+ * the sandbox. Installed unconditionally rather than only for the experiment's
+ * own harness: the ids map onto just two directories (below), an unused one
+ * costs a directory copy of a few kilobytes, and keeping one code path means no
+ * agent id has to be threaded through `createAgentEnvironment` for correctness.
+ *
+ * Naming them explicitly also matters. With no `--agent` flag the CLI falls
+ * back to *every* agent it knows when it cannot detect an installed one,
+ * littering the scored, exported workspace with ~52 stray entries. That
+ * fallback does happen to cover both directories we want, so it is not why
+ * skills reach an agent; it is a workspace-pollution and determinism problem.
+ * Detection depends on the surrounding environment, so naming the agents is
+ * what makes the install predictable.
+ */
+export const SKILLS_INSTALL_AGENTS = [
+  'claude-code',
+  'codex',
+  'opencode',
+] as const;
+
+/**
+ * Every workspace-relative directory `SKILLS_INSTALL_AGENTS` populates, deduped
+ * (`codex` and `opencode` share `.agents/skills`). Verified after install.
+ */
+export const SKILLS_INSTALL_DIRS = [
+  '.claude/skills',
+  '.agents/skills',
+] as const;
+
+/**
+ * Claude Code's project scope, and the directory `buildSkillsPrompt`'s listing
+ * points at — it names one concrete path, read with the harness's own file
+ * tools. The CLI harnesses resolve their own paths natively.
  */
 export const SKILLS_INSTALL_DIR = '.claude/skills';
 
@@ -39,7 +70,11 @@ const SKILLS_STAGING_DIR = '/tmp/skills-src';
 export interface SkillEntry {
   name: string;
   description: string;
-  /** Workspace-relative directory of the installed skill. */
+  /**
+   * Workspace-relative directory of the installed skill in the `.claude/skills`
+   * scope (`SKILLS_INSTALL_DIR`). The same tree exists under every entry of
+   * `SKILLS_INSTALL_DIRS`; this is the one `buildSkillsPrompt` cites.
+   */
   dir: string;
 }
 
@@ -75,12 +110,15 @@ export function frontmatterDescription(markdown: string): string {
 }
 
 /**
- * Render the discovery prompt: only names+descriptions enter the system
+ * Render the skills discovery listing: only names+descriptions enter the system
  * prompt, keeping context lean. When a task matches, the agent reads that
  * skill's SKILL.md with the existing file tools (progressive disclosure).
  * Empty when no skills are installed.
  */
-export function buildSkillsPrompt(skills: readonly SkillEntry[]): string {
+export function buildSkillsPrompt(
+  agent: AgentHarnessId,
+  skills: readonly SkillEntry[]
+): string {
   if (skills.length === 0) return '';
   return [
     '## Available skills',
@@ -95,11 +133,33 @@ export function buildSkillsPrompt(skills: readonly SkillEntry[]): string {
 }
 
 /**
+ * The `skills add` invocation, as a string, so its shape is unit-testable
+ * without a container.
+ *
+ * Argument order is load-bearing: `--agent` is variadic (it consumes every
+ * following token that does not start with `-`), so the source directory must
+ * come *before* it — `skills add --agent codex <dir>` swallows `<dir>` as an
+ * agent name and fails with "Missing required argument: source". `--skill`
+ * immediately after the agent list terminates it.
+ *
+ * `--copy` (rather than the default symlink) keeps the workspace self-contained
+ * once staging is gone, and skips the CLI's symlink-mode "only install if the
+ * agent's top-level directory already exists" branch. `--skill '*'` installs
+ * every staged skill; `--yes` is non-interactive.
+ */
+export function buildSkillsAddCommand(
+  stagingDir: string = SKILLS_STAGING_DIR
+): string {
+  return `skills add '${stagingDir}' --agent ${SKILLS_INSTALL_AGENTS.join(' ')} --skill '*' --copy --yes`;
+}
+
+/**
  * Install agent skills into the sandbox with Vercel's `skills` CLI, sourcing
  * from local directories (never the network). Each skill is staged under
  * `<staging>/skills/<name>` (the collection layout the CLI expects), then
- * `skills add` copies it into the workspace's `.claude/skills/`. Returns the
- * discovered registry (name+description+dir) used for progressive disclosure.
+ * `skills add` copies it into every project scope in `SKILLS_INSTALL_DIRS`, so
+ * each CLI harness finds it through its own native discovery. Returns the
+ * installed registry (name+description+dir), used for the discovery listing.
  * A no-op that returns `[]` when no skills are requested.
  */
 export async function installSkills(
@@ -120,38 +180,34 @@ export async function installSkills(
     );
   }
 
-  // `skills add <dir>` installs to the cwd's project scope, and runShell's cwd
-  // is the workspace, so skills land in <workspace>/<agent dirs>/. --copy (not
-  // symlink) keeps the workspace self-contained once staging is gone; --skill
-  // '*' installs all staged skills; --yes is non-interactive.
-  //
-  // TODO: install only for the agent the experiment uses (--agent claude-code,
-  // codex, gemini-cli, …) once that is threaded through. We only run models via
-  // the AI SDK today, so for now we install for all agents and read claude-code's
-  // .claude/skills scope (SKILLS_INSTALL_DIR).
-  const install = await sandbox.runShell(
-    `skills add ${SKILLS_STAGING_DIR} --skill '*' --copy --yes`
-  );
+  // `skills add <dir>` installs into the cwd's project scopes, and runShell's
+  // cwd is the workspace, so skills land in <workspace>/{.claude,.agents}/skills.
+  const install = await sandbox.runShell(buildSkillsAddCommand());
   if (!install.ok) {
     throw new Error(
       `failed to install skills with the skills CLI: ${install.stderr || install.stdout}`
     );
   }
 
-  // Confirm what landed and read each skill's description for the discovery
-  // listing. The name is the install directory; only the description is read.
+  // Confirm each skill landed in *every* agent scope — a missing one means the
+  // harness that reads it would silently see no skills at all — then read the
+  // description for the discovery listing. The name is the install directory.
   const entries: SkillEntry[] = [];
   for (const source of sources) {
-    const dir = `${SKILLS_INSTALL_DIR}/${source.name}`;
-    const skillPath = `${dir}/SKILL.md`;
-    if (!(await sandbox.fileExists(skillPath))) {
-      throw new Error(
-        `skills CLI did not install "${source.name}" (no ${skillPath} in the sandbox)`
-      );
+    for (const installDir of SKILLS_INSTALL_DIRS) {
+      const skillPath = `${installDir}/${source.name}/SKILL.md`;
+      if (!(await sandbox.fileExists(skillPath))) {
+        throw new Error(
+          `skills CLI did not install "${source.name}" (no ${skillPath} in the sandbox)`
+        );
+      }
     }
+    const dir = `${SKILLS_INSTALL_DIR}/${source.name}`;
     entries.push({
       name: source.name,
-      description: frontmatterDescription(await sandbox.readFile(skillPath)),
+      description: frontmatterDescription(
+        await sandbox.readFile(`${dir}/SKILL.md`)
+      ),
       dir,
     });
   }
