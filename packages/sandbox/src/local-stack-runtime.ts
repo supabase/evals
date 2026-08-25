@@ -7,6 +7,7 @@ import {
   type HostedLink,
   type LocalStackRuntime,
   type LocalStackScoringContext,
+  type LocalStackStatus,
   type McpServerConfig,
 } from '@supabase-evals/core';
 import { DockerSandbox } from './docker-sandbox.js';
@@ -311,7 +312,7 @@ export function buildLocalStackScoringContext(
   sandbox: DockerSandbox,
   hosted?: HostedLink
 ): LocalStackScoringContext {
-  let stackConfig: { apiUrl: string; publishableKey: string } | undefined;
+  let stackConfig: LocalStackStatus | undefined;
   let dbUrl: string | undefined;
 
   // Read the DB connection string from the running stack rather than assuming
@@ -354,14 +355,16 @@ export function buildLocalStackScoringContext(
     for (let attempt = 0; attempt < STACK_CONFIG_RETRIES; attempt += 1) {
       const status = await sandbox.runShell('supabase status -o json');
       const config = extractJson(status.stdout);
-      const apiUrl =
-        typeof config?.API_URL === 'string' ? config.API_URL : undefined;
-      const publishableKey =
-        typeof config?.PUBLISHABLE_KEY === 'string'
-          ? config.PUBLISHABLE_KEY
-          : undefined;
-      if (status.ok && apiUrl && publishableKey) {
-        stackConfig = { apiUrl, publishableKey };
+      const apiUrl = readString(config, 'API_URL');
+      const publishableKey = readString(config, 'PUBLISHABLE_KEY');
+      const secretKey = readString(config, 'SECRET_KEY');
+      if (status.ok && apiUrl && publishableKey && secretKey) {
+        stackConfig = {
+          apiUrl,
+          publishableKey,
+          secretKey,
+          anonKey: readString(config, 'ANON_KEY') ?? '',
+        };
         return stackConfig;
       }
       lastStatus = status.stdout || status.stderr;
@@ -372,7 +375,7 @@ export function buildLocalStackScoringContext(
       }
     }
     throw new Error(
-      'could not read API_URL/PUBLISHABLE_KEY from `supabase status -o json` after ' +
+      'could not read API_URL/PUBLISHABLE_KEY/SECRET_KEY from `supabase status -o json` after ' +
         `${STACK_CONFIG_RETRIES} attempts — the local stack must be running and include the auth ` +
         "service (status only reports API keys while gotrue is up; add `gotrue` to the eval's " +
         `services). Last status: ${lastStatus.slice(0, 300)}`
@@ -400,6 +403,7 @@ export function buildLocalStackScoringContext(
       const text = result.stdout.trim();
       return { rows: text ? JSON.parse(text) : [] };
     },
+    stackStatus: () => discoverStackConfig(),
     getClient: async () => {
       const { apiUrl, publishableKey } = await discoverStackConfig();
       return createClient(apiUrl, publishableKey, {
@@ -411,6 +415,14 @@ export function buildLocalStackScoringContext(
     hostedQuery: hosted?.query,
     invokeHostedFunction: hosted?.invokeFunction,
   };
+}
+
+function readString(
+  config: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
+  const value = config?.[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function extractJson(stdout: string): Record<string, unknown> | undefined {
