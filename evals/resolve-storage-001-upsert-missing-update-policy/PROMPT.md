@@ -1,6 +1,7 @@
 ---
 stage: resolve
 suite: regression
+interface: mcp
 product:
   - storage
   - database
