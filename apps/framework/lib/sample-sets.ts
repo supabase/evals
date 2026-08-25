@@ -1,10 +1,12 @@
-// Drops pairs missing runs so a partial refresh doesn't average scores across
-// an uneven number of samples per pair.
-
 type SampleRow = { experiment: string; eval: string };
 
 export type IncompleteSampleSet = { key: string; runs: number };
 
+/**
+ * Groups `rows` (one per `result.json`) by experiment+eval and separates the
+ * groups that don't have exactly `expectedRuns` rows, so exporter can drop
+ * those instead of averaging an experiment/eval over fewer samples.
+ */
 export function splitBySampleSetCompleteness<T extends SampleRow>(
   rows: readonly T[],
   expectedRuns: number
@@ -30,6 +32,10 @@ export function splitBySampleSetCompleteness<T extends SampleRow>(
   };
 }
 
+/**
+ * Renders the incomplete pairs from `splitBySampleSetCompleteness` as a console
+ * warning, e.g. `model-a::eval-1: 2 run(s)`.
+ */
 export function formatIncompleteSampleSets(
   incomplete: readonly IncompleteSampleSet[],
   expectedRuns: number
