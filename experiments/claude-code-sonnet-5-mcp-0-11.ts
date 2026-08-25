@@ -14,7 +14,7 @@ const CONSOLE_OUTPUT_EVAL =
 // predates that tool, so the console-output scenario cannot run under the
 // default experiments at all. Delete this experiment — and drop the matching
 // skipEval lines from claude-code-sonnet-5 and claude-code-sonnet-5-no-skills —
-// once MCP_SERVER_VERSION moves past 0.10.0.
+// once MCP_SERVER_VERSION reaches 0.10.0 or newer.
 export default defineExperiment({
   suite: ['regression'],
   agent: claudeCodeAgent({
