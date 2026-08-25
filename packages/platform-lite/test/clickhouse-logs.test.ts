@@ -193,11 +193,10 @@ limit 100`
     ).rejects.toThrow(/unknown log seed source/i);
   });
 
-  // verbatim from the mcp server's
-  // getClickHouseLogQuery('edge-function-runtime'), limit interpolated to 100.
-  // This preset is why function_logs must stay queryable: the pinned server
-  // ships it, so rejecting the source would be a hard error on every run.
-  it('runs the mcp edge-function-runtime preset against its own rows', async () => {
+  // verbatim from the pinned server's preset, with limit interpolated to 100.
+  // https://github.com/supabase/mcp/blob/c2826ee85a66d4fd6d4ccfa5086ec823d4a9fc88/packages/mcp-server-supabase/src/logs.ts#L41-L48
+  // This preset is why platform-lite still emits source = 'function_logs' rows.
+  it('runs the edge-function-runtime preset against its own rows', async () => {
     const result = await logsDb.query<{
       function_id: string;
       level: string;
@@ -213,8 +212,8 @@ order by timestamp desc
 limit 100`
       )
     );
-    // Exactly the two rows seeded as 'edge-function-runtime' — NOT the five
-    // edge-function request rows, which is what the relabelled union served.
+    // Only the 2 rows seeded as 'edge-function-runtime', not the 5
+    // edge-function request rows.
     expect(result.rows).toHaveLength(2);
     expect(result.rows.map((r) => r.function_id).sort()).toEqual([
       'send-email',
