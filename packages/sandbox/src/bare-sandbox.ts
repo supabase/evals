@@ -1,5 +1,4 @@
 import type {
-  AgentHarnessId,
   AgentSandbox,
   SandboxMount,
   SkillSource,
@@ -13,8 +12,6 @@ export interface BareSandboxHandle {
 }
 
 export interface BareSandboxOptions {
-  /** Harness driving this sandbox; decides whether skills are advertised in the prompt. */
-  agent: AgentHarnessId;
   /** Supabase CLI version baked into the sandbox image. */
   cliVersion?: string;
   /** Skills to install into the sandbox. */

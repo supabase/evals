@@ -510,7 +510,6 @@ async function runOne(
     await using cliSandbox = agentRunsInSandbox
       ? disposable(
           await createBareSandbox({
-            agent: exp.agent.id,
             skills: skillSources,
             mounts: supabaseMcpServerMounts(),
           })
