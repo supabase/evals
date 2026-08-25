@@ -145,7 +145,7 @@ To use a skill in an experiment, reference its directory name in the experiment'
 
 Both runtimes load skills lazily ([progressive disclosure](https://ai-sdk.dev/cookbook/guides/agent-skills)): only each skill's name+description is in the system prompt, and the agent pulls a skill's full instructions on demand. They differ only in how the body is fetched, because the tools-mode agent has no filesystem:
 
-- **Local-stack (sandbox) mode:** skills are installed into the workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network), into every project scope the CLI harnesses discover natively: `.claude/skills/` for Claude Code, `.agents/skills/` for Codex and OpenCode. Each CLI discovers the scope it reads and surfaces those skills to the model itself, so the harness does not describe them.
+- **Local-stack (sandbox) mode:** skills are installed into the workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network), into every project scope the CLI harnesses discover natively: `.claude/skills/` for Claude Code, `.agents/skills/` for Codex and OpenCode. Each CLI discovers the scope it reads and surfaces those skills to the model itself. The framework also still injects a listing naming them, so a CLI harness hears about them twice; removing that is a separate change.
 - **Tools mode:** no filesystem, so a `load_skill` tool returns a skill's full instructions when the agent calls it with the skill's name.
 
 ## Framework Checks
