@@ -385,14 +385,17 @@ jobs:
           # A pair needs every requested run, not just a directory, since a
           # partial pair would otherwise skew the average against its neighbours.
           expected="${{ needs.prepare.outputs.runs }}"
+          required="$(jq -cn --argjson expected "$expected" '[range(1; $expected + 1)]')"
           missing=()
           while IFS= read -r key; do
             dir="results/downloaded/raw-results-$key"
-            found=0
+            actual='[]'
             if [ -d "$dir" ]; then
-              found="$(find "$dir" -mindepth 3 -maxdepth 3 -path '*/run-*/result.json' | wc -l | tr -d ' ')"
+              actual="$(find "$dir" -mindepth 3 -maxdepth 3 -path '*/run-*/result.json' -print \
+                | jq -Rsc '[splits("\n") | select(length > 0) | capture("/run-(?<run>[0-9]+)/result.json$").run | tonumber] | sort')"
             fi
-            [ "$found" = "$expected" ] || missing+=("$key ($found/$expected runs)")
+            found="$(jq 'length' <<< "$actual")"
+            [ "$actual" = "$required" ] || missing+=("$key ($found/$expected runs)")
           done < <(jq -r '.[] | "\(.experiment)__\(.eval_id)"' <<< "$pairs")
 
           echo "count=${#missing[@]}" >> "$GITHUB_OUTPUT"

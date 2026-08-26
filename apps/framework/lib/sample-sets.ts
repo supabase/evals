@@ -1,25 +1,37 @@
-type SampleRow = { experiment: string; eval: string };
+type SampleRow = { experiment: string; eval: string; run?: number };
 
 export type IncompleteSampleSet = { key: string; runs: number };
 
 /**
  * Groups `rows` (one per `result.json`) by experiment+eval and separates the
- * groups that don't have exactly `expectedRuns` rows, so exporter can drop
- * those instead of averaging an experiment/eval over fewer samples.
+ * groups that don't contain exactly runs 1 through `expectedRuns`, so the
+ * exporter never averages an incomplete or mismatched sample set.
  */
 export function splitBySampleSetCompleteness<T extends SampleRow>(
   rows: readonly T[],
   expectedRuns: number
 ): { complete: T[]; incomplete: IncompleteSampleSet[] } {
-  const counts = new Map<string, number>();
+  const sampleSets = new Map<string, { runs: number; indexes: Set<number> }>();
   for (const row of rows) {
     const key = `${row.experiment}::${row.eval}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    let sampleSet = sampleSets.get(key);
+    if (!sampleSet) {
+      sampleSet = { runs: 0, indexes: new Set() };
+      sampleSets.set(key, sampleSet);
+    }
+    sampleSet.runs += 1;
+    if (row.run !== undefined) sampleSet.indexes.add(row.run);
   }
 
   const incomplete: IncompleteSampleSet[] = [];
-  for (const [key, runs] of counts) {
-    if (runs !== expectedRuns) incomplete.push({ key, runs });
+  for (const [key, { runs, indexes }] of sampleSets) {
+    let hasEveryExpectedRun = indexes.size === expectedRuns;
+    for (let run = 1; run <= expectedRuns && hasEveryExpectedRun; run += 1) {
+      hasEveryExpectedRun = indexes.has(run);
+    }
+    if (runs !== expectedRuns || !hasEveryExpectedRun) {
+      incomplete.push({ key, runs });
+    }
   }
   incomplete.sort((a, b) => a.key.localeCompare(b.key));
 
