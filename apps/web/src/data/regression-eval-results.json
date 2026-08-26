@@ -318,6 +318,323 @@
     ],
     "suite": "regression",
     "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "vite build passed",
+        "passed": true
+      },
+      {
+        "name": "client bundle carries a publishable or anon key",
+        "passed": true
+      },
+      {
+        "name": "no secret key in the client bundle",
+        "passed": true
+      },
+      {
+        "name": "secret key absent from client source",
+        "passed": true
+      },
+      {
+        "name": "client source calls signUp",
+        "passed": true
+      },
+      {
+        "name": "no secret-bearing env var is client-exposed",
+        "passed": true
+      },
+      {
+        "name": "roster returns every signed-up email",
+        "passed": false,
+        "notes": "HTTP 401, missing 2/2 seeded emails. Body: {\"error\":\"Not signed in\"}"
+      },
+      {
+        "name": "no client role can read another user's email",
+        "passed": true
+      },
+      {
+        "name": "the agent read the API keys guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the guidance on API keys: publishable/anon keys vs secret/service_role keys, which to use in frontend vs backend, legacy vs new key formats, and any security warnings about the service_role key and user data access.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
+            }
+          ],
+          "resultChars": 1378
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL default secrets local\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            }
+          ],
+          "resultChars": 41771
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Function verify_jwt config.toml require authenticated user\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-codes",
+              "title": "Error codes"
+            }
+          ],
+          "resultChars": 44774
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions CORS preflight OPTIONS request handling supabase.functions.invoke browser\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/cors",
+              "title": "CORS (Cross-Origin Resource Sharing) support for Invoking from the browser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/unable-to-call-edge-function",
+              "title": "Unable to call Edge Function"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            }
+          ],
+          "resultChars": 30113
+        }
+      ]
+    },
+    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
+    "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5/build-docs-003-api-keys-guide/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-003-api-keys-guide",
+    "stage": "build",
+    "product": [
+      "auth",
+      "data-api"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "vite build passed",
+        "passed": true
+      },
+      {
+        "name": "client bundle carries a publishable or anon key",
+        "passed": true
+      },
+      {
+        "name": "no secret key in the client bundle",
+        "passed": true
+      },
+      {
+        "name": "secret key absent from client source",
+        "passed": true
+      },
+      {
+        "name": "client source calls signUp",
+        "passed": true
+      },
+      {
+        "name": "no secret-bearing env var is client-exposed",
+        "passed": true
+      },
+      {
+        "name": "roster returns every signed-up email",
+        "passed": true
+      },
+      {
+        "name": "no client role can read another user's email",
+        "passed": true
+      },
+      {
+        "name": "the agent read the API keys guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Explain the current Supabase API key system: what key types exist (publishable, secret, legacy anon/service_role), their formats/prefixes, where each should be used (client-side vs server-side), how to fetch them via CLI or dashboard, and any migration guidance from legacy keys.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
+            }
+          ],
+          "resultChars": 1663
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions authorization header verify_jwt publishable key secret key\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            }
+          ],
+          "resultChars": 68787
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"new API keys publishable secret key JWT Authorization header edge functions\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            }
+          ],
+          "resultChars": 53783
+        }
+      ]
+    },
+    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
+    "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5/build-docs-003-api-keys-guide/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-003-api-keys-guide",
+    "stage": "build",
+    "product": [
+      "auth",
+      "data-api"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
     "passed": true,
     "checks": [
       {
@@ -371,18 +688,18 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize the guide on API keys: publishable key vs secret key, anon/service_role legacy keys, where each should be used (client vs server), and how to fetch them via CLI/dashboard. Include exact key names and any relevant environment variables.",
+          "query": "Summarize the guidance on API keys: publishable key vs secret key vs legacy anon/service_role keys, which should be used in frontend vs backend code, and any best practices for accessing user/auth data.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 1240
+          "resultChars": 1395
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"Edge Functions default environment variables SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_ANON_KEY local development\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Edge Functions environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL auto injected secrets\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -390,30 +707,58 @@
               "title": "Environment Variables"
             },
             {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
               "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
               "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/storage-caching",
+              "title": "Integrating with Supabase Storage"
+            }
+          ],
+          "resultChars": 36932
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions verify_jwt publishable key config.toml\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
             },
             {
               "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
               "title": "Migrating to publishable and secret API keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
-              "title": "Integrating With Supabase Auth"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
             }
           ],
-          "resultChars": 41771
+          "resultChars": 44348
         }
       ]
     },
     "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
     "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
-    "attempts": 1,
-    "sourcePath": "claude-code-sonnet-5/build-docs-003-api-keys-guide.json"
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5/build-docs-003-api-keys-guide/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -1661,7 +2006,7 @@
       {
         "name": "the agent read the API keys guide the prompt referenced",
         "passed": true,
-        "notes": "web_fetch"
+        "notes": "web_fetch, search_docs"
       }
     ],
     "skills": {
@@ -1672,20 +2017,24 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize the guidance on Supabase API keys: what keys exist (anon, service_role, publishable, secret), how they should be used on the client vs server, security implications, and any current best practices or migration notes (e.g. new key formats replacing legacy ones).",
+          "query": "Summarize the full content of this guide: what API keys Supabase provides (publishable/anon, secret/service_role, legacy keys), how they should be used client-side vs server-side, and any security guidance about which key is safe to expose in a frontend app and which must never be exposed. Include specifics about anon key, service_role key, and any new key naming schemes mentioned.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 1457
+          "resultChars": 1486
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge function environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL SUPABASE_ANON_KEY default secrets\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"edge functions environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY default secrets\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
             {
               "url": "https://supabase.com/docs/guides/functions/secrets",
               "title": "Environment Variables"
@@ -1693,10 +2042,6 @@
             {
               "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
               "title": "Self-Hosted Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/auth",
@@ -1708,13 +2053,235 @@
             }
           ],
           "resultChars": 45031
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"withSupabase publishable auth mode ctx.supabaseAdmin ctx.supabase example\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/quickstart",
+              "title": "Storage Quickstart"
+            }
+          ],
+          "resultChars": 42800
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"config.toml functions env_file supabase start local secrets per function\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
+            }
+          ],
+          "resultChars": 33946
         }
       ]
     },
     "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
     "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
-    "attempts": 2,
-    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-003-api-keys-guide.json"
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-003-api-keys-guide/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-003-api-keys-guide",
+    "stage": "build",
+    "product": [
+      "auth",
+      "data-api"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "vite build passed",
+        "passed": true
+      },
+      {
+        "name": "client bundle carries a publishable or anon key",
+        "passed": true
+      },
+      {
+        "name": "no secret key in the client bundle",
+        "passed": true
+      },
+      {
+        "name": "secret key absent from client source",
+        "passed": true
+      },
+      {
+        "name": "client source calls signUp",
+        "passed": true
+      },
+      {
+        "name": "no secret-bearing env var is client-exposed",
+        "passed": true
+      },
+      {
+        "name": "roster returns every signed-up email",
+        "passed": true
+      },
+      {
+        "name": "no client role can read another user's email",
+        "passed": true
+      },
+      {
+        "name": "the agent read the API keys guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the key guidance: what are the different API keys (anon, service_role, publishable, secret), when to use each, how to fetch them, and any security warnings about which keys are safe to use in client-side/frontend code versus server-side code.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
+            }
+          ],
+          "resultChars": 1439
+        }
+      ]
+    },
+    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
+    "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-003-api-keys-guide/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-003-api-keys-guide",
+    "stage": "build",
+    "product": [
+      "auth",
+      "data-api"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "vite build passed",
+        "passed": true
+      },
+      {
+        "name": "client bundle carries a publishable or anon key",
+        "passed": true
+      },
+      {
+        "name": "no secret key in the client bundle",
+        "passed": true
+      },
+      {
+        "name": "secret key absent from client source",
+        "passed": true
+      },
+      {
+        "name": "client source calls signUp",
+        "passed": true
+      },
+      {
+        "name": "no secret-bearing env var is client-exposed",
+        "passed": true
+      },
+      {
+        "name": "roster returns every signed-up email",
+        "passed": true
+      },
+      {
+        "name": "no client role can read another user's email",
+        "passed": true
+      },
+      {
+        "name": "the agent read the API keys guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize how API keys work in Supabase: what key types exist (anon/publishable, service_role/secret), where to find them, which one should be used in a client-side web app, and any security guidance about the service_role key and RLS.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
+            }
+          ],
+          "resultChars": 1663
+        }
+      ]
+    },
+    "prompt": "I'm building a small web app. People sign up with an email and password, and I\nwant a page listing everyone who has joined with the email they used, so I can\nkeep track.\n\nHook it up to Supabase. Read the guide below before you start and rely on it\nfor how to set this up, rather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/getting-started/api-keys.md",
+    "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-003-api-keys-guide/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
