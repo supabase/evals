@@ -6,6 +6,7 @@ import {
   parsePairs,
   runBounded,
   tagValue,
+  expandJobs,
 } from './run-vercel-evals.js';
 
 describe('Vercel eval controller', () => {
@@ -104,5 +105,38 @@ describe('Vercel eval controller', () => {
     expect(isTerminalSandboxCreateError(apiError(500))).toBe(false);
     expect(isTerminalSandboxCreateError(networkError)).toBe(false);
     expect(isTerminalSandboxCreateError(mystery)).toBe(false);
+  });
+});
+
+describe('expandJobs', () => {
+  const pair = (evalId: string) => ({
+    eval_id: evalId,
+    experiment: 'model-a',
+    experiment_suite: 'benchmark',
+    eval_suite: 'benchmark',
+  });
+
+  it('gives every pair one job per run', () => {
+    const jobs = expandJobs([pair('eval-1'), pair('eval-2')], 3);
+
+    expect(jobs).toHaveLength(6);
+    expect(jobs.map((job) => `${job.pair.eval_id}#${job.run}`)).toEqual([
+      'eval-1#1',
+      'eval-1#2',
+      'eval-1#3',
+      'eval-2#1',
+      'eval-2#2',
+      'eval-2#3',
+    ]);
+  });
+
+  it('numbers runs from one so indexes are stable across sandboxes', () => {
+    expect(expandJobs([pair('eval-1')], 3).map((job) => job.run)).toEqual([
+      1, 2, 3,
+    ]);
+  });
+
+  it('reduces to one job per pair for a single run', () => {
+    expect(expandJobs([pair('eval-1'), pair('eval-2')], 1)).toHaveLength(2);
   });
 });

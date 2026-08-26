@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   hasMoreContentToRight,
+  sampleSetLabel,
   scoreLabel,
 } from "@/components/results/table-shared"
 
@@ -10,6 +11,16 @@ describe("scoreLabel", () => {
     expect(scoreLabel(1, 1, true)).toBe("Pass")
     expect(scoreLabel(0, 1, true)).toBe("Fail")
     expect(scoreLabel(1, 2, true)).toBe("50%")
+  })
+
+  it("shows a multi-run pair as its pass rate", () => {
+    expect(scoreLabel(2, 3, true)).toBe("67%")
+  })
+})
+
+describe("sampleSetLabel", () => {
+  it("shows both the fraction and the rate", () => {
+    expect(sampleSetLabel(2, 3)).toBe("2/3 \u00b7 67%")
   })
 })
 

@@ -17,7 +17,4 @@ export default defineExperiment({
   }),
   localStack: localStackRuntime(),
   skills: ['supabase', 'supabase-postgres-best-practices'],
-  // Needs an MCP server newer than the pinned default; runs under claude-code-sonnet-5-mcp-0-11 instead.
-  skipEval: (ev) =>
-    ev.id === 'investigate-functions-002-edge-function-console-output',
 });
