@@ -1,23 +1,17 @@
 import type {
-  AgentHarnessId,
   AgentSandbox,
   SandboxMount,
   SkillSource,
 } from '@supabase-evals/core';
 import { createAgentEnvironment } from './agent-environment.js';
 import { toAgentSandbox } from './local-stack-runtime.js';
-import { buildSkillsPrompt } from './skills.js';
 
 export interface BareSandboxHandle {
   sandbox: AgentSandbox;
-  /** Skills-discovery text to fold into the agent's system prompt. */
-  promptAddendum: string;
   close(): Promise<void>;
 }
 
 export interface BareSandboxOptions {
-  /** Harness driving this sandbox. */
-  agent: AgentHarnessId;
   /** Supabase CLI version baked into the sandbox image. */
   cliVersion?: string;
   /** Skills to install into the sandbox. */
@@ -49,7 +43,6 @@ export async function createBareSandbox(
   });
   return {
     sandbox: toAgentSandbox(env.sandbox),
-    promptAddendum: buildSkillsPrompt(options.agent, env.skills),
     close: env.close,
   };
 }

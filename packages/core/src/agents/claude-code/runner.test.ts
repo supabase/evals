@@ -36,6 +36,46 @@ function streamJson(subtype: string, isError = false): string {
   ].join('\n');
 }
 
+/** The `claude` invocation from one exec, with a fake sandbox. */
+async function captureRunCommand(
+  systemPromptPath: string | undefined
+): Promise<string> {
+  let runCommand = '';
+  await claudeCodeRunner.exec({
+    sandbox: {
+      workspace: '/w',
+      exec: async (cmd) => {
+        if (cmd.includes('/bin/claude')) runCommand = cmd;
+        return ok;
+      },
+      readFile: async () => '',
+    },
+    model: 'claude-sonnet-4-6',
+    apiKey: 'k',
+    systemPromptPath,
+    userPromptPath: '"$HOME/.eval/user-prompt.txt"',
+    mcpServers: {},
+    timeoutSec: 1,
+  });
+  return runCommand;
+}
+
+describe('claudeCodeRunner.exec', () => {
+  it('appends the harness system prompt when there is one', async () => {
+    const command = await captureRunCommand('"$HOME/.eval/system-prompt.txt"');
+    expect(command).toContain(
+      '--append-system-prompt-file "$HOME/.eval/system-prompt.txt"'
+    );
+  });
+
+  it("omits the flag with no system prompt, leaving Claude Code's own intact", async () => {
+    const command = await captureRunCommand(undefined);
+    expect(command).not.toContain('--append-system-prompt-file');
+    // The task itself is still piped in.
+    expect(command).toContain('cat "$HOME/.eval/user-prompt.txt"');
+  });
+});
+
 describe('claudeCodeRunner.deriveStopReason', () => {
   const derive = claudeCodeRunner.deriveStopReason!;
 

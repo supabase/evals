@@ -108,13 +108,13 @@ describe('buildSkillsPrompt', () => {
     expect(prompt).not.toContain('# Body');
   });
 
-  it('renders the same listing for every agent', () => {
-    // The listing is injected regardless of harness: each CLI also discovers
-    // the installed skills natively, so it hears about them twice.
+  it('is empty for every CLI agent — each discovers its own skills natively', () => {
+    // The skills CLI installs into .claude/skills and .agents/skills, which
+    // Claude Code, Codex and OpenCode each walk themselves; they then advertise
+    // the skills in their own words, with their own loader. Injecting our
+    // listing would duplicate theirs and name `files_read`, an ai-sdk-only tool.
     for (const agent of ['claude-code', 'codex', 'opencode'] as const) {
-      expect(buildSkillsPrompt(agent, entries)).toBe(
-        buildSkillsPrompt('ai-sdk', entries)
-      );
+      expect(buildSkillsPrompt(agent, entries)).toBe('');
       expect(buildSkillsPrompt(agent, [])).toBe('');
     }
   });
@@ -228,13 +228,13 @@ describe('buildToolSurfaceAddendum', () => {
     expect(addendum).toContain('docker, psql, git, and curl');
   });
 
-  it('describes the same tool surface for every agent', () => {
+  it('is empty for every CLI agent — they never see these tools', () => {
+    // createCliAgent ignores `args.tools`, so a CLI agent works the workspace
+    // with its own built-in tools; naming ours would describe tools it lacks.
     for (const agent of ['claude-code', 'codex', 'opencode'] as const) {
-      expect(buildToolSurfaceAddendum(agent)).toBe(
-        buildToolSurfaceAddendum('ai-sdk')
-      );
+      expect(buildToolSurfaceAddendum(agent)).toBe('');
       expect(buildToolSurfaceAddendum(agent, { skipCliInstall: true })).toBe(
-        buildToolSurfaceAddendum('ai-sdk', { skipCliInstall: true })
+        ''
       );
     }
   });
