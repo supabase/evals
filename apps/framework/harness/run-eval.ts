@@ -76,6 +76,15 @@ const SELECTED_EXPERIMENT_SUITE =
     ? EXPERIMENT_SUITE_FILTERS[0]
     : undefined;
 const RUNS = positiveInteger(readFlag(rawArgs, 'runs') ?? '1', 'runs');
+// Lets the Vercel controller run one specific index in its own Sandbox.
+const RUN_INDEX_FLAG = readFlag(rawArgs, 'run-index');
+const RUN_INDEX = RUN_INDEX_FLAG
+  ? positiveInteger(RUN_INDEX_FLAG, 'run-index')
+  : undefined;
+const RUN_INDEXES =
+  RUN_INDEX === undefined
+    ? Array.from({ length: RUNS }, (_, index) => index + 1)
+    : [RUN_INDEX];
 const TIMEOUT_SEC = positiveInteger(
   readFlag(rawArgs, 'timeout-sec') ?? '720',
   'timeout-sec'
@@ -84,7 +93,6 @@ const CONCURRENCY = positiveInteger(
   readFlag(rawArgs, 'concurrency') ?? '1',
   'concurrency'
 );
-const STOP_ON_PASS = !args.has('--run-all-attempts');
 const DEBUG = args.has('--debug');
 
 async function loadExperiments() {
@@ -276,19 +284,16 @@ function resolveSkillSources(
   return sources;
 }
 
-function resultPath(modelName: string, ev: Pick<EvalManifest, 'id' | 'mode'>) {
-  return join(ROOT, 'results', modelName, `${ev.id}.json`);
+function runDir(modelName: string, evalId: string, run: number) {
+  return join(ROOT, 'results', modelName, evalId, `run-${run}`);
 }
 
-function workspacePath(modelName: string, evalId: string, attempt: number) {
-  return join(
-    ROOT,
-    'results',
-    modelName,
-    evalId,
-    `attempt-${attempt}`,
-    'workspace'
-  );
+function resultPath(modelName: string, evalId: string, run: number) {
+  return join(runDir(modelName, evalId, run), 'result.json');
+}
+
+function workspacePath(modelName: string, evalId: string, run: number) {
+  return join(runDir(modelName, evalId, run), 'workspace');
 }
 
 function copyWithheldTests(ev: EvalManifest, workspace: string) {
@@ -357,10 +362,11 @@ function disposable<T extends { close(): Promise<unknown> }>(
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
-  ev: EvalManifest
+  ev: EvalManifest,
+  runIndex: number
 ): Promise<
   ScoreResult & {
-    attempts: number;
+    run: number;
     skills: SkillResult;
     docs: DocsResult;
     toolCalls: ToolCallRecord[];
@@ -390,205 +396,154 @@ async function runOne(
   const scorer = (await import(pathToFileURL(ev.evalPath).href)).default as
     | ToolScorer
     | LocalStackScorer;
-  let last: ScoreResult = {
-    passed: false,
-    checks: [{ name: 'ran at least one attempt', passed: false }],
-  };
-  let lastToolCalls: ToolCallRecord[] = [];
-  let lastTranscript: TranscriptPart[] = [];
-  let lastAgentReport = '';
-  let lastStoppedReason = 'not_started';
-
-  for (let attempt = 1; attempt <= RUNS; attempt += 1) {
-    if (ev.mode === 'local-stack') {
-      // Local-stack mode: the experiment's local-stack tool surface provides
-      // the sandbox session; one fresh session per attempt.
-      if (!exp.localStack) {
-        throw new Error(
-          `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
-            `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`
-        );
-      }
-      // When the eval links to a hosted project, boot a platform-lite backend
-      // (bound to 0.0.0.0 so the sandbox reaches it via host.docker.internal)
-      // and hand the CLI-valid ref/token to the session. Seed it from the eval's
-      // `remote/` dir (project.sql / logs.jsonl / functions) just like the tools
-      // runtime does — otherwise the hosted project boots empty and scorers that
-      // read remote state (e.g. the migration history) have nothing to assert on.
-      await using hostedBackend = ev.metadata.hostedProject
-        ? disposable(
-            await bootPlatformBackend({
-              ...readSessionSeedArgs(ev),
-              ref: HOSTED_PROJECT_REF,
-              accessToken: HOSTED_ACCESS_TOKEN,
-              hostname: '0.0.0.0',
-              // Expose Postgres-wire too, so linked DB workflows (`db push`,
-              // `migration repair`) reach the same project over the wire.
-              pgWire: true,
-            })
-          )
-        : undefined;
-      await using session = disposable(
-        await exp.localStack.startSession({
-          cliVersion: ev.metadata.cliVersion,
-          localDir: ev.localDir,
-          includeServices: ev.metadata.services,
-          projectRunning: ev.metadata.projectRunning,
-          hosted: hostedBackend
-            ? {
-                port: Number(new URL(hostedBackend.url).port),
-                pgPort: hostedBackend.pgPort,
-                ref: hostedBackend.ref,
-                accessToken: hostedBackend.accessToken,
-                mgmt: hostedBackend.mgmt,
-                query: hostedBackend.query,
-                invokeFunction: hostedBackend.invokeFunction,
-              }
-            : undefined,
-          skills: skillSources,
-          mounts: supabaseMcpServerMounts(),
-          skipCliInstall: ev.metadata.skipCliInstall,
-        })
+  if (ev.mode === 'local-stack') {
+    // One fresh local-stack session per scored run.
+    if (!exp.localStack) {
+      throw new Error(
+        `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
+          `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`
       );
-
-      const run = await exp.agent.run({
-        systemPrompt: buildSystemPrompt('local-stack', session.promptAddendum),
-        userPrompt: prompt,
-        tools: session.tools,
-        sandbox: session.sandbox,
-        mcpServers: session.mcpServers,
-        timeoutSec: TIMEOUT_SEC,
-      });
-      lastToolCalls = run.toolCalls;
-      lastTranscript = run.transcript;
-      lastAgentReport = run.agentReport;
-      lastStoppedReason = run.stoppedReason;
-
-      // Export the agent's workspace to the host so scorers can run host
-      // tooling (vite/vitest from the repo root) against the produced files
-      // — the tools live on the host, not in the sandbox. Withheld tests are
-      // copied in lazily, only if the scorer asks to run Vitest.
-      const hostWorkspace = workspacePath(expName, ev.id, attempt);
-      rmSync(hostWorkspace, { recursive: true, force: true });
-      await session.exportWorkspace(hostWorkspace);
-      let copiedWithheldTests = false;
-      const ensureWithheldTests = () => {
-        if (copiedWithheldTests) return;
-        copyWithheldTests(ev, hostWorkspace);
-        copiedWithheldTests = true;
-      };
-
-      last = await (scorer as LocalStackScorer)({
-        ...session.scoringContext,
-        toolCalls: run.toolCalls,
-        transcript: run.transcript,
-        agentReport: run.agentReport,
-        hostWorkspace,
-        runViteBuild: () => viteBuild(hostWorkspace),
-        runVitest: () => {
-          ensureWithheldTests();
-          return vitestRun(hostWorkspace);
-        },
-      });
-
-      // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
-      await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
-
-      if (STOP_ON_PASS && last.passed) {
-        return {
-          ...last,
-          attempts: attempt,
-          skills: buildSkillResult(availableSkills, run.toolCalls),
-          docs: buildDocsResult(run.toolCalls),
-          toolCalls: run.toolCalls,
-          transcript: run.transcript,
-          agentReport: run.agentReport,
-          stoppedReason: run.stoppedReason,
-        };
-      }
-      logRetryAttempt(expName, ev, attempt, last);
-      continue;
     }
-
-    // Tools mode: the eval's tool surface is MCP (platform-lite). A CLI agent
-    // gets the same sandbox as local-stack minus the running stack — with its
-    // skills installed — and reaches the in-container MCP servers' host-side
-    // platform-lite via host.docker.internal (so platform-lite binds 0.0.0.0).
-    // An in-process agent runs host-side with no sandbox.
-    await using cliSandbox = agentRunsInSandbox
+    // Boots a platform-lite backend seeded from the eval's `remote/` dir so scorers
+    // that read remote state (e.g. migration history) have something to assert on.
+    await using hostedBackend = ev.metadata.hostedProject
       ? disposable(
-          await createBareSandbox({
-            skills: skillSources,
-            mounts: supabaseMcpServerMounts(),
+          await bootPlatformBackend({
+            ...readSessionSeedArgs(ev),
+            ref: HOSTED_PROJECT_REF,
+            accessToken: HOSTED_ACCESS_TOKEN,
+            hostname: '0.0.0.0',
+            // So linked DB workflows (`db push`, `migration repair`) reach the project too.
+            pgWire: true,
           })
         )
       : undefined;
     await using session = disposable(
-      await exp.runtime.startSession({
-        ...readSessionSeedArgs(ev),
-        hostname: agentRunsInSandbox ? '0.0.0.0' : undefined,
+      await exp.localStack.startSession({
+        cliVersion: ev.metadata.cliVersion,
+        localDir: ev.localDir,
+        includeServices: ev.metadata.services,
+        projectRunning: ev.metadata.projectRunning,
+        hosted: hostedBackend
+          ? {
+              port: Number(new URL(hostedBackend.url).port),
+              pgPort: hostedBackend.pgPort,
+              ref: hostedBackend.ref,
+              accessToken: hostedBackend.accessToken,
+              mgmt: hostedBackend.mgmt,
+              query: hostedBackend.query,
+              invokeFunction: hostedBackend.invokeFunction,
+            }
+          : undefined,
+        skills: skillSources,
+        mounts: supabaseMcpServerMounts(),
+        skipCliInstall: ev.metadata.skipCliInstall,
       })
     );
 
-    // CLI agents read their installed skills from disk (the bare sandbox folds
-    // the discovery listing into its promptAddendum). In-process agents have
-    // no filesystem, so their skills are advertised in the prompt and pulled
-    // on demand via the load_skill tool.
-    const skillsPrompt = agentRunsInSandbox
-      ? cliSandbox!.promptAddendum
-      : buildToolsSkillsPrompt(toolsSkills);
-    const systemPrompt = buildSystemPrompt(
-      'tools',
-      session.promptAddendum,
-      skillsPrompt
-    );
     const run = await exp.agent.run({
-      systemPrompt,
+      systemPrompt: buildSystemPrompt('local-stack', session.promptAddendum),
       userPrompt: prompt,
-      tools: agentRunsInSandbox ? undefined : buildLoadSkillTool(toolsSkills),
+      tools: session.tools,
+      sandbox: session.sandbox,
       mcpServers: session.mcpServers,
-      sandbox: cliSandbox?.sandbox,
       timeoutSec: TIMEOUT_SEC,
     });
-    lastToolCalls = run.toolCalls;
-    lastTranscript = run.transcript;
-    lastAgentReport = run.agentReport;
-    lastStoppedReason = run.stoppedReason;
-    last = await (scorer as ToolScorer)({
+    // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
+    // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
+    const hostWorkspace = workspacePath(expName, ev.id, runIndex);
+    rmSync(hostWorkspace, { recursive: true, force: true });
+    await session.exportWorkspace(hostWorkspace);
+    let copiedWithheldTests = false;
+    const ensureWithheldTests = () => {
+      if (copiedWithheldTests) return;
+      copyWithheldTests(ev, hostWorkspace);
+      copiedWithheldTests = true;
+    };
+
+    const last = await (scorer as LocalStackScorer)({
       ...session.scoringContext,
       toolCalls: run.toolCalls,
       transcript: run.transcript,
       agentReport: run.agentReport,
+      hostWorkspace,
+      runViteBuild: () => viteBuild(hostWorkspace),
+      runVitest: () => {
+        ensureWithheldTests();
+        return vitestRun(hostWorkspace);
+      },
     });
 
     // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
-    if (cliSandbox)
-      await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
+    await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
 
-    if (STOP_ON_PASS && last.passed) {
-      return {
-        ...last,
-        attempts: attempt,
-        skills: buildSkillResult(availableSkills, run.toolCalls),
-        docs: buildDocsResult(run.toolCalls),
-        toolCalls: run.toolCalls,
-        transcript: run.transcript,
-        agentReport: run.agentReport,
-        stoppedReason: run.stoppedReason,
-      };
-    }
-    logRetryAttempt(expName, ev, attempt, last);
+    return {
+      ...last,
+      run: runIndex,
+      skills: buildSkillResult(availableSkills, run.toolCalls),
+      docs: buildDocsResult(run.toolCalls),
+      toolCalls: run.toolCalls,
+      transcript: run.transcript,
+      agentReport: run.agentReport,
+      stoppedReason: run.stoppedReason,
+    };
   }
+
+  // Tools mode: a CLI agent gets a bare sandbox reaching platform-lite via
+  // host.docker.internal. An in-process agent runs host-side with no sandbox.
+  await using cliSandbox = agentRunsInSandbox
+    ? disposable(
+        await createBareSandbox({
+          skills: skillSources,
+          mounts: supabaseMcpServerMounts(),
+        })
+      )
+    : undefined;
+  await using session = disposable(
+    await exp.runtime.startSession({
+      ...readSessionSeedArgs(ev),
+      hostname: agentRunsInSandbox ? '0.0.0.0' : undefined,
+    })
+  );
+
+  // In-process agents have no filesystem, so skills are advertised in the
+  // prompt and pulled on demand via the load_skill tool instead.
+  const skillsPrompt = agentRunsInSandbox
+    ? cliSandbox!.promptAddendum
+    : buildToolsSkillsPrompt(toolsSkills);
+  const systemPrompt = buildSystemPrompt(
+    'tools',
+    session.promptAddendum,
+    skillsPrompt
+  );
+  const run = await exp.agent.run({
+    systemPrompt,
+    userPrompt: prompt,
+    tools: agentRunsInSandbox ? undefined : buildLoadSkillTool(toolsSkills),
+    mcpServers: session.mcpServers,
+    sandbox: cliSandbox?.sandbox,
+    timeoutSec: TIMEOUT_SEC,
+  });
+  const last = await (scorer as ToolScorer)({
+    ...session.scoringContext,
+    toolCalls: run.toolCalls,
+    transcript: run.transcript,
+    agentReport: run.agentReport,
+  });
+
+  // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
+  if (cliSandbox)
+    await rehydrateTruncatedDocsResults(cliSandbox.sandbox, run.toolCalls);
 
   return {
     ...last,
-    attempts: RUNS,
-    skills: buildSkillResult(availableSkills, lastToolCalls),
-    docs: buildDocsResult(lastToolCalls),
-    toolCalls: lastToolCalls,
-    transcript: lastTranscript,
-    agentReport: lastAgentReport,
-    stoppedReason: lastStoppedReason,
+    run: runIndex,
+    skills: buildSkillResult(availableSkills, run.toolCalls),
+    docs: buildDocsResult(run.toolCalls),
+    toolCalls: run.toolCalls,
+    transcript: run.transcript,
+    agentReport: run.agentReport,
+    stoppedReason: run.stoppedReason,
   };
 }
 
@@ -604,29 +559,10 @@ function formatPlanLine(
   return `${head} mode=tools runtime=${config.runtime.id} model=${config.agent.modelId}`;
 }
 
-function formatRunSummary(res: ScoreResult & { attempts: number }): string {
-  const parts: string[] = [];
-  if (res.checks?.length) {
-    const passed = res.checks.filter((check) => check.passed).length;
-    parts.push(`checks ${passed}/${res.checks.length}`);
-  }
-  parts.push(`attempts ${res.attempts}`);
-
-  return parts.join(', ');
-}
-
-/** Prints a retry line when a failed attempt will be followed by another. */
-function logRetryAttempt(
-  expName: string,
-  ev: EvalManifest,
-  attempt: number,
-  result: ScoreResult
-) {
-  if (!STOP_ON_PASS || result.passed || attempt >= RUNS) return;
-  const summary = formatRunSummary({ ...result, attempts: attempt });
-  console.log(
-    `🔁 RETRY ${expName} x ${ev.id} (attempt ${attempt}/${RUNS} failed, ${summary})`
-  );
+function formatRunSummary(res: ScoreResult): string {
+  if (!res.checks?.length) return '';
+  const passed = res.checks.filter((check) => check.passed).length;
+  return `checks ${passed}/${res.checks.length}`;
 }
 
 async function runConcurrent<T>(
@@ -743,13 +679,15 @@ async function main() {
 
   console.log(
     `${experiments.length} experiment(s), ${suiteFiltered.length} eval(s), ` +
-      `runs=${RUNS}, timeout=${TIMEOUT_SEC}s, concurrency=${CONCURRENCY}, ${STOP_ON_PASS ? 'stop-on-pass' : 'run-all-attempts'}`
+      `runs=${RUN_INDEXES.join(',')}, timeout=${TIMEOUT_SEC}s, ` +
+      `concurrency=${CONCURRENCY}`
   );
 
   const allWork: Array<{
     name: string;
     config: ExperimentConfig;
     ev: EvalManifest;
+    run: number;
   }> = [];
 
   for (const { name, config } of experiments) {
@@ -763,11 +701,6 @@ async function main() {
     }
 
     for (const ev of suiteFiltered) {
-      const out = resultPath(name, ev);
-      if (!FORCE && existsSync(out)) {
-        console.log(`SKIP ${name} x ${ev.id} (already ran)`);
-        continue;
-      }
       if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
           `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`
@@ -782,20 +715,32 @@ async function main() {
         console.log(formatPlanLine(name, config, ev));
         continue;
       }
-      allWork.push({ name, config, ev });
+      for (const run of RUN_INDEXES) {
+        if (!FORCE && existsSync(resultPath(name, ev.id, run))) {
+          console.log(`SKIP ${name} x ${ev.id} run ${run} (already ran)`);
+          continue;
+        }
+        allWork.push({ name, config, ev, run });
+      }
     }
   }
 
   let localStackTurn = Promise.resolve();
   const errored: Error[] = [];
 
-  const runWork = async ({ name, config, ev }: (typeof allWork)[number]) => {
-    const out = resultPath(name, ev);
+  const runWork = async ({
+    name,
+    config,
+    ev,
+    run: runIndex,
+  }: (typeof allWork)[number]) => {
+    const out = resultPath(name, ev.id, runIndex);
+    const label = `${name} x ${ev.id} run ${runIndex}`;
     const start = Date.now();
-    console.log(`⏳ RUN  ${name} x ${ev.id}`);
+    console.log(`⏳ RUN  ${label}`);
     const run = async () => {
       try {
-        const res = await runOne(name, config, ev);
+        const res = await runOne(name, config, ev, runIndex);
         mkdirSync(dirname(out), { recursive: true });
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
@@ -815,13 +760,13 @@ async function main() {
         );
         const elapsed = Math.round((Date.now() - start) / 1000);
         console.log(
-          `${res.passed ? '✅ PASS' : '❌ FAIL'} ${name} x ${ev.id} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`
+          `${res.passed ? '✅ PASS' : '❌ FAIL'} ${label} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`
         );
       } catch (e) {
-        errored.push(new Error(`${name} x ${ev.id}`, { cause: e }));
+        errored.push(new Error(label, { cause: e }));
         const elapsed = Math.round((Date.now() - start) / 1000);
         stderr(
-          `💥 ERR  ${name} x ${ev.id}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`
+          `💥 ERR  ${label}: ${e instanceof Error ? e.message : String(e)} (${elapsed}s)`
         );
       }
     };

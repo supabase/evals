@@ -43,6 +43,11 @@ export function scoreLabel(
   return `${Math.round((passed / total) * 100)}%`
 }
 
+/** Formats a sample set's score, e.g. `2/3 · 67%`. */
+export function sampleSetLabel(passed: number, total: number) {
+  return `${passed}/${total} \u00b7 ${Math.round((passed / total) * 100)}%`
+}
+
 /** Checks whether a horizontal scroller has content beyond its right edge. */
 export function hasMoreContentToRight({
   scrollLeft,
