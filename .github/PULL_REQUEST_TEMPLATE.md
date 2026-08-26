@@ -51,7 +51,7 @@ For an experiment, point at the `experiments/` file and call out the `suite:`, s
 
 <!-- Include the steps and evidence for how you verified this change. -->
 
-For new or changed evals (see [CONTRIBUTING.md](../CONTRIBUTING.md)):
+For new or changed evals (see [CONTRIBUTING.md](/supabase/evals/blob/main/CONTRIBUTING.md)):
 
 - [ ] Ran the eval locally to sanity check it completes without framework errors.
 - [ ] Refreshed results in CI (`run-evals-changed` / `run-evals` labels, or the Refresh eval results workflow) and included them so a reviewer can see results directly.
