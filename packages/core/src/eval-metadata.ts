@@ -343,6 +343,9 @@ const evalResultShape = {
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
   attempts: z.number().optional(),
+  // 1-based index of this scored run within a pair's sample set. Absent on
+  // legacy rows exported before pairs ran more than once.
+  run: z.number().optional(),
   skills: skillResultSchema.optional(),
   docs: docsResultSchema.optional(),
 };

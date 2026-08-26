@@ -1,5 +1,6 @@
 import { Fragment } from "react"
 import { useQueryState } from "nuqs"
+import { ChevronRightIcon } from "lucide-react"
 
 import { EvalDetails } from "@/components/results/eval-details"
 import { ExperimentLabel } from "@/components/results/experiment-label"
@@ -8,6 +9,7 @@ import {
   clickableTableItemClassName,
   passFailClassName,
   passRateClassName,
+  sampleSetLabel,
   tableHeadCellClassName,
 } from "@/components/results/table-shared"
 import {
@@ -22,12 +24,113 @@ import {
   dimensionCell,
   dimensionShortTitle,
   orderRuns,
+  runGroupKey,
+  type Dimension,
   type GroupBy,
   type TableSelection,
 } from "@/lib/dimensions"
 import { scoreResults, type ParsedResult } from "@/lib/eval-results"
 import { selectionQueryKeys, selectionQueryParsers } from "@/lib/url-state"
 import { cn } from "@/lib/utils"
+
+function RowChevron({ expanded }: { expanded: boolean }) {
+  return (
+    <ChevronRightIcon
+      className={cn(
+        "size-4 shrink-0 text-muted-foreground/50 transition-transform",
+        expanded && "rotate-90"
+      )}
+      aria-hidden
+    />
+  )
+}
+
+function checksLabel(run: ParsedResult) {
+  if (!run.checks?.length) return null
+  const passed = run.checks.filter((check) => check.passed).length
+  return `${passed}/${run.checks.length} checks`
+}
+
+// Collapsing a run falls back to expanding its group, not closing everything.
+export function nextGroupRunExpansion(
+  current: string | null,
+  groupKey: string,
+  sourcePath: string
+) {
+  return current === sourcePath ? groupKey : sourcePath
+}
+
+function RunCell({
+  facet,
+  run,
+  index,
+  expanded,
+}: {
+  facet: Dimension
+  run: ParsedResult
+  index: number
+  expanded?: boolean
+}) {
+  const content =
+    facet.id === "model" ? (
+      <ExperimentLabel experiment={run.experiment} />
+    ) : (
+      dimensionCell(facet, run)
+    )
+
+  if (index === 0) {
+    return (
+      <th
+        scope="row"
+        className="border-r border-b border-border py-2.5 pr-3 pl-6 text-left font-normal text-foreground"
+      >
+        <span className="flex items-center gap-2">
+          <RowChevron expanded={expanded ?? false} />
+          {content}
+        </span>
+      </th>
+    )
+  }
+
+  return (
+    <td className="border-r border-b border-border px-3 py-2.5 text-muted-foreground">
+      {content}
+    </td>
+  )
+}
+
+function DetailsRow({ columns, run }: { columns: number; run: ParsedResult }) {
+  return (
+    <tr>
+      <td
+        colSpan={columns + 1}
+        className="border-b border-border bg-secondary/35 px-6 py-5"
+      >
+        <EvalDetails result={run} />
+      </td>
+    </tr>
+  )
+}
+
+// Groups keep the order of their first run, so the sheet's column sort still drives the list.
+export function groupRuns(orderedRuns: ParsedResult[]) {
+  const groups = new Map<string, ParsedResult[]>()
+
+  for (const run of orderedRuns) {
+    const key = runGroupKey(run)
+    const group = groups.get(key)
+    if (group) {
+      group.push(run)
+    } else {
+      groups.set(key, [run])
+    }
+  }
+
+  return Array.from(groups, ([key, runs]) => ({
+    key,
+    runs: [...runs].sort((a, b) => (a.run ?? 0) - (b.run ?? 0)),
+  }))
+}
 
 /**
  * Detail view for a clicked row or column, listing the runs behind it. Every
@@ -47,6 +150,7 @@ export function SelectionSheet({
   const pinned = new Set<GroupBy>([dimension.id, ...(dimension.implies ?? [])])
   const columns = DIMENSION_ORDER.filter((facet) => !pinned.has(facet.id))
   const orderedRuns = orderRuns(runs, columns, sourceResults)
+  const groups = groupRuns(orderedRuns)
   const { passed, total } = scoreResults(runs)
   const passRate = total ? Math.round((passed / total) * 100) : null
   const [expandedRun, setExpandedRun] = useQueryState(
@@ -56,6 +160,12 @@ export function SelectionSheet({
 
   const toggleRun = (key: string) => {
     void setExpandedRun((current) => (current === key ? null : key))
+  }
+
+  const toggleGroupRun = (groupKey: string, sourcePath: string) => {
+    void setExpandedRun((current) =>
+      nextGroupRunExpansion(current, groupKey, sourcePath)
+    )
   }
 
   return (
@@ -105,74 +215,156 @@ export function SelectionSheet({
                     {facet.label}
                   </th>
                 ))}
-                <th className={cn(tableHeadCellClassName, "w-20 px-3 py-2")}>
+                <th className={cn(tableHeadCellClassName, "w-28 px-3 py-2")}>
                   Status
                 </th>
               </tr>
             </thead>
             <tbody>
-              {orderedRuns.map((run) => {
-                const key = run.sourcePath
-                const expanded = expandedRun === key
+              {groups.map(({ key: groupKey, runs: groupRunsList }) => {
+                const single = groupRunsList.length === 1
+
+                if (single) {
+                  const run = groupRunsList[0]
+
+                  return (
+                    <Fragment key={groupKey}>
+                      <tr
+                        tabIndex={0}
+                        aria-expanded={expandedRun === run.sourcePath}
+                        className={clickableTableItemClassName}
+                        onClick={() => toggleRun(run.sourcePath)}
+                        onKeyDown={(event) =>
+                          activateOnKeyDown(event, () =>
+                            toggleRun(run.sourcePath)
+                          )
+                        }
+                      >
+                        {columns.map((facet, index) => (
+                          <RunCell
+                            key={facet.id}
+                            facet={facet}
+                            run={run}
+                            index={index}
+                            expanded={expandedRun === run.sourcePath}
+                          />
+                        ))}
+                        <td className="border-b border-border px-3 py-2.5">
+                          <span
+                            className={cn(
+                              "font-mono text-xs",
+                              passFailClassName(run.passed)
+                            )}
+                          >
+                            {run.passed ? "Pass" : "Fail"}
+                          </span>
+                        </td>
+                      </tr>
+                      {expandedRun === run.sourcePath ? (
+                        <DetailsRow columns={columns.length} run={run} />
+                      ) : null}
+                    </Fragment>
+                  )
+                }
+
+                const passedRuns = groupRunsList.filter(
+                  (run) => run.passed
+                ).length
+                const groupExpanded =
+                  expandedRun === groupKey ||
+                  groupRunsList.some((run) => run.sourcePath === expandedRun)
 
                 return (
-                  <Fragment key={key}>
+                  <Fragment key={groupKey}>
                     <tr
                       tabIndex={0}
-                      aria-expanded={expanded}
+                      aria-expanded={groupExpanded}
                       className={clickableTableItemClassName}
-                      onClick={() => toggleRun(key)}
+                      onClick={() => toggleRun(groupKey)}
                       onKeyDown={(event) =>
-                        activateOnKeyDown(event, () => toggleRun(key))
+                        activateOnKeyDown(event, () => toggleRun(groupKey))
                       }
                     >
-                      {columns.map((facet, index) =>
-                        index === 0 ? (
-                          <th
-                            key={facet.id}
-                            scope="row"
-                            className="border-r border-b border-border py-2.5 pr-3 pl-6 text-left font-normal text-foreground"
-                          >
-                            {facet.id === "model" ? (
-                              <ExperimentLabel experiment={run.experiment} />
-                            ) : (
-                              dimensionCell(facet, run)
-                            )}
-                          </th>
-                        ) : (
-                          <td
-                            key={facet.id}
-                            className="border-r border-b border-border px-3 py-2.5 text-muted-foreground"
-                          >
-                            {facet.id === "model" ? (
-                              <ExperimentLabel experiment={run.experiment} />
-                            ) : (
-                              dimensionCell(facet, run)
-                            )}
-                          </td>
-                        )
-                      )}
+                      {columns.map((facet, index) => (
+                        <RunCell
+                          key={facet.id}
+                          facet={facet}
+                          run={groupRunsList[0]}
+                          index={index}
+                          expanded={groupExpanded}
+                        />
+                      ))}
                       <td className="border-b border-border px-3 py-2.5">
                         <span
+                          title={`${passedRuns} of ${groupRunsList.length} runs passed`}
                           className={cn(
-                            "font-mono text-xs",
-                            passFailClassName(run.passed)
+                            "font-mono text-xs whitespace-nowrap",
+                            passRateClassName(
+                              Math.round(
+                                (passedRuns / groupRunsList.length) * 100
+                              )
+                            )
                           )}
                         >
-                          {run.passed ? "Pass" : "Fail"}
+                          {sampleSetLabel(passedRuns, groupRunsList.length)}
                         </span>
                       </td>
                     </tr>
-                    {expanded ? (
-                      <tr>
-                        <td
-                          colSpan={columns.length + 1}
-                          className="border-b border-border bg-secondary/35 px-6 py-5"
-                        >
-                          <EvalDetails result={run} />
-                        </td>
-                      </tr>
-                    ) : null}
+                    {groupExpanded
+                      ? groupRunsList.map((run, runIndex) => (
+                          <Fragment key={run.sourcePath}>
+                            <tr
+                              tabIndex={0}
+                              aria-expanded={expandedRun === run.sourcePath}
+                              className={clickableTableItemClassName}
+                              onClick={() =>
+                                toggleGroupRun(groupKey, run.sourcePath)
+                              }
+                              onKeyDown={(event) =>
+                                activateOnKeyDown(event, () =>
+                                  toggleGroupRun(groupKey, run.sourcePath)
+                                )
+                              }
+                            >
+                              <th
+                                scope="row"
+                                className="border-r border-b border-border py-2 pr-3 pl-12 text-left font-normal text-muted-foreground"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <RowChevron
+                                    expanded={expandedRun === run.sourcePath}
+                                  />
+                                  Run {run.run ?? runIndex + 1}
+                                  {checksLabel(run) ? (
+                                    <span className="font-mono text-xs text-muted-foreground/70">
+                                      {checksLabel(run)}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </th>
+                              {columns.slice(1).map((facet) => (
+                                <td
+                                  key={facet.id}
+                                  className="border-r border-b border-border px-3 py-2"
+                                />
+                              ))}
+                              <td className="border-b border-border px-3 py-2">
+                                <span
+                                  className={cn(
+                                    "font-mono text-xs",
+                                    passFailClassName(run.passed)
+                                  )}
+                                >
+                                  {run.passed ? "Pass" : "Fail"}
+                                </span>
+                              </td>
+                            </tr>
+                            {expandedRun === run.sourcePath ? (
+                              <DetailsRow columns={columns.length} run={run} />
+                            ) : null}
+                          </Fragment>
+                        ))
+                      : null}
                   </Fragment>
                 )
               })}

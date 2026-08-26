@@ -18,10 +18,16 @@ import type {
 } from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
+  positiveInteger,
   readExperimentSuiteFilters,
+  readFlag,
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import {
+  formatIncompleteSampleSets,
+  splitBySampleSetCompleteness,
+} from '../lib/sample-sets.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..', '..');
@@ -66,6 +72,9 @@ const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const MERGE = rawArgs.includes('--merge');
+// Opt-in completeness guard. Off by default so ad-hoc single-run exports still
+// work; pass the same `--runs` the harness ran with to skip partial pairs.
+const EXPECTED_RUNS_FLAG = readFlag(rawArgs, 'runs');
 
 const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
@@ -132,6 +141,7 @@ async function readResultFile(
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
     attempts: parsedResult.attempts,
+    run: parsedResult.run,
     sourcePath,
   };
 }
@@ -196,22 +206,31 @@ async function loadEvalResults(): Promise<EvalResult[]> {
       continue;
     }
 
+    // Canonical raw layout: results/<experiment>/<eval>/run-<n>/result.json.
+    // One exported row per scored run.
     for (const entry of await readdir(experimentDir)) {
-      const entryPath = join(experimentDir, entry);
-      const entryStat = await stat(entryPath);
-      const relativeEntryPath = relative(RESULTS_DIR, entryPath)
-        .split(sep)
-        .join('/');
+      const evalDir = join(experimentDir, entry);
+      if (!(await stat(evalDir)).isDirectory()) {
+        continue;
+      }
 
-      if (entryStat.isFile() && entry.endsWith('.json')) {
-        const evalId = entry.replace(/\.json$/, '');
-        if (!shouldIncludeEval(evalId)) {
+      if (!shouldIncludeEval(entry)) {
+        continue;
+      }
+
+      for (const runEntry of (await readdir(evalDir)).sort()) {
+        if (!/^run-\d+$/.test(runEntry)) {
+          continue;
+        }
+
+        const resultFile = join(evalDir, runEntry, 'result.json');
+        if (!existsSync(resultFile)) {
           continue;
         }
 
         const result = await readResultFile(
-          entryPath,
-          relativeEntryPath,
+          resultFile,
+          relative(RESULTS_DIR, resultFile).split(sep).join('/'),
           experimentMetadata
         );
         if (
@@ -221,40 +240,15 @@ async function loadEvalResults(): Promise<EvalResult[]> {
         ) {
           results.push(result);
         }
-        continue;
-      }
-
-      if (!entryStat.isDirectory()) {
-        continue;
-      }
-
-      if (!shouldIncludeEval(entry)) {
-        continue;
-      }
-
-      const summaryPath = join(entryPath, 'summary.json');
-      if (!existsSync(summaryPath)) {
-        continue;
-      }
-
-      const result = await readResultFile(
-        summaryPath,
-        `${relativeEntryPath}/summary.json`,
-        experimentMetadata
-      );
-      if (
-        result &&
-        shouldIncludeSuite(result.suite) &&
-        shouldIncludeExperimentSuite(result.experimentSuite)
-      ) {
-        results.push(result);
       }
     }
   }
 
   return results.sort(
     (a, b) =>
-      a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval)
+      a.experiment.localeCompare(b.experiment) ||
+      a.eval.localeCompare(b.eval) ||
+      (a.run ?? 0) - (b.run ?? 0)
   );
 }
 
@@ -270,20 +264,39 @@ async function main() {
     throw new Error('no result files matched the requested export filters');
   }
 
-  let results = newResults;
+  let exportable = newResults;
+  if (EXPECTED_RUNS_FLAG !== undefined) {
+    const expectedRuns = positiveInteger(EXPECTED_RUNS_FLAG, 'runs');
+    const split = splitBySampleSetCompleteness(newResults, expectedRuns);
+    if (split.incomplete.length > 0) {
+      // A dropped pair keeps whatever rows it already had in the output, so a
+      // partial refresh never overwrites a good sample set with a worse one.
+      console.warn(formatIncompleteSampleSets(split.incomplete, expectedRuns));
+    }
+    if (split.complete.length === 0) {
+      throw new Error(
+        'every matched pair had an incomplete sample set; nothing to export'
+      );
+    }
+    exportable = split.complete;
+  }
+
+  let results = exportable;
   if (MERGE && existsSync(outputPath)) {
     const existing: EvalResult[] = JSON.parse(
       await readFile(outputPath, 'utf8')
     );
     const replaced = new Set(
-      newResults.map((r) => `${r.experiment}::${r.eval}`)
+      exportable.map((r) => `${r.experiment}::${r.eval}`)
     );
     results = [
       ...existing.filter((r) => !replaced.has(`${r.experiment}::${r.eval}`)),
-      ...newResults,
+      ...exportable,
     ].sort(
       (a, b) =>
-        a.experiment.localeCompare(b.experiment) || a.eval.localeCompare(b.eval)
+        a.experiment.localeCompare(b.experiment) ||
+        a.eval.localeCompare(b.eval) ||
+        (a.run ?? 0) - (b.run ?? 0)
     );
   }
 

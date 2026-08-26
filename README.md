@@ -58,6 +58,17 @@ pnpm eval -- \
 
 `--suite`, `--experiment-suite`, `--experiment`, and `--eval` accept multiple inputs via repeated flags as well as comma-separated values.
 
+Use `--runs N` to score each experiment and eval pair independently `N` times.
+Each run writes to `results/<experiment>/<eval>/run-<n>/result.json`. Add
+`--skip-existing` to resume without replacing completed runs:
+
+```bash
+pnpm eval -- --eval resolve-dataapi-001-empty-results \
+  --experiment claude-code-sonnet-5 \
+  --runs 3 \
+  --skip-existing
+```
+
 Run all benchmark and no-skills experiments across all benchmark evals:
 
 ```bash
@@ -70,6 +81,13 @@ After running evals locally, export their results to `eval-results.json` for the
 
 ```bash
 pnpm export-results
+```
+
+For multi-run results, pass the requested run count to skip incomplete sample
+sets instead of averaging them:
+
+```bash
+pnpm export-results -- --runs 3
 ```
 
 Start the web app development server:

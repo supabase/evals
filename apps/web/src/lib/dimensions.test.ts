@@ -132,6 +132,22 @@ describe("tableSelection", () => {
     })
   })
 
+  it("deep-links the sample set when a cell is one pair's runs", () => {
+    const runs = [1, 2, 3].map((run) =>
+      makeResult({
+        eval: "build-cli-001-bootstrap-app",
+        run,
+        sourcePath: `claude-code-sonnet-5/build-cli-001-bootstrap-app/run-${run}/result.json`,
+      })
+    )
+
+    expect(tableSelection(DIMENSIONS.eval, runs[0].eval, runs)).toEqual({
+      dimension: "eval",
+      key: runs[0].eval,
+      expandedRun: "claude-code-sonnet-5::build-cli-001-bootstrap-app",
+    })
+  })
+
   it("leaves aggregate cells at the sheet level", () => {
     const runs = [
       makeResult({ eval: "a", sourcePath: "model/a.json" }),
