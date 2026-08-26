@@ -174,7 +174,12 @@ jobs:
           if [ -n "$eval_ids" ]; then
             matching=()
             while IFS= read -r id; do
-              [ -d "evals/$id" ] && matching+=("$id")
+              if [ -f "evals/$id/PROMPT.md" ]; then
+                pnpm --silent eval -- list --eval "$id" > /dev/null
+                matching+=("$id")
+              else
+                echo "SKIP $id (published eval is absent from this checkout: evals/$id/PROMPT.md not found)"
+              fi
             done < <(jq -Rr 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | .[]' <<< "$eval_ids")
           else
             matching=()
@@ -182,7 +187,11 @@ jobs:
               [ -d "$dir" ] || continue
               id=$(basename "$dir")
               prompt="$dir/PROMPT.md"
-              [ -f "$prompt" ] || continue
+              if [ ! -f "$prompt" ]; then
+                echo "SKIP $id (eval directory has no PROMPT.md)"
+                continue
+              fi
+              pnpm --silent eval -- list --eval "$id" > /dev/null
               suite_val=$(sed -n 's/^suite:[[:space:]]*//p' "$prompt" | head -n 1)
               if jq -e --arg s "$suite_val" 'index($s) != null' <<< "$suite_json" > /dev/null 2>&1; then
                 matching+=("$id")
@@ -223,7 +232,14 @@ jobs:
             case "$eval_suite" in
               benchmark) experiment_suites=(benchmark no-skills) ;;
               regression) experiment_suites=(regression) ;;
-              *) continue ;;
+              other)
+                echo "SKIP $id (suite other has no scheduled experiment suite)"
+                continue
+                ;;
+              *)
+                echo "Invalid suite in evals/$id/PROMPT.md: $eval_suite" >&2
+                exit 1
+                ;;
             esac
 
             for experiment_suite in "${experiment_suites[@]}"; do
@@ -309,6 +325,7 @@ jobs:
           set -euo pipefail
 
           pnpm --filter @supabase-evals/framework eval:vercel -- \
+            --strict \
             --pairs-json "$EVAL_PAIRS" \
             --revision "$EVAL_REVISION" \
             --runs "${{ needs.prepare.outputs.runs }}" \

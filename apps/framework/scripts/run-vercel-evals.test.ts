@@ -1,6 +1,10 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { APIError } from '@vercel/sandbox';
 import { describe, expect, it } from 'vitest';
 import {
+  filterLocallyAvailablePairs,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
   parsePairs,
@@ -54,6 +58,36 @@ describe('Vercel eval controller', () => {
     expect(() => parsePairs('[{"eval_id":"eval-1"}]')).toThrow(
       'each pair must contain'
     );
+  });
+
+  it('skips published evals absent from the checked-out tree', () => {
+    const evalsRoot = mkdtempSync(join(tmpdir(), 'eval-pairs-'));
+    const localEval = join(evalsRoot, 'local-eval');
+    mkdirSync(localEval);
+    writeFileSync(join(localEval, 'PROMPT.md'), 'malformed on purpose');
+    const pair = {
+      experiment: 'experiment-1',
+      experiment_suite: 'benchmark',
+      eval_suite: 'benchmark',
+    };
+    const notes: string[] = [];
+    try {
+      expect(
+        filterLocallyAvailablePairs(
+          [
+            { ...pair, eval_id: 'local-eval' },
+            { ...pair, eval_id: 'newer-main-eval' },
+          ],
+          evalsRoot,
+          (message) => notes.push(message)
+        )
+      ).toEqual([{ ...pair, eval_id: 'local-eval' }]);
+      expect(notes).toEqual([
+        'SKIP newer-main-eval (published eval is absent from this checkout: evals/newer-main-eval/PROMPT.md not found)',
+      ]);
+    } finally {
+      rmSync(evalsRoot, { recursive: true, force: true });
+    }
   });
 
   it('retries sandbox creation only on 429s and 5xx API responses', () => {
