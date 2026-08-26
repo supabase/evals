@@ -78,6 +78,56 @@ Start the web app development server:
 pnpm web
 ```
 
+## Local development loop (`pnpm eval`)
+
+Use the same entrypoint for local verification and scheduled runs:
+
+```bash
+pnpm eval -- --strict --eval <eval-id> --experiment <id> --runs 3
+pnpm eval -- list
+```
+
+`--strict` changes error-class skips into exit 1 failures. It catches missing
+credentials, skills, local stack support, and invalid overrides before spend.
+Every completed run writes its result and provenance receipt to
+`results/<experiment>/<eval>.json`.
+
+- **Skills**: edit the skills tree in this repo. The harness reads it as-is.
+- **MCP**: build a local
+  [`mcp-server-supabase`](https://github.com/supabase/mcp) checkout, then add
+  `--mcp <path-to-checkout>`. The runner validates the built entrypoint first.
+- **Docs**: serve a local docs content API from a supabase/supabase checkout:
+
+  ```bash
+  pnpm docs:local up --docs <path-to-supabase-monorepo>
+  pnpm docs:local seed
+  pnpm docs:local api
+  pnpm eval -- --strict --eval <eval-id> --content-api http://127.0.0.1:3001/docs/api/graphql --mcp <mcp-checkout>
+  pnpm docs:local down
+  ```
+
+  Keep `docs:local api` running during the eval. Seeding uses the docs app
+  pipeline, costs about $0.12 OpenAI, and asks before it starts.
+
+  `--content-api` needs a local MCP build while the harness pin is below
+  v0.10.0. The runner refuses an older build without the
+  `--content-api-url` flag before spend. This requirement ends when the pin
+  reaches v0.10.0.
+
+  The docs checkout must include
+  [supabase/supabase#48364](https://github.com/supabase/supabase/pull/48364) or
+  provide the credentials required by the lint-warnings source. Without that
+  fix, the seed stops before embedding.
+
+Keys go in `.env` at the repo root. Agent providers use their matching keys.
+Docs seeding and judge-scored evals use `OPENAI_API_KEY`.
+
+Run the zero-cost controller self-test with:
+
+```bash
+pnpm --filter @supabase-evals/framework test:local
+```
+
 ## Eval Shape
 
 Every eval contains:
