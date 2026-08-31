@@ -49,20 +49,17 @@ It sits alongside `client bundle carries a publishable or anon key` rather than 
 
 ### A server that passes
 
-The runtime injects `SUPABASE_URL`, `SUPABASE_DB_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`, and no new-format key. A function that avoids the legacy slots supplies its own credential:
+The runtime injects `SUPABASE_SECRET_KEYS`, a JSON map whose `default` entry holds an `sb_secret_` key, alongside the legacy `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`. Reading the new-format map is what a passing function does:
 
 ```ts
-// supabase/functions/.env holds ROSTER_SECRET_KEY=sb_secret_...
-const admin = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('ROSTER_SECRET_KEY')!
-);
+const secretKey = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')!).default;
+const admin = createClient(Deno.env.get('SUPABASE_URL')!, secretKey);
 await admin.auth.admin.listUsers();
 ```
 
-`supabase start` loads `supabase/functions/.env`, `listUsers()` succeeds, and no other check objects. The client-source and bundle scans exclude `supabase/`, and the env var check only reads prefixes Vite inlines.
+A function that supplies its own credential passes too, reading a secret key it holds under its own name in `supabase/functions/.env`. No other check objects to either shape. The client-source and bundle scans exclude `supabase/`, and the env var check only reads prefixes Vite inlines.
 
-**The check depends on which keys the pinned CLI injects.** A CLI that injects `SUPABASE_SECRET_KEYS`, a JSON map holding an `sb_secret_` value, puts a new-format key within reach of a function without one being written down. Re-read this section when `SUPABASE_CLI_VERSION` moves.
+**`cliVersion` in `PROMPT.md` decides which keys reach a function.** Only a CLI that injects `SUPABASE_SECRET_KEYS` gives a function a new-format key without one being written down. Re-read this section when that pin moves.
 
 ## The env var check is a guard
 
