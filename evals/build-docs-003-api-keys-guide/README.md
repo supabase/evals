@@ -43,6 +43,34 @@ The complaints behind it are [FDBKIN-19189](https://linear.app/supabase/issue/FD
 
 **The server side is not scored the same way.** The Edge Function runtime injects `SUPABASE_SERVICE_ROLE_KEY`, which is a legacy key, so an implementation that keeps the secret server-side still holds a legacy credential there. Scoring that would measure a platform default rather than the guide. It is a finding for [PROD-410](https://linear.app/supabase/issue/PROD-410) and [DOCS-1311](https://linear.app/supabase/issue/DOCS-1311).
 
+## The server has to use the new key format too
+
+`server reads no legacy key variable` fails when anything under `supabase/functions` references `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY`. Those are the slots the runtime fills with a legacy key, so reading one puts a deprecated credential on the server even though nothing was written down in the repo.
+
+**It is a source scan, and the name says so.** Both key formats map to the same Postgres role, so once a request arrives no probe can tell which one authenticated it. The source is the only place the difference is visible.
+
+**A missing server fails it.** No code under `supabase/functions` means nothing proves the claim, matching how a failed build is handled rather than greening out a run that built no server.
+
+### The green path, measured
+
+On the CLI the sandbox pins, the runtime injects `SUPABASE_URL`, `SUPABASE_DB_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`, and no new-format key. A function that avoids the legacy slots therefore has to supply its own credential. This works:
+
+```ts
+// supabase/functions/.env
+// ROSTER_SECRET_KEY=sb_secret_...
+const admin = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('ROSTER_SECRET_KEY')!
+);
+await admin.auth.admin.listUsers();
+```
+
+`supabase start` loads `supabase/functions/.env`, `listUsers()` succeeds, and no other check objects: the client-source and bundle scans exclude `supabase/`, and the env var check only reads prefixes Vite inlines.
+
+**Nothing on the guide leads an agent there.** That is the finding, and it belongs on [DOCS-1311](https://linear.app/supabase/issue/DOCS-1311) with [PROD-410](https://linear.app/supabase/issue/PROD-410) and [FDBKIN-12029](https://linear.app/supabase/issue/FDBKIN-12029).
+
+**This check is tied to the pinned CLI.** A newer CLI injects `SUPABASE_SECRET_KEYS`, a JSON map holding an `sb_secret_` value. On that runtime the finding sharpens: a new-format key is already in reach and the guide still does not name it. Re-read this section when `SUPABASE_CLI_VERSION` moves.
+
 ## The env var check is a guard, not a finding
 
 `no secret-bearing env var is client-exposed` passes when the secret is kept out of the client env, including when there is no env var at all. It fails only on a secret sitting behind a name Vite inlines, and it reads the inlined prefixes off `vite.config.ts` so a renamed `envPrefix` stays in range.

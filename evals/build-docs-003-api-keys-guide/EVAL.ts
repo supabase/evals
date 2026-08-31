@@ -7,6 +7,7 @@ import {
 
 import { checkAccess } from './access.js';
 import { checkBundle } from './bundle.js';
+import { checkServer } from './server.js';
 
 const GUIDE_PATH = 'guides/getting-started/api-keys';
 
@@ -17,6 +18,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     // Build and scan first. The probes sign users up, and nothing they write
     // should be in scope when the bundle is read.
     const bundle = await checkBundle(ctx, status);
+    const server = checkServer(ctx);
     const access = await checkAccess(ctx, status);
 
     const checks: CheckResult[] = [
@@ -27,6 +29,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       bundle.noSecretInSource,
       bundle.signUpWired,
       bundle.noExposedEnvVar,
+      server.noLegacyKeyVar,
       access.roster,
       access.emailsHidden,
       checkGuideWasRead(ctx),
