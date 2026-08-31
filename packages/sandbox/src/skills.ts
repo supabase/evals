@@ -20,18 +20,50 @@
  * mechanism — and for the CLI harnesses.
  */
 
+import { agentHarnessIdSchema } from '@supabase-evals/core';
 import type { AgentHarnessId, SkillSource } from '@supabase-evals/core';
 import type { DockerSandbox } from './docker-sandbox.js';
 
 /** Version of Vercel's `skills` CLI baked into the sandbox image (pinned). */
 export const SKILLS_CLI_VERSION = '1.5.11';
 
+/** Claude Code's project scope. */
+const CLAUDE_CODE_SKILLS_DIR = '.claude/skills';
+/** Codex's and OpenCode's shared project scope. */
+const AGENTS_SKILLS_DIR = '.agents/skills';
+
 /**
- * `skills add --agent` ids we install for — the three CLI harnesses that run in
- * the sandbox. Installed unconditionally rather than only for the experiment's
- * own harness: the ids map onto just two directories (below), an unused one
- * costs a directory copy of a few kilobytes, and keeping one code path means no
- * agent id has to be threaded through `createAgentEnvironment` for correctness.
+ * The workspace-relative project scope each harness discovers skills in, or
+ * `null` for one that has none. Everything below is derived from this map, and
+ * the `Record<AgentHarnessId, …>` makes it exhaustive: adding a harness to
+ * `agentHarnessIdSchema` fails this file to compile until its scope is
+ * declared, rather than silently running that harness's evals skill-less.
+ *
+ * `ai-sdk` is `null` — it runs in-process with no filesystem scope of its own,
+ * and is served by `buildSkillsPrompt`'s listing instead.
+ */
+const SKILLS_PATH_BY_AGENT: Record<AgentHarnessId, string | null> = {
+  'ai-sdk': null,
+  'claude-code': CLAUDE_CODE_SKILLS_DIR,
+  codex: AGENTS_SKILLS_DIR,
+  opencode: AGENTS_SKILLS_DIR,
+};
+
+const installAgents: AgentHarnessId[] = [];
+const installDirs: string[] = [];
+for (const id of agentHarnessIdSchema.options) {
+  const dir = SKILLS_PATH_BY_AGENT[id];
+  if (dir === null) continue;
+  installAgents.push(id);
+  if (!installDirs.includes(dir)) installDirs.push(dir);
+}
+
+/**
+ * `skills add --agent` ids we install for — every harness with a project scope.
+ * Installed unconditionally rather than only for the experiment's own harness:
+ * the ids collapse to just two directories, an unused one costs a directory
+ * copy of a few kilobytes, and keeping one code path means no agent id has to
+ * be threaded through `createAgentEnvironment` for correctness.
  *
  * Naming them explicitly also matters. With no `--agent` flag the CLI falls
  * back to *every* agent it knows when it cannot detect an installed one,
@@ -41,27 +73,20 @@ export const SKILLS_CLI_VERSION = '1.5.11';
  * Detection depends on the surrounding environment, so naming the agents is
  * what makes the install predictable.
  */
-export const SKILLS_INSTALL_AGENTS = [
-  'claude-code',
-  'codex',
-  'opencode',
-] as const;
+export const SKILLS_INSTALL_AGENTS: readonly AgentHarnessId[] = installAgents;
 
 /**
  * Every workspace-relative directory `SKILLS_INSTALL_AGENTS` populates, deduped
  * (`codex` and `opencode` share `.agents/skills`). Verified after install.
  */
-export const SKILLS_INSTALL_DIRS = [
-  '.claude/skills',
-  '.agents/skills',
-] as const;
+export const SKILLS_INSTALL_DIRS: readonly string[] = installDirs;
 
 /**
- * Claude Code's project scope, and the directory `buildSkillsPrompt`'s listing
- * points at — it names one concrete path, read with the harness's own file
- * tools. The CLI harnesses resolve their own paths natively.
+ * The directory `buildSkillsPrompt`'s listing points at — it names one concrete
+ * path, read with the harness's own file tools. The CLI harnesses resolve their
+ * own paths natively.
  */
-export const SKILLS_INSTALL_DIR = '.claude/skills';
+export const SKILLS_INSTALL_DIR = CLAUDE_CODE_SKILLS_DIR;
 
 /** Staging path (outside the workspace) host skill sources are copied to before install. */
 const SKILLS_STAGING_DIR = '/tmp/skills-src';
