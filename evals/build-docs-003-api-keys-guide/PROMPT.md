@@ -1,7 +1,6 @@
 ---
 stage: build
 suite: regression
-cliVersion: 2.109.1
 interface: cli
 product:
   - auth
