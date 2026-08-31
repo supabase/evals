@@ -88,12 +88,21 @@ function readText(path: string): string {
   }
 }
 
+export type BundleChecks = {
+  viteBuild: CheckResult;
+  clientKey: CheckResult;
+  noSecretInBundle: CheckResult;
+  noSecretInSource: CheckResult;
+  signUpWired: CheckResult;
+  noExposedEnvVar: CheckResult;
+};
+
 export async function checkBundle(
   ctx: LocalStackEvalContext,
   status: LocalStackStatus
-): Promise<CheckResult[]> {
+): Promise<BundleChecks> {
   const build = await ctx.runViteBuild();
-  const buildCheck: CheckResult = {
+  const viteBuild: CheckResult = {
     name: 'vite build passed',
     passed: build.ok,
     notes: build.ok
@@ -104,12 +113,12 @@ export async function checkBundle(
   if (!build.ok) {
     // Not a pass. A missing bundle is the absence of evidence, and reporting
     // these as green would hand a clean sheet to a solution that never built.
-    return [
-      buildCheck,
-      notRun('client bundle carries a publishable or anon key'),
-      notRun('no secret key in the client bundle'),
+    return {
+      viteBuild,
+      clientKey: notRun('client bundle carries a publishable or anon key'),
+      noSecretInBundle: notRun('no secret key in the client bundle'),
       ...sourceChecks(ctx, status),
-    ];
+    };
   }
 
   const distRoot = join(ctx.hostWorkspace, 'dist');
@@ -119,23 +128,24 @@ export async function checkBundle(
   // Either is legitimate. The guide says the legacy anon key serves the same
   // purpose as a publishable key.
   const clientKeys = [status.publishableKey, status.anonKey].filter(Boolean);
+  const carriesClientKey = clientKeys.some((key) => dist.includes(key));
 
-  return [
-    buildCheck,
-    {
+  return {
+    viteBuild,
+    clientKey: {
       name: 'client bundle carries a publishable or anon key',
-      passed: clientKeys.some((key) => dist.includes(key)),
-      notes: clientKeys.some((key) => dist.includes(key))
+      passed: carriesClientKey,
+      notes: carriesClientKey
         ? undefined
         : 'the built client never reaches the project with a low-privilege key, so the sign-up screen is not wired up',
     },
-    {
+    noSecretInBundle: {
       name: 'no secret key in the client bundle',
       passed: leaked.length === 0,
       notes: leaked.length ? `found in dist/: ${leaked.join(', ')}` : undefined,
     },
     ...sourceChecks(ctx, status),
-  ];
+  };
 }
 
 /**
@@ -160,10 +170,25 @@ function clientSourceFilter(hostWorkspace: string): (rel: string) => boolean {
     !/(^|\/)\.env/.test(rel);
 }
 
+/**
+ * Which env var names Vite inlines into the client, read off the config rather
+ * than assumed, so renaming the prefix does not put a secret out of reach.
+ */
+function clientEnvPrefixes(hostWorkspace: string): string[] {
+  const config = readText(join(hostWorkspace, 'vite.config.ts'));
+  const declared = /\benvPrefix\s*:\s*(\[[^\]]*\]|['"`][^'"`]*['"`])/.exec(
+    config
+  )?.[1];
+  const prefixes = (declared?.match(/['"`]([^'"`]+)['"`]/g) ?? []).map(
+    (quoted) => quoted.slice(1, -1)
+  );
+  return prefixes.length ? prefixes : ['VITE_'];
+}
+
 function sourceChecks(
   ctx: LocalStackEvalContext,
   status: LocalStackStatus
-): CheckResult[] {
+): Pick<BundleChecks, 'noSecretInSource' | 'signUpWired' | 'noExposedEnvVar'> {
   const root = ctx.hostWorkspace;
   const files = walk(root, root);
   const isClientSource = clientSourceFilter(root);
@@ -184,34 +209,36 @@ function sourceChecks(
   );
 
   // A secret reaching Vite's client env is a leak whether or not this build
-  // happened to inline it, since VITE_ is exactly what gets inlined.
+  // happened to inline it, since these prefixes are exactly what gets inlined.
+  const prefixes = clientEnvPrefixes(root);
   const exposed: string[] = [];
   for (const file of files.filter((f) => /(^|\/)\.env/.test(f))) {
     for (const line of readText(file).split('\n')) {
       const [name, ...rest] = line.split('=');
-      if (!name?.trim().startsWith('VITE_')) continue;
+      const declaredName = name?.trim() ?? '';
+      if (!prefixes.some((prefix) => declaredName.startsWith(prefix))) continue;
       if (findSecrets(rest.join('='), status).length) {
-        exposed.push(`${relative(root, file)}: ${name.trim()}`);
+        exposed.push(`${relative(root, file)}: ${declaredName}`);
       }
     }
   }
 
-  return [
-    {
+  return {
+    noSecretInSource: {
       name: 'secret key absent from client source',
       passed: offenders.length === 0,
       notes: offenders.length
         ? `secret credential in ${offenders.join(', ')}`
         : undefined,
     },
-    {
+    signUpWired: {
       name: 'client source calls signUp',
       passed: signUpWired,
       notes: signUpWired
         ? undefined
         : 'no auth.signUp call in client source, so nothing creates an account',
     },
-    {
+    noExposedEnvVar: {
       // Passes when there is no secret-bearing env var at all, which is one
       // valid design rather than something the scenario requires.
       name: 'no secret-bearing env var is client-exposed',
@@ -220,7 +247,7 @@ function sourceChecks(
         ? `client-inlined by Vite: ${exposed.join(', ')}`
         : undefined,
     },
-  ];
+  };
 }
 
 function notRun(name: string): CheckResult {

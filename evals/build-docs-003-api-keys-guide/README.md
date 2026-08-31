@@ -33,8 +33,14 @@ The task is deliberately vague and the method deliberately is not. The prompt te
 
 It resolves the url from the harness's own docs result rather than the raw tool call, because a `search_docs` hit carries the guide's url in its result rather than its request.
 
-## Expect the env var check to fail
+## The env var check is a guard, not a finding
 
-The guide recommends no environment variable convention. No `NEXT_PUBLIC_`, no `VITE_`.
+`no secret-bearing env var is client-exposed` passes when the secret is kept out of the client env, including when there is no env var at all. It fails only on a secret sitting behind a name Vite inlines, and it reads the inlined prefixes off `vite.config.ts` so a renamed `envPrefix` stays in range.
 
-A solution written from the page can pass every bundle check and still expose the secret through a client-visible name. That is a finding about the guide, tracked in [DOCS-1311](https://linear.app/supabase/issue/DOCS-1311/improve-api-keys-documentation-based-on-eval-findings), not a scorer defect.
+It duplicates the dist scan on purpose. A secret in the client env is a leak whether or not the build under score happened to inline it.
+
+## The roster probe calls as a signed-in user
+
+`roster returns every signed-up email` sends the fixture user's access token, so a roster gated on being signed in still counts as working. A roster open to anyone answers that request too.
+
+Who may see the roster is out of scope. `PROMPT.md` does not say, and restricting the endpoint to staff needs a role in the seed, which is what `build-rls-003-org-roles-permissions` measures.

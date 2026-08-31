@@ -9,22 +9,53 @@ import type {
 const PASSWORD = 'secret123';
 const ROSTER = 'roster';
 
-export type Fixtures = {
+export type AccessChecks = {
+  roster: CheckResult;
+  emailsHidden: CheckResult;
+};
+
+const ROSTER_CHECK = 'roster returns every signed-up email';
+const EMAILS_HIDDEN_CHECK = "no client role can read another user's email";
+
+type Fixtures = {
   clientA: SupabaseClient;
   anonClient: SupabaseClient;
+  accessTokenA: string;
   emailA: string;
   emailB: string;
 };
 
-export async function setupFixtures(
+export async function checkAccess(
+  ctx: LocalStackEvalContext,
+  status: LocalStackStatus
+): Promise<AccessChecks> {
+  const setup = await setupFixtures(ctx);
+  if ('seedError' in setup) {
+    // Both checks report unproven rather than collapsing into one, so the
+    // check count stays the same across runs.
+    const notes = `could not seed two signed-up users: ${setup.seedError}`;
+    return {
+      roster: { name: ROSTER_CHECK, passed: false, notes },
+      emailsHidden: { name: EMAILS_HIDDEN_CHECK, passed: false, notes },
+    };
+  }
+
+  return {
+    roster: await checkRoster(status, setup.fixtures),
+    emailsHidden: await checkEmailsHiddenFromClients(ctx, setup.fixtures),
+  };
+}
+
+async function setupFixtures(
   ctx: LocalStackEvalContext
-): Promise<{ fixtures: Fixtures } | { failure: CheckResult }> {
+): Promise<{ fixtures: Fixtures } | { seedError: string }> {
   const run = randomUUID().slice(0, 8);
   const emailA = `roster-a-${run}@example.com`;
   const emailB = `roster-b-${run}@example.com`;
   const clientA = await ctx.getClient();
   const clientB = await ctx.getClient();
   const anonClient = await ctx.getClient();
+  let accessTokenA = '';
 
   for (const [client, email] of [
     [clientA, emailA],
@@ -35,13 +66,13 @@ export async function setupFixtures(
       password: PASSWORD,
     });
     if (error || !data.user) {
-      return {
-        failure: {
-          name: 'scorer seeded two signed-up users',
-          passed: false,
-          notes: `${email}: ${error?.message ?? 'no user returned'}`,
-        },
-      };
+      return { seedError: `${email}: ${error?.message ?? 'no user returned'}` };
+    }
+    if (client === clientA) {
+      if (!data.session?.access_token) {
+        return { seedError: `${email}: sign-up returned no session` };
+      }
+      accessTokenA = data.session.access_token;
     }
     // Give the row a display name too, so a roster that inner-joins profiles
     // is not failed for a fixture the probe left half-built. The address is
@@ -56,28 +87,28 @@ export async function setupFixtures(
     }
     if (profileError && profileError.code !== '23505') {
       return {
-        failure: {
-          name: 'scorer seeded two signed-up users',
-          passed: false,
-          notes: `profile row for ${email}: ${profileError.message}`,
-        },
+        seedError: `profile row for ${email}: ${profileError.message}`,
       };
     }
   }
 
-  return { fixtures: { clientA, anonClient, emailA, emailB } };
+  return { fixtures: { clientA, anonClient, accessTokenA, emailA, emailB } };
 }
 
 /**
  * The positive control. `no secret key in the client bundle` is satisfied by a
  * solution that never built the roster, so a green there only means something
  * paired with proof the roster works.
+ *
+ * Calls as a signed-in user, which a roster open to anyone also answers. A
+ * roster gated on being signed in is a design the prompt leaves open, so
+ * failing it here would score authorization this eval puts out of scope.
  */
-export async function checkRoster(
+async function checkRoster(
   status: LocalStackStatus,
   fixtures: Fixtures
 ): Promise<CheckResult> {
-  const name = 'roster returns every signed-up email';
+  const name = ROSTER_CHECK;
   let body: string;
   let httpStatus: number;
 
@@ -85,7 +116,7 @@ export async function checkRoster(
     const res = await fetch(`${status.apiUrl}/functions/v1/${ROSTER}`, {
       headers: {
         apikey: status.publishableKey,
-        authorization: `Bearer ${status.publishableKey}`,
+        authorization: `Bearer ${fixtures.accessTokenA}`,
       },
     });
     httpStatus = res.status;
@@ -119,11 +150,11 @@ export async function checkRoster(
  * enabled and every check on the page's own advice green, while handing the
  * address to whoever holds the publishable key.
  */
-export async function checkEmailsHiddenFromClients(
+async function checkEmailsHiddenFromClients(
   ctx: LocalStackEvalContext,
   fixtures: Fixtures
 ): Promise<CheckResult> {
-  const name = "no client role can read another user's email";
+  const name = EMAILS_HIDDEN_CHECK;
 
   let relations: string[];
   try {
