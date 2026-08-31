@@ -219,7 +219,6 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
           }
         />
       ) : null}
-      <EvalMetadataRow label="Attempts" value={result.attempts ?? "-"} />
       <EvalMetadataRow
         label="Source"
         value={<span className="break-all">{result.sourcePath}</span>}

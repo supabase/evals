@@ -20,11 +20,11 @@ on:
         required: true
         default: "benchmark,no-skills"
       runs:
-        description: "Attempts per experiment/eval pair"
+        description: "Independent scored runs per experiment/eval pair"
         required: true
-        default: "2"
+        default: "3"
       timeout_sec:
-        description: "Timeout per attempt in seconds"
+        description: "Timeout per run in seconds"
         required: true
         default: "720"
       sandbox_concurrency:
@@ -99,7 +99,7 @@ jobs:
             eval_id=""
             suite="regression"
             experiment_suite="regression"
-            runs="2"
+            runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
           else
@@ -107,7 +107,7 @@ jobs:
             eval_id=""
             suite="benchmark,regression"
             experiment_suite="benchmark,no-skills,regression"
-            runs="2"
+            runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
           fi
@@ -382,15 +382,26 @@ jobs:
 
           pairs='${{ needs.prepare.outputs.pairs }}'
           total="$(jq 'length' <<< "$pairs")"
+          # A pair needs every requested run, not just a directory, since a
+          # partial pair would otherwise skew the average against its neighbours.
+          expected="${{ needs.prepare.outputs.runs }}"
+          required="$(jq -cn --argjson expected "$expected" '[range(1; $expected + 1)]')"
           missing=()
           while IFS= read -r key; do
-            [ -d "results/downloaded/raw-results-$key" ] || missing+=("$key")
+            dir="results/downloaded/raw-results-$key"
+            actual='[]'
+            if [ -d "$dir" ]; then
+              actual="$(find "$dir" -mindepth 3 -maxdepth 3 -path '*/run-*/result.json' -print \
+                | jq -Rsc '[splits("\n") | select(length > 0) | capture("/run-(?<run>[0-9]+)/result.json$").run | tonumber] | sort')"
+            fi
+            found="$(jq 'length' <<< "$actual")"
+            [ "$actual" = "$required" ] || missing+=("$key ($found/$expected runs)")
           done < <(jq -r '.[] | "\(.experiment)__\(.eval_id)"' <<< "$pairs")
 
           echo "count=${#missing[@]}" >> "$GITHUB_OUTPUT"
 
           if [ "${#missing[@]}" -eq "$total" ]; then
-            echo "::warning::No results published: all $total eval pairs never finished (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
+            echo "::warning::No results published: all $total eval pairs are missing runs (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
             {
               echo "## :warning: No results published"
               echo ""
@@ -401,11 +412,11 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           elif [ "${#missing[@]}" -gt 0 ]; then
-            echo "::warning::Publishing PARTIAL results: ${#missing[@]} of $total eval pairs never finished (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
+            echo "::warning::Publishing PARTIAL results: ${#missing[@]} of $total eval pairs are missing runs (run-evals likely hit its timeout or failed partway). This run needs a follow-up to complete the refresh."
             {
               echo "## :warning: Partial results published"
               echo ""
-              echo "${#missing[@]} of $total eval pairs never finished, likely because \`run-evals\` hit its timeout or failed partway through. Only the completed pairs below were published:"
+              echo "${#missing[@]} of $total eval pairs are missing runs, likely because \`run-evals\` hit its timeout or failed partway through. Only the pairs with a complete set of runs were published; these were not:"
               echo ""
               echo '```'
               printf '%s\n' "${missing[@]}"
@@ -430,7 +441,7 @@ jobs:
           done < <(jq -r '.[].experiment' <<< "$pairs" | sort -u)
 
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
-            export_args=(--suite benchmark --output apps/web/src/data/eval-results.json)
+            export_args=(--suite benchmark --runs "${{ needs.prepare.outputs.runs }}" --output apps/web/src/data/eval-results.json)
             if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
               export_args+=(--merge)
             fi
@@ -438,7 +449,7 @@ jobs:
           fi
 
           if jq -e 'any(.[]; .eval_suite == "regression")' <<< "$pairs" > /dev/null; then
-            export_args=(--suite regression --output apps/web/src/data/regression-eval-results.json)
+            export_args=(--suite regression --runs "${{ needs.prepare.outputs.runs }}" --output apps/web/src/data/regression-eval-results.json)
             if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
               export_args+=(--merge)
             fi
@@ -523,5 +534,5 @@ jobs:
           steps.audit.outcome == 'success' &&
           steps.audit.outputs.count != '0'
         run: |
-          echo "::error::${{ steps.audit.outputs.count }} eval pair(s) never finished. This run needs a follow-up to complete the refresh."
+          echo "::error::${{ steps.audit.outputs.count }} eval pair(s) are missing runs. This run needs a follow-up to complete the refresh."
           exit 1

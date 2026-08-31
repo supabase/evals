@@ -122,15 +122,14 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --
 -- Provenance (hand-modeled; nothing usable is importable):
 --   * The 'logs' relation shape is the hosted platform's Logflare/ClickHouse
---     contract. Hosted serves the /analytics/endpoints/logs route today; the
---     capabilities are landing per-PR (both in review as of 2026-07-21):
+--     contract. Hosted serves the /analytics/endpoints/logs route today; both
+--     capability PRs have landed:
 --       - supabase/platform#35096: logs.all.otel unified stream + ClickHouse
 --         dialect for the getLogs PRESETS - what mcp main (post-#326) emits.
 --       - supabase/platform#35970: custom-SQL passthrough (timestamps
---         normalized platform-side) - what mcp#333's query_logs (still open)
---         targets; current mcp main does not depend on it.
---     The fixture models both current main and the #333 validation branch
---     against that contract. It is
+--         normalized platform-side) - what mcp#333's query_logs (shipped in
+--         mcp 0.10.0) targets.
+--     The fixture models both against that contract. It is
 --     platform-internal either way: no npm package exports the schema, so
 --     fixtures must model it by hand, exactly like every other platform-lite
 --     emulation in this package.
@@ -138,8 +137,9 @@ CREATE TABLE IF NOT EXISTS storage_logs (
 --     preset SQL and the query_logs sql description - not exported as data.
 --     (mcp's /platform entrypoint DOES export logsServiceSchema, but that
 --     enumerates service PRESETS, a different namespace; and the resolved
---     package (^0.8.1) can drift ahead of the MCP_SERVER_VERSION pin the
---     harness actually runs, so importing it would track the wrong artifact.)
+--     package's devDependency range can drift ahead of the MCP_SERVER_VERSION
+--     pin the harness actually runs, so importing it would track the wrong
+--     artifact.)
 --     Resync this view when the pinned MCP_SERVER_VERSION moves.
 --   * UNMODELED preset sources: workflow_run_logs (branch-action) and
 --     realtime_logs (realtime) have no backing table in platform-lite.
