@@ -15,6 +15,8 @@ const SKIP_DIRS = new Set([
   'supabase/.temp',
 ]);
 
+const NEW_KEY_FORMAT = 'client uses a publishable key, not the legacy anon key';
+
 const SECRET_KEY_PREFIX = /sb_secret_[A-Za-z0-9_-]+/;
 const JWT = /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 
@@ -91,6 +93,7 @@ function readText(path: string): string {
 export type BundleChecks = {
   viteBuild: CheckResult;
   clientKey: CheckResult;
+  newKeyFormat: CheckResult;
   noSecretInBundle: CheckResult;
   noSecretInSource: CheckResult;
   signUpWired: CheckResult;
@@ -116,6 +119,7 @@ export async function checkBundle(
     return {
       viteBuild,
       clientKey: notRun('client bundle carries a publishable or anon key'),
+      newKeyFormat: notRun(NEW_KEY_FORMAT),
       noSecretInBundle: notRun('no secret key in the client bundle'),
       ...sourceChecks(ctx, status),
     };
@@ -125,10 +129,15 @@ export async function checkBundle(
   const dist = walk(distRoot, distRoot).map(readText).join('\n');
 
   const leaked = findSecrets(dist, status);
-  // Either is legitimate. The guide says the legacy anon key serves the same
-  // purpose as a publishable key.
+  // Accepts either key, so it stays a control on whether the client is wired up
+  // at all. Which of the two shipped is `newKeyFormat`'s claim, not this one.
   const clientKeys = [status.publishableKey, status.anonKey].filter(Boolean);
   const carriesClientKey = clientKeys.some((key) => dist.includes(key));
+
+  const hasPublishable = Boolean(
+    status.publishableKey && dist.includes(status.publishableKey)
+  );
+  const hasAnon = Boolean(status.anonKey && dist.includes(status.anonKey));
 
   return {
     viteBuild,
@@ -138,6 +147,18 @@ export async function checkBundle(
       notes: carriesClientKey
         ? undefined
         : 'the built client never reaches the project with a low-privilege key, so the sign-up screen is not wired up',
+    },
+    // A bundle carrying neither key leaves the claim unproven, so it fails here
+    // as well as on `clientKey`.
+    newKeyFormat: {
+      name: NEW_KEY_FORMAT,
+      passed: hasPublishable && !hasAnon,
+      notes:
+        hasPublishable && !hasAnon
+          ? undefined
+          : hasAnon
+            ? `the legacy anon key ships to the browser${hasPublishable ? ' alongside the publishable key' : ''}`
+            : 'no publishable key in the bundle',
     },
     noSecretInBundle: {
       name: 'no secret key in the client bundle',

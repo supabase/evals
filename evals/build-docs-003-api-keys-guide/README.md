@@ -33,6 +33,16 @@ The task is deliberately vague and the method deliberately is not. The prompt te
 
 It resolves the url from the harness's own docs result rather than the raw tool call, because a `search_docs` hit carries the guide's url in its result rather than its request.
 
+## The client has to use the new key format
+
+`client uses a publishable key, not the legacy anon key` fails when the legacy anon key ships to the browser, including when both keys ship. A bundle carrying neither fails it too, since the claim is then unproven.
+
+It sits alongside `client bundle carries a publishable or anon key` rather than replacing it. That one is the control on whether the client reaches the project at all, and a run that picked the legacy key should still prove the sign-up screen works.
+
+The complaints behind it are [FDBKIN-19189](https://linear.app/supabase/issue/FDBKIN-19189), [FDBKIN-32569](https://linear.app/supabase/issue/FDBKIN-32569), [FDBKIN-6545](https://linear.app/supabase/issue/FDBKIN-6545), and [DOCS-313](https://linear.app/supabase/issue/DOCS-313), all of them users who could not tell which key format to reach for.
+
+**The server side is not scored the same way.** The Edge Function runtime injects `SUPABASE_SERVICE_ROLE_KEY`, which is a legacy key, so an implementation that keeps the secret server-side still holds a legacy credential there. Scoring that would measure a platform default rather than the guide. It is a finding for [PROD-410](https://linear.app/supabase/issue/PROD-410) and [DOCS-1311](https://linear.app/supabase/issue/DOCS-1311).
+
 ## The env var check is a guard, not a finding
 
 `no secret-bearing env var is client-exposed` passes when the secret is kept out of the client env, including when there is no env var at all. It fails only on a secret sitting behind a name Vite inlines, and it reads the inlined prefixes off `vite.config.ts` so a renamed `envPrefix` stays in range.

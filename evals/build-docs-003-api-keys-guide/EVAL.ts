@@ -22,6 +22,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const checks: CheckResult[] = [
       bundle.viteBuild,
       bundle.clientKey,
+      bundle.newKeyFormat,
       bundle.noSecretInBundle,
       bundle.noSecretInSource,
       bundle.signUpWired,
