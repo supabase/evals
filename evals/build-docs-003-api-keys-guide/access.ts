@@ -31,8 +31,6 @@ export async function checkAccess(
 ): Promise<AccessChecks> {
   const setup = await setupFixtures(ctx);
   if ('seedError' in setup) {
-    // Both checks report unproven rather than collapsing into one, so the
-    // check count stays the same across runs.
     const notes = `could not seed two signed-up users: ${setup.seedError}`;
     return {
       roster: { name: ROSTER_CHECK, passed: false, notes },
@@ -99,10 +97,6 @@ async function setupFixtures(
  * The positive control. `no secret key in the client bundle` is satisfied by a
  * solution that never built the roster, so a green there only means something
  * paired with proof the roster works.
- *
- * Calls as a signed-in user, which a roster open to anyone also answers. A
- * roster gated on being signed in is a design the prompt leaves open, so
- * failing it here would score authorization this eval puts out of scope.
  */
 async function checkRoster(
   status: LocalStackStatus,

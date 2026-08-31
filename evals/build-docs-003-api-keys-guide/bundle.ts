@@ -86,8 +86,6 @@ export async function checkBundle(
   const dist = walk(distRoot, distRoot).map(readText).join('\n');
 
   const leaked = findSecrets(dist, status);
-  // Accepts either key, so it stays a control on whether the client is wired up
-  // at all. Which of the two shipped is `newKeyFormat`'s claim, not this one.
   const clientKeys = [status.publishableKey, status.anonKey].filter(Boolean);
   const carriesClientKey = clientKeys.some((key) => dist.includes(key));
 
@@ -105,8 +103,6 @@ export async function checkBundle(
         ? undefined
         : 'the built client never reaches the project with a low-privilege key, so the sign-up screen is not wired up',
     },
-    // A bundle carrying neither key leaves the claim unproven, so it fails here
-    // as well as on `clientKey`.
     newKeyFormat: {
       name: NEW_KEY_FORMAT,
       passed: hasPublishable && !hasAnon,
@@ -148,10 +144,6 @@ function clientSourceFilter(hostWorkspace: string): (rel: string) => boolean {
     !/(^|\/)\.env/.test(rel);
 }
 
-/**
- * Which env var names Vite inlines into the client, read off the config rather
- * than assumed, so renaming the prefix does not put a secret out of reach.
- */
 function clientEnvPrefixes(hostWorkspace: string): string[] {
   const config = readText(join(hostWorkspace, 'vite.config.ts'));
   const declared = /\benvPrefix\s*:\s*(\[[^\]]*\]|['"`][^'"`]*['"`])/.exec(
