@@ -1253,6 +1253,501 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": false,
+        "notes": "handler produced no GET response — GET Client network socket disconnected before secure TLS connection was established; POST Client network socket disconnected before secure TLS connection was established"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": false,
+        "notes": "0 rows carry the run marker — GET Client network socket disconnected before secure TLS connection was established; POST Client network socket disconnected before secure TLS connection was established"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": false,
+        "notes": "api/items.mjs max unset"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "api/items.mjs at module scope"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch, web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the guidance for connecting to Postgres from serverless/edge functions (like Vercel functions). What connection method (direct vs session pooler vs transaction pooler) is recommended, what port, why, and any driver settings needed (e.g. prepared statements)?",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 1128
+        },
+        {
+          "source": "web_fetch",
+          "query": "Does this guide give a code example for connecting with postgres.js (the 'postgres' npm package) to the transaction pooler? What options are set (ssl, prepare, max, idle_timeout)? Quote any code samples verbatim.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 365
+        }
+      ]
+    },
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5/build-docs-004-postgres-connection/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200 {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"3\",\"name\":\"read probe\",\"note\":\"99f43047-28bf-428d-8c62-5a542928eb7d\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": false,
+        "notes": "api/items.mjs inside a function"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch, web_fetch, search_docs, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Extract all guidance relevant to connecting to Postgres from a serverless/edge function environment (like Vercel functions): which connection method to use (direct connection vs Supavisor session pooler vs transaction pooler), which ports, IPv4/IPv6 considerations, prepared statement caveats, recommended pool size / max connections settings, and any code snippet recommendations for Node.js/postgres.js. Include full details, not just a summary.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 2137
+        },
+        {
+          "source": "web_fetch",
+          "query": "Quote any exact code samples showing how to configure the postgres.js (npm 'postgres') client for Supabase, including any ssl option, prepare option, or pool max size settings mentioned anywhere on this page.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 652
+        },
+        {
+          "source": "web_fetch",
+          "query": "Extract the full code sample(s) for connecting with the postgres.js client, including any ssl, prepare, or max pool size options shown.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres-js.md"
+            }
+          ],
+          "resultChars": 854
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"postgres.js ssl serverless connection Vercel transaction pooler prepare false\", limit: 5) { nodes { title href ... on Guide { content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/disabling-prepared-statements-qL8lEL",
+              "title": "Disabling Prepared statements"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/troubleshooting-connect_timeout-or-hanging-queries-in-vercel-serverless-functions-775f92",
+              "title": "Troubleshooting 'CONNECT_TIMEOUT' or hanging queries in Serverless Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres-js",
+              "title": "Postgres.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless Drivers"
+            }
+          ],
+          "resultChars": 28690
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"CONNECT_TIMEOUT hanging queries Vercel serverless functions\", limit: 3) { nodes { title href ... on TroubleshootingGuide { content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/troubleshooting-connect_timeout-or-hanging-queries-in-vercel-serverless-functions-775f92",
+              "title": "Troubleshooting 'CONNECT_TIMEOUT' or hanging queries in Serverless Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/status-codes",
+              "title": "Status codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-codes",
+              "title": "Error codes"
+            }
+          ],
+          "resultChars": 2004
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Disabling prepared statements postgres.js transaction pooler\", limit: 3) { nodes { title href ... on TroubleshootingGuide { content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/disabling-prepared-statements-qL8lEL",
+              "title": "Disabling Prepared statements"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/prisma/prisma-troubleshooting",
+              "title": "Troubleshooting prisma errors"
+            }
+          ],
+          "resultChars": 2509
+        }
+      ]
+    },
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5/build-docs-004-postgres-connection/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200 {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"test widget\",\"note\":\"from test script\"},{\"id\":\"3\",\"name\":\"read probe\",\"note\":\"44f78579-ce39-4cbc-8fa2-a3ec43d642ab\"}]"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": false,
+        "notes": "api/items.mjs inside a function"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Extract full guidance on: connection methods (direct connection vs session pooler vs transaction pooler), which to use for serverless/edge functions like Vercel, IPv4/IPv6 considerations, connection pooling best practices, prepared statements support with transaction pooler, recommended pool sizes, and any code guidance for Node.js postgres.js clients.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 2921
+        },
+        {
+          "source": "web_fetch",
+          "query": "Give the full recommended code example for connecting to Supabase Postgres using the postgres.js library, including any options like ssl, prepare, max, idle_timeout, connect_timeout that are recommended, especially for serverless environments.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres-js"
+            }
+          ],
+          "resultChars": 1123
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"postgres.js prepare false transaction pooler serverless\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/disabling-prepared-statements-qL8lEL",
+              "title": "Disabling Prepared statements"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless Drivers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/prisma/prisma-troubleshooting",
+              "title": "Troubleshooting prisma errors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/troubleshooting-connect_timeout-or-hanging-queries-in-vercel-serverless-functions-775f92",
+              "title": "Troubleshooting 'CONNECT_TIMEOUT' or hanging queries in Serverless Functions"
+            }
+          ],
+          "resultChars": 42409
+        },
+        {
+          "source": "web_fetch",
+          "query": "Give the complete content of this troubleshooting page verbatim, including any code samples for the liveness preflight pattern with postgres-js, exact option names, and any other configuration details mentioned (prepare, max, idle_timeout, connect_timeout).",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/troubleshooting-connect_timeout-or-hanging-queries-in-vercel-serverless-functions-775f92"
+            }
+          ],
+          "resultChars": 1371
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"postgres.js ssl require connection string enforce ssl\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/ssl-enforcement",
+              "title": "Postgres SSL Enforcement"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/platform-security",
+              "title": "Secure configuration of Supabase platform"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres-js",
+              "title": "Postgres.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/psql",
+              "title": "Connecting with PSQL"
+            }
+          ],
+          "resultChars": 26518
+        }
+      ]
+    },
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5/build-docs-004-postgres-connection/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "build-functions-006-dual-auth-with-server",
     "stage": "build",
     "product": [
@@ -4800,6 +5295,320 @@
     "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
     "run": 3,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-003-api-keys-guide/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200 {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"test widget\",\"note\":\"from test\"},{\"id\":\"3\",\"name\":\"read probe\",\"note\":\"21870a17-043c-4c7a-915c-13dccaf9d383\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": false,
+        "notes": "api/items.mjs max unset"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "api/items.mjs at module scope"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the guidance for connecting to Postgres from serverless/edge functions, especially regarding connection pooling modes (session vs transaction vs dedicated pooler), which port to use, IPv4/IPv6 considerations, and any code-level recommendations (e.g. prepared statements, connection reuse) for tools like postgres-js. Include exact connection string formats and ports mentioned.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 1485
+        }
+      ]
+    },
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-004-postgres-connection/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200 {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"test item\",\"note\":\"from smoke test\"},{\"id\":\"3\",\"name\":\"read probe\",\"note\":\"f9bf67d1-76d2-4e4d-ba58-38207b6e7efa\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": false,
+        "notes": "api/items.mjs max unset"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "api/items.mjs at module scope"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "I'm connecting to Postgres from a Vercel serverless function (using the postgres-js npm package) where every request opens a connection. Give me: 1) which connection string type to use (direct connection vs session pooler vs transaction pooler) and why, including IPv4/IPv6 considerations; 2) any required client configuration for that connection type (e.g. prepared statements, pool size); 3) any other production guidance for serverless/edge environments.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 1539
+        }
+      ]
+    },
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-004-postgres-connection/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": false,
+        "notes": "handler produced no GET response — GET Client network socket disconnected before secure TLS connection was established; POST Client network socket disconnected before secure TLS connection was established"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": false,
+        "notes": "0 rows carry the run marker — GET Client network socket disconnected before secure TLS connection was established; POST Client network socket disconnected before secure TLS connection was established"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "api/items.mjs at module scope"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch, web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Summarize the guidance on choosing a connection method (direct connection, session pooler, transaction pooler) for serverless functions like Vercel. Include details about IPv4/IPv6 compatibility, connection limits, and any required client configuration (e.g. prepared statements) for each mode.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 1422
+        },
+        {
+          "source": "web_fetch",
+          "query": "Does this page give any recommendation about client-side pool size (e.g. max connections per client) when connecting from serverless functions? Also, does it say anything about needing SSL configuration for the pooler connection strings? Quote the exact relevant text if present.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 776
+        }
+      ]
+    },
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-004-postgres-connection/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
