@@ -33,37 +33,6 @@ The task is deliberately vague and the method deliberately is not. The prompt te
 
 It resolves the url from the harness's own docs result rather than the raw tool call, because a `search_docs` hit carries the guide's url in its result rather than its request.
 
-## The client has to use the new key format
-
-`client uses a publishable key, not the legacy anon key` fails when the legacy anon key ships to the browser, including when both keys ship. A bundle carrying neither fails it too, since the claim is then unproven.
-
-It sits alongside `client bundle carries a publishable or anon key` rather than replacing it. That one is the control on whether the client reaches the project at all, and a run that picked the legacy key still has to prove the sign-up screen works.
-
-## The server has to use the new key format too
-
-`no legacy key reaches the server` fails on two things under `supabase/functions`: a reference to `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY`, and an `anon` or `service_role` JWT anywhere in the files. The first catches the injected slots. The second catches a legacy key bound to a name of the agent's choosing, which a variable-name scan alone would miss.
-
-**It reads source, not traffic.** Both key formats map to the same Postgres role, so once a request arrives no probe can tell which one authenticated it. The source is the only place the difference shows.
-
-**A missing server fails it.** No code under `supabase/functions` means nothing proves the claim, matching how a failed build is handled rather than greening out a run that built no server.
-
-### A server that passes
-
-The runtime injects `SUPABASE_URL`, `SUPABASE_DB_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`, and no new-format key. A function that avoids the legacy slots supplies its own credential:
-
-```ts
-// supabase/functions/.env holds ROSTER_SECRET_KEY=sb_secret_...
-const admin = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('ROSTER_SECRET_KEY')!
-);
-await admin.auth.admin.listUsers();
-```
-
-`supabase start` loads `supabase/functions/.env`, `listUsers()` succeeds, and no other check objects. The client-source and bundle scans exclude `supabase/`, and the env var check only reads prefixes Vite inlines.
-
-**The check depends on which keys the pinned CLI injects.** A CLI that injects `SUPABASE_SECRET_KEYS`, a JSON map holding an `sb_secret_` value, puts a new-format key within reach of a function without one being written down. Re-read this section when `SUPABASE_CLI_VERSION` moves.
-
 ## The env var check is a guard
 
 `no secret-bearing env var is client-exposed` reads every `.env` outside `supabase/`, the client project's own env, and fails on a secret in any of them. It does not parse variable names or `envPrefix`, because a secret sitting in the client's env is exposed whichever name holds it and whichever prefix a bundler inlines.
@@ -83,3 +52,12 @@ It stands as a weak positive control, pairing with `client bundle carries a publ
 `roster returns every signed-up email` sends the fixture user's access token, so a roster gated on being signed in still counts as working. A roster open to anyone answers that request too.
 
 Who may see the roster is out of scope. `PROMPT.md` does not say, and restricting the endpoint to staff needs a role in the seed, which is what `build-rls-003-org-roles-permissions` measures.
+
+## What this eval does not score
+
+**Which key format the client uses.** The build injects a placeholder over `VITE_SUPABASE_ANON_KEY`, so a client wired through that name never carries a real key into the bundle and the format is not observable.
+
+**Which key format the server uses.** The Edge Function runtime decides which keys a function is handed, and the pinned CLI hands over legacy ones only. A function reading them is following the runtime, not the guide, so scoring it measures the environment.
+
+Both belong to the platform rather than the page. Adding either one back reports a change in the CLI as a change in the guide.
+

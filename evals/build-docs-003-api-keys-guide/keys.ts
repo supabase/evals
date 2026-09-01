@@ -2,7 +2,6 @@ import type { LocalStackStatus } from '@supabase-evals/core';
 
 const SECRET_KEY_PREFIX = /sb_secret_[A-Za-z0-9_-]+/;
 const JWT = /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
-const LEGACY_ROLES = new Set(['anon', 'service_role']);
 
 export function findSecrets(text: string, status: LocalStackStatus): string[] {
   const hits: string[] = [];
@@ -20,15 +19,6 @@ export function findSecrets(text: string, status: LocalStackStatus): string[] {
   }
 
   return [...new Set(hits)];
-}
-
-export function findLegacyKeys(text: string): string[] {
-  const roles = new Set<string>();
-  for (const token of text.match(JWT) ?? []) {
-    const role = roleOf(token);
-    if (role && LEGACY_ROLES.has(role)) roles.add(role);
-  }
-  return [...roles].sort();
 }
 
 function roleOf(jwt: string): string | undefined {

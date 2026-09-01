@@ -8,12 +8,9 @@ import type {
 import { readText, walk } from './files.js';
 import { findSecrets } from './keys.js';
 
-const NEW_KEY_FORMAT = 'client uses a publishable key, not the legacy anon key';
-
 export type BundleChecks = {
   viteBuild: CheckResult;
   clientKey: CheckResult;
-  newKeyFormat: CheckResult;
   noSecretInBundle: CheckResult;
   noSecretInSource: CheckResult;
   signUpWired: CheckResult;
@@ -39,7 +36,6 @@ export async function checkBundle(
     return {
       viteBuild,
       clientKey: notRun('client bundle carries a publishable or anon key'),
-      newKeyFormat: notRun(NEW_KEY_FORMAT),
       noSecretInBundle: notRun('no secret key in the client bundle'),
       ...sourceChecks(ctx, status),
     };
@@ -52,11 +48,6 @@ export async function checkBundle(
   const clientKeys = [status.publishableKey, status.anonKey].filter(Boolean);
   const carriesClientKey = clientKeys.some((key) => dist.includes(key));
 
-  const hasPublishable = Boolean(
-    status.publishableKey && dist.includes(status.publishableKey)
-  );
-  const hasAnon = Boolean(status.anonKey && dist.includes(status.anonKey));
-
   return {
     viteBuild,
     clientKey: {
@@ -65,16 +56,6 @@ export async function checkBundle(
       notes: carriesClientKey
         ? undefined
         : 'the built client never reaches the project with a low-privilege key, so the sign-up screen is not wired up',
-    },
-    newKeyFormat: {
-      name: NEW_KEY_FORMAT,
-      passed: hasPublishable && !hasAnon,
-      notes:
-        hasPublishable && !hasAnon
-          ? undefined
-          : hasAnon
-            ? `the legacy anon key ships to the browser${hasPublishable ? ' alongside the publishable key' : ''}`
-            : 'no publishable key in the bundle',
     },
     noSecretInBundle: {
       name: 'no secret key in the client bundle',
