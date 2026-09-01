@@ -288,6 +288,18 @@ export interface ToolEvalContext extends ToolScoringContext {
 }
 
 /**
+ * The running local stack's url and API keys, as `supabase status` reports
+ * them. `anonKey` is the legacy key, empty on a stack that no longer issues
+ * one.
+ */
+export interface LocalStackStatus {
+  apiUrl: string;
+  publishableKey: string;
+  secretKey: string;
+  anonKey: string;
+}
+
+/**
  * Scoring surface for local-stack evals. Everything runs inside the Docker
  * sandbox the agent worked in, against the local Supabase stack it (or the
  * harness) started.
@@ -320,6 +332,12 @@ export interface LocalStackScoringContext {
    * state. Connects host-side to the stack's published ports.
    */
   getClient: () => Promise<SupabaseClient>;
+  /**
+   * The running stack's url and API keys, discovered lazily from `supabase
+   * status` and cached. Use this to reach the stack as an identity `getClient`
+   * doesn't cover, or to assert on where a key ended up.
+   */
+  stackStatus: () => Promise<LocalStackStatus>;
   /**
    * The mocked hosted project's ref, when the eval links to platform-lite
    * (`hostedProject: true`). Undefined for purely-local evals.
