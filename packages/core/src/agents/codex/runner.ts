@@ -31,7 +31,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
   cliPackage: '@openai/codex',
   // Pinned: Codex's --json event schema evolves; bump deliberately and re-check
   // the parser. See ./parser.ts.
-  defaultCliVersion: '0.138.0',
+  defaultCliVersion: '0.151.0',
   defaultModel: 'gpt-5.4',
 
   async install(sandbox, version, apiKey) {
