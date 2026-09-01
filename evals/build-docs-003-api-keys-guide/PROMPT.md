@@ -24,4 +24,4 @@ Hook it up to Supabase. Read the guide below before you start and rely on it
 for how to set this up, rather than on what you already know.
 
 REFERENCE
-https://supabase.com/docs/guides/getting-started/api-keys.md
+https://docs-git-docs-api-keys-content-supabase.vercel.app/docs/guides/getting-started/api-keys.md

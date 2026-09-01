@@ -9,7 +9,10 @@ import { checkAccess } from './access.js';
 import { checkBundle } from './bundle.js';
 import { checkServer } from './server.js';
 
-const GUIDE_PATH = 'guides/getting-started/api-keys';
+// SCRATCH (do not merge): the preview host, not just the path, so a fetch of
+// the published page does not count as reading the page under test.
+const GUIDE_PATH =
+  'docs-git-docs-api-keys-content-supabase.vercel.app/docs/guides/getting-started/api-keys';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
