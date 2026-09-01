@@ -21,7 +21,7 @@ The task is deliberately vague and the method deliberately is not. The prompt te
 
 `no secret key in the client bundle` and `secret key absent from client source` both pass for an agent that built nothing.
 
-`roster returns every signed-up email` and `client source calls signUp` are what make them mean something. Drop either one and a run that produced nothing scores full marks.
+`roster returns every signed-up email` and `client source contains a signUp call` are what make them mean something. Drop either one and a run that produced nothing scores full marks.
 
 ## The seed names the endpoint
 
@@ -41,9 +41,9 @@ It sits alongside `client bundle carries a publishable or anon key` rather than 
 
 ## The server has to use the new key format too
 
-`server reads no legacy key variable` fails when anything under `supabase/functions` references `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY`. Those are the slots the runtime fills with a legacy key, so reading one puts a deprecated credential on the server even though nothing was written down in the repo.
+`no legacy key reaches the server` fails on two things under `supabase/functions`: a reference to `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY`, and an `anon` or `service_role` JWT anywhere in the files. The first catches the injected slots. The second catches a legacy key bound to a name of the agent's choosing, which a variable-name scan alone would miss.
 
-**It is a source scan, and the name says so.** Both key formats map to the same Postgres role, so once a request arrives no probe can tell which one authenticated it. The source is the only place the difference shows.
+**It reads source, not traffic.** Both key formats map to the same Postgres role, so once a request arrives no probe can tell which one authenticated it. The source is the only place the difference shows.
 
 **A missing server fails it.** No code under `supabase/functions` means nothing proves the claim, matching how a failed build is handled rather than greening out a run that built no server.
 
@@ -66,9 +66,17 @@ await admin.auth.admin.listUsers();
 
 ## The env var check is a guard
 
-`no secret-bearing env var is client-exposed` passes when the secret is kept out of the client env, including when there is no env var at all. It fails only on a secret sitting behind a name Vite inlines, and it reads the inlined prefixes off `vite.config.ts` so a renamed `envPrefix` stays in range.
+`no secret-bearing env var is client-exposed` reads every `.env` outside `supabase/`, the client project's own env, and fails on a secret in any of them. It does not parse variable names or `envPrefix`, because a secret sitting in the client's env is exposed whichever name holds it and whichever prefix a bundler inlines.
+
+`supabase/` is out of range, so a function's own secret under `supabase/functions/.env` is the credential living where it belongs.
 
 It duplicates the dist scan on purpose. A secret in the client env is a leak whether or not the build under score inlined it.
+
+## The signUp check is a literal match
+
+`client source contains a signUp call` is named for what it proves. A `.auth.signUp(` anywhere in client source satisfies it, including in code that never runs, and a call reached only from outside client source does not.
+
+It stands as a weak positive control, pairing with `client bundle carries a publishable or anon key` so a key that ships and is never called does not score green on its own. Proving the screen works needs a driven DOM, which the scorer does not have.
 
 ## The roster probe calls as a signed-in user
 

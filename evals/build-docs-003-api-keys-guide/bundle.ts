@@ -6,46 +6,9 @@ import type {
 } from '@supabase-evals/core';
 
 import { readText, walk } from './files.js';
+import { findSecrets } from './keys.js';
 
 const NEW_KEY_FORMAT = 'client uses a publishable key, not the legacy anon key';
-
-const SECRET_KEY_PREFIX = /sb_secret_[A-Za-z0-9_-]+/;
-const JWT = /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
-
-/**
- * Every way a secret credential can show up, rather than a list of variable
- * names. A name list is incomplete the moment someone picks a new one.
- */
-export function findSecrets(text: string, status: LocalStackStatus): string[] {
-  const hits: string[] = [];
-
-  if (SECRET_KEY_PREFIX.test(text)) hits.push('sb_secret_ key');
-  if (status.secretKey && text.includes(status.secretKey)) {
-    hits.push("the stack's secret key");
-  }
-
-  // Decode rather than match a literal, so any service_role JWT is caught and
-  // not only the one this stack happens to be running.
-  for (const token of text.match(JWT) ?? []) {
-    if (roleOf(token) === 'service_role') {
-      hits.push('a service_role JWT');
-      break;
-    }
-  }
-
-  return [...new Set(hits)];
-}
-
-function roleOf(jwt: string): string | undefined {
-  try {
-    const payload = jwt.split('.')[1];
-    const json = Buffer.from(payload, 'base64url').toString('utf8');
-    const role = (JSON.parse(json) as { role?: unknown }).role;
-    return typeof role === 'string' ? role : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 export type BundleChecks = {
   viteBuild: CheckResult;
@@ -122,11 +85,6 @@ export async function checkBundle(
   };
 }
 
-/**
- * Files the bundler can reach, read off the Vite config rather than assumed.
- * `supabase/` is the CLI's server surface, so a secret written there is the
- * credential living where the guide says it should.
- */
 function clientSourceFilter(hostWorkspace: string): (rel: string) => boolean {
   const config = readText(join(hostWorkspace, 'vite.config.ts'));
   const root = /\broot\s*:\s*['"`]([^'"`]+)['"`]/.exec(config)?.[1] ?? '.';
@@ -142,17 +100,6 @@ function clientSourceFilter(hostWorkspace: string): (rel: string) => boolean {
     rel.startsWith(prefix) &&
     !excluded.some((dir) => rel.startsWith(dir)) &&
     !/(^|\/)\.env/.test(rel);
-}
-
-function clientEnvPrefixes(hostWorkspace: string): string[] {
-  const config = readText(join(hostWorkspace, 'vite.config.ts'));
-  const declared = /\benvPrefix\s*:\s*(\[[^\]]*\]|['"`][^'"`]*['"`])/.exec(
-    config
-  )?.[1];
-  const prefixes = (declared?.match(/['"`]([^'"`]+)['"`]/g) ?? []).map(
-    (quoted) => quoted.slice(1, -1)
-  );
-  return prefixes.length ? prefixes : ['VITE_'];
 }
 
 function sourceChecks(
@@ -178,17 +125,18 @@ function sourceChecks(
     /\.auth\s*\.\s*signUp\s*\(/.test(readText(file))
   );
 
-  // A secret reaching Vite's client env is a leak whether or not this build
-  // happened to inline it, since these prefixes are exactly what gets inlined.
-  const prefixes = clientEnvPrefixes(root);
+  // The client project's env, meaning any `.env` outside `supabase/`. A secret
+  // there is exposed whichever name it sits behind and whichever prefix the
+  // bundler inlines, so neither is parsed.
   const exposed: string[] = [];
-  for (const file of files.filter((f) => /(^|\/)\.env/.test(f))) {
+  for (const file of files) {
+    const rel = relative(root, file);
+    if (!/(^|\/)\.env/.test(rel) || rel.startsWith('supabase/')) continue;
     for (const line of readText(file).split('\n')) {
       const [name, ...rest] = line.split('=');
-      const declaredName = name?.trim() ?? '';
-      if (!prefixes.some((prefix) => declaredName.startsWith(prefix))) continue;
+      if (!name || !rest.length) continue;
       if (findSecrets(rest.join('='), status).length) {
-        exposed.push(`${relative(root, file)}: ${declaredName}`);
+        exposed.push(`${rel}: ${name.trim().replace(/^export\s+/, '')}`);
       }
     }
   }
@@ -202,7 +150,7 @@ function sourceChecks(
         : undefined,
     },
     signUpWired: {
-      name: 'client source calls signUp',
+      name: 'client source contains a signUp call',
       passed: signUpWired,
       notes: signUpWired
         ? undefined

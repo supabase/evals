@@ -2,6 +2,7 @@ import { join, relative } from 'node:path';
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 
 import { readText, walk } from './files.js';
+import { findLegacyKeys } from './keys.js';
 
 const LEGACY_KEY_VARS = ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY'];
 
@@ -10,7 +11,7 @@ export type ServerChecks = {
 };
 
 export function checkServer(ctx: LocalStackEvalContext): ServerChecks {
-  const name = 'server reads no legacy key variable';
+  const name = 'no legacy key reaches the server';
   const root = ctx.hostWorkspace;
   const functionsRoot = join(root, 'supabase', 'functions');
   const files = walk(functionsRoot, functionsRoot);
@@ -29,10 +30,11 @@ export function checkServer(ctx: LocalStackEvalContext): ServerChecks {
   const offenders: string[] = [];
   for (const file of files) {
     const text = readText(file);
-    const hits = LEGACY_KEY_VARS.filter((variable) => text.includes(variable));
-    if (hits.length) {
-      offenders.push(`${relative(root, file)}: ${hits.join(', ')}`);
-    }
+    const rel = relative(root, file);
+    const vars = LEGACY_KEY_VARS.filter((variable) => text.includes(variable));
+    if (vars.length) offenders.push(`${rel}: ${vars.join(', ')}`);
+    const roles = findLegacyKeys(text);
+    if (roles.length) offenders.push(`${rel}: ${roles.join(' and ')} JWT`);
   }
 
   return {
