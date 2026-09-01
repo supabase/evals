@@ -7,8 +7,8 @@
 //   GET  /api/items                -> 200 { items: [{ id, name, note }] }
 //   POST /api/items {name, note}   -> 201 { item: { id, name, note } }
 //
-// CONNECT.md holds the connection details this project was given. Read the
-// database url from process.env.DATABASE_URL, which the deploy sets. The
+// CONNECT.md holds the connection details this project was given. The deploy
+// reads DATABASE_URL, and .env.example is where this project records it. The
 // project already depends on postgres-js, so keep using it.
 
 import postgres from 'postgres';

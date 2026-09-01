@@ -12,7 +12,9 @@ The prompt says where the code runs and nothing about how to reach the database.
 
 `CONNECT.md` lists three connection strings the way the dashboard Connect panel prints them, with nothing picked. Which one reaches the client is the measurement, so the file carries no guidance about when to use each.
 
-`api/items.mjs` fixes three things: the handler signature, `DATABASE_URL` as the variable the deploy sets, and postgres-js as the driver. Each buys a claim the scorer can prove and costs a question the agent would otherwise answer. The contract sits in a seed comment so `PROMPT.md` keeps its vocabulary.
+`.env.example` ships with `DATABASE_URL` empty. Filling it is where the choice becomes observable.
+
+`api/items.mjs` fixes three things: the handler signature, `DATABASE_URL` as the variable the deploy reads, and postgres-js as the driver. Each buys a claim the scorer can prove and costs a question the agent would otherwise answer. The contract sits in a seed comment so `PROMPT.md` keeps its vocabulary.
 
 The scorer inserts a row with a run-scoped marker before it calls the handler, so `the handler reads a row the scorer inserted` cannot be satisfied by a literal.
 
@@ -23,6 +25,14 @@ Grants and row level security are left alone. Policy design is what `build-docs-
 Every file check passes for an agent that edited an env file and nothing else. `the handler reads a row the scorer inserted` and `the handler writes a row that lands in items` are what make them mean something. Drop either and a run that produced nothing working scores full marks.
 
 The write control reads the row back with a run-scoped marker rather than trusting the handler's own response, so a handler that reports success without writing fails it.
+
+## The client-lifetime check counts connections
+
+`the database client is created once per module, not per request` runs the handler six times in one process and requires one database connection. A factory called once at module scope opens one, and a client constructed per request opens six. Reading whether the `postgres()` call sits inside a function reds the first pattern, which is correct.
+
+## The probe terminates TLS
+
+The local database speaks no TLS, so a handler that requires it cannot connect. The probe sits in front of the database, answers the SSLRequest, and terminates TLS with a self-signed certificate. postgres-js `ssl: 'require'` does not verify the certificate. `ssl: true` does, and fails.
 
 ## `aws-1` is deliberate
 

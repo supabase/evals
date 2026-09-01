@@ -436,18 +436,6 @@ export function fileChecks(ws: Workspace): CheckResult[] {
         : NO_CLIENT,
     },
     {
-      name: 'the database client is created once per module, not per request',
-      passed: sites.length > 0 && sites.every((entry) => !entry.insideFunction),
-      notes: sites.length
-        ? sites
-            .map(
-              (entry) =>
-                `${entry.file} ${entry.insideFunction ? 'inside a function' : 'at module scope'}`
-            )
-            .join(', ')
-        : NO_CLIENT,
-    },
-    {
       name: 'every Supabase host in the workspace is one CONNECT.md lists',
       passed: unknownHosts.length === 0,
       notes: unknownHosts.length
