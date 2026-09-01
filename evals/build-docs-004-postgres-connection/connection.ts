@@ -324,7 +324,10 @@ export function analyze(ws: Workspace): Analysis {
   };
 }
 
-export function resolveRuntimeDsns(analysis: Analysis): Dsn[] {
+const FIXTURE_FILE = 'CONNECT.md';
+const MIGRATION_HINT = /migrat|non_?pooling|direct/i;
+
+export function resolveRuntimeDsns(analysis: Analysis, ws: Workspace): Dsn[] {
   const out: Dsn[] = [];
   for (const site of analysis.clientSites) {
     for (const name of site.envNames) {
@@ -337,10 +340,17 @@ export function resolveRuntimeDsns(analysis: Analysis): Dsn[] {
       if (dsn) out.push(dsn);
     }
   }
+  if (out.length > 0) return out;
+
+  for (const [rel, text] of ws.files) {
+    if (rel === FIXTURE_FILE || isSourceFile(rel)) continue;
+    for (const match of text.matchAll(/postgres(?:ql)?:\/\/[^\s'"`)]+/gi)) {
+      const dsn = parseDsn(match[0]);
+      if (dsn && !MIGRATION_HINT.test(rel)) out.push(dsn);
+    }
+  }
   return out;
 }
-
-const MIGRATION_HINT = /migrat|non_?pooling|direct/i;
 
 function migrationDsns(analysis: Analysis): Dsn[] {
   const out: Dsn[] = [];
@@ -354,7 +364,7 @@ function migrationDsns(analysis: Analysis): Dsn[] {
 
 export function fileChecks(ws: Workspace): CheckResult[] {
   const analysis = analyze(ws);
-  const runtime = resolveRuntimeDsns(analysis);
+  const runtime = resolveRuntimeDsns(analysis, ws);
   const classified = runtime.map((dsn) => ({
     dsn,
     endpoint: classifyDsn(dsn),
@@ -365,7 +375,10 @@ export function fileChecks(ws: Workspace): CheckResult[] {
   const onTransactionPooler = classified.some(
     (entry) => entry.endpoint === TRANSACTION_POOLER
   );
-  const site = analysis.clientSites[0];
+  const sites = analysis.clientSites;
+  const NO_CLIENT = 'no postgres-js client found in application source';
+  const describe = (value: unknown) =>
+    value === undefined ? 'unset' : String(value);
 
   const runtimeNotes = classified.length
     ? classified
@@ -396,29 +409,43 @@ export function fileChecks(ws: Workspace): CheckResult[] {
     },
     {
       name: 'prepared statements are turned off on the pooled connection',
-      passed: pooled.length === 0 ? true : site?.prepare === false,
+      passed:
+        pooled.length === 0
+          ? true
+          : sites.length > 0 && sites.every((entry) => entry.prepare === false),
       notes:
         pooled.length === 0
           ? 'not applicable, the connection is not pooled'
-          : site?.prepare === false
-            ? 'prepare: false'
-            : `prepare is ${site ? String(site.prepare) : 'unset, no client found'}`,
+          : sites.length === 0
+            ? NO_CLIENT
+            : sites
+                .map(
+                  (entry) => `${entry.file} prepare ${describe(entry.prepare)}`
+                )
+                .join(', '),
     },
     {
       name: 'the connection pool is capped for a serverless invocation',
-      passed: site?.max !== undefined && site.max <= 1,
-      notes: site
-        ? `max is ${site.max === undefined ? 'unset' : String(site.max)}`
-        : 'no postgres-js client found in application source',
+      passed:
+        sites.length > 0 &&
+        sites.every((entry) => entry.max !== undefined && entry.max <= 1),
+      notes: sites.length
+        ? sites
+            .map((entry) => `${entry.file} max ${describe(entry.max)}`)
+            .join(', ')
+        : NO_CLIENT,
     },
     {
       name: 'the database client is created once per module, not per request',
-      passed: site !== undefined && !site.insideFunction,
-      notes: site
-        ? site.insideFunction
-          ? `client constructed inside a function in ${site.file}`
-          : `client constructed at module scope in ${site.file}`
-        : 'no postgres-js client found in application source',
+      passed: sites.length > 0 && sites.every((entry) => !entry.insideFunction),
+      notes: sites.length
+        ? sites
+            .map(
+              (entry) =>
+                `${entry.file} ${entry.insideFunction ? 'inside a function' : 'at module scope'}`
+            )
+            .join(', ')
+        : NO_CLIENT,
     },
     {
       name: 'every Supabase host in the workspace is one CONNECT.md lists',

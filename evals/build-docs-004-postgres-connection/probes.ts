@@ -145,6 +145,22 @@ export async function runProbes(
   ctx: LocalStackEvalContext,
   ws: Workspace
 ): Promise<CheckResult[]> {
+  try {
+    return await probe(ctx, ws);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return [
+      { name: 'project dependencies installed', passed: false, notes: message },
+      notRun('the handler reads a row the scorer inserted'),
+      notRun('the handler writes a row that lands in items'),
+    ];
+  }
+}
+
+async function probe(
+  ctx: LocalStackEvalContext,
+  ws: Workspace
+): Promise<CheckResult[]> {
   const install = await ctx.exec('npm install --no-audit --no-fund --silent', {
     timeoutMs: 240_000,
   });
