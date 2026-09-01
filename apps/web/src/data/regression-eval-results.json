@@ -318,7 +318,6 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "cliVersion": "2.109.1",
     "passed": false,
     "checks": [
       {
@@ -356,8 +355,7 @@
       },
       {
         "name": "roster returns every signed-up email",
-        "passed": false,
-        "notes": "HTTP 503, missing 2/2 seeded emails. Body: {\"message\":\"name resolution failed\"}"
+        "passed": true
       },
       {
         "name": "no client role can read another user's email",
@@ -366,7 +364,7 @@
       {
         "name": "the agent read the API keys guide the prompt referenced",
         "passed": true,
-        "notes": "web_fetch"
+        "notes": "web_fetch, search_docs"
       }
     ],
     "skills": {
@@ -375,25 +373,26 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize this entire page in detail: what are publishable/anon keys vs secret/service_role keys, when to use each, security implications, how they relate to RLS, and any guidance about accessing auth.users or listing users.",
+          "query": "Summarize everything about: publishable vs secret keys, legacy anon/service_role keys, which key to use in browser/frontend code vs server-side code, how to fetch keys, and any security guidance about exposing keys.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 2292
+          "resultChars": 1746
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"Edge Functions environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL default secrets local\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"edge function environment variables secret key service role local development\", limit: 5) { nodes { title href ... on Guide { content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -409,19 +408,19 @@
               "title": "Migrating to publishable and secret API keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
-              "title": "Integrating With Supabase Auth"
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
             }
           ],
-          "resultChars": 41771
+          "resultChars": 70256
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"list users admin listUsers auth.admin from Edge Function service role\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"list all users admin auth.admin.listUsers edge function\", limit: 5) { nodes { title href ... on Guide { content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -431,19 +430,67 @@
               "url": "https://supabase.com/docs/reference/dart/auth-admin-listusers"
             },
             {
-              "url": "https://supabase.com/docs/reference/dart/auth-admin",
-              "title": "Auth Admin"
-            },
-            {
               "url": "https://supabase.com/docs/reference/swift/auth-admin-listusers",
               "title": "listUsers()"
             },
             {
               "url": "https://supabase.com/docs/reference/kotlin/auth-admin-listusers",
               "title": "listUsers()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/auth-admin-listusers",
+              "title": "list_users()"
             }
           ],
-          "resultChars": 2348
+          "resultChars": 575
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"SUPABASE_SECRET_KEYS Deno.env.get example accessing environment variables edge function\", limit: 3) { nodes { title href ... on Guide { content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            }
+          ],
+          "resultChars": 28165
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"functions.invoke apikey header publishable key verify_jwt config.toml\", limit: 5) { nodes { title href ... on Guide { content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "Understanding API keys"
+            }
+          ],
+          "resultChars": 32345
         }
       ]
     },
@@ -473,7 +520,6 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "cliVersion": "2.109.1",
     "passed": true,
     "checks": [
       {
@@ -519,7 +565,7 @@
       {
         "name": "the agent read the API keys guide the prompt referenced",
         "passed": true,
-        "notes": "web_fetch"
+        "notes": "web_fetch, web_fetch"
       }
     ],
     "skills": {
@@ -535,24 +581,30 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize how to identify and use Supabase publishable/anon keys vs secret/service_role keys, especially for local development, and which key should be used client-side vs server-side. Include any CLI-specific details about where to find these keys locally (e.g. supabase status, config.toml).",
+          "query": "https://supabase.com/docs/guides/getting-started/api-keys.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
+            }
+          ]
+        },
+        {
+          "source": "web_fetch",
+          "query": "Explain in detail how API keys work in Supabase today: publishable key vs secret key, legacy anon/service_role JWT keys, which key to use in frontend web app code, which key to never expose, and how to fetch the current keys via CLI or dashboard. Include any guidance about which key to use for reading data displayed on a public/admin page.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 1645
+          "resultChars": 1773
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"Edge Functions default environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY secrets\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"edge function environment variables SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY secret key default secrets\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
             {
               "url": "https://supabase.com/docs/guides/functions/secrets",
               "title": "Environment Variables"
@@ -562,40 +614,44 @@
               "title": "Self-Hosted Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
-              "title": "Integrating With Supabase Auth"
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/auth",
               "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
             }
           ],
-          "resultChars": 41771
+          "resultChars": 45031
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"list users admin API auth.admin.listUsers edge function service role\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"list users admin listUsers edge function service role auth admin API\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/reference/javascript/auth-admin-listusers"
             },
             {
-              "url": "https://supabase.com/docs/reference/dart/auth-admin-listusers"
-            },
-            {
               "url": "https://supabase.com/docs/reference/swift/auth-admin-listusers",
               "title": "listUsers()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-listusers"
             },
             {
               "url": "https://supabase.com/docs/reference/javascript/auth-admin-deleteuser"
             },
             {
-              "url": "https://supabase.com/docs/reference/api/v2-list-organization-roles",
-              "title": "List roles of an organization"
+              "url": "https://supabase.com/docs/reference/dart/auth-admin",
+              "title": "Auth Admin"
             }
           ],
-          "resultChars": 2499
+          "resultChars": 2279
         }
       ]
     },
@@ -625,8 +681,7 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "cliVersion": "2.109.1",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "vite build passed",
@@ -658,7 +713,8 @@
       },
       {
         "name": "server reads no legacy key variable",
-        "passed": true
+        "passed": false,
+        "notes": "supabase/functions/roster/index.ts: SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY"
       },
       {
         "name": "roster returns every signed-up email",
@@ -687,62 +743,103 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize everything about: the difference between publishable/anon keys and secret/service_role keys, which key to use in frontend/client code vs backend/server code (e.g. Edge Functions), how to fetch each key via CLI or dashboard, and any security guidance about exposing keys or accessing auth.users / admin APIs.",
+          "query": "Summarize the guidance on API keys: types of keys (publishable, secret, legacy anon/service_role), when to use each, how to fetch them, and any security warnings about exposing keys or user data.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 1973
+          "resultChars": 1553
         },
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"withSupabase edge function server package publishable secret apikey\", limit: 5) { nodes { title href content } } }",
+          "source": "web_fetch",
+          "query": "Summarize how to create, write, and locally serve a Supabase Edge Function, including how to access environment variables like the service role key, and default JWT verification behavior.",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
-              "title": "Which package to use"
+              "url": "https://supabase.com/docs/guides/functions/quickstart.md"
+            }
+          ],
+          "resultChars": 1250
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions environment variables SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL auto-populated\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
             },
             {
               "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
               "title": "Migrating to publishable and secret API keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/signing-keys",
-              "title": "JWT Signing Keys"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
-              "title": "Getting Started with Edge Functions (Dashboard)"
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
             }
           ],
-          "resultChars": 74543
+          "resultChars": 34004
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"@supabase/server edge function example ctx.supabaseAdmin authMode\", limit: 3) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Edge Functions verify_jwt config.toml disable JWT verification\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
+              "url": "https://supabase.com/docs/guides/ai-tools/byo-mcp",
+              "title": "Deploy MCP servers"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
-              "title": "Which package to use"
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
             }
           ],
-          "resultChars": 26098
+          "resultChars": 43696
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"auth.admin.listUsers list all users admin API\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-listusers"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-admin-listusers",
+              "title": "listUsers()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-admin-listusers"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/kotlin/auth-admin-listusers",
+              "title": "listUsers()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/auth-admin-listusers",
+              "title": "list_users()"
+            }
+          ],
+          "resultChars": 2484
         }
       ]
     },
@@ -1960,7 +2057,6 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "cliVersion": "2.109.1",
     "passed": false,
     "checks": [
       {
@@ -2018,14 +2114,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize this guide in full detail: what are the current API key types (publishable, secret, legacy anon/service_role), how should each be used, which is safe for client-side/browser use, which must stay server-side only, and any guidance about accessing user data / auth.users.",
+          "query": "Summarize this guide in full detail: what API keys exist (publishable, secret, legacy anon/service_role), how to use them in client apps, security implications of each, and best practices for which key to use in a frontend web app vs backend/admin usage. Include specifics on how to fetch users/list users safely.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 1755
+          "resultChars": 2537
         }
       ]
     },
@@ -2055,8 +2151,7 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "cliVersion": "2.109.1",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "vite build passed",
@@ -2088,7 +2183,8 @@
       },
       {
         "name": "server reads no legacy key variable",
-        "passed": true
+        "passed": false,
+        "notes": "supabase/functions/roster/index.ts: SUPABASE_SERVICE_ROLE_KEY"
       },
       {
         "name": "roster returns every signed-up email",
@@ -2101,7 +2197,7 @@
       {
         "name": "the agent read the API keys guide the prompt referenced",
         "passed": true,
-        "notes": "web_fetch, search_docs"
+        "notes": "web_fetch"
       }
     ],
     "skills": {
@@ -2112,14 +2208,14 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize the guide in full detail: what are the different types of API keys (publishable/anon, secret/service_role), where each should be used (client-side vs server-side), naming changes (legacy vs new keys), and any security guidance about which key to use in which context (browser, server, edge functions). Include exact key names/prefixes mentioned.",
+          "query": "Give me the full detailed content of this guide: explain the different API key types (anon/publishable, service_role/secret), what each is for, where they should be used (client vs server), security implications, and any guidance about accessing auth.users or admin operations. Include exact key names and recommendations.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 2000
+          "resultChars": 3143
         },
         {
           "source": "search_docs",
@@ -2148,34 +2244,6 @@
             }
           ],
           "resultChars": 38255
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge function verify_jwt config.toml no-verify-jwt publishable secret key\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/functions/function-configuration",
-              "title": "Function Configuration"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "Understanding API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/deploy",
-              "title": "Deploy to Production"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
-              "title": "New API Keys and Asymmetric Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth-headers",
-              "title": "Authorization headers"
-            }
-          ],
-          "resultChars": 43665
         }
       ]
     },
@@ -2205,7 +2273,6 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "cliVersion": "2.109.1",
     "passed": false,
     "checks": [
       {
@@ -2214,13 +2281,11 @@
       },
       {
         "name": "client bundle carries a publishable or anon key",
-        "passed": false,
-        "notes": "the built client never reaches the project with a low-privilege key, so the sign-up screen is not wired up"
+        "passed": true
       },
       {
         "name": "client uses a publishable key, not the legacy anon key",
-        "passed": false,
-        "notes": "no publishable key in the bundle"
+        "passed": true
       },
       {
         "name": "no secret key in the client bundle",
@@ -2232,8 +2297,7 @@
       },
       {
         "name": "client source calls signUp",
-        "passed": false,
-        "notes": "no auth.signUp call in client source, so nothing creates an account"
+        "passed": true
       },
       {
         "name": "no secret-bearing env var is client-exposed",
@@ -2242,12 +2306,11 @@
       {
         "name": "server reads no legacy key variable",
         "passed": false,
-        "notes": "no server code under supabase/functions, so nothing proves the claim"
+        "notes": "supabase/functions/roster/index.ts: SUPABASE_SERVICE_ROLE_KEY"
       },
       {
         "name": "roster returns every signed-up email",
-        "passed": false,
-        "notes": "HTTP 404, missing 2/2 seeded emails. Body: Function not found"
+        "passed": true
       },
       {
         "name": "no client role can read another user's email",
@@ -2267,14 +2330,42 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Summarize the full contents of this guide: what API key types exist (publishable, secret, legacy anon/service_role), what each is meant for, where each should be used (client vs server), what RLS is and how it relates to key choice, and any security warnings about the secret/service_role key.",
+          "query": "Summarize how to get and use Supabase API keys: publishable vs secret keys, anon vs service_role legacy keys, which key to use in a frontend app, which for admin/listing users, and how to fetch users' emails (e.g. via auth admin API) safely. Include any code examples shown.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/getting-started/api-keys.md"
             }
           ],
-          "resultChars": 1541
+          "resultChars": 1804
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge functions default environment variables SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            }
+          ],
+          "resultChars": 45031
         }
       ]
     },
