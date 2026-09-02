@@ -2,9 +2,14 @@
 
 The page under test is not a source. Everything here is.
 
-Half of these need an MCP connector or private-repo access. Try the source; if the tool is missing or
-unauthorized, stop and ask for it. Then record in the plan which sources were reachable. Silently
-skipping a gated source produces a thin inventory that reads as complete.
+**Several sources are internal to Supabase.** This repository is open source, and the Linear, Slack,
+Hex, and Supacademy entries below are available only to Supabase employees. An eval planned from the
+public sources alone is a smaller artifact, and that is a supported outcome: say so in the plan rather
+than leaving the gap implicit.
+
+For a source you do have: if its tool is missing or unauthorized, stop and ask for the connector rather
+than working around it. Then record which sources were reachable. Silently skipping one produces a thin
+inventory that reads as complete.
 
 | Source | Access | How | What it gives |
 | --- | --- | --- | --- |
@@ -20,8 +25,8 @@ skipping a gated source produces a thin inventory that reads as complete.
 | External communities | Public | `WebSearch`, and `gh` on `supabase/supabase` | Failures that never reached a ticket. |
 | A question to a channel | Slack MCP | Draft it | Only when a gap looks like something a team knows and nothing on this list records it. Draft the message; do not post it. |
 
-The five public sources are enough for a usable plan. The gated ones are what turn a plausible check
-list into one with issue ids behind it.
+The public sources are enough for a usable plan. The internal ones are what turn a plausible check
+list into one with cited evidence behind it.
 
 ## Reading Slack results
 

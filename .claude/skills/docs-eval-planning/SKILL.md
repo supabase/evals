@@ -9,8 +9,8 @@ A documentation eval measures a page, not an agent. The prompt sends a user's re
 url, and the checks say whether an agent that read the page produced working code. A gap in the page
 counts as a failure.
 
-That framing is the whole difficulty. Four of these exist, and the ways they went wrong are collected
-in [references/flakiness.md](references/flakiness.md). Read it before designing checks, not after.
+That framing is the whole difficulty. The failure modes are collected in
+[references/flakiness.md](references/flakiness.md). Read it before designing checks, not after.
 
 ## What this skill produces
 
@@ -73,9 +73,9 @@ are the ones that have cost the most.
 This phase ends with a table: the check name, what it proves, what it does when the object is absent,
 whether it reads files or runs code, and the evidence it came from.
 
-Then predict which checks will saturate, and write the prediction down. On the most recent eval every
-check but one came back 6/6, because the seed labelled the answer. A plan that says which checks are
-cheap is honest about how much signal the eval carries.
+Then predict which checks will saturate, and write the prediction down. A check whose answer the seed
+labels costs an agent nothing and carries no signal. A plan that says which checks are cheap is honest
+about how much the eval measures.
 
 ## Phase 5: write the plan
 
@@ -104,9 +104,8 @@ whether anything runs. Every one of them passes for an agent that edited a confi
 **A check that runs the code** asserts the outcome. It is what stops a decorative pass, and it is
 slower and more exposed to the environment.
 
-Across the mature evals the ratio runs about six shape to four outcome. The table says which each
-check is, because the two fail for different reasons and a reviewer reading a red needs to know which
-kind they are looking at.
+The table says which each check is, because the two fail for different reasons and a reviewer reading
+a failure needs to know which kind they are looking at.
 
 ## Where the boundary sits
 

@@ -76,7 +76,7 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   **Fix.** Read the notes on the failing runs before blaming the judge. Then scope the rubric to what
   the check is worth, drop every craft requirement, and give it a tie-break.
 - **One ambitious check fails a whole eval.** An eval passes only when every check passes, so a bonus
-  check turned a page red while forty real checks were green. #224
+  check fails the whole page while every primary check passes. #224
   **Fix.** Scope a bonus check to a low bar, and rename it if the old name claimed more.
 - **Retry layers multiply.** A pair-level retry wrapping a create-level retry produced 39 attempts over
   588 seconds for one unrecoverable credential error. At high concurrency a single bad secret makes
@@ -100,7 +100,7 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   fixture after every probe that reads it.
 - **`export-results` merge never prunes.** It overwrites keys present in the new results and leaves
   stale keys alive, so renaming an eval leaves the old row beside the new one and a skipped pair keeps
-  its last recorded verdict forever. Found twice, six weeks apart, by two reviewers. #168, #108
+  its last recorded verdict. #168, #108
   **Fix.** Pass the requested pairs and drop rows that were requested but produced nothing.
 - **An empty `results/` overwrites the export with `[]`.** Easy to do by accident. #228
 - **A bot pushed refreshed results onto a measurement branch**, where the results were measured against
@@ -112,8 +112,8 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Ports.** The range is 54321 to 54329. Another project's stack holding them blocked local runs
   entirely, and one eval shipped for review having never run end to end because of it. #168, #206
   **Fix.** Preflight the ports. Both later evals open their testing steps with it.
-- **`pnpm check` needs `OPENAI_API_KEY`** and stops without it, which reads as a broken diff. The same
-  unattributed failure appears six weeks earlier. #228, #168
+- **`pnpm check` needs `OPENAI_API_KEY`** and stops without it, which reads as a broken diff.
+  #228, #168
 - **A stale local `VERCEL_OIDC_TOKEN` shadows the real one** and every sandbox create fails. #192
 - **An env-isolation assertion cannot be strict.** Vite sets `NODE_ENV` and macOS injects
   `__CF_USER_TEXT_ENCODING` even with a controlled environment, so asserting an exact key set fails.

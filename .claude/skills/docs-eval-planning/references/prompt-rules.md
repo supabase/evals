@@ -10,28 +10,23 @@ detail into seed data. Everything here is the strict reading of that for a page 
 Write the request the way the user would write it, in product terms. Never name the mechanism, the
 setting, or the concept the page teaches.
 
-The stripped words are the measurement. An agent that only writes secure policies when the prompt says
-"security" has not been served by the guide.
+The stripped words are the measurement. An agent that applies a practice only when the prompt names it
+has not been served by the page.
 
-Worked examples:
+The list is the vocabulary the page's own answer is made of: the mechanism, its settings, and the
+concepts that name them. Write it down, and check the prompt against it.
 
-| Eval | Words the prompt never says |
-| --- | --- |
-| RLS guide | RLS, policy, security, role, tenant, test |
-| API keys guide | key, publishable, secret, service role, server, expose, environment variable |
-| Connecting to Postgres | pooler, pooling, transaction, session, port, prepared statement, connection string |
-
-**Say where the code runs. Never say how to reach the service.** "I'm deploying this to Vercel
-serverless functions" is the user's own framing. "Use the transaction pooler" is the answer.
+**Say where the code runs and what it has to do. Never say how to reach the service.** The runtime and
+the task are the user's own framing. The method is the answer.
 
 **List the stripped words in the eval's `README.md`.** They creep back otherwise, one loosening at a
 time, and the next editor has no way to know they were deliberate.
 
 ## Strip from the prompt, not from everything
 
-Fixture material a user would already have on screen may carry the vocabulary. The connection eval's
-seed prints "Transaction pooler" and the port numbers, because that is what the dashboard's Connect
-panel prints, and pretending otherwise would be a stranger fixture than the real one.
+Fixture material a user would already have in front of them may carry the vocabulary. A seed that
+reproduces what a dashboard or a generated file prints is more faithful than one that strips words the
+user can already see.
 
 The line is the prompt. The prompt is the user's own words; the seed is the world the user is already
 in.
@@ -80,5 +75,6 @@ for the run that resolves it the other way.
   locally.
 - Do not add `skills: []`. The `*-no-skills` experiment variants are how a run sees the page without
   the product skills.
-- `motivation:` as a folded `>-` block, in three moves: what agents are pointed at this page for, the
-  blast radius of getting it wrong, and what the eval determines. Cite the evidence from Phase 1.
+- `motivation:` as a folded `>-` block. The motivation is the same every time: evidence that an agent
+  can read this page and perform the task correctly, with the practices the page should be teaching.
+  Say which page, what an agent gets wrong without it, and cite the evidence from Phase 1.
