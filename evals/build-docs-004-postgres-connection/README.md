@@ -28,7 +28,7 @@ The write control reads the row back with a run-scoped marker rather than trusti
 
 ## The client-lifetime check counts connections
 
-`the database client is created once per module, not per request` runs the handler six times in one process and requires one database connection. A factory called once at module scope opens one, and a client constructed per request opens six. Reading whether the `postgres()` call sits inside a function reds the first pattern, which is correct.
+`the database client is created once per module, not per request` runs the handler six times in one process and requires one database connection. A factory called once at module scope opens one, and a client constructed per request opens six. Where the `postgres()` call sits in the file does not decide it.
 
 ## The probe terminates TLS
 
