@@ -118,6 +118,11 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **An env-isolation assertion cannot be strict.** Vite sets `NODE_ENV` and macOS injects
   `__CF_USER_TEXT_ENCODING` even with a controlled environment, so asserting an exact key set fails.
   #188
+- **`pnpm format:check` fails on local artifacts that are nobody's diff.** Biome walks
+  `.claude/worktrees/`, where it hits broken symlinks, `.solution-runs/`, and the git-excluded
+  `evals/*/solutions/`, which is where a deliberate parse-error fixture lives. The failure reads as a
+  broken branch. #259
+  **Fix.** Scope Biome to the paths you touched, or add those three to `biome.json`.
 
 ## Metadata
 
