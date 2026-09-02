@@ -1,12 +1,12 @@
 # o11y Eval Suite
 
-The `o11y`-prefixed evals come from two sources: the chaos-o11y probe library (which maps Supabase failure modes to advisor lints) and the pgbot gap analysis (`pgbot-gap-analysis.md`, a cross-reference of 61 production Postgres health checks against existing advisor and eval coverage). Each eval defines an injected failure state, expected agent behavior, and a judge rubric. 32 MCP evals were validated locally against a PGlite-backed harness; 16 pgbot-derived evals and 11 CLI stubs are defined but not yet run. Probe YAML source files live in `.context/probes/`; conversion decisions and tradeoffs are documented in `PROBE-CONVERSION.md`.
+The `o11y`-prefixed evals come from three sources: the chaos-o11y probe library (which maps Supabase failure modes to advisor lints), the pgbot gap analysis (`pgbot-gap-analysis.md`, a cross-reference of 61 production Postgres health checks against existing advisor and eval coverage), and a Data API / PostgREST investigation gap analysis (motivated by real customer cases where runtime API performance problems were not caught by static linting). Each eval defines an injected failure state, expected agent behavior, and a judge rubric. 32 MCP evals were validated locally against a PGlite-backed harness; 16 pgbot-derived evals, 4 Data API evals, and 11 CLI stubs are defined but not yet run. Probe YAML source files live in `.context/probes/`; conversion decisions and tradeoffs are documented in `PROBE-CONVERSION.md`.
 
 ---
 
 ## MCP evals — validated locally
 
-54 evals total. 38 previously defined (32 validated, 5 fail as valid signal, 1 blocked); 16 pgbot-derived (not yet validated).
+58 evals total. 38 previously defined (32 validated, 5 fail as valid signal, 1 blocked); 16 pgbot-derived (not yet validated); 4 Data API / PostgREST (not yet validated).
 
 | n | # | Probe | Product | Eval dir | Advisor | Local result |
 |---|---|---|---|---|---|---|
@@ -64,6 +64,10 @@ The `o11y`-prefixed evals come from two sources: the chaos-o11y probe library (w
 | 52 | — | high_rollback_ratio | Database | o11y-investigate-postgres-high-rollback-ratio | pgbot | not validated |
 | 53 | — | autovacuum_starved | Database | o11y-investigate-postgres-autovacuum-starved | pgbot | not validated |
 | 54 | — | replica_lag_time | Database | o11y-investigate-postgres-replica-lag | pgbot | not validated |
+| 55 | — | api_slow_endpoint | PostgREST | o11y-investigate-api-slow-endpoint | data-api | not validated |
+| 56 | — | api_high_load_source | PostgREST | o11y-investigate-api-high-load-source | data-api | not validated |
+| 57 | — | api_rls_initplan | PostgREST | o11y-investigate-api-rls-initplan | data-api | not validated |
+| 58 | — | api_embedding_nplus1 | PostgREST | o11y-investigate-api-embedding-nplus1 | data-api | not validated |
 
 ---
 
@@ -97,6 +101,7 @@ The `o11y`-prefixed evals come from two sources: the chaos-o11y probe library (w
 | p0–p3 | No advisor lint exists for this pattern; number is a community-assigned priority (p0 = highest urgency) |
 | PR #36781 | Coverage tracked in an in-progress platform PR |
 | pgbot | Eval derived from the pgbot gap analysis (`pgbot-gap-analysis.md`); covers checks that pgbot surfaces but no Splinter advisor or prior o11y eval exists for |
+| data-api | Eval targeting PostgREST / Data API runtime performance gaps — correlates API request logs with pg_stat_statements to diagnose slow endpoints, load attribution, RLS initplan, and resource embedding N+1 |
 
 ---
 
