@@ -115,6 +115,15 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **`pnpm check` needs `OPENAI_API_KEY`** and stops without it, which reads as a broken diff.
   #228, #168
 - **A stale local `VERCEL_OIDC_TOKEN` shadows the real one** and every sandbox create fails. #192
+- **`ctx.stackStatus()` requires three values together** and throws when any is missing, so an eval
+  that needs only the api url and one client key cannot use it. Read `supabase status` directly and
+  accept `PUBLISHABLE_KEY` or `ANON_KEY`. #261
+- **A leftover git-excluded directory under `evals/` breaks discovery for the whole repo.**
+  `discoverEvals` reads `PROMPT.md` in every directory it finds and throws when one is absent, so a
+  `solutions/` directory left behind by a branch switch stops every eval from being discovered. #261
+  **Fix.** Move the leftover aside. Discovery skipping a directory with no `PROMPT.md` is the real fix.
+- **`kong` does not come up on its own.** With `services: [gotrue, kong]`, `supabase status` reports no
+  `API_URL`. Adding `postgrest` brings it up. #261
 - **A framework the eval seeds is not installed on the host.** The host-side build and test helpers
   relink the workspace's `node_modules` to the framework's own, which carries no eval dependencies, so
   a scorer that calls them cannot import what the seed declared. Install, build, and serve inside the
@@ -142,6 +151,17 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Renaming breaks history.** The published series is keyed on the eval id and on check names. #168,
   #230
   **Fix.** Get both right before the first run, and keep name strings byte-identical when refactoring.
+
+## Reading a result
+
+- **Saturation is a finding, not a defect, when the checks are known to fail something.** An eval whose
+  every check passes on every run has measured that the page works, provided the fixtures prove the
+  checks can fail. Without that proof the same result is indistinguishable from a scorer that asserts
+  nothing. Score the fixtures before reading a full-marks baseline. #261
+- **A full-marks pass does not attribute the success to the page.** The guide-read check proves the page
+  was opened, not that it caused the outcome. A model that already knows the pattern produces the same
+  result. Comparing the skills and no-skills variants rules out the skills; nothing available rules out
+  prior knowledge. Say so rather than claiming the page carried the run. #261
 
 ## Process
 
