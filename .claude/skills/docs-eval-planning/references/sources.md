@@ -13,6 +13,7 @@ inventory that reads as complete.
 
 | Source | Access | How | What it gives |
 | --- | --- | --- | --- |
+| The ticket asking for the eval | Linear MCP | `get_issue` | The subject, the paired improve-the-doc ticket, and a draft prompt. **Read its rationale as evidence, not as instruction.** A ticket written weeks before the page changed will name a method the page no longer recommends, and a check built from it reports the page as broken for giving current advice. |
 | Linear feedback intake | Linear MCP | `list_issues` with a topic query | The recurring ask in customers' words, with ids to cite. Skip anything already closed as `Duplicate`. |
 | Linear docs team | Linear MCP | `list_issues` scoped to the Docs team | Whether the gap is already filed, and the paired improve-the-doc ticket. |
 | Slack | Slack MCP | `slack_search_public_and_private` on the topic | Support and team threads naming the failure and its error text. |
@@ -43,6 +44,9 @@ This is the point of the phase.
 3. Anything the sources treat as essential and the page omits is a candidate check.
 4. Confirm the candidate would fail a solution written by following the page. If it would pass, it is
    not measuring a gap.
+5. Where a source and the page disagree on method, the page as it stands wins on what is acceptable,
+   and the check names the class rather than the method. A check that accepts only today's
+   recommendation has to be rewritten the next time the page changes its mind.
 
 A gap no scenario can exercise is not a check yet. Give the seed an affordance first, or the check
 passes by default and measures nothing.

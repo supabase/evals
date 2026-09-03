@@ -60,10 +60,13 @@ hit carries the guide's url in its result rather than its request.
 Call `EnterPlanMode` first. Everything in the gathering phase is read-only, and plan mode is what
 enforces that.
 
-Then read `CONTRIBUTING.md` and the guide under test, as its `.md` variant. `CONTRIBUTING.md` carries
-the repo's rules for any eval: suite selection, the folder shape, the `motivation:` requirement, prompt
-discipline, scorer discipline, and how to refresh results in CI. This skill defers to it and does not
-restate it. Where this skill goes further, it says so.
+Then read three things:
+
+1. `CONTRIBUTING.md`, which carries the repo's rules for any eval: suite selection, the folder shape,
+   the `motivation:` requirement, prompt discipline, scorer discipline, and how to refresh results in
+   CI. This skill defers to it and does not restate it. Where this skill goes further, it says so.
+2. The guide under test, as its `.md` variant.
+3. [references/flakiness.md](references/flakiness.md), before designing anything rather than after.
 
 ## Phase 1: gather the evidence
 
@@ -81,13 +84,34 @@ the connector rather than working around it, then record in the plan which sourc
 This phase ends with a failure-point inventory: one bullet per finding, each carrying an issue id, a
 thread, or a url. A finding with no source does not go in.
 
-## Phase 2: pick the one claim
+## Phase 2: pick the one claim, and confirm it can be measured
 
 Name the single thing the guide has to transmit, in the user's terms rather than the product's.
 
 One claim, not three. An eval that measures several unrelated things reports which of them an agent
 got, and a docs ticket cannot act on that. It also means every check hangs off one subject, which is
 what makes a saturated check obvious later.
+
+A dense page yields ten candidates, all evidenced. Pick on consequence: the failure that costs a user
+the most, and among equals the one the page itself warns about. A page that carries a danger callout
+has already named its own worst case.
+
+**Then confirm the harness can measure it, before designing a single check.** A claim the harness
+cannot observe is not the claim, however well evidenced. Three questions, and read the code for the
+answers rather than assuming:
+
+- **Does the end state exist somewhere a scorer can reach?** A file in the workspace, a row in the
+  database, a response from a running process. If the correct answer is something the platform supplies
+  at deploy time, decide now where the seed lets it land.
+- **Can the scorer run whatever has to run?** A framework the eval seeds is installed and built inside
+  the sandbox with `ctx.exec`, not on the host: the host-side build helpers relink the workspace's
+  `node_modules` to the framework's, which does not carry an eval's own dependencies. Check whether any
+  existing eval runs the same toolchain, and treat a first as a risk to state in the plan.
+- **What is the time budget?** The agent's timeout does not bound the scorer, so a long install and
+  build costs wall-clock rather than the agent's budget. Per-command limits are yours to set.
+
+Write the answers into the plan. A feasibility problem found here is a design change; found in Phase 4
+it is a rewrite.
 
 ## Phase 3: draft the prompt and the seed
 

@@ -115,6 +115,14 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **`pnpm check` needs `OPENAI_API_KEY`** and stops without it, which reads as a broken diff.
   #228, #168
 - **A stale local `VERCEL_OIDC_TOKEN` shadows the real one** and every sandbox create fails. #192
+- **A framework the eval seeds is not installed on the host.** The host-side build and test helpers
+  relink the workspace's `node_modules` to the framework's own, which carries no eval dependencies, so
+  a scorer that calls them cannot import what the seed declared. Install, build, and serve inside the
+  sandbox with `ctx.exec` instead. #259
+  **Fix.** Make the install its own check, so a failure costs only the checks that needed it.
+- **A first-of-its-kind toolchain in a scorer is a risk, not a detail.** Before designing checks around
+  one, confirm an existing eval runs it, and say in the plan when none does. The agent's timeout does
+  not bound the scorer, so wall-clock rather than budget is the cost. #259
 - **An env-isolation assertion cannot be strict.** Vite sets `NODE_ENV` and macOS injects
   `__CF_USER_TEXT_ENCODING` even with a controlled environment, so asserting an exact key set fails.
   #188
