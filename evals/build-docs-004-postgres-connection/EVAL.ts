@@ -8,7 +8,8 @@ import {
 import { fileChecks, loadWorkspace } from './connection.js';
 import { runProbes } from './probes.js';
 
-const GUIDE_PATH = 'guides/database/connecting-to-postgres';
+const GUIDE_PATH =
+  'docs-git-docs-connecting-to-postgres-pool-size-supabase.vercel.app/docs/guides/database/connecting-to-postgres';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {

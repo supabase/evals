@@ -71,7 +71,11 @@ function extractGraphqlQuery(
  */
 function isSupabaseApexUrl(value: string): boolean {
   try {
-    return new URL(value).hostname === 'supabase.com';
+    const { hostname } = new URL(value);
+    return (
+      hostname === 'supabase.com' ||
+      /^docs-git-[a-z0-9-]+-supabase\.vercel\.app$/.test(hostname)
+    );
   } catch {
     return false;
   }
