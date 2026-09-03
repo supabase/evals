@@ -11,7 +11,7 @@ check reds correct work.
 `.env.example`, a config file, a named file the contract points at. If there is nowhere for the answer
 to go, there is no check yet.
 
-## 2. Behaviour over structure
+## 2. Behavior over structure
 
 A check that reads where code sits fails correct refactorings. Count the effect instead.
 
@@ -55,8 +55,8 @@ project was given and fail everything else.
 
 ## 7. Name the check for what it proves
 
-Not for what you meant. A name that claims a class while the check proves a few members of it is a
-false name.
+Not for what you meant. A name that claims a class is false when the check proves only a few members
+of it.
 
 The published results series is keyed on check names, so renaming one breaks history. Get the name
 right before the first run.
@@ -66,14 +66,14 @@ right before the first run.
 Transport security, address family, and port availability can each fail correct work, and the eval then
 reports the environment rather than the page.
 
-Two ways out. Make the harness support the correct behaviour, or declare the claim unscored in the
+Two ways out. Make the harness support the correct behavior, or declare the claim unscored in the
 `README.md` and say why.
 
 The same trap catches a check that scores something the platform decides rather than something the page
 says. A pinned CLI version or a runtime default is not the subject under test, and a check on one
 reports an upgrade as a docs change.
 
-## 9. Predict which checks will saturate
+## 9. Predict which checks saturate
 
 If the seed labels the answer, the check is free and carries no signal.
 

@@ -149,9 +149,9 @@ the whole page.
 This phase ends with a table: the check name, what it proves, what it does when the object is absent,
 whether it reads files or runs code, and the evidence it came from.
 
-Then predict which checks will saturate, and write the prediction down. A check whose answer the seed
-labels costs an agent nothing and carries no signal. A plan that says which checks are cheap is honest
-about how much the eval measures.
+Then name the checks you expect to saturate, and write the prediction down. A check whose answer the
+seed labels costs an agent nothing and carries no signal. A plan that says which checks are cheap is
+honest about how much the eval measures.
 
 ## Phase 5: write the plan
 
@@ -174,8 +174,8 @@ The plan's last step is to append whatever broke to [references/flakiness.md](re
 once the baseline lands, with the PR number.
 
 This is a plan step rather than advice, because the file is only worth having if it grows. Ask
-reviewers to write findings into it directly rather than leaving them in a review thread where the
-next author will not look.
+reviewers to write findings into it directly rather than leaving them in a review thread, where the
+next author does not look.
 
 ## Content shape against end-to-end proof
 

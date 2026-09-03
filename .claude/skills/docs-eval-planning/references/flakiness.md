@@ -42,13 +42,13 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   told them to, so nothing in the workspace carried their choice and the central check red all six
   runs. One of them named the right answer in a code comment. #257
   **Fix.** Give the choice somewhere to land in the seed.
-- **The environment cannot support the correct behaviour.** A handler setting `ssl: 'require'` could
+- **The environment cannot support the correct behavior.** A handler setting `ssl: 'require'` could
   not reach a local database that speaks no TLS, so both end-to-end checks red on a more correct
   solution. #257
   **Fix.** Terminate TLS in front of the database, or declare the claim unscored.
 - **The sandbox image made the task unwinnable.** `npm install -g` failed with `EACCES` because the
   image ran as a user with no writable global prefix, so the agent could not complete step one. #108
-  **Fix.** Change the image, and add a test that locks the behaviour in.
+  **Fix.** Change the image, and add a test that locks the behavior in.
 - **A prompt ambiguity the checks resolve one way.** An agent gated an endpoint on being signed in,
   which the prompt never ruled out, and it red in CI. #212
   **Fix.** Either the check accepts it, or the prompt says which it wants.
@@ -102,7 +102,7 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   stale keys alive, so renaming an eval leaves the old row beside the new one and a skipped pair keeps
   its last recorded verdict. #168, #108
   **Fix.** Pass the requested pairs and drop rows that were requested but produced nothing.
-- **An empty `results/` overwrites the export with `[]`.** Easy to do by accident. #228
+- **An empty `results/` overwrites the export with `[]`** rather than refusing. #228
 - **A bot pushed refreshed results onto a measurement branch**, where the results were measured against
   a preview url rather than the published page. #218
   **Fix.** Do not refresh results from a scratch branch.

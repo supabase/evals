@@ -43,7 +43,7 @@ rather than on what you already know.
 Without it, a pass is evidence about the model rather than the page. The older, weaker form is "Read
 this guide first and follow it". Use the sentence above.
 
-## The REFERENCE block
+## The `REFERENCE` block
 
 Bare. No colon, no markdown link, no code fence.
 

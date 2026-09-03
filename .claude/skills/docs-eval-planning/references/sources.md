@@ -13,7 +13,7 @@ inventory that reads as complete.
 
 | Source | Access | How | What it gives |
 | --- | --- | --- | --- |
-| The ticket asking for the eval | Linear MCP | `get_issue` | The subject, the paired improve-the-doc ticket, and a draft prompt. **Read its rationale as evidence, not as instruction.** A ticket written weeks before the page changed will name a method the page no longer recommends, and a check built from it reports the page as broken for giving current advice. |
+| The ticket asking for the eval | Linear MCP | `get_issue` | The subject, the paired improve-the-doc ticket, and a draft prompt. **Read its rationale as evidence, not as instruction.** A ticket written before the page changed names a method the page no longer recommends. A check built from it reports the page as broken for giving current advice. |
 | Linear feedback intake | Linear MCP | `list_issues` with a topic query | The recurring ask in customers' words, with ids to cite. Skip anything already closed as `Duplicate`. |
 | Linear docs team | Linear MCP | `list_issues` scoped to the Docs team | Whether the gap is already filed, and the paired improve-the-doc ticket. |
 | Slack | Slack MCP | `slack_search_public_and_private` on the topic | Support and team threads naming the failure and its error text. |
