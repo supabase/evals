@@ -1333,6 +1333,1018 @@
       "modelId": "claude-sonnet-5",
       "reasoningEffort": "high"
     },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-733164a7@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-733164a7@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Extract the full guide content verbatim, including all code samples, for creating a Supabase client in Next.js server-side auth (App Router): the utils/supabase/client.ts, utils/supabase/server.ts, and middleware.ts / utils/supabase/middleware.ts code, including package install instructions and env variable names used.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 1412
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"creating a client Next.js server-side auth utils/supabase/server.ts middleware\", limit: 5) { nodes { title href content ... on Guide { subsections { nodes { title href content } } } } } } ",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#install",
+              "title": "Install"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#caching-considerations",
+              "title": "Caching considerations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#create-a-client",
+              "title": "Create a client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#set-environment-variables",
+              "title": "Set environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#confirmation-endpoint",
+              "title": "Confirmation endpoint"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#account-page",
+              "title": "Account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#sign-out",
+              "title": "Sign out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#profile-photos",
+              "title": "Profile photos"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-an-upload-widget",
+              "title": "Create an upload widget"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#update-the-account-form",
+              "title": "Update the account form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#launch",
+              "title": "Launch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#see-also",
+              "title": "See also"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#project-setup",
+              "title": "Project setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-a-project",
+              "title": "Create a project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-the-database-schema",
+              "title": "Set up the database schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#building-the-app",
+              "title": "Building the app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#initialize-a-nextjs-app",
+              "title": "Initialize a Next.js app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#app-styling-optional",
+              "title": "App styling (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-server-side-auth-package",
+              "title": "Supabase Server-Side Auth package"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-utilities",
+              "title": "Supabase utilities"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#nextjs-proxy",
+              "title": "Next.js proxy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#summary-of-the-methods",
+              "title": "Summary of the methods"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-a-login-page",
+              "title": "Set up a login page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#login-and-signup-form",
+              "title": "Login and signup form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#email-template",
+              "title": "Email template"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-migrate-from-supabase-auth-helpers-to-ssr-package-5NRunM",
+              "title": "How to Migrate from Supabase Auth Helpers to SSR package"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#supabasesupabase-js",
+              "title": "@supabase/supabase-js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#supabasessr",
+              "title": "@supabase/ssr"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#supabaseserver",
+              "title": "@supabase/server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#advanced-combining-supabaseserver-and-supabasessr",
+              "title": "Advanced: Combining @supabase/server and @supabase/ssr"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#which-package-to-use",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#app-styling-optional",
+              "title": "App styling (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#project-setup",
+              "title": "Project setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#create-a-project",
+              "title": "Create a project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#set-up-the-database-schema",
+              "title": "Set up the database schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#building-the-app",
+              "title": "Building the app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#initialize-a-svelte-app",
+              "title": "Initialize a Svelte app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#creating-a-supabase-client-for-ssr",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#set-up-a-login-page",
+              "title": "Set up a login page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#email-template",
+              "title": "Email template"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#confirmation-endpoint",
+              "title": "Confirmation endpoint"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#authentication-error-page",
+              "title": "Authentication error page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#account-page",
+              "title": "Account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#profile-photos",
+              "title": "Profile photos"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#create-an-upload-widget",
+              "title": "Create an upload widget"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#update-the-account-page",
+              "title": "Update the account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#launch",
+              "title": "Launch!"
+            }
+          ],
+          "resultChars": 320119
+        }
+      ]
+    },
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5/build-docs-005-server-side-auth/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-c7df6602@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-c7df6602@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch, web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Give me the full content of this page verbatim, including all code blocks for Next.js App Router (client.ts, server.ts, middleware.ts patterns), package install instructions, and any warnings about cookie handling.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 1551
+        },
+        {
+          "source": "web_fetch",
+          "query": "Reproduce the exact, complete, verbatim code for every Next.js code block on this page (utils/supabase/client.ts, utils/supabase/server.ts, middleware.ts, utils/supabase/middleware.ts, and any others), including all imports, comments, and cookie handling logic exactly as written. Do not summarize or paraphrase — output the raw code.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 957
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Setting up Server-Side Auth for Next.js creating a client middleware\", limit: 3) { nodes { title href content subsections { nodes { title href content } } } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Setting up Server-Side Auth for Next.js creating a client middleware\", limit: 3) { nodes { title href content ... on Guide { subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#set-environment-variables",
+              "title": "Set environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#create-a-client",
+              "title": "Create a client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#caching-considerations",
+              "title": "Caching considerations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#install",
+              "title": "Install"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide",
+              "title": "Advanced guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#which-authentication-flows-have-pkce-support",
+              "title": "Which authentication flows have PKCE support?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#vercel-fluid-compute-in-memory-client-sharing",
+              "title": "Vercel Fluid compute (in-memory client sharing)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#nuxt-server-middleware",
+              "title": "Nuxt server middleware"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#nextjs-middleware",
+              "title": "Next.js middleware"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#cdn-and-reverse-proxy-caching",
+              "title": "CDN and reverse proxy caching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#isr-incremental-static-regeneration",
+              "title": "ISR (incremental static regeneration)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#can-i-use-server-side-rendering-with-a-cdn-or-cache",
+              "title": "Can I use server-side rendering with a CDN or cache?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#what-should-i-use-for-the-samesite-property",
+              "title": "What should I use for the SameSite property?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#should-i-set-a-shorter-max-age-parameter-on-the-cookies",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#my-server-is-getting-invalid-refresh-token-errors-whats-going-on",
+              "title": "My server is getting invalid refresh token errors. What's going on?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#how-do-i-make-the-cookies-httponly",
+              "title": "How do I make the cookies HttpOnly?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#no-session-on-the-server-side-with-nextjs-route-prefetching",
+              "title": "No session on the server side with Next.js route prefetching?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#frequently-asked-questions",
+              "title": "Frequently asked questions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#how-it-works",
+              "title": "How it works"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#nextjs-proxy",
+              "title": "Next.js proxy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#project-setup",
+              "title": "Project setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-a-project",
+              "title": "Create a project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-the-database-schema",
+              "title": "Set up the database schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#building-the-app",
+              "title": "Building the app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#initialize-a-nextjs-app",
+              "title": "Initialize a Next.js app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#app-styling-optional",
+              "title": "App styling (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-server-side-auth-package",
+              "title": "Supabase Server-Side Auth package"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-utilities",
+              "title": "Supabase utilities"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#summary-of-the-methods",
+              "title": "Summary of the methods"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-a-login-page",
+              "title": "Set up a login page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#login-and-signup-form",
+              "title": "Login and signup form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#email-template",
+              "title": "Email template"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#confirmation-endpoint",
+              "title": "Confirmation endpoint"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#account-page",
+              "title": "Account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#sign-out",
+              "title": "Sign out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#profile-photos",
+              "title": "Profile photos"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-an-upload-widget",
+              "title": "Create an upload widget"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#update-the-account-form",
+              "title": "Update the account form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#launch",
+              "title": "Launch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#see-also",
+              "title": "See also"
+            }
+          ],
+          "resultChars": 198860
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"getClaims JWT claims email sub payload\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/oauth-flows",
+              "title": "OAuth 2.1 Flows"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-getclaims",
+              "title": "getClaims()"
+            }
+          ],
+          "resultChars": 62129
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"javascript getClaims auth reference\", limit: 5) { nodes { title href content language ... on ClientLibraryFunctionReference { methodName language } } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"javascript getClaims auth reference\", limit: 5) { nodes { title href content ... on ClientLibraryFunctionReference { methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-react",
+              "title": "Build a User Management App with React"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-getclaims"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-getclaims",
+              "title": "getClaims()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            }
+          ],
+          "resultChars": 40836
+        }
+      ]
+    },
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5/build-docs-005-server-side-auth/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-e8c8c39a@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-e8c8c39a@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch, web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Extract the full guide content: how to create Supabase clients for server-side rendering in Next.js (App Router), including installing @supabase/ssr and @supabase/supabase-js, environment variables used, the browser client, the server client with cookie handling (getAll/setAll), and the middleware setup for refreshing tokens. Include full code samples verbatim.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 2370
+        },
+        {
+          "source": "web_fetch",
+          "query": "This page contains several TypeScript/JavaScript code blocks for Next.js: a utils/supabase/client.ts file, a utils/supabase/server.ts file, and a middleware.ts / utils/supabase/middleware.ts file. Reproduce EVERY code block from the page completely verbatim, in order, with a heading before each indicating which file/section it belongs to. Do not summarize or omit any lines - include full imports, full function bodies, and all comments exactly as written.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 1593
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"creating a supabase client for SSR Next.js utils/supabase/client.ts utils/supabase/server.ts middleware\", limit: 5) { nodes { title href ... on Guide { content subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#install",
+              "title": "Install"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#set-environment-variables",
+              "title": "Set environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#create-a-client",
+              "title": "Create a client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#caching-considerations",
+              "title": "Caching considerations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-a-project",
+              "title": "Create a project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-the-database-schema",
+              "title": "Set up the database schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#building-the-app",
+              "title": "Building the app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#initialize-a-nextjs-app",
+              "title": "Initialize a Next.js app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#app-styling-optional",
+              "title": "App styling (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-server-side-auth-package",
+              "title": "Supabase Server-Side Auth package"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-utilities",
+              "title": "Supabase utilities"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#nextjs-proxy",
+              "title": "Next.js proxy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#summary-of-the-methods",
+              "title": "Summary of the methods"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-a-login-page",
+              "title": "Set up a login page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#login-and-signup-form",
+              "title": "Login and signup form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#email-template",
+              "title": "Email template"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#confirmation-endpoint",
+              "title": "Confirmation endpoint"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#account-page",
+              "title": "Account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#sign-out",
+              "title": "Sign out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#profile-photos",
+              "title": "Profile photos"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-an-upload-widget",
+              "title": "Create an upload widget"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#update-the-account-form",
+              "title": "Update the account form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#launch",
+              "title": "Launch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#see-also",
+              "title": "See also"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#project-setup",
+              "title": "Project setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-migrate-from-supabase-auth-helpers-to-ssr-package-5NRunM",
+              "title": "How to Migrate from Supabase Auth Helpers to SSR package"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#initialize-a-svelte-app",
+              "title": "Initialize a Svelte app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#app-styling-optional",
+              "title": "App styling (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#creating-a-supabase-client-for-ssr",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#set-up-a-login-page",
+              "title": "Set up a login page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#email-template",
+              "title": "Email template"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#set-up-the-database-schema",
+              "title": "Set up the database schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#confirmation-endpoint",
+              "title": "Confirmation endpoint"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#authentication-error-page",
+              "title": "Authentication error page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#account-page",
+              "title": "Account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#profile-photos",
+              "title": "Profile photos"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#create-an-upload-widget",
+              "title": "Create an upload widget"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#update-the-account-page",
+              "title": "Update the account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#launch",
+              "title": "Launch!"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#project-setup",
+              "title": "Project setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#create-a-project",
+              "title": "Create a project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#building-the-app",
+              "title": "Building the app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers",
+              "title": "Migrating to the SSR package from Auth Helpers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers#creating-a-client",
+              "title": "Creating a client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers#replacing-supabase-packages",
+              "title": "Replacing Supabase packages"
+            }
+          ],
+          "resultChars": 302629
+        }
+      ]
+    },
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5/build-docs-005-server-side-auth/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
     "eval": "build-functions-006-dual-auth-with-server",
     "stage": "build",
     "product": [
@@ -5033,6 +6045,733 @@
     "promptSourcePath": "evals/build-docs-003-api-keys-guide/PROMPT.md",
     "run": 3,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-003-api-keys-guide/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-6ab1b0eb@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-6ab1b0eb@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Give me the full detailed instructions and code samples for setting up Supabase server-side auth clients in a Next.js app, including: installing packages, creating browser client, creating server client, middleware setup for refreshing tokens, and any environment variable names used. Include the exact code for each file shown.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 2876
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Next.js create Supabase client browser server middleware cookies getAll setAll\", limit: 5) { nodes { title href content ... on Guide { subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#install",
+              "title": "Install"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#set-environment-variables",
+              "title": "Set environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#create-a-client",
+              "title": "Create a client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#caching-considerations",
+              "title": "Caching considerations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide",
+              "title": "Advanced guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#nextjs-middleware",
+              "title": "Next.js middleware"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#cdn-and-reverse-proxy-caching",
+              "title": "CDN and reverse proxy caching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#isr-incremental-static-regeneration",
+              "title": "ISR (incremental static regeneration)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#can-i-use-server-side-rendering-with-a-cdn-or-cache",
+              "title": "Can I use server-side rendering with a CDN or cache?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#which-authentication-flows-have-pkce-support",
+              "title": "Which authentication flows have PKCE support?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#vercel-fluid-compute-in-memory-client-sharing",
+              "title": "Vercel Fluid compute (in-memory client sharing)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#nuxt-server-middleware",
+              "title": "Nuxt server middleware"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#how-it-works",
+              "title": "How it works"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#frequently-asked-questions",
+              "title": "Frequently asked questions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#no-session-on-the-server-side-with-nextjs-route-prefetching",
+              "title": "No session on the server side with Next.js route prefetching?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#how-do-i-make-the-cookies-httponly",
+              "title": "How do I make the cookies HttpOnly?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#my-server-is-getting-invalid-refresh-token-errors-whats-going-on",
+              "title": "My server is getting invalid refresh token errors. What's going on?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#should-i-set-a-shorter-max-age-parameter-on-the-cookies",
+              "title": "Should I set a shorter Max-Age parameter on the cookies?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/advanced-guide#what-should-i-use-for-the-samesite-property",
+              "title": "What should I use for the SameSite property?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#which-package-to-use",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#supabasesupabase-js",
+              "title": "@supabase/supabase-js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#supabasessr",
+              "title": "@supabase/ssr"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#supabaseserver",
+              "title": "@supabase/server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#advanced-combining-supabaseserver-and-supabasessr",
+              "title": "Advanced: Combining @supabase/server and @supabase/ssr"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#sign-out",
+              "title": "Sign out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#project-setup",
+              "title": "Project setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-a-project",
+              "title": "Create a project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-the-database-schema",
+              "title": "Set up the database schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#building-the-app",
+              "title": "Building the app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#initialize-a-nextjs-app",
+              "title": "Initialize a Next.js app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#app-styling-optional",
+              "title": "App styling (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-server-side-auth-package",
+              "title": "Supabase Server-Side Auth package"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-utilities",
+              "title": "Supabase utilities"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#nextjs-proxy",
+              "title": "Next.js proxy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#summary-of-the-methods",
+              "title": "Summary of the methods"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-a-login-page",
+              "title": "Set up a login page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#login-and-signup-form",
+              "title": "Login and signup form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#email-template",
+              "title": "Email template"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#confirmation-endpoint",
+              "title": "Confirmation endpoint"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#account-page",
+              "title": "Account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#profile-photos",
+              "title": "Profile photos"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-an-upload-widget",
+              "title": "Create an upload widget"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#update-the-account-form",
+              "title": "Update the account form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#launch",
+              "title": "Launch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#see-also",
+              "title": "See also"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#launch",
+              "title": "Launch!"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#update-the-account-page",
+              "title": "Update the account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#create-an-upload-widget",
+              "title": "Create an upload widget"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#profile-photos",
+              "title": "Profile photos"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#account-page",
+              "title": "Account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#authentication-error-page",
+              "title": "Authentication error page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#confirmation-endpoint",
+              "title": "Confirmation endpoint"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#email-template",
+              "title": "Email template"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#set-up-a-login-page",
+              "title": "Set up a login page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#creating-a-supabase-client-for-ssr",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#app-styling-optional",
+              "title": "App styling (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#initialize-a-svelte-app",
+              "title": "Initialize a Svelte app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#building-the-app",
+              "title": "Building the app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#set-up-the-database-schema",
+              "title": "Set up the database schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#create-a-project",
+              "title": "Create a project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit#project-setup",
+              "title": "Project setup"
+            }
+          ],
+          "resultChars": 401676
+        }
+      ]
+    },
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-005-server-side-auth/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-d97a3b9d@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-d97a3b9d@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, utils/supabase/middleware.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in utils/supabase/middleware.ts, utils/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Extract the full guide content: all code samples, file paths, package names, and instructions for setting up Supabase server-side auth clients in Next.js (App Router), including middleware setup for keeping users signed in across page navigations. Include the exact code for utils/supabase/client.ts, utils/supabase/server.ts, and middleware.ts / utils/supabase/middleware.ts.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 3962
+        }
+      ]
+    },
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-005-server-side-auth/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-82231788@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-82231788@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": true,
+        "notes": "web_fetch, web_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "Extract the full guide content: how to create Supabase client for server-side Next.js (App Router), including code for utils/supabase/client.ts, utils/supabase/server.ts, middleware.ts, and any package install instructions. Include exact code snippets verbatim.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 1808
+        },
+        {
+          "source": "web_fetch",
+          "query": "Output the raw markdown content verbatim, especially all code blocks under any Next.js tab/section, including full contents for utils/supabase/client.ts, utils/supabase/server.ts, and middleware.ts / utils/supabase/middleware.ts. Do not summarize or omit anything - reproduce exact code.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 1883
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Creating a Supabase client for Next.js SSR client server middleware utility functions\", limit: 5) { nodes { title href content ... on Guide { subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#install",
+              "title": "Install"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#set-environment-variables",
+              "title": "Set environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#create-a-client",
+              "title": "Create a client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#caching-considerations",
+              "title": "Caching considerations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers",
+              "title": "Migrating to the SSR package from Auth Helpers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers#next-steps",
+              "title": "Next steps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers#creating-a-client",
+              "title": "Creating a client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers#replacing-supabase-packages",
+              "title": "Replacing Supabase packages"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-a-project",
+              "title": "Create a project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-the-database-schema",
+              "title": "Set up the database schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#get-api-details",
+              "title": "Get API details"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#building-the-app",
+              "title": "Building the app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#initialize-a-nextjs-app",
+              "title": "Initialize a Next.js app"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#app-styling-optional",
+              "title": "App styling (optional)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-server-side-auth-package",
+              "title": "Supabase Server-Side Auth package"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#supabase-utilities",
+              "title": "Supabase utilities"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#nextjs-proxy",
+              "title": "Next.js proxy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#summary-of-the-methods",
+              "title": "Summary of the methods"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#set-up-a-login-page",
+              "title": "Set up a login page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#login-and-signup-form",
+              "title": "Login and signup form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#email-template",
+              "title": "Email template"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#confirmation-endpoint",
+              "title": "Confirmation endpoint"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#account-page",
+              "title": "Account page"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#sign-out",
+              "title": "Sign out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#profile-photos",
+              "title": "Profile photos"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#create-an-upload-widget",
+              "title": "Create an upload widget"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#update-the-account-form",
+              "title": "Update the account form"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#launch",
+              "title": "Launch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#see-also",
+              "title": "See also"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#project-setup",
+              "title": "Project setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-migrate-from-supabase-auth-helpers-to-ssr-package-5NRunM",
+              "title": "How to Migrate from Supabase Auth Helpers to SSR package"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-do-you-troubleshoot-nextjs---supabase-auth-issues-riMCZV",
+              "title": "How do you troubleshoot Next.js - Supabase Auth issues?"
+            }
+          ],
+          "resultChars": 239073
+        }
+      ]
+    },
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-005-server-side-auth/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
