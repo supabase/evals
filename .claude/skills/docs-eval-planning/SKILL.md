@@ -55,10 +55,13 @@ Every page-under-test eval carries a check that the referenced page was read wit
 resolves the url from the harness's docs result rather than the raw tool call, because a `search_docs`
 hit carries the guide's url in its result rather than its request.
 
-## Phase 0: plan mode and repo rules
+## Phase 0: read-only, and the repo rules
 
-Call `EnterPlanMode` first. Everything in the gathering phase is read-only, and plan mode is what
-enforces that.
+**Write nothing in this phase or the next four.** Gathering, choosing the claim, drafting the prompt,
+and designing the checks are all reading. The output is a plan.
+
+Where the harness offers a planning mode that enforces read-only, enter it first and let it hold the
+line. In Claude Code that is `EnterPlanMode`. Where it does not, the discipline is yours to keep.
 
 Then read three things:
 
