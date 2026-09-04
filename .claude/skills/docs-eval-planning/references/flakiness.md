@@ -31,6 +31,13 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   matches on `includes`, so a fetch of the published page satisfies a check meant to prove the preview
   was read. #218
   **Fix.** Match the full preview host, not the path.
+- **A probe asserting a request was refused passes on an error it caused itself.** An anonymous insert
+  sent `owner_id` and `title` against a schema whose `cadence` is `not null`, so Postgres rejected it
+  as a not-null violation and the check counted any error as a refusal. A wide-open table scored as
+  protected, and the fixture that caught it was the one predicted to fail. #264
+  **Fix.** Send the whole contract row, so access control is the only thing left that can refuse it.
+  Confirm the row is absent as the superuser instead of inferring absence from the error, and treat any
+  code outside `42501` as could-not-measure rather than as a pass.
 
 ## False red: the check fails correct work
 
@@ -120,8 +127,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   accept `PUBLISHABLE_KEY` or `ANON_KEY`. #261
 - **A leftover git-excluded directory under `evals/` breaks discovery for the whole repo.**
   `discoverEvals` reads `PROMPT.md` in every directory it finds and throws when one is absent, so a
-  `solutions/` directory left behind by a branch switch stops every eval from being discovered. #261
+  `solutions/` directory left behind by a branch switch stops every eval from being discovered.
+  #261, #264
   **Fix.** Move the leftover aside. Discovery skipping a directory with no `PROMPT.md` is the real fix.
+  It has now happened on two consecutive evals, each time from switching onto the next eval's branch.
 - **A sandbox can lose its database container mid-run.** One run of six reported
   `No such container: supabase_db_<project-id>` when the scorer read `supabase status`, which cost the
   install check and every check downstream of it. The static checks still ran. Nothing in the eval
