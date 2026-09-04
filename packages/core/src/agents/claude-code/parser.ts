@@ -49,6 +49,7 @@ const CLAUDE_CODE_TOOLS: AgentToolMap = {
     Grep: 'grep',
     LS: 'list_dir',
     // Agent / subagent
+    Agent: 'agent_task',
     Task: 'agent_task',
     TodoWrite: 'agent_task',
   },
