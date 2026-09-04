@@ -35,4 +35,4 @@ Read the guide below before you start and rely on it for how to set this up,
 rather than on what you already know.
 
 REFERENCE
-https://supabase.com/docs/guides/database/tables.md
+https://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md
