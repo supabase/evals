@@ -34,15 +34,15 @@ readable" would be the answer.
 ## The seed carries the contract
 
 `local/` seeds a `supabase/` project and the app's data layer, and **no
-migrations** — the schema is what the agent produces, so seeding one would
+migrations**. The schema is what the agent produces, so seeding one would
 remove the subject.
 
 `local/src/queries.ts` fixes the table and column names: `routines`
 (`owner_id`, `title`, `cadence`, `created_at`), `routine_logs` (`routine_id`,
 `completed_on`), and `routine_library` (`title`, `category`).
 
-**What that buys and costs.** It buys a positive control the scorer can prove —
-the scorer knows where to write and what to read back — and it costs a discovery
+**What that buys and costs.** It buys a positive control the scorer can prove,
+because the scorer knows where to write and what to read back. It costs a discovery
 question, because the agent is told the shape rather than deriving it. The choice
 was deliberate; without it the scorer cannot find the agent's tables at all.
 
@@ -77,7 +77,7 @@ it, and every probe that reads that table has to have run first.
 
 **The write probe has to send the whole contract row.** An earlier version sent
 `owner_id` and `title` only, so on a schema whose `cadence` is `not null` the
-insert came back as a not-null violation and the check read that as a refusal — a
+insert came back as a not-null violation and the check read that as a refusal, so a
 wide-open table scored as protected. A probe asserting that a request was
 *refused* has to send a request the database would otherwise accept, confirm the
 row's absence as the superuser, and treat any error outside `42501` as
@@ -89,9 +89,16 @@ row's absence as the superuser, and treat any error outside `42501` as
 from the harness's own docs result rather than the raw tool call, because a
 `search_docs` hit carries the guide's url in its result and not in its request.
 
-It proves the page was opened. It does not prove the page caused the outcome —
-a model that already knows to enable row level security produces the same schema
-from memory. Read a pass as regression cover, not as attribution.
+**The reliance instruction in `PROMPT.md` is load-bearing. Do not remove it.**
+The first baseline shipped without it, and all six runs came back with zero docs
+calls. Agents wrote a correctly protected schema from memory, never opened the
+page, and still scored 7/8. Without that sentence a pass is evidence about the
+model rather than about the page.
+
+Even with it, the check proves the page was opened and not that the page caused
+the outcome. A model that already knows to enable row level security produces the
+same schema from memory, so read a pass as regression cover rather than as
+attribution.
 
 ## What this eval does not score
 

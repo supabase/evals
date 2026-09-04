@@ -20,7 +20,7 @@ export type PolicyRow = {
 };
 
 /**
- * Every relation in the exposed schema, not only the three the app names — an
+ * Every relation in the exposed schema, not only the three the app names. An
  * extra table the agent invented is just as reachable over the Data API.
  *
  * The `pg_depend` anti-join drops objects an extension owns: pgTAP creates
@@ -95,8 +95,8 @@ export function checkRlsEnabled(tables: TableState[]): CheckResult {
 
 /**
  * Enabling row level security and stopping there locks the app out of its own
- * data, which is the failure FDBKIN-5041 describes. Kept to a low bar — one
- * policy — because whether the policies are *right* is what the behavioral
+ * data, which is the failure FDBKIN-5041 describes. Kept to a low bar of one
+ * policy, because whether the policies are *right* is what the behavioral
  * probes settle, and an ambitious check here would fail the whole eval.
  */
 export function checkProtectedTablesHavePolicies(

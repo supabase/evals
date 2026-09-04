@@ -124,7 +124,7 @@ export async function setupFixtures(
 /**
  * The control every probe below is gated on. It fails for an agent that built
  * nothing, which is what stops `no rows came back` from reading as `the data is
- * protected` — an empty result set satisfies both.
+ * protected`. An empty result set satisfies both.
  */
 export function checkAppTablesAcceptItsRows(setup: Setup): CheckResult {
   const failed = 'failure' in setup;
@@ -161,7 +161,7 @@ export async function checkStarterLibraryIsBrowsable(
  * Row level security denies a SELECT by returning no rows rather than by
  * erroring, and a revoked grant returns `42501`. Any other error means the read
  * failed for a reason that has nothing to do with access control, and the probe
- * reports that it could not measure rather than banking a pass — an error the
+ * reports that it could not measure rather than banking a pass. An error the
  * check cannot attribute is not evidence the data was protected.
  */
 export async function checkRoutinesAreHidden(
@@ -200,7 +200,7 @@ export async function checkRoutinesAreHidden(
  * **The row is the whole contract row.** An earlier version sent only
  * `owner_id` and `title`, so on a schema whose `cadence` is `not null` the
  * insert was rejected as a not-null violation and the check read that as a
- * refusal — a wide-open table scored as protected. The insert now has to be one
+ * refusal, so a wide-open table scored as protected. The insert now has to be one
  * the database would accept if access control permitted it, and absence is
  * confirmed as the superuser rather than inferred from the error.
  */
