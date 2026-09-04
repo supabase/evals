@@ -181,6 +181,24 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   was opened, not that it caused the outcome. A model that already knows the pattern produces the same
   result. Comparing the skills and no-skills variants rules out the skills; nothing available rules out
   prior knowledge. Say so rather than claiming the page carried the run. #261
+- **The prior-knowledge confound is now measured, and it is total.** One eval ran twice, once with the
+  reliance instruction missing and once with it present. Unread, agents scored every substantive check.
+  Read, agents scored every substantive check. Same eval, same model, same checks, and reading the page
+  changed nothing. Treat a page-under-test pass on a mainstream task as regression cover by default, and
+  ask for the unread arm before claiming the page carried anything. #264
+- **A missing reliance instruction produces a baseline that looks fine.** Every check but the guide-read
+  check passed, the run counts and durations were unremarkable, and only the empty `docs.calls` array
+  said the page had never been opened. The score was evidence about the model. #264
+  **Fix.** Read `docs.calls` before reading the score. Empty means the run measured nothing about the
+  page, whatever the checks say.
+- **Benign CLI chatter at the front of a note gets a real failure filed as infrastructure.**
+  `supabase status` writes a `Stopped services` line naming every service the eval does not start, plus
+  an upgrade notice. Both led the seed failure's note, and the `ERROR: relation ... does not exist`
+  underneath was read as a symptom of the stopped services. A genuine missing-table failure went into
+  the record as a lost run. #264
+  **Fix.** Silence the status call's stderr, hoist `ERROR`, `FATAL`, `DETAIL` and `HINT` to the front of
+  the message, and check which services the eval actually starts before reading `Stopped services` as a
+  fault.
 
 ## Process
 
