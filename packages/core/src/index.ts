@@ -448,6 +448,11 @@ export type SandboxMount = {
 };
 
 export type LocalStackSessionArgs = {
+  /**
+   * The agent harness this session serves. The prompt addendum builders take it
+   * but do not branch on it yet; a follow-up change gates their output on it.
+   */
+  agent: AgentHarnessId;
   /** Supabase CLI version this scenario requires, overriding the runtime default. */
   cliVersion?: string;
   /**

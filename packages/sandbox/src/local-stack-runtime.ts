@@ -3,6 +3,7 @@ import { jsonSchema, tool, type ToolSet } from 'ai';
 import { createClient } from '@supabase/supabase-js';
 import {
   supabaseMcpServer,
+  type AgentHarnessId,
   type AgentSandbox,
   type HostedLink,
   type LocalStackRuntime,
@@ -74,6 +75,7 @@ export function localStackRuntime(
   return {
     id: 'local-stack',
     async startSession({
+      agent,
       cliVersion,
       localDir,
       includeServices,
@@ -106,22 +108,14 @@ export function localStackRuntime(
 
       const mcpServers = await resolveMcpServers(options, hosted);
 
-      let baseAddendum =
-        'docker, psql, git, and curl are installed in the workspace. ' +
-        'Use the bash tool to run commands (the working directory is always the workspace root) ' +
-        'and the files tools to inspect and modify files.';
-
-      if (!skipCliInstall) {
-        baseAddendum = 'The Supabase CLI (`supabase`), ' + baseAddendum;
-        baseAddendum +=
-          ' Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
-      }
-
       return {
         tools: buildLocalStackTools(sandbox),
         sandbox: toAgentSandbox(sandbox),
         mcpServers,
-        promptAddendum: [baseAddendum, buildSkillsPrompt(env.skills)]
+        promptAddendum: [
+          buildToolSurfaceAddendum(agent, { skipCliInstall }),
+          buildSkillsPrompt(agent, env.skills),
+        ]
           .filter(Boolean)
           .join('\n\n'),
         scoringContext: buildLocalStackScoringContext(sandbox, hosted),
@@ -134,6 +128,27 @@ export function localStackRuntime(
       };
     },
   };
+}
+
+/**
+ * Describes the session's tool surface: the binaries installed in the workspace
+ * and the in-process `bash`/`files_*` tools from `buildLocalStackTools`.
+ */
+export function buildToolSurfaceAddendum(
+  agent: AgentHarnessId,
+  options: { skipCliInstall?: boolean } = {}
+): string {
+  let addendum =
+    'docker, psql, git, and curl are installed in the workspace. ' +
+    'Use the bash tool to run commands (the working directory is always the workspace root) ' +
+    'and the files tools to inspect and modify files.';
+
+  if (!options.skipCliInstall) {
+    addendum = 'The Supabase CLI (`supabase`), ' + addendum;
+    addendum +=
+      ' Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
+  }
+  return addendum;
 }
 
 /**
