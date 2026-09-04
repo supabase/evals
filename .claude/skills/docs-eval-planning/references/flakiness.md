@@ -122,6 +122,13 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   `discoverEvals` reads `PROMPT.md` in every directory it finds and throws when one is absent, so a
   `solutions/` directory left behind by a branch switch stops every eval from being discovered. #261
   **Fix.** Move the leftover aside. Discovery skipping a directory with no `PROMPT.md` is the real fix.
+- **A sandbox can lose its database container mid-run.** One run of six reported
+  `No such container: supabase_db_<project-id>` when the scorer read `supabase status`, which cost the
+  install check and every check downstream of it. The static checks still ran. Nothing in the eval
+  caused it, and a rerun did not reproduce it. #257
+  **Fix.** None available at the eval's level. Report the run as lost rather than folding it into the
+  score, and read the surviving checks. This is the reason to run three or more times per experiment
+  rather than once.
 - **`kong` does not come up on its own.** With `services: [gotrue, kong]`, `supabase status` reports no
   `API_URL`. Adding `postgrest` brings it up. #261
 - **A framework the eval seeds is not installed on the host.** The host-side build and test helpers
@@ -154,6 +161,9 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 
 ## Reading a result
 
+- **One lost run is not a data point.** A run that failed on infrastructure has no verdict, and
+  averaging it in reads as a page or scorer problem. Say how many runs were lost and why, then quote
+  the score over the runs that completed. #257
 - **Saturation is a finding, not a defect, when the checks are known to fail something.** An eval whose
   every check passes on every run has measured that the page works, provided the fixtures prove the
   checks can fail. Without that proof the same result is indistinguishable from a scorer that asserts
@@ -165,6 +175,9 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 
 ## Process
 
+- **Strip deployment-url churn before diffing two previews.** Every internal link on a docs preview
+  carries the deployment hash, so a rebuild rewrites dozens of lines that say nothing. Substitute the
+  host out of both copies before comparing, or the real edit is buried. #257
 - **Verify your own predictions.** A PR body predicted a check would fail an agent following the page.
   The reviewer found it passing locally and in CI and asked why. #212
 - **An unmeasured rule in the prompt is a defect.** A reviewer found a prompt rule with no check and no
