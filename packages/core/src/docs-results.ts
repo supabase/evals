@@ -1,4 +1,9 @@
-import type { DocsCall, DocsCallPage, DocsResult } from './eval-metadata.js';
+import type {
+  CheckResult,
+  DocsCall,
+  DocsCallPage,
+  DocsResult,
+} from './eval-metadata.js';
 import type { ToolCallRecord } from './index.js';
 import { isRecord } from './json.js';
 
@@ -358,4 +363,29 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
   }
 
   return { calls };
+}
+
+/**
+ * Whether the agent retrieved the guide at `path`, and by what route. A
+ * search_docs hit carries the url in its result, not its request, so this
+ * reads the harness's resolution rather than raw tool calls.
+ */
+export function checkDocsGuideRead(
+  toolCalls: ToolCallRecord[],
+  guide: { path: string; label: string }
+): CheckResult {
+  const calls = buildDocsResult(toolCalls).calls.filter((call) =>
+    call.pages?.some((page) => page.url.includes(guide.path))
+  );
+  const withContent = calls.filter((call) => call.hasContent);
+  return {
+    name: `the agent read the ${guide.label} the prompt referenced`,
+    passed: withContent.length > 0,
+    notes:
+      withContent.length > 0
+        ? withContent.map((call) => call.source).join(', ')
+        : calls.length > 0
+          ? `reached the guide via ${calls.map((call) => call.source).join(', ')} but retrieved no page content`
+          : 'no docs call reached the guide',
+  };
 }

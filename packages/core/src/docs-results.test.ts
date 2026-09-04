@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseClaudeCodeToolCall } from './agents/claude-code/parser.js';
 import {
   buildDocsResult,
+  checkDocsGuideRead,
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';
 import type { ToolCallRecord } from './index.js';
@@ -1036,5 +1037,85 @@ describe('rehydrateTruncatedDocsResults', () => {
     await rehydrateTruncatedDocsResults({ readFile }, calls);
 
     expect(readFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkDocsGuideRead', () => {
+  const guide = {
+    path: 'guides/getting-started/api-keys',
+    label: 'API keys guide',
+  };
+
+  it('passes and names the route when a call retrieved the guide', () => {
+    const check = checkDocsGuideRead(
+      [
+        toolCall(
+          'WebFetch',
+          {
+            url: 'https://supabase.com/docs/guides/getting-started/api-keys.md',
+            prompt: 'Where does each key belong',
+          },
+          {
+            url: 'https://supabase.com/docs/guides/getting-started/api-keys.md',
+            name: 'web_fetch',
+          }
+        ),
+      ],
+      guide
+    );
+
+    expect(check).toEqual({
+      name: 'the agent read the API keys guide the prompt referenced',
+      passed: true,
+      notes: 'web_fetch',
+    });
+  });
+
+  it('fails when a call reached the guide but retrieved no page content', () => {
+    const check = checkDocsGuideRead(
+      [
+        toolCall(
+          'mcp__supabase-mcp__search_docs',
+          {
+            graphql_query:
+              '{ searchDocs(query: "api keys") { nodes { title href } } }',
+          },
+          {
+            result: {
+              searchDocs: {
+                nodes: [
+                  {
+                    title: 'API keys',
+                    href: 'https://supabase.com/docs/guides/getting-started/api-keys',
+                  },
+                ],
+              },
+            },
+          }
+        ),
+      ],
+      guide
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toBe(
+      'reached the guide via search_docs but retrieved no page content'
+    );
+  });
+
+  it('fails when no docs call reached the guide', () => {
+    const check = checkDocsGuideRead(
+      [
+        toolCall(
+          'WebFetch',
+          { url: 'https://supabase.com/docs/guides/auth' },
+          { url: 'https://supabase.com/docs/guides/auth', name: 'web_fetch' }
+        ),
+      ],
+      guide
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toBe('no docs call reached the guide');
   });
 });
