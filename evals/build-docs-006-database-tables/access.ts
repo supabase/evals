@@ -263,7 +263,16 @@ export async function checkOwnerReadsOwnRoutines(
   };
 }
 
-/** Runs non-SELECT SQL against the local stack database as the superuser. */
+/**
+ * Runs non-SELECT SQL against the local stack database as the superuser.
+ *
+ * `supabase status` writes two kinds of noise to stderr: a `Stopped services`
+ * line naming every service this eval does not start, and a CLI upgrade notice.
+ * Both are normal. Left in, they lead the failure note and bury the line that
+ * says what went wrong, which is how a genuine missing-table failure got read as
+ * a lost infrastructure run once already. Silence the status call and hoist the
+ * database's own error to the front.
+ */
 async function execSql(
   ctx: LocalStackEvalContext,
   sql: string
@@ -271,15 +280,38 @@ async function execSql(
   const encoded = Buffer.from(sql, 'utf8').toString('base64');
   const result = await ctx.exec(
     stripIndent`
-      DB_URL=$(supabase status -o json | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
+      DB_URL=$(supabase status -o json 2>/dev/null | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
       echo ${encoded} | base64 -d | psql "$DB_URL" -v ON_ERROR_STOP=1
     `
   );
 
   return {
     ok: result.ok,
-    message: result.ok ? '' : result.stderr || result.stdout,
+    message: result.ok ? '' : significantLines(result.stderr || result.stdout),
   };
+}
+
+/** Drops the known-benign CLI chatter and puts the database's error first. */
+function significantLines(output: string): string {
+  const noise = [
+    /^Stopped services:/,
+    /^A new version of Supabase CLI/,
+    /^We recommend updating regularly/,
+  ];
+  const lines = output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !noise.some((pattern) => pattern.test(line)));
+
+  const errors = lines.filter((line) =>
+    /^(ERROR|FATAL|DETAIL|HINT)\b/.test(line)
+  );
+  const ordered =
+    errors.length > 0
+      ? [...errors, ...lines.filter((line) => !errors.includes(line))]
+      : lines;
+  return ordered.join('; ') || output.trim();
 }
 
 function titlesOf(data: unknown): string[] {
