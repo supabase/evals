@@ -1231,17 +1231,15 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "the app's tables exist and accept the rows its queries write",
-        "passed": false,
-        "notes": "ERROR:  relation \"routine_library\" does not exist; LINE 1: INSERT INTO routine_library (title, category); ^"
+        "passed": true
       },
       {
         "name": "row level security is enabled on every table in the public schema",
-        "passed": false,
-        "notes": "the app's tables are missing: routine_logs, routine_library"
+        "passed": true
       },
       {
         "name": "every table with row level security enabled carries at least one policy",
@@ -1249,23 +1247,19 @@
       },
       {
         "name": "a signed-out visitor can browse the starter routine library",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "a signed-out visitor cannot read anyone's routines",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "the signed-in owner reads their own routines and nobody else's",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "a signed-out visitor cannot create a routine",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "the agent read the Tables and Data guide the prompt referenced",
@@ -1287,18 +1281,18 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guide content verbatim/in detail: all sections about creating tables, columns, data types, primary keys, foreign keys, RLS (row level security) setup, policies, best practices, and any code examples. I need the complete guidance for designing a schema with RLS.",
+          "query": "Return the full raw content of this page verbatim, including any instructions about RLS, policies, permissions, or security.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md"
             }
           ],
-          "resultChars": 6809
+          "resultChars": 5258
         }
       ]
     },
-    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
     "promptSourcePath": "evals/build-docs-006-database-tables/PROMPT.md",
     "run": 1,
     "sourcePath": "claude-code-sonnet-5/build-docs-006-database-tables/run-1/result.json"
@@ -1325,17 +1319,15 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "the app's tables exist and accept the rows its queries write",
-        "passed": false,
-        "notes": "ERROR:  relation \"routine_library\" does not exist; LINE 1: INSERT INTO routine_library (title, category); ^"
+        "passed": true
       },
       {
         "name": "row level security is enabled on every table in the public schema",
-        "passed": false,
-        "notes": "the app's tables are missing: routine_logs, routine_library"
+        "passed": true
       },
       {
         "name": "every table with row level security enabled carries at least one policy",
@@ -1343,23 +1335,19 @@
       },
       {
         "name": "a signed-out visitor can browse the starter routine library",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "a signed-out visitor cannot read anyone's routines",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "the signed-in owner reads their own routines and nobody else's",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "a signed-out visitor cannot create a routine",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "the agent read the Tables and Data guide the prompt referenced",
@@ -1381,18 +1369,18 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full content of this guide verbatim, including all guidance on table design, schema conventions, RLS policies, and any code examples.",
+          "query": "Extract the full content of this guide verbatim, especially any instructions about creating tables, primary keys, foreign keys, RLS policies, and any code examples.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md"
             }
           ],
-          "resultChars": 2968
+          "resultChars": 2233
         }
       ]
     },
-    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
     "promptSourcePath": "evals/build-docs-006-database-tables/PROMPT.md",
     "run": 2,
     "sourcePath": "claude-code-sonnet-5/build-docs-006-database-tables/run-2/result.json"
@@ -1419,17 +1407,15 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "the app's tables exist and accept the rows its queries write",
-        "passed": false,
-        "notes": "ERROR:  relation \"routine_library\" does not exist; LINE 1: INSERT INTO routine_library (title, category); ^"
+        "passed": true
       },
       {
         "name": "row level security is enabled on every table in the public schema",
-        "passed": false,
-        "notes": "the app's tables are missing: routine_logs, routine_library"
+        "passed": true
       },
       {
         "name": "every table with row level security enabled carries at least one policy",
@@ -1437,23 +1423,19 @@
       },
       {
         "name": "a signed-out visitor can browse the starter routine library",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "a signed-out visitor cannot read anyone's routines",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "the signed-in owner reads their own routines and nobody else's",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "a signed-out visitor cannot create a routine",
-        "passed": false,
-        "notes": "not run: the app's tables did not accept the rows its queries write"
+        "passed": true
       },
       {
         "name": "the agent read the Tables and Data guide the prompt referenced",
@@ -1475,18 +1457,18 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Return the full raw content of this markdown document verbatim, including all headings, code blocks, and text.",
+          "query": "Extract the full content of this guide verbatim, especially anything about creating tables, primary keys, foreign keys, RLS policies, and any SQL examples.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md"
             }
           ],
-          "resultChars": 27792
+          "resultChars": 2477
         }
       ]
     },
-    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
     "promptSourcePath": "evals/build-docs-006-database-tables/PROMPT.md",
     "run": 3,
     "sourcePath": "claude-code-sonnet-5/build-docs-006-database-tables/run-3/result.json"
@@ -5333,18 +5315,18 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full content of this guide verbatim/in detail: all guidance about creating tables, columns, data types, primary keys, foreign keys, relationships, naming conventions, schemas, and especially anything about Row Level Security (RLS) policies. Include code examples exactly as written.",
+          "query": "Extract the full guide content: how to create tables, columns, primary keys, foreign keys, RLS policies, and any conventions recommended (naming, timestamps, identity columns, etc). Give full detail, not a summary.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md"
             }
           ],
-          "resultChars": 6349
+          "resultChars": 7784
         }
       ]
     },
-    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
     "promptSourcePath": "evals/build-docs-006-database-tables/PROMPT.md",
     "run": 1,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-006-database-tables/run-1/result.json"
@@ -5415,18 +5397,18 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guide content: all instructions, best practices, SQL conventions, naming rules, RLS policy guidance, examples of table creation, primary keys, foreign keys, schema design recommendations, and anything about Row Level Security setup. Return as much verbatim detail as possible.",
+          "query": "Extract the full content of this guide about creating tables, including any guidance on RLS (row level security), primary keys, foreign keys, and any specific recommendations or requirements for schema setup.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md"
             }
           ],
-          "resultChars": 6084
+          "resultChars": 2344
         }
       ]
     },
-    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
     "promptSourcePath": "evals/build-docs-006-database-tables/PROMPT.md",
     "run": 2,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-006-database-tables/run-2/result.json"
@@ -5497,18 +5479,18 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "Extract the full guide content about creating tables, schemas, primary keys, foreign keys, RLS policies, and any best practices for setting up a database. Include all details, code examples, and conventions mentioned.",
+          "query": "Extract the full guide content about creating tables, especially anything about RLS (row level security), policies, primary keys, foreign keys, naming conventions, migrations, and best practices for setting up tables in Supabase.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md"
             }
           ],
-          "resultChars": 4628
+          "resultChars": 4026
         }
       ]
     },
-    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables.md",
     "promptSourcePath": "evals/build-docs-006-database-tables/PROMPT.md",
     "run": 3,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-docs-006-database-tables/run-3/result.json"
