@@ -21,7 +21,8 @@ import {
   type Fixtures,
 } from './access.js';
 
-const GUIDE_PATH = 'guides/database/tables';
+const GUIDE_PATH =
+  'docs-git-docs-tables-rls-supabase.vercel.app/docs/guides/database/tables';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
