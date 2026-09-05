@@ -31,25 +31,22 @@ product vocabulary for the same reason. "This runs for visitors who have not
 signed up yet" is a fact about the product. "This table must be publicly
 readable" would be the answer.
 
-## The seed carries the contract
+## The prompt carries the contract
 
 `local/` seeds a `supabase/` project and the app's data layer, and **no
 migrations**. The schema is what the agent produces, so seeding one would
 remove the subject.
 
-`local/src/queries.ts` fixes the table and column names: `routines`
-(`owner_id`, `title`, `cadence`, `created_at`), `routine_logs` (`routine_id`,
-`completed_on`), and `routine_library` (`title`, `category`).
+`PROMPT.md` and `local/src/queries.ts` both fix the table and column names:
+`routines` (`owner_id`, `title`, `cadence`, `created_at`), `routine_logs`
+(`routine_id`, `completed_on`), and `routine_library` (`title`, `category`).
 
-**What that buys and costs.** It buys a positive control the scorer can prove,
-because the scorer knows where to write and what to read back. It costs a discovery
-question, because the agent is told the shape rather than deriving it. The choice
-was deliberate; without it the scorer cannot find the agent's tables at all.
-
-**The names are chosen to catch a memorized answer.** Every prompt-shaped reading
-of "habit tracker" reaches for `habits` and `habit_checkins`. An agent that does
-not read the seed produces tables the app cannot query, and the control check
-fails with the psql error that says so.
+**The prompt states them because the page does not.** The scorer finds the
+agent's tables by name, so a schema it cannot find scores near zero however well
+that schema is protected. Leaving the names to be inferred measures whether the
+agent read the data layer, which is a fact about the agent rather than about the
+page. Naming them costs a discovery question and buys a positive control the
+scorer can prove.
 
 `routines.id` has no fixed type on purpose. `uuid` and
 `bigint generated always as identity` are both correct, so the scorer resolves
@@ -113,6 +110,9 @@ attribution.
   level security. `build-docs-002-rls-guide` owns it.
 - **Bulk loading with `COPY`.** Real content on the page, no security
   consequence, and no affordance in the seed to exercise it.
+- **Schema modeling.** The prompt names the tables and columns, so nothing here
+  measures whether an agent derives them. One shape protected correctly and
+  another shape protected correctly score the same.
 - **Whether `anon` holds a write grant.** Planned, then dropped deliberately. Supabase's
   default privileges grant `anon` write on new tables in `public` and the
   standard pattern leaves them in place while row level security gates the rows,

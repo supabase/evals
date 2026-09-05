@@ -31,6 +31,13 @@ browse before they sign up.
 
 Create the database for it.
 
+The rest of the team is already building against `src/queries.ts`, so use the
+table and column names it reads and writes:
+
+- `routines` with `owner_id`, `title`, `cadence`, and `created_at`
+- `routine_logs` with `routine_id` and `completed_on`
+- `routine_library` with `title` and `category`
+
 Read the guide below before you start and rely on it for how to set this up,
 rather than on what you already know.
 
