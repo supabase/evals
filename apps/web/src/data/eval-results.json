@@ -782,18 +782,63 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"declarative database schemas migration diff workflow\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            }
+          ],
+          "resultChars": 59751
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -sL \"https://supabase.com/docs/guides/local-development/declarative-database-schemas.md\" | head -120",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas.md"
+            }
+          ],
+          "resultChars": 4194
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -sL \"https://supabase.com/changelog.md\" | grep -iE \"breaking|db diff|declarative\" | head -20",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3619
+        }
+      ]
     },
     "usage": [
       {
         "model": "claude-opus-5",
-        "inputTokens": 543603,
-        "cacheReadInputTokens": 495565,
-        "cacheWriteInputTokens": 44147,
-        "outputTokens": 6709
+        "inputTokens": 401722,
+        "cacheReadInputTokens": 359823,
+        "cacheWriteInputTokens": 38147,
+        "outputTokens": 4664
       }
     ],
-    "durationMs": 143603,
+    "durationMs": 98388,
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "run": 1,
@@ -12094,13 +12139,13 @@
     "usage": [
       {
         "model": "claude-sonnet-5",
-        "inputTokens": 459669,
-        "cacheReadInputTokens": 434520,
-        "cacheWriteInputTokens": 21451,
-        "outputTokens": 2152
+        "inputTokens": 433570,
+        "cacheReadInputTokens": 408252,
+        "cacheWriteInputTokens": 21622,
+        "outputTokens": 2120
       }
     ],
-    "durationMs": 83345,
+    "durationMs": 91057,
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "run": 1,
@@ -23217,18 +23262,58 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,120p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6693
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"declarative database schemas add column existing table migration\", limit: 5) { nodes { __typename ... on Guide { title href content subsections { totalCount } } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/replication/ducklake",
+              "title": "DuckLake destination"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 84897
+        }
+      ]
     },
     "usage": [
       {
         "model": "gpt-5.4-mini",
-        "inputTokens": 451733,
-        "cacheReadInputTokens": 403456,
+        "inputTokens": 808410,
+        "cacheReadInputTokens": 723584,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 5753
+        "outputTokens": 5338
       }
     ],
-    "durationMs": 98169,
+    "durationMs": 84766,
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "run": 1,
@@ -38890,29 +38975,26 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"supabase --version\nsupabase db --help\nsupabase db diff --help\nsupabase migration --help\nsupabase status || true\ncurl -fsSL https://supabase.com/changelog.md | rg -n -i 'breaking-change|declarative|schema|migration' | head -80\ncurl -fsSL https://supabase.com/docs/guides/local-development/declarative-database-schemas.md | sed -n '1,220p'\nsed -n '1,100p' supabase/schemas/products.sql\"",
+          "query": "/bin/bash -lc \"find .claude/skills/supabase-postgres-best-practices/references -maxdepth 1 -type f -printf '%f\\\\n' | sort | sed -n '1,200p'; curl -fsSL https://supabase.com/changelog.md | sed -n '1,160p'; supabase --version; supabase migration --help; find . -maxdepth 4 -type f | sort | sed -n '1,240p'\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas.md"
             }
           ],
-          "resultChars": 22559
+          "resultChars": 14496
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-sol",
-        "inputTokens": 536569,
-        "cacheReadInputTokens": 490433,
-        "cacheWriteInputTokens": 46079,
-        "outputTokens": 2658
+        "inputTokens": 361969,
+        "cacheReadInputTokens": 319536,
+        "cacheWriteInputTokens": 42391,
+        "outputTokens": 1641
       }
     ],
-    "durationMs": 94869,
+    "durationMs": 52738,
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "run": 1,
@@ -55418,13 +55500,13 @@
     "usage": [
       {
         "model": "moonshotai/kimi-k3",
-        "inputTokens": 245543,
-        "cacheReadInputTokens": 212524,
+        "inputTokens": 207198,
+        "cacheReadInputTokens": 179064,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 2554
+        "outputTokens": 2666
       }
     ],
-    "durationMs": 75691,
+    "durationMs": 108426,
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "run": 1,
