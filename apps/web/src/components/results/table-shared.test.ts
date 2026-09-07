@@ -37,14 +37,14 @@ describe("metric formatters", () => {
       formatTokens([
         {
           model: "claude-sonnet-5",
-          uncachedInputTokens: 3_703,
+          inputTokens: 442_717,
           cacheReadInputTokens: 418_062,
           cacheWriteInputTokens: 20_952,
           outputTokens: 1_693,
         },
         {
           model: "claude-haiku-4-5-20251001",
-          uncachedInputTokens: 519,
+          inputTokens: 519,
           cacheReadInputTokens: 0,
           cacheWriteInputTokens: 0,
           outputTokens: 14,

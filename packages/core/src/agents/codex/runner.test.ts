@@ -4,7 +4,7 @@ import { codexRunner } from './runner.js';
 describe('codexRunner.extractUsage', () => {
   const extract = codexRunner.extractUsage!;
 
-  it('subtracts cache buckets from input_tokens', () => {
+  it('maps turn.completed usage straight across', () => {
     const raw = [
       JSON.stringify({ type: 'thread.started', thread_id: 't1' }),
       JSON.stringify({
@@ -20,7 +20,7 @@ describe('codexRunner.extractUsage', () => {
     expect(extract(raw, 'gpt-5.6')).toEqual([
       {
         model: 'gpt-5.6',
-        uncachedInputTokens: 50,
+        inputTokens: 100,
         cacheReadInputTokens: 30,
         cacheWriteInputTokens: 20,
         outputTokens: 25,
@@ -42,7 +42,7 @@ describe('codexRunner.extractUsage', () => {
     expect(extract(raw, 'gpt-5.6')).toEqual([
       {
         model: 'gpt-5.6',
-        uncachedInputTokens: 140,
+        inputTokens: 150,
         cacheReadInputTokens: 10,
         cacheWriteInputTokens: 0,
         outputTokens: 30,

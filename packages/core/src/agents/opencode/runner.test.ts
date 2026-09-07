@@ -87,7 +87,7 @@ describe('opencode runner extractUsage', () => {
   const extract = createOpencodeRunner('anthropic/claude-sonnet-5')
     .extractUsage!;
 
-  it('sums steps and adds reasoning to output', () => {
+  it('adds cache into input and reasoning into output', () => {
     const raw = [
       JSON.stringify({
         type: 'step_finish',
@@ -120,7 +120,7 @@ describe('opencode runner extractUsage', () => {
     expect(extract(raw, 'anthropic/claude-sonnet-5')).toEqual([
       {
         model: 'anthropic/claude-sonnet-5',
-        uncachedInputTokens: 300,
+        inputTokens: 440,
         cacheReadInputTokens: 130,
         cacheWriteInputTokens: 10,
         outputTokens: 55,

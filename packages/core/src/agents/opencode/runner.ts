@@ -194,7 +194,7 @@ export function createOpencodeRunner(
       let sawUsage = false;
       const usage = {
         model,
-        uncachedInputTokens: 0,
+        inputTokens: 0,
         cacheReadInputTokens: 0,
         cacheWriteInputTokens: 0,
         outputTokens: 0,
@@ -205,9 +205,12 @@ export function createOpencodeRunner(
         if (!isRecord(tokens)) continue;
         sawUsage = true;
         const cache = isRecord(tokens.cache) ? tokens.cache : undefined;
-        usage.uncachedInputTokens += Number(tokens.input) || 0;
-        usage.cacheReadInputTokens += Number(cache?.read) || 0;
-        usage.cacheWriteInputTokens += Number(cache?.write) || 0;
+        const cacheRead = Number(cache?.read) || 0;
+        const cacheWrite = Number(cache?.write) || 0;
+        usage.inputTokens +=
+          (Number(tokens.input) || 0) + cacheRead + cacheWrite;
+        usage.cacheReadInputTokens += cacheRead;
+        usage.cacheWriteInputTokens += cacheWrite;
         usage.outputTokens +=
           (Number(tokens.output) || 0) + (Number(tokens.reasoning) || 0);
       }

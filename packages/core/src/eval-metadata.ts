@@ -252,17 +252,18 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
 }, evalMetadataSchema);
 
 /**
- * Token usage for one model, split into the buckets providers price
- * separately. Buckets are disjoint, so total tokens is their sum.
+ * Token usage for one model. Field names and semantics follow OpenTelemetry's
+ * GenAI conventions, where the cache buckets are subsets of `inputTokens`.
+ * https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md
  */
 export const modelUsageSchema = z.object({
   /** Model id as the harness reported it. */
   model: z.string(),
-  /** Input the model processed fresh. */
-  uncachedInputTokens: z.number(),
-  /** Input served from the prompt cache. */
+  /** All input tokens, cache reads and writes included. */
+  inputTokens: z.number(),
+  /** Input served from the prompt cache. Subset of `inputTokens`. */
   cacheReadInputTokens: z.number(),
-  /** Input written to the prompt cache for later calls to read. */
+  /** Input written to the prompt cache. Subset of `inputTokens`. */
   cacheWriteInputTokens: z.number(),
   /** All generated tokens, reasoning included. */
   outputTokens: z.number(),
@@ -270,28 +271,15 @@ export const modelUsageSchema = z.object({
 export type ModelUsage = z.infer<typeof modelUsageSchema>;
 
 /**
- * One entry per model the run called. A run can span models (Claude Code
- * makes side calls on a smaller model), and each model bills at its own
- * rates, so entries are kept separate rather than summed.
+ * One entry per model the run called. A run can span models, and each model
+ * bills at its own rates, so entries are kept separate rather than summed.
  */
 export const agentUsageSchema = z.array(modelUsageSchema);
 export type AgentUsage = z.infer<typeof agentUsageSchema>;
 
-/** Sum of the three input buckets across every model in the run. */
-export function inputTokens(usage: AgentUsage): number {
-  return usage.reduce(
-    (n, u) =>
-      n +
-      u.uncachedInputTokens +
-      u.cacheReadInputTokens +
-      u.cacheWriteInputTokens,
-    0
-  );
-}
-
-/** Output tokens across every model in the run. */
-export function outputTokens(usage: AgentUsage): number {
-  return usage.reduce((n, u) => n + u.outputTokens, 0);
+/** Input tokens the model processed fresh, outside the cache. */
+export function uncachedInputTokens(u: ModelUsage): number {
+  return u.inputTokens - u.cacheReadInputTokens - u.cacheWriteInputTokens;
 }
 
 export const checkResultSchema = z.object({

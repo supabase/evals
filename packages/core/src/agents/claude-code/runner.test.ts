@@ -59,7 +59,7 @@ describe('claudeCodeRunner.deriveStopReason', () => {
 describe('claudeCodeRunner.extractUsage', () => {
   const extract = claudeCodeRunner.extractUsage!;
 
-  it('emits one entry per model in modelUsage', () => {
+  it('adds cache into input, one entry per model', () => {
     const raw = [
       JSON.stringify({ type: 'system', subtype: 'init' }),
       JSON.stringify({
@@ -87,14 +87,14 @@ describe('claudeCodeRunner.extractUsage', () => {
     expect(extract(raw, 'claude-sonnet-5')).toEqual([
       {
         model: 'claude-sonnet-5',
-        uncachedInputTokens: 10,
+        inputTokens: 3210,
         cacheReadInputTokens: 3000,
         cacheWriteInputTokens: 200,
         outputTokens: 40,
       },
       {
         model: 'claude-haiku-4-5-20251001',
-        uncachedInputTokens: 520,
+        inputTokens: 520,
         cacheReadInputTokens: 0,
         cacheWriteInputTokens: 0,
         outputTokens: 13,

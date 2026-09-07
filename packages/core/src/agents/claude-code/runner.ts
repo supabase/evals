@@ -107,24 +107,24 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
   },
 
   extractUsage(raw) {
-    // `modelUsage` covers every model the run called, including Claude Code's
-    // own side calls, which the sibling `usage` aggregate leaves out.
-    // Anthropic's input count already excludes both cache buckets.
+    // `modelUsage` covers every model the run called, unlike the sibling
+    // `usage` aggregate. Anthropic's input count excludes both cache buckets.
     const byModel = lastResultEvent(raw)?.modelUsage;
     if (!isRecord(byModel)) return undefined;
-    return Object.entries(byModel).flatMap(([model, u]) =>
-      isRecord(u)
-        ? [
-            {
-              model,
-              uncachedInputTokens: Number(u.inputTokens) || 0,
-              cacheReadInputTokens: Number(u.cacheReadInputTokens) || 0,
-              cacheWriteInputTokens: Number(u.cacheCreationInputTokens) || 0,
-              outputTokens: Number(u.outputTokens) || 0,
-            },
-          ]
-        : []
-    );
+    return Object.entries(byModel).flatMap(([model, u]) => {
+      if (!isRecord(u)) return [];
+      const cacheRead = Number(u.cacheReadInputTokens) || 0;
+      const cacheWrite = Number(u.cacheCreationInputTokens) || 0;
+      return [
+        {
+          model,
+          inputTokens: (Number(u.inputTokens) || 0) + cacheRead + cacheWrite,
+          cacheReadInputTokens: cacheRead,
+          cacheWriteInputTokens: cacheWrite,
+          outputTokens: Number(u.outputTokens) || 0,
+        },
+      ];
+    });
   },
 };
 

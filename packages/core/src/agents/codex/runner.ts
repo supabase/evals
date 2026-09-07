@@ -120,15 +120,15 @@ export const codexRunner: AgentRunner<CodexModel> = {
   },
 
   extractUsage(raw, model) {
-    // OpenAI nests both cache buckets inside `input_tokens`. Cache writes are
-    // only reported on GPT-5.6 and newer, so 0 is a real zero on older models.
+    // Cache writes are only reported on GPT-5.6 and newer, so 0 is a real
+    // zero on older models.
     // https://developers.openai.com/api/docs/guides/prompt-caching
     if (!raw) return undefined;
     const { records } = parseJsonlRecords(raw);
     let sawUsage = false;
     const usage = {
       model,
-      uncachedInputTokens: 0,
+      inputTokens: 0,
       cacheReadInputTokens: 0,
       cacheWriteInputTokens: 0,
       outputTokens: 0,
@@ -136,17 +136,14 @@ export const codexRunner: AgentRunner<CodexModel> = {
     for (const record of records) {
       if (record.type !== 'turn.completed' || !isRecord(record.usage)) continue;
       sawUsage = true;
-      usage.uncachedInputTokens += Number(record.usage.input_tokens) || 0;
+      usage.inputTokens += Number(record.usage.input_tokens) || 0;
       usage.cacheReadInputTokens +=
         Number(record.usage.cached_input_tokens) || 0;
       usage.cacheWriteInputTokens +=
         Number(record.usage.cache_write_input_tokens) || 0;
       usage.outputTokens += Number(record.usage.output_tokens) || 0;
     }
-    if (!sawUsage) return undefined;
-    usage.uncachedInputTokens -=
-      usage.cacheReadInputTokens + usage.cacheWriteInputTokens;
-    return [usage];
+    return sawUsage ? [usage] : undefined;
   },
 };
 

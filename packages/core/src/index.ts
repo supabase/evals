@@ -803,12 +803,12 @@ export function aiSdkAgent(options: {
 
         const agentReport = result.text.trim();
 
-        // `inputTokens` would include cache reads, so use `noCacheTokens`.
-        const { inputTokenDetails, outputTokens } = result.totalUsage;
+        const { inputTokens, inputTokenDetails, outputTokens } =
+          result.totalUsage;
         const usage: AgentUsage = [
           {
             model: modelId,
-            uncachedInputTokens: inputTokenDetails.noCacheTokens ?? 0,
+            inputTokens: inputTokens ?? 0,
             cacheReadInputTokens: inputTokenDetails.cacheReadTokens ?? 0,
             cacheWriteInputTokens: inputTokenDetails.cacheWriteTokens ?? 0,
             outputTokens: outputTokens ?? 0,
