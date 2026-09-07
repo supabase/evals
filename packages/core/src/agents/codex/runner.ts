@@ -120,9 +120,6 @@ export const codexRunner: AgentRunner<CodexModel> = {
   },
 
   extractUsage(raw, model) {
-    // Cache writes are only reported on GPT-5.6 and newer, so 0 is a real
-    // zero on older models.
-    // https://developers.openai.com/api/docs/guides/prompt-caching
     if (!raw) return undefined;
     const { records } = parseJsonlRecords(raw);
     let sawUsage = false;
