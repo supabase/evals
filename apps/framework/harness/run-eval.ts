@@ -37,6 +37,7 @@ import {
   supabaseMcpServerMounts,
 } from '@supabase-evals/core';
 import type {
+  AgentUsage,
   ExperimentConfig,
   EvalInterface,
   EvalManifest,
@@ -373,6 +374,8 @@ async function runOne(
     transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
+    usage?: AgentUsage;
+    durationMs: number;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -486,6 +489,8 @@ async function runOne(
       transcript: run.transcript,
       agentReport: run.agentReport,
       stoppedReason: run.stoppedReason,
+      usage: run.usage,
+      durationMs: run.durationMs,
     };
   }
 
@@ -544,6 +549,8 @@ async function runOne(
     transcript: run.transcript,
     agentReport: run.agentReport,
     stoppedReason: run.stoppedReason,
+    usage: run.usage,
+    durationMs: run.durationMs,
   };
 }
 

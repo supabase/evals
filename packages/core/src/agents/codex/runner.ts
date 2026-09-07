@@ -9,7 +9,7 @@
 
 import type { ChatModel } from 'openai/resources/shared';
 import type { McpServerConfig } from '../../index.js';
-import { parseJsonlRecords } from '../../json.js';
+import { isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
@@ -81,6 +81,9 @@ export const codexRunner: AgentRunner<CodexModel> = {
       '--skip-git-repo-check',
       // The sandbox is the isolation boundary — let Codex run commands freely.
       '--dangerously-bypass-approvals-and-sandbox',
+      // No anonymous usage pings during a run.
+      // https://learn.chatgpt.com/docs/config-file/config-advanced
+      `-c ${shellQuote('analytics.enabled=false')}`,
       `-m ${shellQuote(model)}`,
       // Reasoning effort via config override; omitted leaves Codex's default.
       // The value is parsed as TOML, so pass it as a quoted TOML string.
@@ -114,6 +117,36 @@ export const codexRunner: AgentRunner<CodexModel> = {
       default:
         return processStopReason(command);
     }
+  },
+
+  extractUsage(raw, model) {
+    // OpenAI nests both cache buckets inside `input_tokens`. Cache writes are
+    // only reported on GPT-5.6 and newer, so 0 is a real zero on older models.
+    // https://developers.openai.com/api/docs/guides/prompt-caching
+    if (!raw) return undefined;
+    const { records } = parseJsonlRecords(raw);
+    let sawUsage = false;
+    const usage = {
+      model,
+      uncachedInputTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 0,
+    };
+    for (const record of records) {
+      if (record.type !== 'turn.completed' || !isRecord(record.usage)) continue;
+      sawUsage = true;
+      usage.uncachedInputTokens += Number(record.usage.input_tokens) || 0;
+      usage.cacheReadInputTokens +=
+        Number(record.usage.cached_input_tokens) || 0;
+      usage.cacheWriteInputTokens +=
+        Number(record.usage.cache_write_input_tokens) || 0;
+      usage.outputTokens += Number(record.usage.output_tokens) || 0;
+    }
+    if (!sawUsage) return undefined;
+    usage.uncachedInputTokens -=
+      usage.cacheReadInputTokens + usage.cacheWriteInputTokens;
+    return [usage];
   },
 };
 

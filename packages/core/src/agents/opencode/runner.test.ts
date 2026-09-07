@@ -83,6 +83,66 @@ describe('opencode runner', () => {
   });
 });
 
+describe('opencode runner extractUsage', () => {
+  const extract = createOpencodeRunner('anthropic/claude-sonnet-5')
+    .extractUsage!;
+
+  it('sums steps and adds reasoning to output', () => {
+    const raw = [
+      JSON.stringify({
+        type: 'step_finish',
+        part: {
+          type: 'step-finish',
+          reason: 'tool-calls',
+          tokens: {
+            input: 100,
+            output: 20,
+            reasoning: 5,
+            cache: { read: 40, write: 10 },
+          },
+        },
+      }),
+      JSON.stringify({ type: 'text', part: { type: 'text', text: 'Done.' } }),
+      JSON.stringify({
+        type: 'step_finish',
+        part: {
+          type: 'step-finish',
+          reason: 'stop',
+          tokens: {
+            input: 200,
+            output: 30,
+            reasoning: 0,
+            cache: { read: 90, write: 0 },
+          },
+        },
+      }),
+    ].join('\n');
+    expect(extract(raw, 'anthropic/claude-sonnet-5')).toEqual([
+      {
+        model: 'anthropic/claude-sonnet-5',
+        uncachedInputTokens: 300,
+        cacheReadInputTokens: 130,
+        cacheWriteInputTokens: 10,
+        outputTokens: 55,
+      },
+    ]);
+  });
+
+  it('returns undefined without usage', () => {
+    expect(extract(undefined, 'anthropic/claude-sonnet-5')).toBeUndefined();
+    expect(extract('not json\n', 'anthropic/claude-sonnet-5')).toBeUndefined();
+    expect(
+      extract(
+        JSON.stringify({
+          type: 'step_finish',
+          part: { type: 'step-finish', reason: 'stop' },
+        }),
+        'anthropic/claude-sonnet-5'
+      )
+    ).toBeUndefined();
+  });
+});
+
 /** Capture the `--model` flag, run env, and written config from one exec. */
 async function captureExec(
   model: string,
@@ -129,7 +189,10 @@ describe('opencode runner exec routing', () => {
     );
     // Model is addressed under the vercel provider; the gateway slug stays intact.
     expect(runCommand).toContain("--model 'vercel/moonshotai/kimi-k3'");
-    expect(runEnv).toEqual({ AI_GATEWAY_API_KEY: 'gw-key' });
+    expect(runEnv).toEqual({
+      AI_GATEWAY_API_KEY: 'gw-key',
+      OPENCODE_DISABLE_AUTOUPDATE: '1',
+    });
     expect(config?.mcp).toHaveProperty('supabase');
   });
 

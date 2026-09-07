@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  formatDuration,
+  formatTokens,
   hasMoreContentToRight,
   sampleSetLabel,
   scoreLabel,
@@ -21,6 +23,34 @@ describe("scoreLabel", () => {
 describe("sampleSetLabel", () => {
   it("shows both the fraction and the rate", () => {
     expect(sampleSetLabel(2, 3)).toBe("2/3 \u00b7 67%")
+  })
+})
+
+describe("metric formatters", () => {
+  it("formats durations", () => {
+    expect(formatDuration(38_000)).toBe("38s")
+    expect(formatDuration(245_000)).toBe("4m 05s")
+  })
+
+  it("formats tokens as a total with the in/out split, summed across models", () => {
+    expect(
+      formatTokens([
+        {
+          model: "claude-sonnet-5",
+          uncachedInputTokens: 3_703,
+          cacheReadInputTokens: 418_062,
+          cacheWriteInputTokens: 20_952,
+          outputTokens: 1_693,
+        },
+        {
+          model: "claude-haiku-4-5-20251001",
+          uncachedInputTokens: 519,
+          cacheReadInputTokens: 0,
+          cacheWriteInputTokens: 0,
+          outputTokens: 14,
+        },
+      ])
+    ).toBe("444.9K (443.2K in / 1.7K out)")
   })
 })
 

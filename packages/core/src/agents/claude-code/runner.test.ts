@@ -55,3 +55,61 @@ describe('claudeCodeRunner.deriveStopReason', () => {
     expect(derive(undefined, ok)).toBe('stop');
   });
 });
+
+describe('claudeCodeRunner.extractUsage', () => {
+  const extract = claudeCodeRunner.extractUsage!;
+
+  it('emits one entry per model in modelUsage', () => {
+    const raw = [
+      JSON.stringify({ type: 'system', subtype: 'init' }),
+      JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        usage: { input_tokens: 10, output_tokens: 40 },
+        modelUsage: {
+          'claude-sonnet-5': {
+            inputTokens: 10,
+            cacheCreationInputTokens: 200,
+            cacheReadInputTokens: 3000,
+            outputTokens: 40,
+            costUSD: 0.05,
+          },
+          'claude-haiku-4-5-20251001': {
+            inputTokens: 520,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+            outputTokens: 13,
+            costUSD: 0.0006,
+          },
+        },
+      }),
+    ].join('\n');
+    expect(extract(raw, 'claude-sonnet-5')).toEqual([
+      {
+        model: 'claude-sonnet-5',
+        uncachedInputTokens: 10,
+        cacheReadInputTokens: 3000,
+        cacheWriteInputTokens: 200,
+        outputTokens: 40,
+      },
+      {
+        model: 'claude-haiku-4-5-20251001',
+        uncachedInputTokens: 520,
+        cacheReadInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        outputTokens: 13,
+      },
+    ]);
+  });
+
+  it('returns undefined without modelUsage', () => {
+    expect(extract(undefined, 'claude-sonnet-5')).toBeUndefined();
+    expect(extract('not json\n', 'claude-sonnet-5')).toBeUndefined();
+    expect(
+      extract(
+        JSON.stringify({ type: 'result', subtype: 'success' }),
+        'claude-sonnet-5'
+      )
+    ).toBeUndefined();
+  });
+});

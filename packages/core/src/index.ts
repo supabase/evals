@@ -41,6 +41,7 @@ import {
 } from '@supabase-evals/platform-lite';
 import type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalMetadata,
   EvalSuite,
@@ -131,6 +132,7 @@ export type {
 } from './transcript/types.js';
 export type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalInterface,
   EvalMetadata,
@@ -409,6 +411,8 @@ export type AgentRunResult = {
   transcript: TranscriptPart[];
   steps: number;
   stoppedReason: string;
+  usage?: AgentUsage;
+  durationMs: number;
 };
 
 export type AgentHarness = {
@@ -710,6 +714,7 @@ export function aiSdkAgent(options: {
       ]);
 
       try {
+        const start = Date.now();
         const result = await generateText({
           model: options.model,
           system: args.systemPrompt,
@@ -798,6 +803,18 @@ export function aiSdkAgent(options: {
 
         const agentReport = result.text.trim();
 
+        // `inputTokens` would include cache reads, so use `noCacheTokens`.
+        const { inputTokenDetails, outputTokens } = result.totalUsage;
+        const usage: AgentUsage = [
+          {
+            model: modelId,
+            uncachedInputTokens: inputTokenDetails.noCacheTokens ?? 0,
+            cacheReadInputTokens: inputTokenDetails.cacheReadTokens ?? 0,
+            cacheWriteInputTokens: inputTokenDetails.cacheWriteTokens ?? 0,
+            outputTokens: outputTokens ?? 0,
+          },
+        ];
+
         return {
           agentReport,
           toolCalls,
@@ -807,6 +824,8 @@ export function aiSdkAgent(options: {
             result.steps.length >= MAX_STEPS
               ? 'max_steps'
               : result.finishReason,
+          usage,
+          durationMs: Date.now() - start,
         };
       } finally {
         await closeMcpHandles(mcpHandles);

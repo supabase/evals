@@ -1,3 +1,9 @@
+import {
+  inputTokens,
+  outputTokens,
+  type AgentUsage,
+} from "@supabase-evals/core/eval-metadata"
+
 import type { KeyboardEvent } from "react"
 
 /** Small pieces the results table and the detail sheet both render with. */
@@ -46,6 +52,27 @@ export function scoreLabel(
 /** Formats a sample set's score, e.g. `2/3 · 67%`. */
 export function sampleSetLabel(passed: number, total: number) {
   return `${passed}/${total} \u00b7 ${Math.round((passed / total) * 100)}%`
+}
+
+/** Formats a run duration: "38s" under a minute, "4m 05s" above. */
+export function formatDuration(ms: number) {
+  const totalSec = Math.round(ms / 1000)
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  if (!min) return `${sec}s`
+  return `${min}m ${String(sec).padStart(2, "0")}s`
+}
+
+const compact = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
+
+/** Summed across models, e.g. "444.4K (442.7K in / 1.7K out)". */
+export function formatTokens(usage: AgentUsage) {
+  const input = inputTokens(usage)
+  const output = outputTokens(usage)
+  return `${compact.format(input + output)} (${compact.format(input)} in / ${compact.format(output)} out)`
 }
 
 /** Checks whether a horizontal scroller has content beyond its right edge. */
