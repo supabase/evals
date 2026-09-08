@@ -34,6 +34,8 @@ describe('codexRunner.exec', () => {
       true
     );
     expect(command).not.toContain('system-prompt');
+  });
+});
 
 describe('codexRunner.extractUsage', () => {
   const extract = codexRunner.extractUsage!;
@@ -90,3 +92,5 @@ describe('codexRunner.extractUsage', () => {
     expect(
       extract(JSON.stringify({ type: 'turn.completed' }), 'gpt-5.6')
     ).toBeUndefined();
+  });
+});
