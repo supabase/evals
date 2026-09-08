@@ -25,11 +25,17 @@ const AI_SDK_BASE_PROMPT =
  * already empty for a CLI agent at their source; an MCP server's
  * `promptAddendum` is not, and is left to reach `createCliAgent`, which throws.
  */
-export function buildSystemPrompt(
-  agent: AgentHarnessId,
-  addendum?: string,
-  skillContext?: string
-): string {
+export function buildSystemPrompt({
+  agent,
+  addendum,
+  skillContext,
+}: {
+  agent: AgentHarnessId;
+  /** Runtime text: the session's tool surface, or the MCP servers' addenda. */
+  addendum?: string;
+  /** The installed-skills listing. */
+  skillContext?: string;
+}): string {
   const base = agent === 'ai-sdk' ? AI_SDK_BASE_PROMPT : '';
   return [base, addendum, skillContext].filter(Boolean).join('\n\n');
 }

@@ -552,6 +552,10 @@ export type LocalStackSession = {
    * the agent harness.
    */
   mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * Text for the agent's system prompt. Must be empty for a CLI agent, which
+   * runs with its own prompt; `createCliAgent` throws otherwise.
+   */
   promptAddendum?: string;
   scoringContext: LocalStackScoringContext;
   /**
@@ -863,6 +867,11 @@ export type EvalSessionArgs = {
 
 export type EvalSession = {
   mcpServers: Record<string, McpServerConfig>;
+  /**
+   * Text for the agent's system prompt, joined from the MCP servers'
+   * `promptAddendum`s. Must be empty for a CLI agent, which runs with its own
+   * prompt; `createCliAgent` throws otherwise.
+   */
   promptAddendum?: string;
   scoringContext: ToolScoringContext;
   close(): Promise<void>;

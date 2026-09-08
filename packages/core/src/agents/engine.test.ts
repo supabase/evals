@@ -16,9 +16,15 @@ const parser: AgentTranscriptParser = {
   }),
 };
 
-/** Run a CLI agent against a fake sandbox, returning every command it ran. */
-async function runWithSystemPrompt(systemPrompt: string): Promise<string[]> {
+/**
+ * Run a CLI agent against a fake sandbox, returning every command it ran in
+ * the sandbox and whether the runner's `install` was reached.
+ */
+async function runWithSystemPrompt(
+  systemPrompt: string
+): Promise<{ commands: string[]; installed: boolean }> {
   const commands: string[] = [];
+  let installed = false;
   const runner: AgentRunner = {
     id: 'claude-code',
     displayName: 'Fake CLI',
@@ -26,7 +32,9 @@ async function runWithSystemPrompt(systemPrompt: string): Promise<string[]> {
     cliPackage: 'fake-cli',
     defaultCliVersion: '1.0.0',
     defaultModel: 'fake-model',
-    install: async () => undefined,
+    install: async () => {
+      installed = true;
+    },
     exec: async () => ({ command: ok, raw: '' }),
   };
   await createCliAgent(runner, parser, { model: 'fake-model' }).run({
@@ -42,7 +50,7 @@ async function runWithSystemPrompt(systemPrompt: string): Promise<string[]> {
       readFile: async () => '',
     },
   });
-  return commands;
+  return { commands, installed };
 }
 
 describe('createCliAgent prompt staging', () => {
@@ -52,14 +60,23 @@ describe('createCliAgent prompt staging', () => {
   });
 
   it('stages only the user prompt', async () => {
-    const commands = await runWithSystemPrompt('');
+    const { commands } = await runWithSystemPrompt('');
     expect(commands.some((c) => c.includes(USER_PROMPT_PATH))).toBe(true);
     expect(commands.some((c) => c.includes('system-prompt'))).toBe(false);
   });
 
-  it('refuses a system prompt: a CLI agent runs with its own', async () => {
-    await expect(runWithSystemPrompt('Extra framing.')).rejects.toThrow(
-      /runs with its own system prompt/
-    );
+  it('refuses a system prompt before touching the sandbox', async () => {
+    // A CLI agent runs with its own prompt. The refusal comes before install
+    // and staging, so a misconfigured experiment fails without paying for them.
+    const commands: string[] = [];
+    let installed = false;
+    await expect(
+      runWithSystemPrompt('Extra framing.').then((r) => {
+        commands.push(...r.commands);
+        installed = r.installed;
+      })
+    ).rejects.toThrow(/runs with its own system prompt/);
+    expect(commands).toEqual([]);
+    expect(installed).toBe(false);
   });
 });

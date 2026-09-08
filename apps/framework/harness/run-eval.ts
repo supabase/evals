@@ -426,10 +426,10 @@ async function runOne(
       })
     );
 
-    const systemPrompt = buildSystemPrompt(
-      exp.agent.id,
-      session.promptAddendum
-    );
+    const systemPrompt = buildSystemPrompt({
+      agent: exp.agent.id,
+      addendum: session.promptAddendum,
+    });
     const run = await exp.agent.run({
       systemPrompt,
       userPrompt: prompt,
@@ -501,11 +501,13 @@ async function runOne(
   // A CLI agent discovers its installed skills itself. An in-process agent has
   // no filesystem, so its skills are advertised in the prompt and pulled on
   // demand via the load_skill tool instead.
-  const systemPrompt = buildSystemPrompt(
-    exp.agent.id,
-    session.promptAddendum,
-    agentRunsInSandbox ? undefined : buildToolsSkillsPrompt(toolsSkills)
-  );
+  const systemPrompt = buildSystemPrompt({
+    agent: exp.agent.id,
+    addendum: session.promptAddendum,
+    skillContext: agentRunsInSandbox
+      ? undefined
+      : buildToolsSkillsPrompt(toolsSkills),
+  });
   const run = await exp.agent.run({
     systemPrompt,
     userPrompt: prompt,
@@ -783,9 +785,16 @@ async function main() {
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+// Only when this file is the entry point. Importing it (a unit test reaching
+// for one of its helpers) must not dispatch a run or call process.exit.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main()
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+}

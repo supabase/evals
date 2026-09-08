@@ -209,12 +209,4 @@ describe('opencode runner exec routing', () => {
     expect(runCommand).toContain('"$(cat /u)"');
     expect(runCommand).not.toContain('system-prompt');
   });
-
-  it('sends the task alone as the message', async () => {
-    // opencode has no system-prompt flag, so anything else here would land on
-    // the user message. Nothing is prepended.
-    const { runCommand } = await captureExec('moonshotai/kimi-k3');
-    expect(runCommand).toContain('"$(cat /u)"');
-    expect(runCommand).not.toContain('system-prompt');
-  });
 });
