@@ -15,9 +15,10 @@
  *
  * Each CLI then discovers, advertises and loads the skills itself, in its own
  * words (Codex injects a `<skills_instructions>` block, OpenCode exposes a
- * `skill` tool). `buildSkillsPrompt` renders the harness's own discovery listing
- * on top of that, for the in-process `ai-sdk` agent — which has no such
- * mechanism — and for the CLI harnesses.
+ * `skill` tool). The harness injects nothing on top: a second listing would
+ * duplicate the CLI's own and name a tool the agent does not have. The one
+ * exception is the in-process `ai-sdk` agent, which has no such mechanism —
+ * `buildSkillsPrompt` renders the listing for it alone.
  */
 
 import { agentHarnessIdSchema } from '@supabase-evals/core';
@@ -82,9 +83,9 @@ export const SKILLS_INSTALL_AGENTS: readonly AgentHarnessId[] = installAgents;
 export const SKILLS_INSTALL_DIRS: readonly string[] = installDirs;
 
 /**
- * The directory `buildSkillsPrompt`'s listing points at — it names one concrete
- * path, read with the harness's own file tools. The CLI harnesses resolve their
- * own paths natively.
+ * The directory the `ai-sdk` discovery listing points at — that agent reads
+ * SKILL.md with the harness's own file tools, so it needs one concrete path. The
+ * CLI harnesses resolve their own paths natively.
  */
 export const SKILLS_INSTALL_DIR = CLAUDE_CODE_SKILLS_DIR;
 
@@ -138,12 +139,16 @@ export function frontmatterDescription(markdown: string): string {
  * Render the skills discovery listing: only names+descriptions enter the system
  * prompt, keeping context lean. When a task matches, the agent reads that
  * skill's SKILL.md with the existing file tools (progressive disclosure).
- * Empty when no skills are installed.
+ *
+ * ai-sdk only: `files_read` is an in-process tool only `aiSdkAgent` has, and
+ * every CLI harness discovers the installed skills itself (see the module
+ * comment). Empty for every CLI agent, and when no skills are installed.
  */
 export function buildSkillsPrompt(
   agent: AgentHarnessId,
   skills: readonly SkillEntry[]
 ): string {
+  if (agent !== 'ai-sdk') return '';
   if (skills.length === 0) return '';
   return [
     '## Available skills',
