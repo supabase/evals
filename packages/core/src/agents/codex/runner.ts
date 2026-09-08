@@ -58,7 +58,6 @@ export const codexRunner: AgentRunner<CodexModel> = {
     sandbox,
     model,
     apiKey,
-    systemPromptPath,
     userPromptPath,
     mcpServers,
     reasoningEffort,
@@ -91,10 +90,9 @@ export const codexRunner: AgentRunner<CodexModel> = {
       '-',
     ].join(' ');
 
-    // Codex has no system-prompt flag; prepend the system prompt to the task,
-    // both staged as files, fed on stdin.
+    // The staged task file, fed on stdin.
     const command = await sandbox.exec(
-      `{ cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath}; } | ${codex} ${flags}`,
+      `cat ${userPromptPath} | ${codex} ${flags}`,
       { timeoutMs: timeoutSec * 1000, env: { OPENAI_API_KEY: apiKey } }
     );
     return { command, raw: command.stdout };

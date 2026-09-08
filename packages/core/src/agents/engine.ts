@@ -26,7 +26,6 @@ import type { AgentTranscriptParser } from '../parsers/types.js';
 import type { AgentRunner } from './types.js';
 import {
   SCRATCH,
-  SYSTEM_PROMPT_PATH,
   USER_PROMPT_PATH,
   processStopReason,
   requireEnv,
@@ -86,18 +85,27 @@ export function createCliAgent<M extends string = string>(
         );
       }
 
+      // A CLI agent runs with the system prompt it ships with; the harness has
+      // no way to add to it that is the same across CLIs (Codex and OpenCode
+      // have no flag at all), and the eval measures the agent as shipped. Refuse
+      // rather than drop, so a misconfigured experiment fails loudly.
+      if (args.systemPrompt) {
+        throw new Error(
+          `${runner.displayName} is a CLI agent and runs with its own system prompt; ` +
+            'the harness must pass an empty one. Put task-specific instructions in the user prompt.'
+        );
+      }
+
       await runner.install(sandbox, version, apiKey);
 
-      // Stage the prompts into the sandbox scratch dir (outside the workspace).
+      // Stage the user prompt into the sandbox scratch dir (outside the workspace).
       await sandbox.exec(`mkdir -p ${SCRATCH}`);
-      await writeSandboxFile(sandbox, SYSTEM_PROMPT_PATH, args.systemPrompt);
       await writeSandboxFile(sandbox, USER_PROMPT_PATH, args.userPrompt);
 
       const { command, raw } = await runner.exec({
         sandbox,
         model: options.model,
         apiKey,
-        systemPromptPath: SYSTEM_PROMPT_PATH,
         userPromptPath: USER_PROMPT_PATH,
         // Rewrite loopback hosts so in-container MCP servers can reach host-side
         // platform-lite; the runner writes them in its own config format.

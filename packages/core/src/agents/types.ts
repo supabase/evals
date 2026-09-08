@@ -46,16 +46,15 @@ export interface AgentSandbox {
 
 /**
  * Arguments handed to a runner's `exec`. The generic layer has already staged
- * the prompts into the sandbox (paths are shell expressions) and rewritten MCP
- * server hosts for in-container reachability; the runner writes its own MCP
- * config in whatever format/location the CLI expects.
+ * the user prompt into the sandbox (the path is a shell expression) and
+ * rewritten MCP server hosts for in-container reachability; the runner writes
+ * its own MCP config in whatever format/location the CLI expects. There is no
+ * system prompt: a CLI agent runs with the one it ships with.
  */
 export interface RunnerExecArgs<M extends string = string> {
   sandbox: AgentSandbox;
   model: M;
   apiKey: string;
-  /** Shell path to a file holding the system prompt (skills + task framing). */
-  systemPromptPath: string;
   /** Shell path to a file holding the user prompt (the task). */
   userPromptPath: string;
   /** MCP servers to expose, already loopback-rewritten. Empty when none. */

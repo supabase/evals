@@ -40,7 +40,6 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     sandbox,
     model,
     apiKey,
-    systemPromptPath,
     userPromptPath,
     mcpServers,
     reasoningEffort,
@@ -68,9 +67,6 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       `--model ${shellQuote(model)}`,
       // Reasoning effort for the session; omitted leaves Claude Code's default.
       ...(reasoningEffort ? [`--effort ${shellQuote(reasoningEffort)}`] : []),
-      // Append (not replace), from a file (no ARG_MAX/shell-expansion surface),
-      // so Claude Code keeps its default coding-agent prompt + tool guidance.
-      `--append-system-prompt-file ${systemPromptPath}`,
       ...mcpFlags,
       // The sandbox is the isolation boundary, so skip permission prompts and
       // give the agent its full native toolset (same in both modes).

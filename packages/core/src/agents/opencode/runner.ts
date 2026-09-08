@@ -113,17 +113,15 @@ export function createOpencodeRunner(
       sandbox,
       model,
       apiKey,
-      systemPromptPath,
       userPromptPath,
       mcpServers,
       timeoutSec,
     }) {
       const opencode = npmGlobalBin('opencode');
 
-      // opencode has no system-prompt flag, so prepend the system prompt to the
-      // task; both are staged files, joined via command substitution into the
-      // single message argument.
-      const message = `"$(cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath})"`;
+      // The staged task file, read via command substitution into the single
+      // message argument.
+      const message = `"$(cat ${userPromptPath})"`;
 
       await sandbox.exec(`mkdir -p ${SCRATCH}`);
       await writeSandboxFile(
