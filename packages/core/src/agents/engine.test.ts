@@ -21,10 +21,12 @@ const parser: AgentTranscriptParser = {
  * the sandbox and whether the runner's `install` was reached.
  */
 async function runWithSystemPrompt(
-  systemPrompt: string
-): Promise<{ commands: string[]; installed: boolean }> {
-  const commands: string[] = [];
-  let installed = false;
+  systemPrompt: string,
+  effects: { commands: string[]; installed: boolean } = {
+    commands: [],
+    installed: false,
+  }
+): Promise<typeof effects> {
   const runner: AgentRunner = {
     id: 'claude-code',
     displayName: 'Fake CLI',
@@ -33,7 +35,7 @@ async function runWithSystemPrompt(
     defaultCliVersion: '1.0.0',
     defaultModel: 'fake-model',
     install: async () => {
-      installed = true;
+      effects.installed = true;
     },
     exec: async () => ({ command: ok, raw: '' }),
   };
@@ -44,13 +46,13 @@ async function runWithSystemPrompt(
     sandbox: {
       workspace: '/w',
       exec: async (command) => {
-        commands.push(command);
+        effects.commands.push(command);
         return ok;
       },
       readFile: async () => '',
     },
   });
-  return { commands, installed };
+  return effects;
 }
 
 describe('createCliAgent prompt staging', () => {
@@ -68,15 +70,11 @@ describe('createCliAgent prompt staging', () => {
   it('refuses a system prompt before touching the sandbox', async () => {
     // A CLI agent runs with its own prompt. The refusal comes before install
     // and staging, so a misconfigured experiment fails without paying for them.
-    const commands: string[] = [];
-    let installed = false;
+    const effects = { commands: [], installed: false };
     await expect(
-      runWithSystemPrompt('Extra framing.').then((r) => {
-        commands.push(...r.commands);
-        installed = r.installed;
-      })
+      runWithSystemPrompt('Extra framing.', effects)
     ).rejects.toThrow(/runs with its own system prompt/);
-    expect(commands).toEqual([]);
-    expect(installed).toBe(false);
+    expect(effects.commands).toEqual([]);
+    expect(effects.installed).toBe(false);
   });
 });
