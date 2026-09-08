@@ -14,6 +14,7 @@
 import type { CommandResult, McpServerConfig } from '../index.js';
 import type {
   AgentHarnessId,
+  AgentUsage,
   ModelProvider,
   ReasoningEffortLevel,
 } from '../eval-metadata.js';
@@ -106,6 +107,11 @@ export interface AgentRunner<M extends string = string> {
    * result. Falls back to a process-exit-based reason when omitted.
    */
   deriveStopReason?(raw: string | undefined, command: CommandResult): string;
+  /**
+   * Whole-run token usage from the transcript, per model. `model` is the
+   * configured model id, for harnesses that report one aggregate.
+   */
+  extractUsage?(raw: string | undefined, model: M): AgentUsage | undefined;
 }
 
 /**

@@ -41,6 +41,7 @@ import {
 } from '@supabase-evals/platform-lite';
 import type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalMetadata,
   EvalSuite,
@@ -131,6 +132,7 @@ export type {
 } from './transcript/types.js';
 export type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalInterface,
   EvalMetadata,
@@ -288,6 +290,18 @@ export interface ToolEvalContext extends ToolScoringContext {
 }
 
 /**
+ * The running local stack's url and API keys, as `supabase status` reports
+ * them. `anonKey` is the legacy key, empty on a stack that no longer issues
+ * one.
+ */
+export interface LocalStackStatus {
+  apiUrl: string;
+  publishableKey: string;
+  secretKey: string;
+  anonKey: string;
+}
+
+/**
  * Scoring surface for local-stack evals. Everything runs inside the Docker
  * sandbox the agent worked in, against the local Supabase stack it (or the
  * harness) started.
@@ -320,6 +334,12 @@ export interface LocalStackScoringContext {
    * state. Connects host-side to the stack's published ports.
    */
   getClient: () => Promise<SupabaseClient>;
+  /**
+   * The running stack's url and API keys, discovered lazily from `supabase
+   * status` and cached. Use this to reach the stack as an identity `getClient`
+   * doesn't cover, or to assert on where a key ended up.
+   */
+  stackStatus: () => Promise<LocalStackStatus>;
   /**
    * The mocked hosted project's ref, when the eval links to platform-lite
    * (`hostedProject: true`). Undefined for purely-local evals.
@@ -395,6 +415,8 @@ export type AgentRunResult = {
   transcript: TranscriptPart[];
   steps: number;
   stoppedReason: string;
+  usage?: AgentUsage;
+  durationMs: number;
 };
 
 export type AgentHarness = {
@@ -701,6 +723,7 @@ export function aiSdkAgent(options: {
       ]);
 
       try {
+        const start = Date.now();
         const result = await generateText({
           model: options.model,
           system: args.systemPrompt,
@@ -789,6 +812,18 @@ export function aiSdkAgent(options: {
 
         const agentReport = result.text.trim();
 
+        const { inputTokens, inputTokenDetails, outputTokens } =
+          result.totalUsage;
+        const usage: AgentUsage = [
+          {
+            model: modelId,
+            inputTokens: inputTokens ?? 0,
+            cacheReadInputTokens: inputTokenDetails.cacheReadTokens ?? 0,
+            cacheWriteInputTokens: inputTokenDetails.cacheWriteTokens ?? 0,
+            outputTokens: outputTokens ?? 0,
+          },
+        ];
+
         return {
           agentReport,
           toolCalls,
@@ -798,6 +833,8 @@ export function aiSdkAgent(options: {
             result.steps.length >= MAX_STEPS
               ? 'max_steps'
               : result.finishReason,
+          usage,
+          durationMs: Date.now() - start,
         };
       } finally {
         await closeMcpHandles(mcpHandles);
@@ -1244,7 +1281,7 @@ async function getAvailablePort(): Promise<number> {
 }
 
 export const ACCESS_TOKEN = 'eval-token';
-export const MCP_SERVER_VERSION = '0.11.0';
+export const MCP_SERVER_VERSION = '0.12.0';
 // Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
 // server requires a token to boot but never authenticates without a platform.
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;

@@ -38,6 +38,7 @@ import {
   supabaseMcpServerMounts,
 } from '@supabase-evals/core';
 import type {
+  AgentUsage,
   ExperimentConfig,
   EvalInterface,
   EvalManifest,
@@ -354,6 +355,8 @@ async function runOne(
      * Recorded so a run artifact shows what the agent was told.
      */
     systemPrompt: string;
+    usage?: AgentUsage;
+    durationMs: number;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -473,6 +476,8 @@ async function runOne(
       agentReport: run.agentReport,
       stoppedReason: run.stoppedReason,
       systemPrompt,
+      usage: run.usage,
+      durationMs: run.durationMs,
     };
   }
 
@@ -530,6 +535,8 @@ async function runOne(
     agentReport: run.agentReport,
     stoppedReason: run.stoppedReason,
     systemPrompt,
+    usage: run.usage,
+    durationMs: run.durationMs,
   };
 }
 
