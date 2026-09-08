@@ -9,7 +9,7 @@
 
 import type { ChatModel } from 'openai/resources/shared';
 import type { McpServerConfig } from '../../index.js';
-import { parseJsonlRecords } from '../../json.js';
+import { isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
@@ -31,7 +31,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
   cliPackage: '@openai/codex',
   // Pinned: Codex's --json event schema evolves; bump deliberately and re-check
   // the parser. See ./parser.ts.
-  defaultCliVersion: '0.138.0',
+  defaultCliVersion: '0.151.0',
   defaultModel: 'gpt-5.4',
 
   async install(sandbox, version, apiKey) {
@@ -81,6 +81,9 @@ export const codexRunner: AgentRunner<CodexModel> = {
       '--skip-git-repo-check',
       // The sandbox is the isolation boundary — let Codex run commands freely.
       '--dangerously-bypass-approvals-and-sandbox',
+      // No anonymous usage pings during a run.
+      // https://learn.chatgpt.com/docs/config-file/config-advanced
+      `-c ${shellQuote('analytics.enabled=false')}`,
       `-m ${shellQuote(model)}`,
       // Reasoning effort via config override; omitted leaves Codex's default.
       // The value is parsed as TOML, so pass it as a quoted TOML string.
@@ -114,6 +117,30 @@ export const codexRunner: AgentRunner<CodexModel> = {
       default:
         return processStopReason(command);
     }
+  },
+
+  extractUsage(raw, model) {
+    if (!raw) return undefined;
+    const { records } = parseJsonlRecords(raw);
+    let sawUsage = false;
+    const usage = {
+      model,
+      inputTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 0,
+    };
+    for (const record of records) {
+      if (record.type !== 'turn.completed' || !isRecord(record.usage)) continue;
+      sawUsage = true;
+      usage.inputTokens += Number(record.usage.input_tokens) || 0;
+      usage.cacheReadInputTokens +=
+        Number(record.usage.cached_input_tokens) || 0;
+      usage.cacheWriteInputTokens +=
+        Number(record.usage.cache_write_input_tokens) || 0;
+      usage.outputTokens += Number(record.usage.output_tokens) || 0;
+    }
+    return sawUsage ? [usage] : undefined;
   },
 };
 
