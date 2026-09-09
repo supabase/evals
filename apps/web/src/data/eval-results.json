@@ -13255,123 +13255,22 @@
     "docs": {
       "calls": []
     },
+    "usage": [
+      {
+        "model": "claude-sonnet-5",
+        "inputTokens": 387637,
+        "cacheReadInputTokens": 342153,
+        "cacheWriteInputTokens": 41790,
+        "outputTokens": 1886
+      }
+    ],
+    "turnCount": 12,
+    "toolCallCount": 11,
+    "durationMs": 82142,
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "run": 1,
     "sourcePath": "claude-code-sonnet-5/build-cli-002-declarative-schema/run-1/result.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "build-cli-002-declarative-schema",
-    "stage": "build",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "declarative-schema",
-      "migrations"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase db diff used to generate the migration",
-        "passed": true
-      },
-      {
-        "name": "schema file updated to include description column",
-        "passed": true
-      },
-      {
-        "name": "a new migration was generated for the change",
-        "passed": true
-      },
-      {
-        "name": "description column exists in the live database",
-        "passed": true
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
-    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
-    "run": 2,
-    "sourcePath": "claude-code-sonnet-5/build-cli-002-declarative-schema/run-2/result.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "build-cli-002-declarative-schema",
-    "stage": "build",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "declarative-schema",
-      "migrations"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase db diff used to generate the migration",
-        "passed": true
-      },
-      {
-        "name": "schema file updated to include description column",
-        "passed": true
-      },
-      {
-        "name": "a new migration was generated for the change",
-        "passed": true
-      },
-      {
-        "name": "description column exists in the live database",
-        "passed": true
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
-    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
-    "run": 3,
-    "sourcePath": "claude-code-sonnet-5/build-cli-002-declarative-schema/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -45967,6 +45866,98 @@
     "sourcePath": "codex-gpt-5.6-no-skills/resolve-security-002-rls-cross-tenant-leak/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-5.6-sol",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-002-declarative-schema",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "declarative-schema",
+      "migrations"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase db diff used to generate the migration",
+        "passed": true
+      },
+      {
+        "name": "schema file updated to include description column",
+        "passed": true
+      },
+      {
+        "name": "a new migration was generated for the change",
+        "passed": true
+      },
+      {
+        "name": "description column exists in the live database",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"sed -n '1,240p' .claude/skills/supabase-postgres-best-practices/references/schema-data-types.md\nsed -n '1,240p' supabase/config.toml\nfind supabase/schemas -maxdepth 2 -type f -print -exec sed -n '1,240p' {} \\\\;\nsed -n '1,240p' supabase/migrations/20260101000000_create_products.sql\nsupabase --version\nsupabase migration new --help | sed -n '1,180p'\ncurl -fsSL https://supabase.com/changelog.md | rg -i -C 2 'breaking|migration|declarative|schema' | head -n 120\ncurl -fsSL https://supabase.com/docs/guides/local-development/declarative-database-schemas.md | sed -n '1,220p'\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas.md"
+            }
+          ],
+          "resultChars": 17428
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-sol",
+        "inputTokens": 283265,
+        "cacheReadInputTokens": 239473,
+        "cacheWriteInputTokens": 43756,
+        "outputTokens": 1871
+      }
+    ],
+    "turnCount": 12,
+    "toolCallCount": 8,
+    "durationMs": 78244,
+    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
+    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-sol/build-cli-002-declarative-schema/run-1/result.json"
+  },
+  {
     "experiment": "opencode-kimi-k3",
     "experimentSuite": "benchmark",
     "experimentDisplay": {
@@ -46694,122 +46685,22 @@
     "docs": {
       "calls": []
     },
+    "usage": [
+      {
+        "model": "moonshotai/kimi-k3",
+        "inputTokens": 189203,
+        "cacheReadInputTokens": 162304,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 2440
+      }
+    ],
+    "turnCount": 12,
+    "toolCallCount": 19,
+    "durationMs": 85772,
     "prompt": "Add a description text column to the `products` table in my local Supabase stack",
     "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
     "run": 1,
     "sourcePath": "opencode-kimi-k3/build-cli-002-declarative-schema/run-1/result.json"
-  },
-  {
-    "experiment": "opencode-kimi-k3",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "opencode",
-      "modelProvider": "moonshotai",
-      "modelId": "moonshotai/kimi-k3"
-    },
-    "eval": "build-cli-002-declarative-schema",
-    "stage": "build",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "declarative-schema",
-      "migrations"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase db diff used to generate the migration",
-        "passed": true
-      },
-      {
-        "name": "schema file updated to include description column",
-        "passed": true
-      },
-      {
-        "name": "a new migration was generated for the change",
-        "passed": true
-      },
-      {
-        "name": "description column exists in the live database",
-        "passed": true
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
-    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
-    "run": 2,
-    "sourcePath": "opencode-kimi-k3/build-cli-002-declarative-schema/run-2/result.json"
-  },
-  {
-    "experiment": "opencode-kimi-k3",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "opencode",
-      "modelProvider": "moonshotai",
-      "modelId": "moonshotai/kimi-k3"
-    },
-    "eval": "build-cli-002-declarative-schema",
-    "stage": "build",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "declarative-schema",
-      "migrations"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase db diff used to generate the migration",
-        "passed": true
-      },
-      {
-        "name": "schema file updated to include description column",
-        "passed": true
-      },
-      {
-        "name": "a new migration was generated for the change",
-        "passed": true
-      },
-      {
-        "name": "description column exists in the live database",
-        "passed": true
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "prompt": "Add a description text column to the `products` table in my local Supabase stack",
-    "promptSourcePath": "evals/build-cli-002-declarative-schema/PROMPT.md",
-    "run": 3,
-    "sourcePath": "opencode-kimi-k3/build-cli-002-declarative-schema/run-3/result.json"
   },
   {
     "experiment": "opencode-kimi-k3",
