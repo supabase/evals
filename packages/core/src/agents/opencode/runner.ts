@@ -186,6 +186,13 @@ export function createOpencodeRunner(
       return processStopReason(command);
     },
 
+    extractTurnCount(raw) {
+      if (!raw) return undefined;
+      const { records } = parseJsonlRecords(raw);
+      const turns = records.filter((r) => r.type === 'step_finish').length;
+      return turns || undefined;
+    },
+
     extractUsage(raw, model) {
       // opencode keeps cache out of `input` and reasoning out of `output`.
       // https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/acp/usage.ts

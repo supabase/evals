@@ -94,7 +94,7 @@ export function createCliAgent<M extends string = string>(
       await writeSandboxFile(sandbox, USER_PROMPT_PATH, args.userPrompt);
 
       const start = Date.now();
-      const { command, raw } = await runner.exec({
+      const { command, raw, turnCount } = await runner.exec({
         sandbox,
         model: options.model,
         apiKey,
@@ -137,6 +137,7 @@ export function createCliAgent<M extends string = string>(
         stoppedReason:
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
         usage: runner.extractUsage?.(raw, options.model),
+        turnCount: turnCount ?? runner.extractTurnCount?.(raw),
         durationMs: Date.now() - start,
       };
     },

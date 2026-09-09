@@ -203,3 +203,13 @@ describe('opencode runner exec routing', () => {
     expect(runCommand).toContain('OPENCODE_CONFIG=');
   });
 });
+
+describe('opencode runner extractTurnCount', () => {
+  const extract = createOpencodeRunner('anthropic/claude-sonnet-5')
+    .extractTurnCount!;
+
+  it('counts step_finish records', () => {
+    expect(extract(SESSION)).toBe(2);
+    expect(extract(undefined)).toBeUndefined();
+  });
+});

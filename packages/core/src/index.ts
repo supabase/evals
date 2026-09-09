@@ -412,6 +412,7 @@ export type AgentRunResult = {
   steps: number;
   stoppedReason: string;
   usage?: AgentUsage;
+  turnCount?: number;
   durationMs: number;
 };
 
@@ -825,6 +826,7 @@ export function aiSdkAgent(options: {
               ? 'max_steps'
               : result.finishReason,
           usage,
+          turnCount: result.steps.length,
           durationMs: Date.now() - start,
         };
       } finally {
