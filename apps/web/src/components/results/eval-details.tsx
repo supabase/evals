@@ -236,8 +236,8 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
       {result.usage ? (
         <EvalMetadataRow label="Tokens" value={formatTokens(result.usage)} />
       ) : null}
-      {result.turnCount !== undefined ? (
-        <EvalMetadataRow label="Turns" value={result.turnCount} />
+      {result.stepCount !== undefined ? (
+        <EvalMetadataRow label="Steps" value={result.stepCount} />
       ) : null}
       {result.toolCallCount !== undefined ? (
         <EvalMetadataRow label="Tool calls" value={result.toolCallCount} />

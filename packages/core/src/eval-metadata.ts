@@ -382,8 +382,8 @@ const evalResultShape = {
   usage: agentUsageSchema.optional(),
   // One turn per model response, for example:
   //   text → [Read, Read] → Edit → reasoning → text
-  //   turnCount 5, toolCallCount 3
-  turnCount: z.number().optional(),
+  //   stepCount 5, toolCallCount 3
+  stepCount: z.number().optional(),
   toolCallCount: z.number().optional(),
   // Wall-clock time of the agent run only. Sandbox boot and scoring are excluded.
   durationMs: z.number().optional(),

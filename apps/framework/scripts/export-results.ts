@@ -139,7 +139,7 @@ async function readResultFile(
     skills: parsedResult.skills,
     docs: parsedResult.docs,
     usage: parsedResult.usage,
-    turnCount: parsedResult.turnCount,
+    stepCount: parsedResult.stepCount,
     toolCallCount: parsedResult.toolCallCount,
     durationMs: parsedResult.durationMs,
     prompt: promptData?.prompt,

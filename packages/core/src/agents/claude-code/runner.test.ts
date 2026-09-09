@@ -114,8 +114,8 @@ describe('claudeCodeRunner.extractUsage', () => {
   });
 });
 
-describe('claudeCodeRunner.extractTurnCount', () => {
-  const extract = claudeCodeRunner.extractTurnCount!;
+describe('claudeCodeRunner.extractStepCount', () => {
+  const extract = claudeCodeRunner.extractStepCount!;
 
   it('reads num_turns off the result event', () => {
     expect(extract(streamJson('success'))).toBe(3);

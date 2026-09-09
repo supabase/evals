@@ -106,7 +106,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     return processStopReason(command);
   },
 
-  extractTurnCount(raw) {
+  extractStepCount(raw) {
     const n = lastResultEvent(raw)?.num_turns;
     return typeof n === 'number' ? n : undefined;
   },

@@ -186,7 +186,7 @@ export function createOpencodeRunner(
       return processStopReason(command);
     },
 
-    extractTurnCount(raw) {
+    extractStepCount(raw) {
       if (!raw) return undefined;
       const { records } = parseJsonlRecords(raw);
       const turns = records.filter((r) => r.type === 'step_finish').length;
