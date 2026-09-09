@@ -7,7 +7,7 @@ import {
 import { localStackRuntime } from '@supabase-evals/sandbox';
 
 export default defineExperiment({
-  suite: ['benchmark'],
+  suite: ['benchmark', 'regression'],
   agent: codexAgent({
     model: 'gpt-5.6-luna',
     reasoningEffort: 'medium',
