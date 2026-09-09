@@ -75,9 +75,9 @@ export interface RunnerExecResult {
   /** Raw transcript (JSONL) — stdout for streaming CLIs, or read from disk. */
   raw?: string;
   /**
-   * Model responses in the run, when the runner reads them from somewhere
-   * other than `raw` (Codex uses its session rollout). Worked example on
-   * `turnCount` in eval-metadata.ts.
+   * Model responses in the run, for runners that read them from somewhere
+   * other than `raw` (Codex uses its session rollout). See `turnCount` in
+   * eval-metadata.ts for what counts as one.
    */
   turnCount?: number;
 }
@@ -119,10 +119,7 @@ export interface AgentRunner<M extends string = string> {
    * configured model id, for harnesses that report one aggregate.
    */
   extractUsage?(raw: string | undefined, model: M): AgentUsage | undefined;
-  /**
-   * Model responses in the run, from `raw`. Worked example on `turnCount` in
-   * eval-metadata.ts.
-   */
+  /** Model responses in the run. See `turnCount` in eval-metadata.ts for what counts as one. */
   extractTurnCount?(raw: string | undefined): number | undefined;
 }
 
