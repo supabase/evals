@@ -1716,6 +1716,350 @@
       "modelId": "gpt-5.6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "build-functions-007-cors-api-key-with-middleware",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects a request with no x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "rejects a request with the wrong x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "accepts the right key and returns the caller key id from ctx",
+        "passed": true,
+        "notes": "status 200: {\"ok\":true,\"keyId\":\"7f3a9c\"}"
+      },
+      {
+        "name": "varies the handler response on Origin for the allowed origin",
+        "passed": true,
+        "notes": "vary: Accept-Encoding, Origin"
+      },
+      {
+        "name": "implementation uses @supabase/middleware",
+        "passed": true,
+        "notes": "imports @supabase/middleware"
+      },
+      {
+        "name": "the API-key check is a defineMiddleware middleware",
+        "passed": true,
+        "notes": "calls defineMiddleware"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- files ---' && rg --files -g '\"'!node_modules'\"' -g '\"'!supabase/.branches'\"' | sort && printf '%s\\\\n' '--- cli ---' && supabase --version && supabase functions --help && printf '%s\\\\n' '--- changelog status ---' && curl -fsSL https://supabase.com/changelog.md | head -80\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6741
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"find . -maxdepth 4 -type f -not -path './.git/*' -print | sort && printf '%s\\\\n' '--- config ---' && sed -n '1,240p' supabase/config.toml && printf '%s\\\\n' '--- env files ---' && find supabase/functions -maxdepth 2 -type f -print -exec sh -c 'echo --- \\\"\"'$1\"; sed -n \"1,160p\" \"$1\"'\"' _ {} \\\\; 2>/dev/null || true && printf '%s\\\\n' '--- middleware docs search ---' && curl -fsSL https://supabase.com/docs/guides/functions/middleware | rg -n -C 3 'pipeline|defineMiddleware|cors' | head -160 || true\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/middleware"
+            }
+          ],
+          "resultChars": 49
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs @supabase/middleware defineMiddleware pipeline Edge Functions CORS ...",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 3450781,
+        "cacheReadInputTokens": 3352184,
+        "cacheWriteInputTokens": 98438,
+        "outputTokens": 11227
+      }
+    ],
+    "stepCount": 53,
+    "toolCallCount": 46,
+    "durationMs": 250071,
+    "prompt": "Build and serve a Supabase Edge Function named `notes-api` for this project,\nreachable over HTTP at `/functions/v1/notes-api`.\n\nPut it together with the **`@supabase/middleware`** package. Import it directly\nin your function:\n\n```ts\nimport { pipeline } from \"npm:@supabase/middleware\";\n```\n\nTwo things need to run in front of the handler:\n\n1. **CORS** for our web app at `https://app.example.com`. Browsers send\n   preflight requests first, so those have to work too.\n\n2. **An API key check.** The callers are third-party services, not signed-in\n   Supabase users. They send their key in an `x-api-key` header, and it has to\n   match the `NOTES_API_KEY` secret that is already in\n   `supabase/functions/.env`. Anything else gets a `401` and never reaches the\n   handler.\n\nWrite the key check as your own middleware with the package's\n`defineMiddleware`. Our keys look like `nk_live_7f3a9c`; have the middleware put\nthe part after the last underscore on `ctx` as `ctx.caller.keyId`, and have the\nhandler return `{ \"ok\": true, \"keyId\": ctx.caller.keyId }` as JSON.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-007-cors-api-key-with-middleware/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna/build-functions-007-cors-api-key-with-middleware/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-007-cors-api-key-with-middleware",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects a request with no x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "rejects a request with the wrong x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "accepts the right key and returns the caller key id from ctx",
+        "passed": true,
+        "notes": "status 200: {\"ok\":true,\"keyId\":\"7f3a9c\"}"
+      },
+      {
+        "name": "varies the handler response on Origin for the allowed origin",
+        "passed": true,
+        "notes": "vary: Accept-Encoding, Origin"
+      },
+      {
+        "name": "implementation uses @supabase/middleware",
+        "passed": true,
+        "notes": "imports @supabase/middleware"
+      },
+      {
+        "name": "the API-key check is a defineMiddleware middleware",
+        "passed": true,
+        "notes": "calls defineMiddleware"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '---CHANGELOG CHECK---'; curl -fsSL --max-time 15 https://supabase.com/changelog.md | rg -i -m 5 'breaking-change|edge function|middleware' || true; printf '%s\\\\n' '---PROJECT---'; find . -maxdepth 4 -type f -not -path './.git/*' -not -path './.claude/*' | sort; printf '%s\\\\n' '---CONFIG---'; sed -n '1,260p' supabase/config.toml; printf '%s\\\\n' '---CLI---'; supabase --version; supabase functions --help\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2281
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '---ENV (names only)---'; sed 's/=.*/=<redacted>/' supabase/functions/.env; printf '%s\\\\n' '---STATUS---'; git status --short; printf '%s\\\\n' '---PACKAGE METADATA---'; curl -fsSL --max-time 20 https://registry.npmjs.org/@supabase%2fmiddleware | node -e 'let s=\\\"\\\";process.stdin.on(\\\"data\\\",d=>s+=d).on(\\\"end\\\",()=>{let j=JSON.parse(s); let v=j[\\\"dist-tags\\\"].latest; console.log(JSON.stringify({latest:v,version:j.versions[v]},null,2))})'; printf '%s\\\\n' '---DOC SEARCH---'; curl -fsSL --max-time 20 https://supabase.com/docs/guides/functions/middleware | rg -n -i -C 2 'pipeline|defineMiddleware|cors' | head -120 || true\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/middleware"
+            }
+          ],
+          "resultChars": 49
+        },
+        {
+          "source": "web_search",
+          "query": "\"failed to determine entrypoint\" Supabase Edge Runtime functions serve",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 2893780,
+        "cacheReadInputTokens": 2780411,
+        "cacheWriteInputTokens": 113252,
+        "outputTokens": 10370
+      }
+    ],
+    "stepCount": 39,
+    "toolCallCount": 30,
+    "durationMs": 207756,
+    "prompt": "Build and serve a Supabase Edge Function named `notes-api` for this project,\nreachable over HTTP at `/functions/v1/notes-api`.\n\nPut it together with the **`@supabase/middleware`** package. Import it directly\nin your function:\n\n```ts\nimport { pipeline } from \"npm:@supabase/middleware\";\n```\n\nTwo things need to run in front of the handler:\n\n1. **CORS** for our web app at `https://app.example.com`. Browsers send\n   preflight requests first, so those have to work too.\n\n2. **An API key check.** The callers are third-party services, not signed-in\n   Supabase users. They send their key in an `x-api-key` header, and it has to\n   match the `NOTES_API_KEY` secret that is already in\n   `supabase/functions/.env`. Anything else gets a `401` and never reaches the\n   handler.\n\nWrite the key check as your own middleware with the package's\n`defineMiddleware`. Our keys look like `nk_live_7f3a9c`; have the middleware put\nthe part after the last underscore on `ctx` as `ctx.caller.keyId`, and have the\nhandler return `{ \"ok\": true, \"keyId\": ctx.caller.keyId }` as JSON.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-007-cors-api-key-with-middleware/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna/build-functions-007-cors-api-key-with-middleware/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-007-cors-api-key-with-middleware",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects a request with no x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "rejects a request with the wrong x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "accepts the right key and returns the caller key id from ctx",
+        "passed": true,
+        "notes": "status 200: {\"ok\":true,\"keyId\":\"7f3a9c\"}"
+      },
+      {
+        "name": "varies the handler response on Origin for the allowed origin",
+        "passed": true,
+        "notes": "vary: Accept-Encoding, Origin"
+      },
+      {
+        "name": "implementation uses @supabase/middleware",
+        "passed": true,
+        "notes": "imports @supabase/middleware"
+      },
+      {
+        "name": "the API-key check is a defineMiddleware middleware",
+        "passed": true,
+        "notes": "calls defineMiddleware"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6742
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs @supabase/middleware defineMiddleware pipeline Edge Functions",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/reference/middleware withCors allowedOrigins @supabase/middleware/cors",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/reference/middleware/cors-withcors",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/middleware/cors-withcors"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "\"withCors\" \"allowedOrigins\" \"@supabase/middleware\"",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "Supabase CLI \"failed to determine entrypoint\" edge runtime functions serve",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 3446294,
+        "cacheReadInputTokens": 3344238,
+        "cacheWriteInputTokens": 101894,
+        "outputTokens": 13458
+      }
+    ],
+    "stepCount": 54,
+    "toolCallCount": 49,
+    "durationMs": 240010,
+    "prompt": "Build and serve a Supabase Edge Function named `notes-api` for this project,\nreachable over HTTP at `/functions/v1/notes-api`.\n\nPut it together with the **`@supabase/middleware`** package. Import it directly\nin your function:\n\n```ts\nimport { pipeline } from \"npm:@supabase/middleware\";\n```\n\nTwo things need to run in front of the handler:\n\n1. **CORS** for our web app at `https://app.example.com`. Browsers send\n   preflight requests first, so those have to work too.\n\n2. **An API key check.** The callers are third-party services, not signed-in\n   Supabase users. They send their key in an `x-api-key` header, and it has to\n   match the `NOTES_API_KEY` secret that is already in\n   `supabase/functions/.env`. Anything else gets a `401` and never reaches the\n   handler.\n\nWrite the key check as your own middleware with the package's\n`defineMiddleware`. Our keys look like `nk_live_7f3a9c`; have the middleware put\nthe part after the last underscore on `ctx` as `ctx.caller.keyId`, and have the\nhandler return `{ \"ok\": true, \"keyId\": ctx.caller.keyId }` as JSON.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-007-cors-api-key-with-middleware/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna/build-functions-007-cors-api-key-with-middleware/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "build-realtime-001-live-chat-updates",
     "stage": "build",
     "product": [
@@ -5988,6 +6332,268 @@
     "promptSourcePath": "evals/build-functions-006-dual-auth-with-server/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-5.6-luna-no-skills/build-functions-006-dual-auth-with-server/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-007-cors-api-key-with-middleware",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects a request with no x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "rejects a request with the wrong x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "accepts the right key and returns the caller key id from ctx",
+        "passed": true,
+        "notes": "status 200: {\"ok\":true,\"keyId\":\"7f3a9c\"}"
+      },
+      {
+        "name": "varies the handler response on Origin for the allowed origin",
+        "passed": true,
+        "notes": "vary: Accept-Encoding, Origin"
+      },
+      {
+        "name": "implementation uses @supabase/middleware",
+        "passed": true,
+        "notes": "imports @supabase/middleware"
+      },
+      {
+        "name": "the API-key check is a defineMiddleware middleware",
+        "passed": true,
+        "notes": "calls defineMiddleware"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs @supabase/middleware defineMiddleware pipeline Edge Functions",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "\"failed to determine entrypoint\" \"supabase functions serve\"",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 4337813,
+        "cacheReadInputTokens": 4245099,
+        "cacheWriteInputTokens": 92495,
+        "outputTokens": 12470
+      }
+    ],
+    "stepCount": 73,
+    "toolCallCount": 48,
+    "durationMs": 304160,
+    "prompt": "Build and serve a Supabase Edge Function named `notes-api` for this project,\nreachable over HTTP at `/functions/v1/notes-api`.\n\nPut it together with the **`@supabase/middleware`** package. Import it directly\nin your function:\n\n```ts\nimport { pipeline } from \"npm:@supabase/middleware\";\n```\n\nTwo things need to run in front of the handler:\n\n1. **CORS** for our web app at `https://app.example.com`. Browsers send\n   preflight requests first, so those have to work too.\n\n2. **An API key check.** The callers are third-party services, not signed-in\n   Supabase users. They send their key in an `x-api-key` header, and it has to\n   match the `NOTES_API_KEY` secret that is already in\n   `supabase/functions/.env`. Anything else gets a `401` and never reaches the\n   handler.\n\nWrite the key check as your own middleware with the package's\n`defineMiddleware`. Our keys look like `nk_live_7f3a9c`; have the middleware put\nthe part after the last underscore on `ctx` as `ctx.caller.keyId`, and have the\nhandler return `{ \"ok\": true, \"keyId\": ctx.caller.keyId }` as JSON.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-007-cors-api-key-with-middleware/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-functions-007-cors-api-key-with-middleware/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-007-cors-api-key-with-middleware",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": false,
+    "checks": [
+      {
+        "name": "read stack config from `supabase status`",
+        "passed": false,
+        "notes": "missing API_URL; got keys: ANON_KEY, DB_URL, INBUCKET_URL, JWT_SECRET, MAILPIT_URL, PUBLISHABLE_KEY, S3_PROTOCOL_ACCESS_KEY_ID, S3_PROTOCOL_ACCESS_KEY_SECRET, S3_PROTOCOL_REGION, SECRET_KEY, SERVICE_ROLE_KEY, STORAGE_S3_URL, STUDIO_URL"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs @supabase/middleware defineMiddleware pipeline cors Edge Functions",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "\"failed to determine entrypoint\" supabase functions serve",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:github.com/supabase/cli \"functions/main/index.ts\" \"functions serve\"",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "github supabase edge-runtime examples main index.ts userWorkers.create servicePath",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 3260356,
+        "cacheReadInputTokens": 3166105,
+        "cacheWriteInputTokens": 94086,
+        "outputTokens": 11680
+      }
+    ],
+    "stepCount": 55,
+    "toolCallCount": 40,
+    "durationMs": 236891,
+    "prompt": "Build and serve a Supabase Edge Function named `notes-api` for this project,\nreachable over HTTP at `/functions/v1/notes-api`.\n\nPut it together with the **`@supabase/middleware`** package. Import it directly\nin your function:\n\n```ts\nimport { pipeline } from \"npm:@supabase/middleware\";\n```\n\nTwo things need to run in front of the handler:\n\n1. **CORS** for our web app at `https://app.example.com`. Browsers send\n   preflight requests first, so those have to work too.\n\n2. **An API key check.** The callers are third-party services, not signed-in\n   Supabase users. They send their key in an `x-api-key` header, and it has to\n   match the `NOTES_API_KEY` secret that is already in\n   `supabase/functions/.env`. Anything else gets a `401` and never reaches the\n   handler.\n\nWrite the key check as your own middleware with the package's\n`defineMiddleware`. Our keys look like `nk_live_7f3a9c`; have the middleware put\nthe part after the last underscore on `ctx` as `ctx.caller.keyId`, and have the\nhandler return `{ \"ok\": true, \"keyId\": ctx.caller.keyId }` as JSON.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-007-cors-api-key-with-middleware/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-functions-007-cors-api-key-with-middleware/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-007-cors-api-key-with-middleware",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "rejects a request with no x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "rejects a request with the wrong x-api-key",
+        "passed": true,
+        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+      },
+      {
+        "name": "accepts the right key and returns the caller key id from ctx",
+        "passed": true,
+        "notes": "status 200: {\"ok\":true,\"keyId\":\"7f3a9c\"}"
+      },
+      {
+        "name": "varies the handler response on Origin for the allowed origin",
+        "passed": true,
+        "notes": "vary: Accept-Encoding, Origin"
+      },
+      {
+        "name": "implementation uses @supabase/middleware",
+        "passed": true,
+        "notes": "imports @supabase/middleware"
+      },
+      {
+        "name": "the API-key check is a defineMiddleware middleware",
+        "passed": true,
+        "notes": "calls defineMiddleware"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs @supabase/middleware defineMiddleware pipeline Edge Functions",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/reference/middleware withCors @supabase/middleware/cors",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "\"failed to determine entrypoint\" supabase functions serve",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/functions \"export default {\" \"fetch\" Edge Function",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 2751553,
+        "cacheReadInputTokens": 2652093,
+        "cacheWriteInputTokens": 99337,
+        "outputTokens": 7942
+      }
+    ],
+    "stepCount": 41,
+    "toolCallCount": 29,
+    "durationMs": 183790,
+    "prompt": "Build and serve a Supabase Edge Function named `notes-api` for this project,\nreachable over HTTP at `/functions/v1/notes-api`.\n\nPut it together with the **`@supabase/middleware`** package. Import it directly\nin your function:\n\n```ts\nimport { pipeline } from \"npm:@supabase/middleware\";\n```\n\nTwo things need to run in front of the handler:\n\n1. **CORS** for our web app at `https://app.example.com`. Browsers send\n   preflight requests first, so those have to work too.\n\n2. **An API key check.** The callers are third-party services, not signed-in\n   Supabase users. They send their key in an `x-api-key` header, and it has to\n   match the `NOTES_API_KEY` secret that is already in\n   `supabase/functions/.env`. Anything else gets a `401` and never reaches the\n   handler.\n\nWrite the key check as your own middleware with the package's\n`defineMiddleware`. Our keys look like `nk_live_7f3a9c`; have the middleware put\nthe part after the last underscore on `ctx` as `ctx.caller.keyId`, and have the\nhandler return `{ \"ok\": true, \"keyId\": ctx.caller.keyId }` as JSON.\n\nGet the local stack running so the function is reachable at the path above.",
+    "promptSourcePath": "evals/build-functions-007-cors-api-key-with-middleware/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-functions-007-cors-api-key-with-middleware/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-5.6-luna-no-skills",
