@@ -93,7 +93,8 @@ export function createCliAgent<M extends string = string>(
       await writeSandboxFile(sandbox, SYSTEM_PROMPT_PATH, args.systemPrompt);
       await writeSandboxFile(sandbox, USER_PROMPT_PATH, args.userPrompt);
 
-      const { command, raw } = await runner.exec({
+      const start = Date.now();
+      const { command, raw, stepCount } = await runner.exec({
         sandbox,
         model: options.model,
         apiKey,
@@ -132,9 +133,11 @@ export function createCliAgent<M extends string = string>(
         agentReport: adapted.agentReport,
         toolCalls: adapted.toolCalls,
         transcript: adapted.transcript,
-        steps: adapted.steps,
         stoppedReason:
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
+        usage: runner.extractUsage?.(raw, options.model),
+        stepCount: stepCount ?? runner.extractStepCount?.(raw),
+        durationMs: Date.now() - start,
       };
     },
   };

@@ -251,6 +251,37 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
   };
 }, evalMetadataSchema);
 
+/**
+ * Token usage for one model. Field names and semantics follow OpenTelemetry's
+ * GenAI conventions, where the cache buckets are subsets of `inputTokens`.
+ * https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md
+ */
+export const modelUsageSchema = z.object({
+  /** Model id as the harness reported it. */
+  model: z.string(),
+  /** All input tokens, cache reads and writes included. */
+  inputTokens: z.number(),
+  /** Input served from the prompt cache. Subset of `inputTokens`. */
+  cacheReadInputTokens: z.number(),
+  /** Input written to the prompt cache. Subset of `inputTokens`. */
+  cacheWriteInputTokens: z.number(),
+  /** All generated tokens, reasoning included. */
+  outputTokens: z.number(),
+});
+export type ModelUsage = z.infer<typeof modelUsageSchema>;
+
+/**
+ * One entry per model the run called. A run can span models, and each model
+ * bills at its own rates, so entries are kept separate rather than summed.
+ */
+export const agentUsageSchema = z.array(modelUsageSchema);
+export type AgentUsage = z.infer<typeof agentUsageSchema>;
+
+/** Input tokens the model processed fresh, outside the cache. */
+export function uncachedInputTokens(u: ModelUsage): number {
+  return u.inputTokens - u.cacheReadInputTokens - u.cacheWriteInputTokens;
+}
+
 export const checkResultSchema = z.object({
   name: z.string(),
   passed: z.boolean(),
@@ -348,6 +379,14 @@ const evalResultShape = {
   run: z.number().optional(),
   skills: skillResultSchema.optional(),
   docs: docsResultSchema.optional(),
+  usage: agentUsageSchema.optional(),
+  // One turn per model response, for example:
+  //   text → [Read, Read] → Edit → reasoning → text
+  //   stepCount 5, toolCallCount 3
+  stepCount: z.number().optional(),
+  toolCallCount: z.number().optional(),
+  // Wall-clock time of the agent run only. Sandbox boot and scoring are excluded.
+  durationMs: z.number().optional(),
 };
 
 // Raw result files may carry extra fields we don't model; tolerate them.

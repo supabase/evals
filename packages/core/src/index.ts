@@ -41,6 +41,7 @@ import {
 } from '@supabase-evals/platform-lite';
 import type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalMetadata,
   EvalSuite,
@@ -131,6 +132,7 @@ export type {
 } from './transcript/types.js';
 export type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalInterface,
   EvalMetadata,
@@ -407,8 +409,10 @@ export type AgentRunResult = {
   agentReport: string;
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
-  steps: number;
   stoppedReason: string;
+  usage?: AgentUsage;
+  stepCount?: number;
+  durationMs: number;
 };
 
 export type AgentHarness = {
@@ -710,6 +714,7 @@ export function aiSdkAgent(options: {
       ]);
 
       try {
+        const start = Date.now();
         const result = await generateText({
           model: options.model,
           system: args.systemPrompt,
@@ -798,15 +803,29 @@ export function aiSdkAgent(options: {
 
         const agentReport = result.text.trim();
 
+        const { inputTokens, inputTokenDetails, outputTokens } =
+          result.totalUsage;
+        const usage: AgentUsage = [
+          {
+            model: modelId,
+            inputTokens: inputTokens ?? 0,
+            cacheReadInputTokens: inputTokenDetails.cacheReadTokens ?? 0,
+            cacheWriteInputTokens: inputTokenDetails.cacheWriteTokens ?? 0,
+            outputTokens: outputTokens ?? 0,
+          },
+        ];
+
         return {
           agentReport,
           toolCalls,
           transcript,
-          steps: result.steps.length,
           stoppedReason:
             result.steps.length >= MAX_STEPS
               ? 'max_steps'
               : result.finishReason,
+          usage,
+          stepCount: result.steps.length,
+          durationMs: Date.now() - start,
         };
       } finally {
         await closeMcpHandles(mcpHandles);
