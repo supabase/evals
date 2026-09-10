@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import {
   type CheckResult,
   type LocalStackEvalContext,
@@ -162,7 +163,10 @@ async function readStatus(
 /**
  * GATING: the function must import @supabase/middleware and declare its own
  * middleware with `defineMiddleware`. A hand-rolled CORS + `if (key !== …)`
- * handler fails this eval even if it behaves correctly.
+ * handler fails this eval even if it behaves correctly. The prompt doesn't
+ * dictate a file layout, so this follows relative imports from the
+ * entrypoint (e.g. a `_shared` helper) — the required calls can live in
+ * either file.
  */
 async function sourceChecks(
   ctx: LocalStackEvalContext
@@ -173,7 +177,7 @@ async function sourceChecks(
   ];
   for (const path of candidates) {
     if (await ctx.fileExists(path)) {
-      const src = await ctx.readFile(path).catch(() => '');
+      const src = await readModuleTree(ctx, path);
       const importsPackage =
         /(?:from|import)\s*\(?\s*['"](?:npm:|jsr:)?@supabase\/middleware(?:@[^'"/]+)?(?:\/[^'"]*)?['"]/.test(
           src
@@ -192,7 +196,7 @@ async function sourceChecks(
           passed: definesMiddleware,
           notes: definesMiddleware
             ? 'calls defineMiddleware'
-            : 'no defineMiddleware call in the function source',
+            : 'no defineMiddleware call in the function source or its local imports',
         },
       ];
     }
@@ -204,4 +208,53 @@ async function sourceChecks(
       notes: 'could not locate function source to inspect',
     },
   ];
+}
+
+const LOCAL_IMPORT = /(?:from|import)\s*\(?\s*['"](\.\.?\/[^'"]*)['"]/g;
+
+/**
+ * Concatenates `entryPath`'s source with every module it locally imports
+ * (transitively, up to a generous cap), so the source checks see across a
+ * `_shared` helper boundary rather than just the entrypoint file.
+ */
+async function readModuleTree(
+  ctx: LocalStackEvalContext,
+  entryPath: string
+): Promise<string> {
+  const seen = new Set<string>();
+  const queue = [entryPath];
+  const chunks: string[] = [];
+
+  while (queue.length > 0 && seen.size < 20) {
+    const next = queue.shift();
+    if (!next) continue;
+    const resolved = await resolveModulePath(ctx, next);
+    if (!resolved || seen.has(resolved)) continue;
+    seen.add(resolved);
+
+    const src = await ctx.readFile(resolved).catch(() => '');
+    chunks.push(src);
+
+    const dir = posix.dirname(resolved);
+    for (const match of src.matchAll(LOCAL_IMPORT)) {
+      queue.push(posix.join(dir, match[1]));
+    }
+  }
+
+  return chunks.join('\n');
+}
+
+/** Tries `path` as given, then with common extensions, then as a directory index. */
+async function resolveModulePath(
+  ctx: LocalStackEvalContext,
+  path: string
+): Promise<string | undefined> {
+  const withExtensions = ['.ts', '.tsx', '.js', '.mjs'].flatMap((ext) => [
+    `${path}${ext}`,
+    `${path}/index${ext}`,
+  ]);
+  for (const candidate of [path, ...withExtensions]) {
+    if (await ctx.fileExists(candidate)) return candidate;
+  }
+  return undefined;
 }
