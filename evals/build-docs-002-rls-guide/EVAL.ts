@@ -1,7 +1,6 @@
 import {
-  buildDocsResult,
+  checkDocsGuideRead,
   type CheckResult,
-  type LocalStackEvalContext,
   type LocalStackScorer,
 } from '@supabase-evals/core';
 import {
@@ -33,8 +32,6 @@ import {
   checkTestsExerciseAccessControl,
   checkTestFilesExist,
 } from './tests.js';
-
-const GUIDE_PATH = 'guides/database/postgres/row-level-security';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -82,7 +79,10 @@ const scorer: LocalStackScorer = async (ctx) => {
       testFiles,
       suite,
       await checkTestsExerciseAccessControl(ctx),
-      checkGuideWasRead(ctx),
+      checkDocsGuideRead(ctx.toolCalls, {
+        path: 'guides/database/postgres/row-level-security',
+        label: 'Row Level Security guide',
+      }),
     ];
 
     return { passed: checks.every((check) => check.passed), checks };
@@ -102,22 +102,3 @@ const scorer: LocalStackScorer = async (ctx) => {
 };
 
 export default scorer;
-
-// A search_docs hit carries the guide's url in its result, not its request, so
-// reuse the harness's own resolution rather than scanning the raw tool call.
-function checkGuideWasRead(ctx: LocalStackEvalContext): CheckResult {
-  const calls = buildDocsResult(ctx.toolCalls).calls.filter((call) =>
-    call.pages?.some((page) => page.url.includes(GUIDE_PATH))
-  );
-  const withContent = calls.filter((call) => call.hasContent);
-  return {
-    name: 'the agent read the Row Level Security guide the prompt referenced',
-    passed: withContent.length > 0,
-    notes:
-      withContent.length > 0
-        ? `${withContent.map((call) => call.source).join(', ')}`
-        : calls.length > 0
-          ? `reached the guide via ${calls.map((call) => call.source).join(', ')} but retrieved no page content`
-          : 'no docs call reached the guide',
-  };
-}
