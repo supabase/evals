@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codexRunner } from './runner.js';
+import { codexRunner, countModelResponses } from './runner.js';
 
 describe('codexRunner.extractUsage', () => {
   const extract = codexRunner.extractUsage!;
@@ -56,5 +56,23 @@ describe('codexRunner.extractUsage', () => {
     expect(
       extract(JSON.stringify({ type: 'turn.completed' }), 'gpt-5.6')
     ).toBeUndefined();
+  });
+});
+
+describe('countModelResponses', () => {
+  it('counts token_count events in a session rollout', () => {
+    const rollout = [
+      JSON.stringify({ type: 'session_meta', payload: {} }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count' } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'reasoning' } }),
+      JSON.stringify({
+        type: 'response_item',
+        payload: { type: 'custom_tool_call' },
+      }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count' } }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'task_complete' } }),
+    ].join('\n');
+    expect(countModelResponses(rollout)).toBe(2);
+    expect(countModelResponses('')).toBeUndefined();
   });
 });

@@ -236,6 +236,12 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
       {result.usage ? (
         <EvalMetadataRow label="Tokens" value={formatTokens(result.usage)} />
       ) : null}
+      {result.stepCount !== undefined ? (
+        <EvalMetadataRow label="Steps" value={result.stepCount} />
+      ) : null}
+      {result.toolCallCount !== undefined ? (
+        <EvalMetadataRow label="Tool calls" value={result.toolCallCount} />
+      ) : null}
       <EvalMetadataRow
         label="Source"
         value={<span className="break-all">{result.sourcePath}</span>}

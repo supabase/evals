@@ -106,6 +106,11 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     return processStopReason(command);
   },
 
+  extractStepCount(raw) {
+    const n = lastResultEvent(raw)?.num_turns;
+    return typeof n === 'number' ? n : undefined;
+  },
+
   extractUsage(raw) {
     // `modelUsage` covers every model the run called, unlike the sibling
     // `usage` aggregate. Anthropic's input count excludes both cache buckets.
