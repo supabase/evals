@@ -22,8 +22,8 @@ The seed may carry product vocabulary the user would already have in front of th
 
 ## The seed carries the contract
 
-`local/src/App.tsx` holds the provider key as a literal and calls the provider straight from the browser. Its TODO
-comment fixes three things the checks depend on:
+`local/src/App.tsx` holds the provider key as a literal and calls the provider straight from the browser. The note
+above the component fixes three things the checks depend on:
 
 - **The endpoint.** `POST /functions/v1/suggest`, taking `{ prompt }` and answering `{ suggestion }`. Without it the
   scorer has no address to probe, and the prompt would have to name the runtime instead.

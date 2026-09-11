@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-/** The endpoint the seed's TODO comment points the agent at. */
+/** The endpoint the seed names as the team's existing contract. */
 export const FUNCTION = 'suggest';
 
 /** The failure the seed's contract requires when the credential is missing. */

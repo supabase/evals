@@ -6,12 +6,12 @@ import { useState } from 'react';
 // key below. That key is on the invoice, and anyone who opens devtools can read
 // it out of the page.
 //
-// TODO: the rest of the team is building against `POST /functions/v1/suggest`,
-// taking `{ "prompt": string }` and answering `{ "suggestion": string }`, so
-// move the call there and have this screen read it.
+// The rest of the team is building against `POST /functions/v1/suggest`, which
+// takes `{ "prompt": string }` and answers `{ "suggestion": string }`. This
+// screen is meant to read it.
 //
 // One rule from the on-call rotation: when the provider credential is not
-// reachable at request time, `suggest` has to answer 503 with
+// reachable at request time, `suggest` answers 503 with
 // `{ "error": "missing_api_key" }` rather than guessing or returning prose. The
 // dashboard pages on that response, and it is the only way to tell a
 // misconfigured deploy from a caller sending a bad request.
