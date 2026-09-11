@@ -1,0 +1,311 @@
+[
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-006-database-tables",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the app's tables exist and accept the rows its queries write",
+        "passed": true
+      },
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every table with row level security enabled carries at least one policy",
+        "passed": true
+      },
+      {
+        "name": "a signed-out visitor can browse the starter routine library",
+        "passed": true
+      },
+      {
+        "name": "a signed-out visitor cannot read anyone's routines",
+        "passed": true
+      },
+      {
+        "name": "the signed-in owner reads their own routines and nobody else's",
+        "passed": true
+      },
+      {
+        "name": "a signed-out visitor cannot create a routine",
+        "passed": true
+      },
+      {
+        "name": "the agent read the Tables and Data guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/tables.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/tables.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/tables Supabase tables guide",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 310679,
+        "cacheReadInputTokens": 272669,
+        "cacheWriteInputTokens": 37968,
+        "outputTokens": 3531
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 13,
+    "durationMs": 41564,
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/tables.md",
+    "promptSourcePath": "evals/docs/build-docs-006-database-tables/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-006-database-tables/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-006-database-tables",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the app's tables exist and accept the rows its queries write",
+        "passed": false,
+        "notes": "ERROR:  relation \"routine_library\" does not exist; LINE 1: INSERT INTO routine_library (title, category); ^"
+      },
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": false,
+        "notes": "the app's tables are missing: routines, routine_logs, routine_library"
+      },
+      {
+        "name": "every table with row level security enabled carries at least one policy",
+        "passed": false,
+        "notes": "no table has row level security enabled, so there is nothing to police"
+      },
+      {
+        "name": "a signed-out visitor can browse the starter routine library",
+        "passed": false,
+        "notes": "not run: the app's tables did not accept the rows its queries write"
+      },
+      {
+        "name": "a signed-out visitor cannot read anyone's routines",
+        "passed": false,
+        "notes": "not run: the app's tables did not accept the rows its queries write"
+      },
+      {
+        "name": "the signed-in owner reads their own routines and nobody else's",
+        "passed": false,
+        "notes": "not run: the app's tables did not accept the rows its queries write"
+      },
+      {
+        "name": "a signed-out visitor cannot create a routine",
+        "passed": false,
+        "notes": "not run: the app's tables did not accept the rows its queries write"
+      },
+      {
+        "name": "the agent read the Tables and Data guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/tables.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/tables.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/tables Supabase tables guide create table RLS",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 160626,
+        "cacheReadInputTokens": 123913,
+        "cacheWriteInputTokens": 36689,
+        "outputTokens": 2900
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 11,
+    "durationMs": 31693,
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/tables.md",
+    "promptSourcePath": "evals/docs/build-docs-006-database-tables/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-006-database-tables/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-006-database-tables",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the app's tables exist and accept the rows its queries write",
+        "passed": false,
+        "notes": "ERROR:  relation \"routine_library\" does not exist; LINE 1: INSERT INTO routine_library (title, category); ^"
+      },
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": false,
+        "notes": "the app's tables are missing: routines, routine_logs, routine_library"
+      },
+      {
+        "name": "every table with row level security enabled carries at least one policy",
+        "passed": false,
+        "notes": "no table has row level security enabled, so there is nothing to police"
+      },
+      {
+        "name": "a signed-out visitor can browse the starter routine library",
+        "passed": false,
+        "notes": "not run: the app's tables did not accept the rows its queries write"
+      },
+      {
+        "name": "a signed-out visitor cannot read anyone's routines",
+        "passed": false,
+        "notes": "not run: the app's tables did not accept the rows its queries write"
+      },
+      {
+        "name": "the signed-in owner reads their own routines and nobody else's",
+        "passed": false,
+        "notes": "not run: the app's tables did not accept the rows its queries write"
+      },
+      {
+        "name": "a signed-out visitor cannot create a routine",
+        "passed": false,
+        "notes": "not run: the app's tables did not accept the rows its queries write"
+      },
+      {
+        "name": "the agent read the Tables and Data guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/tables.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/tables.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/tables",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/tables"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 232077,
+        "cacheReadInputTokens": 193833,
+        "cacheWriteInputTokens": 38211,
+        "outputTokens": 3711
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 12,
+    "durationMs": 40850,
+    "prompt": "I'm building a habit tracker. People sign up, create their own routines, and\ntick them off each day. There's also a starter set of routines anyone can\nbrowse before they sign up.\n\nCreate the database for it.\n\nThe rest of the team is already building against `src/queries.ts`, so use the\ntable and column names it reads and writes:\n\n- `routines` with `owner_id`, `title`, `cadence`, and `created_at`\n- `routine_logs` with `routine_id` and `completed_on`\n- `routine_library` with `title` and `category`\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/tables.md",
+    "promptSourcePath": "evals/docs/build-docs-006-database-tables/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-006-database-tables/run-3/result.json"
+  }
+]
