@@ -29,7 +29,7 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 
 - An **eval** is one scenario under `evals/<suite>/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
 - An **experiment** is one agent/runtime/model setup under `experiments/<name>.ts`.
-- An **eval suite** is a named set of evals to run together.
+- An **eval suite** is a named set of evals to run together. An eval's suite is its parent folder under `evals/` (`benchmark`, `regression`, `docs`, or `other`).
 - An **experiment suite** is a named set of experiments with related configurations, for head to head comparisons.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
 - A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
@@ -123,7 +123,6 @@ motivation: AI-123
 ```
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
-An eval's suite comes from its parent folder (`evals/benchmark/`, `evals/regression/`, `evals/docs/`, or `evals/other/`). Run an eval suite with `--suite regression` / `--suite other`. Select experiment suites separately with `--experiment-suite benchmark` or `--experiment-suite no-skills`.
 
 ## Eval Modes
 

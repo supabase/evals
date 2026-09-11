@@ -144,7 +144,7 @@ function discoverEvals(): EvalManifest[] {
   const root = join(ROOT, 'evals');
   if (!existsSync(root)) return [];
   const out: EvalManifest[] = [];
-  // evals/<suite>/<id>/; the folder names the suite so CODEOWNERS can scope it.
+  // evals/<suite>/<id>/. The suite folder is what CODEOWNERS scopes by.
   for (const suiteDir of readdirSync(root)) {
     const dir = join(root, suiteDir);
     if (!statSync(dir).isDirectory()) continue;

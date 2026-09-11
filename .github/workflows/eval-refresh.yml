@@ -505,9 +505,7 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           add-paths: apps/web/src/data/*eval-results.json
-          # Per-ref, event, and suite head branch so concurrent refreshes (for
-          # example the docs team and AI team both dispatching on main) open
-          # separate PRs instead of overwriting each other.
+          # Per ref, event, and suite so concurrent refreshes open separate PRs.
           branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name }}-${{ join(fromJSON(needs.prepare.outputs.suite), '-') }}
           base: ${{ github.ref_name }}
           commit-message: "chore: refresh eval results"

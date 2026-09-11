@@ -83,9 +83,8 @@ const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
 
 async function readPrompt(evalId: string) {
-  // Results only record the eval id, not its suite, so check each
-  // evals/<suite>/ folder for the id. The startsWith guard keeps an id like
-  // "../x" from escaping evals/.
+  // Results only record the eval id, so search each suite folder for it.
+  // The startsWith guard stops an id like "../x" escaping evals/.
   const normalizedEvalsDir = resolve(EVALS_DIR);
   if (!existsSync(normalizedEvalsDir)) {
     return undefined;
