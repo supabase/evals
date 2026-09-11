@@ -380,6 +380,52 @@ describe('buildDocsResult', () => {
     ]);
   });
 
+  it('reads an `other` action with a url-shaped query as a page read, which is how CLI 0.138 reports openPage', () => {
+    // The exact body a docs eval recorded on codex-gpt-5.6-luna: the action
+    // type is flattened to `other` and the url survives only in the query.
+    const url = 'https://supabase.com/docs/guides/functions/secrets.md';
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        { query: url, action: { type: 'other' } },
+        { name: 'web_search' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'web_search',
+        query: url,
+        hasContent: true,
+        pages: [{ url }],
+      },
+    ]);
+  });
+
+  it('drops an `other` action pointing somewhere other than supabase.com', () => {
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        { query: 'https://example.com/docs', action: { type: 'other' } },
+        { name: 'web_search' }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it("leaves an `other` action's content unknown when the query is a search term rather than a url", () => {
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        { query: 'supabase edge function secrets', action: { type: 'other' } },
+        { name: 'web_search' }
+      ),
+    ]);
+
+    expect(result.calls[0].hasContent).toBeUndefined();
+  });
+
   it("leaves a search action's content unknown, and doesn't mistake its url-shaped query for a page read", () => {
     const result = buildDocsResult([
       toolCall(
