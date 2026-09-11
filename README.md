@@ -161,10 +161,7 @@ Skills come from [`supabase/agent-skills`](https://github.com/supabase/agent-ski
 
 To use a skill in an experiment, reference its directory name in the experiment's `skills` array.
 
-Skills are always loaded lazily ([progressive disclosure](https://ai-sdk.dev/cookbook/guides/agent-skills)): a skill's full instructions are pulled on demand, never preloaded. How that happens depends on the harness:
-
-- **CLI harnesses (Claude Code, Codex, OpenCode)** use their own built-in skills mechanism. Skills are installed into the sandbox workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network), into each harness's own project scope: `.claude/skills/` for Claude Code, `.agents/skills/` for Codex and OpenCode. Each CLI then discovers, advertises and loads the skills itself. The framework adds nothing to a CLI agent's system prompt: how the agent behaves as shipped is part of what an eval measures.
-- **The in-process `ai-sdk` harness** has no such mechanism, so the framework supplies one. In local-stack mode it lists each skill's name+description in the system prompt and the agent reads `.claude/skills/<name>/SKILL.md` with its file tools. In tools mode there is no filesystem, so a `load_skill` tool returns a skill's full instructions when the agent calls it with the skill's name.
+Skills are installed into the sandbox workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) under each harness's native skills folder (`.claude/skills/` for Claude Code, `.agents/skills/` for Codex and OpenCode). The `ai-sdk` harness exposes a `load_skill` tool to support skill loading.
 
 ## Framework Checks
 
