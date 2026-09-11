@@ -85,6 +85,22 @@ describe("formatExperimentLabel", () => {
       expect(openai("o3-pro")).toBe("Codex / o3-pro")
     })
   })
+
+  describe("spacexai model ids", () => {
+    const grok = (modelId: string) =>
+      formatExperimentLabel(
+        display({ agent: "grok", modelProvider: "spacexai", modelId }),
+        "x"
+      )
+
+    it("title-cases every hyphen-separated part", () => {
+      expect(grok("grok-4.6")).toBe("Grok Build / Grok 4.6")
+    })
+
+    it("strips a gateway vendor prefix when one is present", () => {
+      expect(grok("spacexai/grok-4.6")).toBe("Grok Build / Grok 4.6")
+    })
+  })
 })
 
 describe("formatModelColumnLabel", () => {
