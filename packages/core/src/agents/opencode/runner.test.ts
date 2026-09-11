@@ -210,3 +210,13 @@ describe('opencode runner exec routing', () => {
     expect(runCommand).not.toContain('system-prompt');
   });
 });
+
+describe('opencode runner extractStepCount', () => {
+  const extract = createOpencodeRunner('anthropic/claude-sonnet-5')
+    .extractStepCount!;
+
+  it('counts step_finish records', () => {
+    expect(extract(SESSION)).toBe(2);
+    expect(extract(undefined)).toBeUndefined();
+  });
+});

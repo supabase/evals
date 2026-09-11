@@ -142,3 +142,12 @@ describe('claudeCodeRunner.extractUsage', () => {
     ).toBeUndefined();
   });
 });
+
+describe('claudeCodeRunner.extractStepCount', () => {
+  const extract = claudeCodeRunner.extractStepCount!;
+
+  it('reads num_turns off the result event', () => {
+    expect(extract(streamJson('success'))).toBe(3);
+    expect(extract(undefined)).toBeUndefined();
+  });
+});

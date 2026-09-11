@@ -98,7 +98,16 @@ export const codexRunner: AgentRunner<CodexModel> = {
       `cat ${userPromptPath} | ${codex} ${flags}`,
       { timeoutMs: timeoutSec * 1000, env: { OPENAI_API_KEY: apiKey } }
     );
-    return { command, raw: command.stdout };
+    // The --json stream has no per-response boundary, but the session rollout
+    // Codex writes to disk logs one token_count event per model response.
+    const rollout = await sandbox.exec(
+      `cat "$(ls -t "$HOME"/.codex/sessions/*/*/*/rollout-*.jsonl 2>/dev/null | head -1)"`
+    );
+    return {
+      command,
+      raw: command.stdout,
+      stepCount: countModelResponses(rollout.stdout),
+    };
   },
 
   deriveStopReason(raw, command) {
@@ -141,6 +150,18 @@ export const codexRunner: AgentRunner<CodexModel> = {
     return sawUsage ? [usage] : undefined;
   },
 };
+
+/** Model responses in a Codex session rollout, one `token_count` event each. */
+export function countModelResponses(rollout: string): number | undefined {
+  const { records } = parseJsonlRecords(rollout);
+  const n = records.filter(
+    (r) =>
+      r.type === 'event_msg' &&
+      isRecord(r.payload) &&
+      r.payload.type === 'token_count'
+  ).length;
+  return n || undefined;
+}
 
 /** The last turn-level outcome in a `codex exec --json` stream, if any. */
 function terminalOutcome(

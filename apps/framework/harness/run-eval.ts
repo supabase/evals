@@ -356,6 +356,8 @@ async function runOne(
      */
     systemPrompt: string;
     usage?: AgentUsage;
+    stepCount?: number;
+    toolCallCount: number;
     durationMs: number;
   }
 > {
@@ -477,6 +479,8 @@ async function runOne(
       stoppedReason: run.stoppedReason,
       systemPrompt,
       usage: run.usage,
+      stepCount: run.stepCount,
+      toolCallCount: run.toolCalls.length,
       durationMs: run.durationMs,
     };
   }
@@ -538,6 +542,8 @@ async function runOne(
     stoppedReason: run.stoppedReason,
     systemPrompt,
     usage: run.usage,
+    stepCount: run.stepCount,
+    toolCallCount: run.toolCalls.length,
     durationMs: run.durationMs,
   };
 }

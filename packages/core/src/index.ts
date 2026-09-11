@@ -413,9 +413,9 @@ export type AgentRunResult = {
   agentReport: string;
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
-  steps: number;
   stoppedReason: string;
   usage?: AgentUsage;
+  stepCount?: number;
   durationMs: number;
 };
 
@@ -832,12 +832,12 @@ export function aiSdkAgent(options: {
           agentReport,
           toolCalls,
           transcript,
-          steps: result.steps.length,
           stoppedReason:
             result.steps.length >= MAX_STEPS
               ? 'max_steps'
               : result.finishReason,
           usage,
+          stepCount: result.steps.length,
           durationMs: Date.now() - start,
         };
       } finally {
