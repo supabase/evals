@@ -19,13 +19,17 @@ export type { SetupSupabaseSandboxOptions } from './supabase.js';
 export {
   buildLocalStackScoringContext,
   buildLocalStackTools,
+  buildToolSurfaceAddendum,
   localStackRuntime,
   toAgentSandbox,
 } from './local-stack-runtime.js';
 export type { LocalStackRuntimeOptions } from './local-stack-runtime.js';
 export {
   SKILLS_CLI_VERSION,
+  SKILLS_INSTALL_AGENTS,
   SKILLS_INSTALL_DIR,
+  SKILLS_INSTALL_DIRS,
+  buildSkillsAddCommand,
   buildSkillsPrompt,
   frontmatterDescription,
   installSkills,
@@ -33,7 +37,7 @@ export {
 } from './skills.js';
 export type { SkillEntry } from './skills.js';
 export { createBareSandbox } from './bare-sandbox.js';
-export type { BareSandboxHandle } from './bare-sandbox.js';
+export type { BareSandboxHandle, BareSandboxOptions } from './bare-sandbox.js';
 export { createAgentEnvironment } from './agent-environment.js';
 export type {
   AgentEnvironment,

@@ -5,13 +5,23 @@ import type {
 } from '@supabase-evals/core';
 import { createAgentEnvironment } from './agent-environment.js';
 import { toAgentSandbox } from './local-stack-runtime.js';
-import { buildSkillsPrompt } from './skills.js';
 
 export interface BareSandboxHandle {
   sandbox: AgentSandbox;
-  /** Skills-discovery text to fold into the agent's system prompt. */
-  promptAddendum: string;
   close(): Promise<void>;
+}
+
+export interface BareSandboxOptions {
+  /** Supabase CLI version baked into the sandbox image. */
+  cliVersion?: string;
+  /** Skills to install into the sandbox. */
+  skills?: readonly SkillSource[];
+  /**
+   * Extra host directories bind-mounted into the sandbox (read-only by
+   * default) — e.g. a local MCP server build the in-container agent must be
+   * able to launch. See `supabaseMcpServerMounts`.
+   */
+  mounts?: readonly SandboxMount[];
 }
 
 /**
@@ -21,14 +31,11 @@ export interface BareSandboxHandle {
  * stack — so the CLI agent has the same tools and the same skills in both modes.
  *
  * The eval's tools come from MCP (the in-container servers reach host-side
- * platform-lite via `host.docker.internal` on the default bridge).
+ * platform-lite via `host.docker.internal` on the default bridge). The CLI
+ * agent discovers the installed skills itself; nothing is added to its prompt.
  */
 export async function createBareSandbox(
-  options: {
-    cliVersion?: string;
-    skills?: readonly SkillSource[];
-    mounts?: readonly SandboxMount[];
-  } = {}
+  options: BareSandboxOptions
 ): Promise<BareSandboxHandle> {
   const env = await createAgentEnvironment({
     cliVersion: options.cliVersion,
@@ -37,7 +44,6 @@ export async function createBareSandbox(
   });
   return {
     sandbox: toAgentSandbox(env.sandbox),
-    promptAddendum: buildSkillsPrompt(env.skills),
     close: env.close,
   };
 }

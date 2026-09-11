@@ -21,14 +21,16 @@ const DEBUG = process.argv.includes('--debug');
 const stderr = console.error;
 if (!DEBUG) console.error = () => undefined;
 
-const CLIENT_RLS_EVAL = 'evals/build-rls-002-own-todos-client';
-const FUNCTIONS_EVAL = 'evals/build-functions-001-order-total';
-const EDGE_AUTH_DB_EVAL = 'evals/build-functions-002-edge-auth-db';
+const CLIENT_RLS_EVAL = 'evals/other/build-rls-002-own-todos-client';
+const FUNCTIONS_EVAL = 'evals/other/build-functions-001-order-total';
+const EDGE_AUTH_DB_EVAL = 'evals/other/build-functions-002-edge-auth-db';
 const SERVICE_ROLE_BYPASS_EVAL =
-  'evals/build-functions-004-service-role-bypass';
-const INVESTIGATE_LOGS_EVAL = 'evals/investigate-logs-001-top-error-function';
-const INVESTIGATE_SECURITY_EVAL = 'evals/investigate-security-001-public-table';
-const FRONTEND_EVAL = 'evals/build-frontend-001-todos-app';
+  'evals/benchmark/build-functions-004-service-role-bypass';
+const INVESTIGATE_LOGS_EVAL =
+  'evals/other/investigate-logs-001-top-error-function';
+const INVESTIGATE_SECURITY_EVAL =
+  'evals/other/investigate-security-001-public-table';
+const FRONTEND_EVAL = 'evals/other/build-frontend-001-todos-app';
 
 async function loadScorer(relDir: string): Promise<ToolScorer> {
   const mod = await import(pathToFileURL(join(ROOT, relDir, 'EVAL.ts')).href);
