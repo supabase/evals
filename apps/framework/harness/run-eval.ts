@@ -33,6 +33,7 @@ import { buildSystemPrompt } from './system-prompt.js';
 import {
   buildDocsResult,
   buildSkillResult,
+  evalSuiteSchema,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
   supabaseMcpServerMounts,
@@ -128,48 +129,55 @@ function resolveEvalMode(
 
 /** Throws if a scenario ships a `local/` workspace but isn't declared `interface: cli`. */
 export function assertLocalMatchesInterface(
-  id: string,
+  promptPath: string,
   interfaceKind: EvalInterface,
   hasLocal: boolean
 ): void {
   if (hasLocal && interfaceKind !== 'cli') {
     throw new Error(
-      `evals/${id}/PROMPT.md: ships a local/ workspace but declares interface: ${interfaceKind}, expected cli`
+      `${promptPath}: ships a local/ workspace but declares interface: ${interfaceKind}, expected cli`
     );
   }
 }
 
 function discoverEvals(): EvalManifest[] {
-  const dir = join(ROOT, 'evals');
-  if (!existsSync(dir)) return [];
+  const root = join(ROOT, 'evals');
+  if (!existsSync(root)) return [];
   const out: EvalManifest[] = [];
-  for (const id of readdirSync(dir)) {
-    const evalDir = join(dir, id);
-    if (!statSync(evalDir).isDirectory()) continue;
-    const localDir = join(evalDir, 'local');
-    const promptPath = join(evalDir, 'PROMPT.md');
-    const evalPath = join(evalDir, 'EVAL.ts');
-    const metadata = parseEvalMarkdown(
-      readFileSync(promptPath, 'utf8'),
-      `evals/${id}/PROMPT.md`
-    ).metadata;
-    const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
-    assertLocalMatchesInterface(id, metadata.interface, hasLocal);
-    const mode = resolveEvalMode(metadata.interface, hasLocal);
-    out.push({
-      id,
-      mode,
-      metadata,
-      stage: metadata.stage,
-      product: metadata.product,
-      suite: metadata.suite,
-      topic: metadata.topic,
-      dir: evalDir,
-      localDir: hasLocal ? localDir : undefined,
-      promptPath,
-      evalPath,
-      remoteDir: join(evalDir, 'remote'),
-    });
+  // evals/<suite>/<id>/; the folder names the suite so CODEOWNERS can scope it.
+  for (const suiteDir of readdirSync(root)) {
+    const dir = join(root, suiteDir);
+    if (!statSync(dir).isDirectory()) continue;
+    const suite = evalSuiteSchema.parse(suiteDir);
+    for (const id of readdirSync(dir)) {
+      const evalDir = join(dir, id);
+      if (!statSync(evalDir).isDirectory()) continue;
+      const relPath = `evals/${suiteDir}/${id}/PROMPT.md`;
+      const localDir = join(evalDir, 'local');
+      const promptPath = join(evalDir, 'PROMPT.md');
+      const evalPath = join(evalDir, 'EVAL.ts');
+      const metadata = parseEvalMarkdown(
+        readFileSync(promptPath, 'utf8'),
+        relPath
+      ).metadata;
+      const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
+      assertLocalMatchesInterface(relPath, metadata.interface, hasLocal);
+      const mode = resolveEvalMode(metadata.interface, hasLocal);
+      out.push({
+        id,
+        mode,
+        metadata,
+        stage: metadata.stage,
+        product: metadata.product,
+        suite,
+        topic: metadata.topic,
+        dir: evalDir,
+        localDir: hasLocal ? localDir : undefined,
+        promptPath,
+        evalPath,
+        remoteDir: join(evalDir, 'remote'),
+      });
+    }
   }
   return out;
 }

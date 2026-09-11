@@ -5,7 +5,10 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
-import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
+import {
+  evalSuiteSchema,
+  rawEvalResultSchema,
+} from '@supabase-evals/core/eval-metadata';
 import {
   getExperimentDisplayMetadata,
   type ExperimentConfig,
@@ -80,16 +83,33 @@ const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
 
 async function readPrompt(evalId: string) {
-  const promptPath = resolve(EVALS_DIR, evalId, 'PROMPT.md');
+  // Results only record the eval id, not its suite, so check each
+  // evals/<suite>/ folder for the id. The startsWith guard keeps an id like
+  // "../x" from escaping evals/.
   const normalizedEvalsDir = resolve(EVALS_DIR);
-
-  if (!promptPath.startsWith(`${normalizedEvalsDir}${sep}`)) {
+  if (!existsSync(normalizedEvalsDir)) {
     return undefined;
   }
-
-  if (!existsSync(promptPath)) {
+  let found: { suite: EvalSuite; promptPath: string } | undefined;
+  for (const suiteDir of await readdir(normalizedEvalsDir)) {
+    const candidate = resolve(
+      normalizedEvalsDir,
+      suiteDir,
+      evalId,
+      'PROMPT.md'
+    );
+    if (
+      candidate.startsWith(`${normalizedEvalsDir}${sep}`) &&
+      existsSync(candidate)
+    ) {
+      found = { suite: evalSuiteSchema.parse(suiteDir), promptPath: candidate };
+      break;
+    }
+  }
+  if (!found) {
     return undefined;
   }
+  const { suite, promptPath } = found;
 
   const parsed = parseEvalMarkdown(
     await readFile(promptPath, 'utf8'),
@@ -98,6 +118,7 @@ async function readPrompt(evalId: string) {
 
   return {
     ...parsed.metadata,
+    suite,
     prompt: parsed.body,
     promptSourcePath: relative(ROOT, promptPath).split(sep).join('/'),
   };
