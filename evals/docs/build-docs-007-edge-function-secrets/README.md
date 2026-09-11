@@ -54,6 +54,16 @@ The bundle scan reads the artifact Vite emitted rather than the source that prod
 whitelists the default path plus any path a `--env-file` argument points at, rather than blocklisting the places that
 do not work. Its behavioral counterpart is the request-time check.
 
+**It tracks the name the function reads, not the value the seed shipped.** The first baseline is why. Agents replace
+the placeholder with a credential of their own, so a check hunting the seeded literal reports "not in any file" on a
+solution that placed a working credential correctly. What has to be true is that whatever env name the function reads
+is set in a file the runtime loads. Platform names are excluded, because `SUPABASE_*`, `SB_*` and `DENO_*` are what
+`supabase start` injects on its own and none of them is the credential this eval is about.
+
+`the file holding the provider key is covered by the project's ignore rules` carves out `.env.example` and its
+siblings. Shipping a template with a placeholder is the documented habit, and failing a solution for it would be a
+false red.
+
 ## The guide has to actually be read
 
 The last check resolves the guide through the harness's own docs result, because a `search_docs` hit carries the url in
@@ -85,3 +95,9 @@ alone, the check is harsher than intended and this section is where to say so.
 
 An agent that answers `missing_api_key` for any error, including the upstream call failing, also fails that check. The
 seed's contract is specific about which condition it covers.
+
+**A working provider credential is reachable from inside the sandbox.** `packages/core/src/agents/codex/runner.ts`
+logs the agent in with a live `OPENAI_API_KEY`, so an agent can place a credential that really works without ever
+handling the seeded one, and the request-time check passes on a genuine upstream completion. That does not break the
+claim, because placement is what is scored and the checks no longer care which value was placed. It does mean a
+passing run can be making real provider calls, and it is why the placement checks are written against the name.
