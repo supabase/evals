@@ -305,6 +305,28 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
         continue;
       }
 
+      // `other` is the catch-all the round trip described above collapses
+      // `openPage` and `findInPage` into. `search` survives that trip intact
+      // and is handled above, so reaching here with an explicit `other` is
+      // positive evidence this was a page read rather than a query. The url
+      // does not survive on the action, only in `query`, so that is what the
+      // page is attributed to.
+      //
+      // Codex reports no result for these calls, the same way `web_fetch`
+      // carries no body here. `hasContent` says the channel delivers page text
+      // to the model, not that the harness captured it.
+      if (action?.type === 'other' && URL_PATTERN.test(query)) {
+        if (!isSupabaseApexUrl(query)) continue;
+        calls.push({
+          source: 'web_search',
+          query,
+          hasContent: true,
+          pages: [{ url: query }],
+          resultChars: resultCharCount(result),
+        });
+        continue;
+      }
+
       // No action reported (Claude Code, or an action type we don't know):
       // fall back to the query's shape, which is all there is to go on.
       if (URL_PATTERN.test(query)) {
