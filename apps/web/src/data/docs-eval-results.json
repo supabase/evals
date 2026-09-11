@@ -1,0 +1,339 @@
+[
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-007-edge-function-secrets",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the client bundle builds",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from the built client bundle",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from the client project's env files",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from every client source file",
+        "passed": true
+      },
+      {
+        "name": "every function reads the provider key from the environment",
+        "passed": true
+      },
+      {
+        "name": "the provider key sits where the local function runtime loads it",
+        "passed": false,
+        "notes": "the seeded provider key is not in any file in the workspace"
+      },
+      {
+        "name": "the file holding the provider key is covered by the project's ignore rules",
+        "passed": false,
+        "notes": "not run because the seeded provider key is not in any file"
+      },
+      {
+        "name": "the local stack serves the suggest endpoint",
+        "passed": true,
+        "notes": "status 200"
+      },
+      {
+        "name": "the suggest endpoint has the provider key at request time",
+        "passed": true,
+        "notes": "status 200: {\"suggestion\":\"The Eval-Mtxiwc70 appears to be a specific model of stainless steel kettle. Unfortunately, detailed information about this specific model might be limited. However, I can provide a gene"
+      },
+      {
+        "name": "the suggest response does not echo the provider key",
+        "passed": true
+      },
+      {
+        "name": "the agent read the Managing secrets guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via shell_fetch but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error https://supabase.com/docs/guides/functions/secrets.md | sed -n '1,260p'\nprintf '\\\\n--- package.json ---\\\\n'\nsed -n '1,220p' package.json\nprintf '\\\\n--- src/App.tsx ---\\\\n'\nsed -n '1,280p' src/App.tsx\nprintf '\\\\n--- supabase/config.toml ---\\\\n'\nsed -n '1,220p' supabase/config.toml\nprintf '\\\\n--- vite.config.ts ---\\\\n'\nsed -n '1,180p' vite.config.ts\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets.md"
+            }
+          ],
+          "resultChars": 11144
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1268241,
+        "cacheReadInputTokens": 1206315,
+        "cacheWriteInputTokens": 61818,
+        "outputTokens": 7600
+      }
+    ],
+    "stepCount": 36,
+    "toolCallCount": 22,
+    "durationMs": 216292,
+    "prompt": "My app calls the OpenAI API to write copy suggestions. The key is sitting in a\nReact component right now, which I'm told is a problem. Sort that out.\n\nThen get the local stack running so the app works end to end when I run it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/secrets.md",
+    "promptSourcePath": "evals/docs/build-docs-007-edge-function-secrets/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-007-edge-function-secrets/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-007-edge-function-secrets",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the client bundle builds",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from the built client bundle",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from the client project's env files",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from every client source file",
+        "passed": true
+      },
+      {
+        "name": "every function reads the provider key from the environment",
+        "passed": true
+      },
+      {
+        "name": "the provider key sits where the local function runtime loads it",
+        "passed": false,
+        "notes": "the seeded provider key is not in any file in the workspace"
+      },
+      {
+        "name": "the file holding the provider key is covered by the project's ignore rules",
+        "passed": false,
+        "notes": "not run because the seeded provider key is not in any file"
+      },
+      {
+        "name": "the local stack serves the suggest endpoint",
+        "passed": true,
+        "notes": "status 200"
+      },
+      {
+        "name": "the suggest endpoint has the provider key at request time",
+        "passed": true,
+        "notes": "status 200: {\"suggestion\":\"The Eval-Mtxiv55f appears to refer to a specific model of a stainless steel kettle. However, there are no widely recognized products by that exact name in my training data, which goes u"
+      },
+      {
+        "name": "the suggest response does not echo the provider key",
+        "passed": true
+      },
+      {
+        "name": "the agent read the Managing secrets guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/secrets.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/secrets",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1056248,
+        "cacheReadInputTokens": 1021175,
+        "cacheWriteInputTokens": 34953,
+        "outputTokens": 7514
+      }
+    ],
+    "stepCount": 40,
+    "toolCallCount": 20,
+    "durationMs": 169735,
+    "prompt": "My app calls the OpenAI API to write copy suggestions. The key is sitting in a\nReact component right now, which I'm told is a problem. Sort that out.\n\nThen get the local stack running so the app works end to end when I run it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/secrets.md",
+    "promptSourcePath": "evals/docs/build-docs-007-edge-function-secrets/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-007-edge-function-secrets/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-007-edge-function-secrets",
+    "stage": "build",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security",
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the client bundle builds",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from the built client bundle",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from the client project's env files",
+        "passed": true
+      },
+      {
+        "name": "the provider key is absent from every client source file",
+        "passed": true
+      },
+      {
+        "name": "every function reads the provider key from the environment",
+        "passed": true
+      },
+      {
+        "name": "the provider key sits where the local function runtime loads it",
+        "passed": false,
+        "notes": "the seeded provider key is not in any file in the workspace"
+      },
+      {
+        "name": "the file holding the provider key is covered by the project's ignore rules",
+        "passed": false,
+        "notes": "not run because the seeded provider key is not in any file"
+      },
+      {
+        "name": "the local stack serves the suggest endpoint",
+        "passed": true,
+        "notes": "status 503"
+      },
+      {
+        "name": "the suggest endpoint has the provider key at request time",
+        "passed": false,
+        "notes": "answered missing_api_key, so the runtime handed the function no credential: {\"error\":\"missing_api_key\"}"
+      },
+      {
+        "name": "the suggest response does not echo the provider key",
+        "passed": true
+      },
+      {
+        "name": "the agent read the Managing secrets guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/secrets.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/secrets",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 595023,
+        "cacheReadInputTokens": 538254,
+        "cacheWriteInputTokens": 56706,
+        "outputTokens": 6798
+      }
+    ],
+    "stepCount": 21,
+    "toolCallCount": 14,
+    "durationMs": 158451,
+    "prompt": "My app calls the OpenAI API to write copy suggestions. The key is sitting in a\nReact component right now, which I'm told is a problem. Sort that out.\n\nThen get the local stack running so the app works end to end when I run it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/secrets.md",
+    "promptSourcePath": "evals/docs/build-docs-007-edge-function-secrets/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-007-edge-function-secrets/run-3/result.json"
+  }
+]
