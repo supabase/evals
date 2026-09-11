@@ -1,13 +1,13 @@
 /**
  * A `LocalStackRuntime` that installs the latest stable/beta Supabase CLI
- * (instead of the pinned default) and, for evals that declare a Docker-less
- * `sandbox-environment.json`, stages a sandbox where the Docker daemon is
- * unreachable or the `docker` binary is absent entirely — while still
- * offering the agent the exact same tools, MCP wiring, and prompt as the
- * stock `localStackRuntime()` for a normal (Docker-available) session.
+ * (instead of the pinned default) and, when the calling experiment passes a
+ * `docker` option, stages a sandbox where the Docker daemon is unreachable
+ * or the `docker` binary is absent entirely — while still offering the agent
+ * the exact same tools, MCP wiring, and prompt as the stock
+ * `localStackRuntime()` for a normal (Docker-available) session. Which arm
+ * runs is chosen by the experiment, not read from any eval-side marker.
  */
 
-import { dirname } from 'node:path';
 import {
   supabaseMcpServer,
   type LocalStackRuntime,
@@ -18,6 +18,7 @@ import {
   buildLocalStackScoringContext,
   buildLocalStackTools,
   buildSkillsPrompt,
+  buildToolSurfaceAddendum,
   computeExcludedServices,
   DockerSandbox,
   ensureSupabaseSandboxImage,
@@ -29,13 +30,13 @@ import {
   type SupabaseService,
 } from '@supabase-evals/sandbox';
 import { resolveCliVersion, type CliChannel } from './cli-channel.js';
-import {
-  readSandboxEnvironment,
-  type DockerState,
-} from './sandbox-environment.js';
+
+export type DockerState = 'available' | 'no-daemon' | 'absent';
 
 // Schema is duplicated in evals/build-database-002-stack-lifecycle/scoring.ts
-// so evals stay self-contained; keep the two in sync.
+// so evals stay self-contained; keep the two in sync. The scorer only reads
+// `channel` and `sessionStartedMs` from this marker — it never uses `docker`
+// (what the experiment staged) to decide pass/fail.
 export const RUNTIME_MARKER_PATH = '/tmp/supabase-eval-runtime.json';
 
 export type RuntimeMarker = {
@@ -55,18 +56,21 @@ const UNREACHABLE_DOCKER_HOST = 'tcp://127.0.0.1:1';
 
 export function dockerAwareLocalStackRuntime(options: {
   channel: CliChannel;
+  docker?: DockerState;
 }): LocalStackRuntime {
   const { channel } = options;
+  const docker = options.docker ?? 'available';
   return {
-    id: `local-stack-cli-${channel}`,
+    id:
+      docker === 'available'
+        ? `local-stack-cli-${channel}`
+        : `local-stack-cli-${channel}-${docker}`,
     async startSession(
       args: LocalStackSessionArgs
     ): Promise<LocalStackSession> {
       // Stamped before setup so it's comparable with the scorer's PID-1 fallback.
       const sessionStartedMs = Date.now();
-      const state = args.localDir
-        ? readSandboxEnvironment(dirname(args.localDir))
-        : 'available';
+      const state = docker;
       // An eval's own `cliVersion:` frontmatter still wins over the channel,
       // same precedence as the stock local-stack runtime.
       const version = args.cliVersion ?? (await resolveCliVersion(channel));
@@ -180,8 +184,10 @@ export function dockerAwareLocalStackRuntime(options: {
             ).config,
           },
           promptAddendum: [
-            buildBaseAddendum(args.skipCliInstall),
-            buildSkillsPrompt(skills),
+            buildToolSurfaceAddendum(args.agent, {
+              skipCliInstall: args.skipCliInstall,
+            }),
+            buildSkillsPrompt(args.agent, skills),
           ]
             .filter(Boolean)
             .join('\n\n'),
@@ -199,23 +205,6 @@ export function dockerAwareLocalStackRuntime(options: {
       }
     },
   };
-}
-
-// Copied verbatim from local-stack-runtime.ts's baseAddendum: it says docker
-// is installed, and we never hint that it's actually broken.
-function buildBaseAddendum(skipCliInstall: boolean | undefined): string {
-  let addendum =
-    'docker, psql, git, and curl are installed in the workspace. ' +
-    'Use the bash tool to run commands (the working directory is always the workspace root) ' +
-    'and the files tools to inspect and modify files.';
-
-  if (!skipCliInstall) {
-    addendum = 'The Supabase CLI (`supabase`), ' + addendum;
-    addendum +=
-      ' Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
-  }
-
-  return addendum;
 }
 
 function buildRuntimeMarker(

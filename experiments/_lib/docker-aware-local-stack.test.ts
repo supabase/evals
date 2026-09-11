@@ -4,7 +4,22 @@ import type { SupabaseService } from '@supabase-evals/sandbox';
 import {
   buildDockerDaemonShimScript,
   buildSupabaseShimScript,
+  dockerAwareLocalStackRuntime,
 } from './docker-aware-local-stack.js';
+
+describe('dockerAwareLocalStackRuntime', () => {
+  it('ids as `local-stack-cli-<channel>` when docker is unset (available)', () => {
+    expect(dockerAwareLocalStackRuntime({ channel: 'stable' }).id).toBe(
+      'local-stack-cli-stable'
+    );
+  });
+
+  it('ids as `local-stack-cli-<channel>-<docker>` when docker is a non-available state', () => {
+    expect(
+      dockerAwareLocalStackRuntime({ channel: 'beta', docker: 'no-daemon' }).id
+    ).toBe('local-stack-cli-beta-no-daemon');
+  });
+});
 
 describe('buildSupabaseShimScript', () => {
   it('emits DOCKER_HOST, the -x start branch for excluded services, and a passthrough exec', () => {
