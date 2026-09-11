@@ -21,6 +21,7 @@ const AGENT_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
+  'XAI_API_KEY',
 ];
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,

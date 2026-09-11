@@ -47,6 +47,11 @@ const SKILLS_PATH_BY_AGENT: Record<AgentHarnessId, string | null> = {
   'ai-sdk': null,
   'claude-code': CLAUDE_CODE_SKILLS_DIR,
   codex: AGENTS_SKILLS_DIR,
+  // Grok Build reads `.claude/skills` natively, but the skills CLI has no
+  // `grok` agent id and rejects the whole install when one is named. So grok
+  // is `null` here, and the `claude-code` entry above populates the directory
+  // that grok reads.
+  grok: null,
   opencode: AGENTS_SKILLS_DIR,
 };
 
