@@ -212,6 +212,13 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   said the page had never been opened. The score was evidence about the model. #264
   **Fix.** Read `docs.calls` before reading the score. Empty means the run measured nothing about the
   page, whatever the checks say.
+- **The `raw-results` artifact drops dotfiles, so a workspace read from it looks wrong.**
+  `actions/upload-artifact` v4 excludes hidden files unless `include-hidden-files` is set, so the
+  downloaded workspace carries no `.env`, no `.env.example`, and not even the `.gitignore` the seed
+  shipped. Debugging a secrets eval from it suggested the agent had written no env file when the scorer
+  had correctly found one. #285
+  **Fix.** Trust the check notes over the artifact for anything dot-prefixed, and read the absence of a
+  seeded dotfile as proof the artifact is filtered rather than that the agent deleted it.
 - **The guide-read check was close to unpassable on the only experiment docs evals run.** Codex CLI
   0.138 round-trips `openPage` and `findInPage` through a snake_case enum with no such variants, so a
   page open arrives as an `other` action carrying no url, and the url-shape fallback left `hasContent`
