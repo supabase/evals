@@ -39,12 +39,27 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   Confirm the row is absent as the superuser instead of inferring absence from the error, and treat any
   code outside `42501` as could-not-measure rather than as a pass.
 
+- **`git ls-files` in a scorer matches nothing, so a committed-secret check passes vacuously.** The
+  harness strips `.git` when it copies the seed into the container, so the workspace is not a
+  repository unless the agent made one. `deploy-functions-001` scans tracked files for its secret and
+  has never had a file to scan. #285
+  **Fix.** `git init -q` then `git check-ignore`, and sequence it after every check that reads the
+  workspace.
+
 ## False red: the check fails correct work
 
 - **A structural read of where code sits.** Requiring the client constructor at module scope red a
   factory called once at module scope, which is correct. #257
   **Fix.** Count the effect. One connection across repeated invocations proves the same thing and does
   not care how the client was built.
+- **A check that tracks a seeded literal reds a correct solution, because agents replace it.** Two
+  placement checks hunted the provider key the seed put in the client, and every run reported it in no
+  file. Agents substitute a credential of their own, and one available inside the sandbox: the Codex
+  runner logs the agent in with a live `OPENAI_API_KEY`, so an agent can place a working credential
+  and never touch the seeded one. #285
+  **Fix.** Assert on the env name the code reads, minus the names the platform injects, not on the
+  value the seed shipped. Carve out `.env.example` and its siblings, or a solution that ships a
+  template alongside the real file reds on the template.
 - **The correct answer is not observable.** Agents left a connection string to the deploy, as the seed
   told them to, so nothing in the workspace carried their choice and the central check red all six
   runs. One of them named the right answer in a code comment. #257
@@ -138,6 +153,12 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   **Fix.** None available at the eval's level. Report the run as lost rather than folding it into the
   score, and read the surviving checks. This is the reason to run three or more times per experiment
   rather than once.
+- **A `supabase/functions/.env` written after `supabase start` is invisible to the running edge
+  runtime.** `supabase start` calls `ServeFunctions` with an empty env path, `parseEnvFile("")` falls
+  back to that path, and the values become the container's environment at creation time. Function
+  source is a live bind mount, so code written mid-run is served. Environment is not. #285
+  **Fix.** `projectRunning: false`, so the agent starts the stack after writing its files and owns the
+  ordering. Restarting the stack from the scorer would be first-of-its-kind and is not needed.
 - **`kong` does not come up on its own.** With `services: [gotrue, kong]`, `supabase status` reports no
   `API_URL`. Adding `postgrest` brings it up. #261
 - **A framework the eval seeds is not installed on the host.** The host-side build and test helpers
@@ -191,6 +212,14 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   said the page had never been opened. The score was evidence about the model. #264
   **Fix.** Read `docs.calls` before reading the score. Empty means the run measured nothing about the
   page, whatever the checks say.
+- **The guide-read check was close to unpassable on the only experiment docs evals run.** Codex CLI
+  0.138 round-trips `openPage` and `findInPage` through a snake_case enum with no such variants, so a
+  page open arrives as an `other` action carrying no url, and the url-shape fallback left `hasContent`
+  unset. Three runs that had plainly read the page all red. #285
+  **Fix.** Treat an explicit `other` with a url-shaped query as a page read. `search` survives the trip
+  intact, so `other` is evidence of a read rather than absence of evidence. Before blaming a docs eval's
+  own check, replay the run's recorded tool calls through `buildDocsResult`; CI keeps them in the
+  `raw-results` artifact even though the published results drop them.
 - **Benign CLI chatter at the front of a note gets a real failure filed as infrastructure.**
   `supabase status` writes a `Stopped services` line naming every service the eval does not start, plus
   an upgrade notice. Both led the seed failure's note, and the `ERROR: relation ... does not exist`
