@@ -1,0 +1,337 @@
+[
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-d01475fa@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-d01475fa@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/server-side/creating-a-client Supabase creating a client Next.js",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:github.com/supabase/supabase examples/auth/nextjs lib/supabase/server.ts updateSession getClaims createServerClient",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 530264,
+        "cacheReadInputTokens": 475189,
+        "cacheWriteInputTokens": 55030,
+        "outputTokens": 3787
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 12,
+    "durationMs": 57069,
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/docs/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-005-server-side-auth/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-fa6f2851@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-fa6f2851@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in app/login/route.ts, lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 322184,
+        "cacheReadInputTokens": 289425,
+        "cacheWriteInputTokens": 32708,
+        "outputTokens": 4457
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 12,
+    "durationMs": 64073,
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/docs/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-005-server-side-auth/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-9732fed2@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-9732fed2@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in app/login/route.ts, lib/supabase/server.ts, proxy.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, shell_fetch but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error https://supabase.com/docs/guides/auth/server-side/creating-a-client.md && printf '\\\\n---FILES---\\\\n' && rg --files -g '\"'!node_modules'\"' -g '\"'! .next'\"' | head -200\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 34184
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 336490,
+        "cacheReadInputTokens": 298638,
+        "cacheWriteInputTokens": 37807,
+        "outputTokens": 4718
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 11,
+    "durationMs": 61968,
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/docs/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-005-server-side-auth/run-3/result.json"
+  }
+]
