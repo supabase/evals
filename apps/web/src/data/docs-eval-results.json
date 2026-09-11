@@ -1,0 +1,364 @@
+[
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200, TLS requested, terminated by the probe, {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"read probe\",\"note\":\"b156b409-c4cf-45a4-9ca7-fd859849f0cd\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "1 database connection opened across six invocations"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 187016,
+        "cacheReadInputTokens": 152577,
+        "cacheWriteInputTokens": 34409,
+        "outputTokens": 3099
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 8,
+    "durationMs": 37680,
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/docs/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-004-postgres-connection/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200, TLS requested, terminated by the probe, {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"read probe\",\"note\":\"07590cd9-20f2-433d-a889-12f0f64c3603\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "1 database connection opened across six invocations"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 170449,
+        "cacheReadInputTokens": 138286,
+        "cacheWriteInputTokens": 32133,
+        "outputTokens": 2984
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 7,
+    "durationMs": 35479,
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/docs/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-004-postgres-connection/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200, TLS requested, terminated by the probe, {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"read probe\",\"note\":\"3d1e7b81-cc0a-4bb1-91a5-8a53f2e27019\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "1 database connection opened across six invocations"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": true,
+        "notes": "shell_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error https://supabase.com/docs/guides/database/connecting-to-postgres.md | sed -n '1,260p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ],
+          "resultChars": 17114
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 110072,
+        "cacheReadInputTokens": 80189,
+        "cacheWriteInputTokens": 29862,
+        "outputTokens": 3237
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 10,
+    "durationMs": 36977,
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/docs/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-004-postgres-connection/run-3/result.json"
+  }
+]
