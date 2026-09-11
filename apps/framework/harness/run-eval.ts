@@ -29,14 +29,17 @@ import {
 } from '../lib/cli-args.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
+import { buildSystemPrompt } from './system-prompt.js';
 import {
   buildDocsResult,
   buildSkillResult,
+  evalSuiteSchema,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
   supabaseMcpServerMounts,
 } from '@supabase-evals/core';
 import type {
+  AgentUsage,
   ExperimentConfig,
   EvalInterface,
   EvalManifest,
@@ -126,48 +129,55 @@ function resolveEvalMode(
 
 /** Throws if a scenario ships a `local/` workspace but isn't declared `interface: cli`. */
 export function assertLocalMatchesInterface(
-  id: string,
+  promptPath: string,
   interfaceKind: EvalInterface,
   hasLocal: boolean
 ): void {
   if (hasLocal && interfaceKind !== 'cli') {
     throw new Error(
-      `evals/${id}/PROMPT.md: ships a local/ workspace but declares interface: ${interfaceKind}, expected cli`
+      `${promptPath}: ships a local/ workspace but declares interface: ${interfaceKind}, expected cli`
     );
   }
 }
 
 function discoverEvals(): EvalManifest[] {
-  const dir = join(ROOT, 'evals');
-  if (!existsSync(dir)) return [];
+  const root = join(ROOT, 'evals');
+  if (!existsSync(root)) return [];
   const out: EvalManifest[] = [];
-  for (const id of readdirSync(dir)) {
-    const evalDir = join(dir, id);
-    if (!statSync(evalDir).isDirectory()) continue;
-    const localDir = join(evalDir, 'local');
-    const promptPath = join(evalDir, 'PROMPT.md');
-    const evalPath = join(evalDir, 'EVAL.ts');
-    const metadata = parseEvalMarkdown(
-      readFileSync(promptPath, 'utf8'),
-      `evals/${id}/PROMPT.md`
-    ).metadata;
-    const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
-    assertLocalMatchesInterface(id, metadata.interface, hasLocal);
-    const mode = resolveEvalMode(metadata.interface, hasLocal);
-    out.push({
-      id,
-      mode,
-      metadata,
-      stage: metadata.stage,
-      product: metadata.product,
-      suite: metadata.suite,
-      topic: metadata.topic,
-      dir: evalDir,
-      localDir: hasLocal ? localDir : undefined,
-      promptPath,
-      evalPath,
-      remoteDir: join(evalDir, 'remote'),
-    });
+  // evals/<suite>/<id>/. The suite folder is what CODEOWNERS scopes by.
+  for (const suiteDir of readdirSync(root)) {
+    const dir = join(root, suiteDir);
+    if (!statSync(dir).isDirectory()) continue;
+    const suite = evalSuiteSchema.parse(suiteDir);
+    for (const id of readdirSync(dir)) {
+      const evalDir = join(dir, id);
+      if (!statSync(evalDir).isDirectory()) continue;
+      const relPath = `evals/${suiteDir}/${id}/PROMPT.md`;
+      const localDir = join(evalDir, 'local');
+      const promptPath = join(evalDir, 'PROMPT.md');
+      const evalPath = join(evalDir, 'EVAL.ts');
+      const metadata = parseEvalMarkdown(
+        readFileSync(promptPath, 'utf8'),
+        relPath
+      ).metadata;
+      const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
+      assertLocalMatchesInterface(relPath, metadata.interface, hasLocal);
+      const mode = resolveEvalMode(metadata.interface, hasLocal);
+      out.push({
+        id,
+        mode,
+        metadata,
+        stage: metadata.stage,
+        product: metadata.product,
+        suite,
+        topic: metadata.topic,
+        dir: evalDir,
+        localDir: hasLocal ? localDir : undefined,
+        promptPath,
+        evalPath,
+        remoteDir: join(evalDir, 'remote'),
+      });
+    }
   }
   return out;
 }
@@ -318,31 +328,6 @@ function readSessionSeedArgs(ev: EvalManifest) {
   };
 }
 
-function basePromptFor(mode: EvalMode): string {
-  if (mode === 'local-stack') {
-    return (
-      'You are an agent solving a Supabase eval task in a Linux workspace. ' +
-      'Use the provided tools to inspect and modify the workspace and run commands. ' +
-      'When you are done, end your turn with a short summary of what you did.'
-    );
-  }
-  return (
-    'You are an agent solving a Supabase eval task. ' +
-    'Use the provided tools to inspect and modify the project. ' +
-    'When you are done, end your turn with a short summary of what you did ' +
-    '(or for audit tasks, your findings).'
-  );
-}
-
-function buildSystemPrompt(
-  mode: EvalMode,
-  addendum?: string,
-  skillContext?: string
-): string {
-  const blocks = [basePromptFor(mode), addendum, skillContext].filter(Boolean);
-  return blocks.join('\n\n');
-}
-
 /**
  * Adapt a `{ close() }` resource to `AsyncDisposable` so it can be bound with
  * `await using` — cleanup then runs on scope exit (normal fall-through, `continue`,
@@ -373,6 +358,15 @@ async function runOne(
     transcript: TranscriptPart[];
     agentReport: string;
     stoppedReason: string;
+    /**
+     * The system prompt the harness handed the agent, `''` for a CLI agent.
+     * Recorded so a run artifact shows what the agent was told.
+     */
+    systemPrompt: string;
+    usage?: AgentUsage;
+    stepCount?: number;
+    toolCallCount: number;
+    durationMs: number;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -420,6 +414,7 @@ async function runOne(
       : undefined;
     await using session = disposable(
       await exp.localStack.startSession({
+        agent: exp.agent.id,
         cliVersion: ev.metadata.cliVersion,
         localDir: ev.localDir,
         includeServices: ev.metadata.services,
@@ -441,8 +436,12 @@ async function runOne(
       })
     );
 
+    const systemPrompt = buildSystemPrompt({
+      agent: exp.agent.id,
+      addendum: session.promptAddendum,
+    });
     const run = await exp.agent.run({
-      systemPrompt: buildSystemPrompt('local-stack', session.promptAddendum),
+      systemPrompt,
       userPrompt: prompt,
       tools: session.tools,
       sandbox: session.sandbox,
@@ -486,6 +485,11 @@ async function runOne(
       transcript: run.transcript,
       agentReport: run.agentReport,
       stoppedReason: run.stoppedReason,
+      systemPrompt,
+      usage: run.usage,
+      stepCount: run.stepCount,
+      toolCallCount: run.toolCalls.length,
+      durationMs: run.durationMs,
     };
   }
 
@@ -506,16 +510,16 @@ async function runOne(
     })
   );
 
-  // In-process agents have no filesystem, so skills are advertised in the
-  // prompt and pulled on demand via the load_skill tool instead.
-  const skillsPrompt = agentRunsInSandbox
-    ? cliSandbox!.promptAddendum
-    : buildToolsSkillsPrompt(toolsSkills);
-  const systemPrompt = buildSystemPrompt(
-    'tools',
-    session.promptAddendum,
-    skillsPrompt
-  );
+  // A CLI agent discovers its installed skills itself. An in-process agent has
+  // no filesystem, so its skills are advertised in the prompt and pulled on
+  // demand via the load_skill tool instead.
+  const systemPrompt = buildSystemPrompt({
+    agent: exp.agent.id,
+    addendum: session.promptAddendum,
+    skillContext: agentRunsInSandbox
+      ? undefined
+      : buildToolsSkillsPrompt(toolsSkills),
+  });
   const run = await exp.agent.run({
     systemPrompt,
     userPrompt: prompt,
@@ -544,6 +548,11 @@ async function runOne(
     transcript: run.transcript,
     agentReport: run.agentReport,
     stoppedReason: run.stoppedReason,
+    systemPrompt,
+    usage: run.usage,
+    stepCount: run.stepCount,
+    toolCallCount: run.toolCalls.length,
+    durationMs: run.durationMs,
   };
 }
 
@@ -790,9 +799,16 @@ async function main() {
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+// Only when this file is the entry point. Importing it (a unit test reaching
+// for one of its helpers) must not dispatch a run or call process.exit.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main()
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+}

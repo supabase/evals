@@ -6,6 +6,7 @@ import type {
 } from '@supabase-evals/core/eval-metadata';
 
 export type {
+  AgentUsage,
   ScoreResult,
   CheckResult,
   ToolCallRecord,

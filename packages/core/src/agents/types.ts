@@ -14,6 +14,7 @@
 import type { CommandResult, McpServerConfig } from '../index.js';
 import type {
   AgentHarnessId,
+  AgentUsage,
   ModelProvider,
   ReasoningEffortLevel,
 } from '../eval-metadata.js';
@@ -46,16 +47,15 @@ export interface AgentSandbox {
 
 /**
  * Arguments handed to a runner's `exec`. The generic layer has already staged
- * the prompts into the sandbox (paths are shell expressions) and rewritten MCP
- * server hosts for in-container reachability; the runner writes its own MCP
- * config in whatever format/location the CLI expects.
+ * the user prompt into the sandbox (the path is a shell expression) and
+ * rewritten MCP server hosts for in-container reachability; the runner writes
+ * its own MCP config in whatever format/location the CLI expects. There is no
+ * system prompt: a CLI agent runs with the one it ships with.
  */
 export interface RunnerExecArgs<M extends string = string> {
   sandbox: AgentSandbox;
   model: M;
   apiKey: string;
-  /** Shell path to a file holding the system prompt (skills + task framing). */
-  systemPromptPath: string;
   /** Shell path to a file holding the user prompt (the task). */
   userPromptPath: string;
   /** MCP servers to expose, already loopback-rewritten. Empty when none. */
@@ -73,6 +73,12 @@ export interface RunnerExecResult {
   command: CommandResult;
   /** Raw transcript (JSONL) — stdout for streaming CLIs, or read from disk. */
   raw?: string;
+  /**
+   * Model responses in the run, for runners that read them from somewhere
+   * other than `raw` (Codex uses its session rollout). See `stepCount` in
+   * eval-metadata.ts for what counts as one.
+   */
+  stepCount?: number;
 }
 
 /** A CLI coding agent's execution strategy. `M` is its SDK model-id type. */
@@ -107,6 +113,13 @@ export interface AgentRunner<M extends string = string> {
    * result. Falls back to a process-exit-based reason when omitted.
    */
   deriveStopReason?(raw: string | undefined, command: CommandResult): string;
+  /**
+   * Whole-run token usage from the transcript, per model. `model` is the
+   * configured model id, for harnesses that report one aggregate.
+   */
+  extractUsage?(raw: string | undefined, model: M): AgentUsage | undefined;
+  /** Model responses in the run. See `stepCount` in eval-metadata.ts for what counts as one. */
+  extractStepCount?(raw: string | undefined): number | undefined;
 }
 
 /**
