@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { CommandResult } from '../index.js';
+import type { AgentRunResult, CommandResult } from '../index.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
 import { createCliAgent } from './engine.js';
 import { USER_PROMPT_PATH } from './shared.js';
@@ -25,8 +25,9 @@ async function runWithSystemPrompt(
   effects: { commands: string[]; installed: boolean } = {
     commands: [],
     installed: false,
-  }
-): Promise<typeof effects> {
+  },
+  parse: AgentTranscriptParser = parser
+): Promise<typeof effects & { result: AgentRunResult }> {
   const runner: AgentRunner = {
     id: 'claude-code',
     displayName: 'Fake CLI',
@@ -39,20 +40,22 @@ async function runWithSystemPrompt(
     },
     exec: async () => ({ command: ok, raw: '' }),
   };
-  await createCliAgent(runner, parser, { model: 'fake-model' }).run({
-    systemPrompt,
-    userPrompt: 'the task',
-    timeoutSec: 1,
-    sandbox: {
-      workspace: '/w',
-      exec: async (command) => {
-        effects.commands.push(command);
-        return ok;
+  const run = () =>
+    createCliAgent(runner, parse, { model: 'fake-model' }).run({
+      systemPrompt,
+      userPrompt: 'the task',
+      timeoutSec: 1,
+      sandbox: {
+        workspace: '/w',
+        exec: async (command) => {
+          effects.commands.push(command);
+          return ok;
+        },
+        readFile: async () => '',
       },
-      readFile: async () => '',
-    },
-  });
-  return effects;
+    });
+  const result = await run();
+  return { ...effects, result };
 }
 
 describe('createCliAgent prompt staging', () => {
@@ -76,5 +79,36 @@ describe('createCliAgent prompt staging', () => {
     ).rejects.toThrow(/runs with its own system prompt/);
     expect(effects.commands).toEqual([]);
     expect(effects.installed).toBe(false);
+  });
+
+  it('seeds the initiating prompt when the parser never echoed it', async () => {
+    // Codex's --json stream carries no user message, so without the seed the
+    // trace starts at the first assistant reply with no visible initiator.
+    const { result } = await runWithSystemPrompt('');
+    expect(result.transcript[0]).toMatchObject({
+      type: 'message',
+      role: 'user',
+      content: 'the task',
+    });
+    // ts is the real run-initiation time, so the trace viewer can place and
+    // size the prompt span rather than rendering it untimed.
+    expect(result.transcript[0]!.ts).toBeGreaterThan(0);
+  });
+
+  it('does not duplicate the prompt the parser already surfaced', async () => {
+    // Claude Code echoes the user prompt into its JSONL, so the transcript
+    // already opens with a user part — the seed must not add a second one.
+    const echoParser: AgentTranscriptParser = {
+      parseTranscript: () => ({
+        events: [
+          { type: 'message', role: 'user', content: 'the task' },
+          { type: 'message', role: 'assistant', content: 'done' },
+        ],
+      }),
+    };
+    const { result } = await runWithSystemPrompt('', undefined, echoParser);
+    expect(
+      result.transcript.filter((p) => p.type === 'message' && p.role === 'user')
+    ).toHaveLength(1);
   });
 });

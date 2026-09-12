@@ -107,6 +107,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
       command,
       raw: command.stdout,
       stepCount: countModelResponses(rollout.stdout),
+      rollout: rollout.stdout,
     };
   },
 

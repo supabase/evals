@@ -79,6 +79,11 @@ export interface RunnerExecResult {
    * eval-metadata.ts for what counts as one.
    */
   stepCount?: number;
+  /**
+   * Raw sidecar transcript for timestamp correlation (Codex's session rollout).
+   * The `--json` stream carries no timestamps; the rollout does.
+   */
+  rollout?: string;
 }
 
 /** A CLI coding agent's execution strategy. `M` is its SDK model-id type. */
