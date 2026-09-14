@@ -140,12 +140,6 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **`ctx.stackStatus()` requires three values together** and throws when any is missing, so an eval
   that needs only the api url and one client key cannot use it. Read `supabase status` directly and
   accept `PUBLISHABLE_KEY` or `ANON_KEY`. #261
-- **A leftover git-excluded directory under `evals/` breaks discovery for the whole repo.**
-  `discoverEvals` reads `PROMPT.md` in every directory it finds and throws when one is absent, so a
-  `solutions/` directory left behind by a branch switch stops every eval from being discovered.
-  #261, #264
-  **Fix.** Move the leftover aside. Discovery skipping a directory with no `PROMPT.md` is the real fix.
-  It has now happened on two consecutive evals, each time from switching onto the next eval's branch.
 - **A sandbox can lose its database container mid-run.** One run of six reported
   `No such container: supabase_db_<project-id>` when the scorer read `supabase status`, which cost the
   install check and every check downstream of it. The static checks still ran. Nothing in the eval
@@ -174,7 +168,7 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   #188
 - **`pnpm format:check` fails on local artifacts that are nobody's diff.** Biome walks
   `.claude/worktrees/`, where it hits broken symlinks, `.solution-runs/`, and the git-excluded
-  `evals/*/solutions/`, which is where a deliberate parse-error fixture lives. The failure reads as a
+  `evals/*/*/solutions/`, which is where a deliberate parse-error fixture lives. The failure reads as a
   broken branch. #259
   **Fix.** Scope Biome to the paths you touched, or add those three to `biome.json`.
 

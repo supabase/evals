@@ -25,7 +25,7 @@ Model a new eval on `build-docs-003-api-keys-guide` or later.
 published results series is keyed on it, so renaming breaks history. So does renaming a check.
 
 ```
-evals/build-docs-NNN-<subject>/
+evals/docs/build-docs-NNN-<subject>/
   PROMPT.md      frontmatter and the task the agent sees
   EVAL.ts        the scorer
   README.md      the design rationale, addressed to the next editor
@@ -167,7 +167,7 @@ that is neither.
 Verification means example solutions: one you believe is correct, plus a few carrying a single
 deliberate flaw each. Write down which checks you expect each to fail before running anything; that
 list is the test. A flaw usually trips several checks, so do not aim for exactly one failure each.
-**Never commit them.** `evals/*/solutions/` is a git exclusion, and you add it to `.git/info/exclude`
+**Never commit them.** `evals/*/*/solutions/` is a git exclusion, and you add it to `.git/info/exclude`
 before the first `git add` of an eval directory, because that file is local to your clone. A
 transcript-anchored check cannot be exercised by a solution, because no agent ran.
 

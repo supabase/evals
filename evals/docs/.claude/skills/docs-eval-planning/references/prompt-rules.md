@@ -66,8 +66,8 @@ for the run that resolves it the other way.
 
 ## Frontmatter
 
-- `stage: build`, `interface: cli`, and `suite: regression`. Benchmark is gated on at least one agent
-  failing the scenario, so it is a question for after the baseline, not before.
+- `stage: build` and `interface: cli`. The suite is the folder the eval sits in, so a page under test
+  goes in `evals/docs/`, which the docs team owns.
 - `product:` and `topic:` from the closed enums in `packages/core/src/eval-metadata.ts`. `topic` has no
   `database` value; `sdk` is usually the fit.
 - `services:` narrowed to what the scorer touches. This also decides what the agent can reach, which
