@@ -79,6 +79,7 @@ jobs:
       sandbox_concurrency: ${{ steps.inputs.outputs.sandbox_concurrency }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
       do_merge: ${{ steps.inputs.outputs.do_merge }}
+      suite: ${{ steps.inputs.outputs.suite }}
     steps:
       - name: Prepare inputs
         id: inputs
@@ -105,8 +106,8 @@ jobs:
           else
             experiments_override=""
             eval_id=""
-            suite="benchmark,regression"
-            experiment_suite="benchmark,no-skills,regression"
+            suite="benchmark,regression,docs"
+            experiment_suite="benchmark,no-skills,regression,docs"
             runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
@@ -174,16 +175,15 @@ jobs:
           if [ -n "$eval_ids" ]; then
             matching=()
             while IFS= read -r id; do
-              [ -d "evals/$id" ] && matching+=("$id")
+              compgen -G "evals/*/$id" > /dev/null && matching+=("$id")
             done < <(jq -Rr 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | .[]' <<< "$eval_ids")
           else
             matching=()
-            for dir in evals/*/; do
+            for dir in evals/*/*/; do
               [ -d "$dir" ] || continue
               id=$(basename "$dir")
-              prompt="$dir/PROMPT.md"
-              [ -f "$prompt" ] || continue
-              suite_val=$(sed -n 's/^suite:[[:space:]]*//p' "$prompt" | head -n 1)
+              [ -f "$dir/PROMPT.md" ] || continue
+              suite_val=$(basename "$(dirname "$dir")")
               if jq -e --arg s "$suite_val" 'index($s) != null' <<< "$suite_json" > /dev/null 2>&1; then
                 matching+=("$id")
               fi
@@ -192,7 +192,7 @@ jobs:
 
           if [ "${{ steps.inputs.outputs.filter_changed }}" = "true" ]; then
             changed_evals=$(gh pr diff ${{ github.event.pull_request.number }} --name-only \
-              | grep '^evals/' | cut -d/ -f2 | sort -u || true)
+              | grep '^evals/' | cut -d/ -f3 | sort -u || true)
 
             if [ -z "$changed_evals" ]; then
               echo "No eval directories changed in this PR — nothing to run"
@@ -219,10 +219,11 @@ jobs:
           pairs='[]'
           experiments_override="${{ steps.inputs.outputs.experiments_override }}"
           for id in "${matching[@]}"; do
-            eval_suite=$(sed -n 's/^suite:[[:space:]]*//p' "evals/$id/PROMPT.md" | head -n 1)
+            eval_suite=$(basename "$(dirname "$(compgen -G "evals/*/$id")")")
             case "$eval_suite" in
               benchmark) experiment_suites=(benchmark no-skills) ;;
               regression) experiment_suites=(regression) ;;
+              docs) experiment_suites=(docs) ;;
               *) continue ;;
             esac
 
@@ -448,13 +449,15 @@ jobs:
             pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
           fi
 
-          if jq -e 'any(.[]; .eval_suite == "regression")' <<< "$pairs" > /dev/null; then
-            export_args=(--suite regression --runs "${{ needs.prepare.outputs.runs }}" --output apps/web/src/data/regression-eval-results.json)
-            if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
-              export_args+=(--merge)
+          for eval_suite in regression docs; do
+            if jq -e --arg s "$eval_suite" 'any(.[]; .eval_suite == $s)' <<< "$pairs" > /dev/null; then
+              export_args=(--suite "$eval_suite" --runs "${{ needs.prepare.outputs.runs }}" --output "apps/web/src/data/${eval_suite}-eval-results.json")
+              if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
+                export_args+=(--merge)
+              fi
+              pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
             fi
-            pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
-          fi
+          done
 
       - name: Upload exported results
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
@@ -502,9 +505,8 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           add-paths: apps/web/src/data/*eval-results.json
-          # Per-ref-and-event head branch so a branch refresh PR can't collide
-          # with another ref's, or with the scheduled run's.
-          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name }}
+          # Per ref, event, and suite so concurrent refreshes open separate PRs.
+          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name }}-${{ join(fromJSON(needs.prepare.outputs.suite), '-') }}
           base: ${{ github.ref_name }}
           commit-message: "chore: refresh eval results"
           title: "chore: refresh eval results"

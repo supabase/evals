@@ -8,8 +8,9 @@ First, determine the eval suite for your scenario:
 
 - **Regression** evals are suitable for most scenarios. If we notice agents make a narrow mistake, we track it here to reproduce the issue, verify a fix, and monitor for regression. These scenarios are not included in the benchmark so they don't inflate scores.
 - **Benchmark** evals are scenarios we've intentionally selected for the published benchmark report. These should be representative of the user journey on Supabase to cover a breadth of dimensions.
+- **Docs** evals are owned by docs team for their own analysis of how agents interpret docs pages, refreshed as-needed.
 
-Then add a folder under `evals/` containing:
+Then add a folder under `evals/<suite>/` containing:
 
 1. `PROMPT.md` with frontmatter metadata and the task the agent sees.
 2. `EVAL.ts` with the scorer.
@@ -57,3 +58,13 @@ You have a few options to run evals in CI:
 - Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow manually to target any branch and choose specific evals, experiments, or other options. It can commit results directly to the selected branch or open a separate results PR.
 
 Include refreshed results for PRs with new/changed evals so a reviewer can see results directly from your PR or Vercel preview build.
+
+## Docs evals
+
+The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-5.6-luna-no-skills`).
+
+Common workflows:
+
+- **Add or change a docs eval.** Add the scenario under `evals/docs/<id>/` (see [Adding an eval](#adding-an-eval)), open a PR, and add the `run-evals-changed` label. Results for the changed evals are committed back to your branch and viewable in the Vercel preview.
+- **Refresh every docs eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: docs` and `experiment_suite: docs`. It opens a draft PR with the updated `docs-eval-results.json` for you to review and merge.
+- **Analyze results over time.** Every merge that changes `docs-eval-results.json` appends a snapshot to [`docs-results.jsonl`](https://supabase.github.io/evals/docs-results.jsonl) on GitHub Pages, alongside the [benchmark](https://supabase.github.io/evals/results.jsonl) and [regression](https://supabase.github.io/evals/regression-results.jsonl) histories.

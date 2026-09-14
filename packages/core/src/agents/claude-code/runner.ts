@@ -6,7 +6,7 @@
 
 import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messages';
 import type { McpServerConfig } from '../../index.js';
-import { parseJsonlRecords } from '../../json.js';
+import { isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
 import {
   npmGlobalBin,
@@ -40,7 +40,6 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     sandbox,
     model,
     apiKey,
-    systemPromptPath,
     userPromptPath,
     mcpServers,
     reasoningEffort,
@@ -68,9 +67,6 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       `--model ${shellQuote(model)}`,
       // Reasoning effort for the session; omitted leaves Claude Code's default.
       ...(reasoningEffort ? [`--effort ${shellQuote(reasoningEffort)}`] : []),
-      // Append (not replace), from a file (no ARG_MAX/shell-expansion surface),
-      // so Claude Code keeps its default coding-agent prompt + tool guidance.
-      `--append-system-prompt-file ${systemPromptPath}`,
       ...mcpFlags,
       // The sandbox is the isolation boundary, so skip permission prompts and
       // give the agent its full native toolset (same in both modes).
@@ -82,7 +78,15 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       `cat ${userPromptPath} | ${claude} ${flags}`,
       {
         timeoutMs: timeoutSec * 1000,
-        env: { ANTHROPIC_API_KEY: apiKey },
+        env: {
+          ANTHROPIC_API_KEY: apiKey,
+          // No auto-updates, telemetry, release notes, or feature-flag fetches
+          // during a run. https://code.claude.com/docs/en/env-vars
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+          // Skips the haiku call that titles the session, which would otherwise
+          // show up as a second model in usage.
+          CLAUDE_CODE_DISABLE_TERMINAL_TITLE: '1',
+        },
       }
     );
     return { command, raw: command.stdout };
@@ -96,6 +100,32 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     if (subtype === 'success') return 'stop';
     if (subtype) return subtype; // e.g. error_max_turns — surface verbatim
     return processStopReason(command);
+  },
+
+  extractStepCount(raw) {
+    const n = lastResultEvent(raw)?.num_turns;
+    return typeof n === 'number' ? n : undefined;
+  },
+
+  extractUsage(raw) {
+    // `modelUsage` covers every model the run called, unlike the sibling
+    // `usage` aggregate. Anthropic's input count excludes both cache buckets.
+    const byModel = lastResultEvent(raw)?.modelUsage;
+    if (!isRecord(byModel)) return undefined;
+    return Object.entries(byModel).flatMap(([model, u]) => {
+      if (!isRecord(u)) return [];
+      const cacheRead = Number(u.cacheReadInputTokens) || 0;
+      const cacheWrite = Number(u.cacheCreationInputTokens) || 0;
+      return [
+        {
+          model,
+          inputTokens: (Number(u.inputTokens) || 0) + cacheRead + cacheWrite,
+          cacheReadInputTokens: cacheRead,
+          cacheWriteInputTokens: cacheWrite,
+          outputTokens: Number(u.outputTokens) || 0,
+        },
+      ];
+    });
   },
 };
 

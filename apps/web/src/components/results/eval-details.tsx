@@ -8,8 +8,16 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { passFailClassName } from "@/components/results/table-shared"
-import type { CheckResult, DocsCall, ParsedResult } from "@/lib/eval-results"
+import {
+  formatDuration,
+  formatTokens,
+  passFailClassName,
+} from "@/components/results/table-shared"
+import {
+  type CheckResult,
+  type DocsCall,
+  type ParsedResult,
+} from "@/lib/eval-results"
 import { formatProductLabel, formatTagLabel } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -218,6 +226,21 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
             </div>
           }
         />
+      ) : null}
+      {result.durationMs !== undefined ? (
+        <EvalMetadataRow
+          label="Duration"
+          value={formatDuration(result.durationMs)}
+        />
+      ) : null}
+      {result.usage ? (
+        <EvalMetadataRow label="Tokens" value={formatTokens(result.usage)} />
+      ) : null}
+      {result.stepCount !== undefined ? (
+        <EvalMetadataRow label="Steps" value={result.stepCount} />
+      ) : null}
+      {result.toolCallCount !== undefined ? (
+        <EvalMetadataRow label="Tool calls" value={result.toolCallCount} />
       ) : null}
       <EvalMetadataRow
         label="Source"

@@ -36,6 +36,35 @@ function streamJson(subtype: string, isError = false): string {
   ].join('\n');
 }
 
+/** The `claude` invocation from one exec, with a fake sandbox. */
+async function captureRunCommand(): Promise<string> {
+  let runCommand = '';
+  await claudeCodeRunner.exec({
+    sandbox: {
+      workspace: '/w',
+      exec: async (cmd) => {
+        if (cmd.includes('/bin/claude')) runCommand = cmd;
+        return ok;
+      },
+      readFile: async () => '',
+    },
+    model: 'claude-sonnet-4-6',
+    apiKey: 'k',
+    userPromptPath: '"$HOME/.eval/user-prompt.txt"',
+    mcpServers: {},
+    timeoutSec: 1,
+  });
+  return runCommand;
+}
+
+describe('claudeCodeRunner.exec', () => {
+  it("pipes the task in and leaves Claude Code's own system prompt intact", async () => {
+    const command = await captureRunCommand();
+    expect(command).toContain('cat "$HOME/.eval/user-prompt.txt" |');
+    expect(command).not.toContain('system-prompt');
+  });
+});
+
 describe('claudeCodeRunner.deriveStopReason', () => {
   const derive = claudeCodeRunner.deriveStopReason!;
 
@@ -53,5 +82,72 @@ describe('claudeCodeRunner.deriveStopReason', () => {
     expect(derive(undefined, timedOut)).toBe('timeout');
     expect(derive('not json\n', failed)).toBe('error_exit_1');
     expect(derive(undefined, ok)).toBe('stop');
+  });
+});
+
+describe('claudeCodeRunner.extractUsage', () => {
+  const extract = claudeCodeRunner.extractUsage!;
+
+  it('adds cache into input, one entry per model', () => {
+    const raw = [
+      JSON.stringify({ type: 'system', subtype: 'init' }),
+      JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        usage: { input_tokens: 10, output_tokens: 40 },
+        modelUsage: {
+          'claude-sonnet-5': {
+            inputTokens: 10,
+            cacheCreationInputTokens: 200,
+            cacheReadInputTokens: 3000,
+            outputTokens: 40,
+            costUSD: 0.05,
+          },
+          'claude-haiku-4-5-20251001': {
+            inputTokens: 520,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+            outputTokens: 13,
+            costUSD: 0.0006,
+          },
+        },
+      }),
+    ].join('\n');
+    expect(extract(raw, 'claude-sonnet-5')).toEqual([
+      {
+        model: 'claude-sonnet-5',
+        inputTokens: 3210,
+        cacheReadInputTokens: 3000,
+        cacheWriteInputTokens: 200,
+        outputTokens: 40,
+      },
+      {
+        model: 'claude-haiku-4-5-20251001',
+        inputTokens: 520,
+        cacheReadInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        outputTokens: 13,
+      },
+    ]);
+  });
+
+  it('returns undefined without modelUsage', () => {
+    expect(extract(undefined, 'claude-sonnet-5')).toBeUndefined();
+    expect(extract('not json\n', 'claude-sonnet-5')).toBeUndefined();
+    expect(
+      extract(
+        JSON.stringify({ type: 'result', subtype: 'success' }),
+        'claude-sonnet-5'
+      )
+    ).toBeUndefined();
+  });
+});
+
+describe('claudeCodeRunner.extractStepCount', () => {
+  const extract = claudeCodeRunner.extractStepCount!;
+
+  it('reads num_turns off the result event', () => {
+    expect(extract(streamJson('success'))).toBe(3);
+    expect(extract(undefined)).toBeUndefined();
   });
 });

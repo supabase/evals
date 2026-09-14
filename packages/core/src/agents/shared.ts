@@ -27,7 +27,6 @@ export function requireEnv(name: string, hint?: string): string {
 
 /** Scratch dir + staged files, outside the workspace so they're never scored. */
 export const SCRATCH = '"$HOME/.eval"';
-export const SYSTEM_PROMPT_PATH = '"$HOME/.eval/system-prompt.txt"';
 export const USER_PROMPT_PATH = '"$HOME/.eval/user-prompt.txt"';
 /** npm prefix for the per-run global CLI install (outside the workspace). */
 export const NPM_PREFIX = '"$HOME/.npm-global"';

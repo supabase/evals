@@ -41,6 +41,7 @@ import {
 } from '@supabase-evals/platform-lite';
 import type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalMetadata,
   EvalSuite,
@@ -131,6 +132,7 @@ export type {
 } from './transcript/types.js';
 export type {
   AgentHarnessId,
+  AgentUsage,
   CheckResult,
   EvalInterface,
   EvalMetadata,
@@ -389,6 +391,10 @@ export type LocalStackScorer = (
 ) => Promise<ScoreResult>;
 
 export type AgentRunArgs = {
+  /**
+   * System prompt from the harness. Only `aiSdkAgent` takes one; a CLI agent
+   * runs with its own and `createCliAgent` refuses a non-empty value.
+   */
   systemPrompt: string;
   userPrompt: string;
   tools?: ToolSet;
@@ -407,8 +413,10 @@ export type AgentRunResult = {
   agentReport: string;
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
-  steps: number;
   stoppedReason: string;
+  usage?: AgentUsage;
+  stepCount?: number;
+  durationMs: number;
 };
 
 export type AgentHarness = {
@@ -448,6 +456,11 @@ export type SandboxMount = {
 };
 
 export type LocalStackSessionArgs = {
+  /**
+   * The agent harness this session serves. Only `ai-sdk` calls the session's
+   * in-process `tools`, so only it gets the prompt addendum describing them.
+   */
+  agent: AgentHarnessId;
   /** Supabase CLI version this scenario requires, overriding the runtime default. */
   cliVersion?: string;
   /**
@@ -539,6 +552,10 @@ export type LocalStackSession = {
    * the agent harness.
    */
   mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * Text for the agent's system prompt. Must be empty for a CLI agent, which
+   * runs with its own prompt; `createCliAgent` throws otherwise.
+   */
   promptAddendum?: string;
   scoringContext: LocalStackScoringContext;
   /**
@@ -710,6 +727,7 @@ export function aiSdkAgent(options: {
       ]);
 
       try {
+        const start = Date.now();
         const result = await generateText({
           model: options.model,
           system: args.systemPrompt,
@@ -798,15 +816,29 @@ export function aiSdkAgent(options: {
 
         const agentReport = result.text.trim();
 
+        const { inputTokens, inputTokenDetails, outputTokens } =
+          result.totalUsage;
+        const usage: AgentUsage = [
+          {
+            model: modelId,
+            inputTokens: inputTokens ?? 0,
+            cacheReadInputTokens: inputTokenDetails.cacheReadTokens ?? 0,
+            cacheWriteInputTokens: inputTokenDetails.cacheWriteTokens ?? 0,
+            outputTokens: outputTokens ?? 0,
+          },
+        ];
+
         return {
           agentReport,
           toolCalls,
           transcript,
-          steps: result.steps.length,
           stoppedReason:
             result.steps.length >= MAX_STEPS
               ? 'max_steps'
               : result.finishReason,
+          usage,
+          stepCount: result.steps.length,
+          durationMs: Date.now() - start,
         };
       } finally {
         await closeMcpHandles(mcpHandles);
@@ -835,6 +867,11 @@ export type EvalSessionArgs = {
 
 export type EvalSession = {
   mcpServers: Record<string, McpServerConfig>;
+  /**
+   * Text for the agent's system prompt, joined from the MCP servers'
+   * `promptAddendum`s. Must be empty for a CLI agent, which runs with its own
+   * prompt; `createCliAgent` throws otherwise.
+   */
   promptAddendum?: string;
   scoringContext: ToolScoringContext;
   close(): Promise<void>;
@@ -1253,7 +1290,7 @@ async function getAvailablePort(): Promise<number> {
 }
 
 export const ACCESS_TOKEN = 'eval-token';
-export const MCP_SERVER_VERSION = '0.11.0';
+export const MCP_SERVER_VERSION = '0.12.0';
 // Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
 // server requires a token to boot but never authenticates without a platform.
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;

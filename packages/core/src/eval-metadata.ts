@@ -40,7 +40,12 @@ export const evalTopicSchema = z.enum([
 export const EVAL_TOPICS = evalTopicSchema.options;
 export type EvalTopic = z.infer<typeof evalTopicSchema>;
 
-export const evalSuiteSchema = z.enum(['benchmark', 'regression', 'other']);
+export const evalSuiteSchema = z.enum([
+  'benchmark',
+  'regression',
+  'docs',
+  'other',
+]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
@@ -48,6 +53,7 @@ export const experimentSuiteSchema = z.enum([
   'benchmark',
   'no-skills',
   'regression',
+  'docs',
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
@@ -107,7 +113,6 @@ export type EvalMetadata = {
   stage: EvalStage;
   product: EvalProduct[];
   topic: EvalTopic[];
-  suite: EvalSuite;
   interface: EvalInterface;
   /** Supabase CLI version this scenario requires (sandbox evals only). */
   cliVersion?: string;
@@ -158,7 +163,6 @@ export const evalMetadataSchema = z.object({
   stage: evalStageSchema,
   product: z.array(evalProductSchema).min(1),
   topic: z.array(evalTopicSchema).min(1),
-  suite: evalSuiteSchema,
   interface: evalInterfaceSchema,
   cliVersion: cliVersionSchema.optional(),
   services: z.array(z.string().min(1)).optional(),
@@ -231,7 +235,6 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     stage: toToken(data.stage),
     product: toTokenList(data.product ?? data.products),
     topic: toTokenList(data.topic ?? data.topics),
-    suite: toToken(data.suite),
     interface: toToken(data.interface),
     cliVersion: data.cliVersion,
     // `services: []` means database only; an omitted key means the full stack.
@@ -250,6 +253,37 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     skipCliInstall: data.skipCliInstall,
   };
 }, evalMetadataSchema);
+
+/**
+ * Token usage for one model. Field names and semantics follow OpenTelemetry's
+ * GenAI conventions, where the cache buckets are subsets of `inputTokens`.
+ * https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md
+ */
+export const modelUsageSchema = z.object({
+  /** Model id as the harness reported it. */
+  model: z.string(),
+  /** All input tokens, cache reads and writes included. */
+  inputTokens: z.number(),
+  /** Input served from the prompt cache. Subset of `inputTokens`. */
+  cacheReadInputTokens: z.number(),
+  /** Input written to the prompt cache. Subset of `inputTokens`. */
+  cacheWriteInputTokens: z.number(),
+  /** All generated tokens, reasoning included. */
+  outputTokens: z.number(),
+});
+export type ModelUsage = z.infer<typeof modelUsageSchema>;
+
+/**
+ * One entry per model the run called. A run can span models, and each model
+ * bills at its own rates, so entries are kept separate rather than summed.
+ */
+export const agentUsageSchema = z.array(modelUsageSchema);
+export type AgentUsage = z.infer<typeof agentUsageSchema>;
+
+/** Input tokens the model processed fresh, outside the cache. */
+export function uncachedInputTokens(u: ModelUsage): number {
+  return u.inputTokens - u.cacheReadInputTokens - u.cacheWriteInputTokens;
+}
 
 export const checkResultSchema = z.object({
   name: z.string(),
@@ -348,6 +382,14 @@ const evalResultShape = {
   run: z.number().optional(),
   skills: skillResultSchema.optional(),
   docs: docsResultSchema.optional(),
+  usage: agentUsageSchema.optional(),
+  // One turn per model response, for example:
+  //   text → [Read, Read] → Edit → reasoning → text
+  //   stepCount 5, toolCallCount 3
+  stepCount: z.number().optional(),
+  toolCallCount: z.number().optional(),
+  // Wall-clock time of the agent run only. Sandbox boot and scoring are excluded.
+  durationMs: z.number().optional(),
 };
 
 // Raw result files may carry extra fields we don't model; tolerate them.

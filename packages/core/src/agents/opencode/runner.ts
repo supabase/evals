@@ -113,17 +113,15 @@ export function createOpencodeRunner(
       sandbox,
       model,
       apiKey,
-      systemPromptPath,
       userPromptPath,
       mcpServers,
       timeoutSec,
     }) {
       const opencode = npmGlobalBin('opencode');
 
-      // opencode has no system-prompt flag, so prepend the system prompt to the
-      // task; both are staged files, joined via command substitution into the
-      // single message argument.
-      const message = `"$(cat ${systemPromptPath}; printf '\\n\\n'; cat ${userPromptPath})"`;
+      // The staged task file, read via command substitution into the single
+      // message argument.
+      const message = `"$(cat ${userPromptPath})"`;
 
       await sandbox.exec(`mkdir -p ${SCRATCH}`);
       await writeSandboxFile(
@@ -156,7 +154,11 @@ export function createOpencodeRunner(
         {
           timeoutMs: timeoutSec * 1000,
           // The native vercel provider reads the gateway key from this env var.
-          env: { [this.apiKeyEnvVar]: apiKey },
+          env: {
+            [this.apiKeyEnvVar]: apiKey,
+            // No update check during a run.
+            OPENCODE_DISABLE_AUTOUPDATE: '1',
+          },
         }
       );
       return { command, raw: command.stdout };
@@ -180,6 +182,44 @@ export function createOpencodeRunner(
         break;
       }
       return processStopReason(command);
+    },
+
+    extractStepCount(raw) {
+      if (!raw) return undefined;
+      const { records } = parseJsonlRecords(raw);
+      const turns = records.filter((r) => r.type === 'step_finish').length;
+      return turns || undefined;
+    },
+
+    extractUsage(raw, model) {
+      // opencode keeps cache out of `input` and reasoning out of `output`.
+      // https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/acp/usage.ts
+      if (!raw) return undefined;
+      const { records } = parseJsonlRecords(raw);
+      let sawUsage = false;
+      const usage = {
+        model,
+        inputTokens: 0,
+        cacheReadInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        outputTokens: 0,
+      };
+      for (const record of records) {
+        if (record.type !== 'step_finish' || !isRecord(record.part)) continue;
+        const tokens = record.part.tokens;
+        if (!isRecord(tokens)) continue;
+        sawUsage = true;
+        const cache = isRecord(tokens.cache) ? tokens.cache : undefined;
+        const cacheRead = Number(cache?.read) || 0;
+        const cacheWrite = Number(cache?.write) || 0;
+        usage.inputTokens +=
+          (Number(tokens.input) || 0) + cacheRead + cacheWrite;
+        usage.cacheReadInputTokens += cacheRead;
+        usage.cacheWriteInputTokens += cacheWrite;
+        usage.outputTokens +=
+          (Number(tokens.output) || 0) + (Number(tokens.reasoning) || 0);
+      }
+      return sawUsage ? [usage] : undefined;
     },
   };
 }

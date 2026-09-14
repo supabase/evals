@@ -5,7 +5,10 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
-import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
+import {
+  evalSuiteSchema,
+  rawEvalResultSchema,
+} from '@supabase-evals/core/eval-metadata';
 import {
   getExperimentDisplayMetadata,
   type ExperimentConfig,
@@ -80,16 +83,32 @@ const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
 
 async function readPrompt(evalId: string) {
-  const promptPath = resolve(EVALS_DIR, evalId, 'PROMPT.md');
+  // Results only record the eval id, so search each suite folder for it.
+  // The startsWith guard stops an id like "../x" escaping evals/.
   const normalizedEvalsDir = resolve(EVALS_DIR);
-
-  if (!promptPath.startsWith(`${normalizedEvalsDir}${sep}`)) {
+  if (!existsSync(normalizedEvalsDir)) {
     return undefined;
   }
-
-  if (!existsSync(promptPath)) {
+  let found: { suite: EvalSuite; promptPath: string } | undefined;
+  for (const suiteDir of await readdir(normalizedEvalsDir)) {
+    const candidate = resolve(
+      normalizedEvalsDir,
+      suiteDir,
+      evalId,
+      'PROMPT.md'
+    );
+    if (
+      candidate.startsWith(`${normalizedEvalsDir}${sep}`) &&
+      existsSync(candidate)
+    ) {
+      found = { suite: evalSuiteSchema.parse(suiteDir), promptPath: candidate };
+      break;
+    }
+  }
+  if (!found) {
     return undefined;
   }
+  const { suite, promptPath } = found;
 
   const parsed = parseEvalMarkdown(
     await readFile(promptPath, 'utf8'),
@@ -98,6 +117,7 @@ async function readPrompt(evalId: string) {
 
   return {
     ...parsed.metadata,
+    suite,
     prompt: parsed.body,
     promptSourcePath: relative(ROOT, promptPath).split(sep).join('/'),
   };
@@ -138,6 +158,10 @@ async function readResultFile(
     checks: parsedResult.checks,
     skills: parsedResult.skills,
     docs: parsedResult.docs,
+    usage: parsedResult.usage,
+    stepCount: parsedResult.stepCount,
+    toolCallCount: parsedResult.toolCallCount,
+    durationMs: parsedResult.durationMs,
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
     attempts: parsedResult.attempts,

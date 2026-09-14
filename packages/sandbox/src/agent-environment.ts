@@ -38,7 +38,7 @@ export interface AgentEnvironmentOptions {
   cliVersion?: string;
   /** Host directory whose contents seed the workspace. */
   localDir?: string;
-  /** Skills to install into the sandbox (the agent reads them with its file tools). */
+  /** Skills to install into the sandbox (in every CLI harness's project scope). */
   skills?: readonly SkillSource[];
   /**
    * Run the Supabase local stack. Present → local-stack mode; omitted → tools
@@ -92,7 +92,8 @@ export async function createAgentEnvironment(
     } else if (options.localDir) {
       await sandbox.copyToContainer(options.localDir, sandbox.workdir);
     }
-    // Skills are installed in both modes; the agent reads SKILL.md with its file tools.
+    // Skills are installed in both modes, into every CLI harness's native
+    // project scope (see installSkills) so each agent discovers them itself.
     const skills = await installSkills(sandbox, options.skills ?? []);
     return { sandbox, skills, close: () => sandbox.stop() };
   } catch (err) {

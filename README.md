@@ -27,9 +27,9 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 
 ## Concepts
 
-- An **eval** is one scenario under `evals/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
+- An **eval** is one scenario under `evals/<suite>/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
 - An **experiment** is one agent/runtime/model setup under `experiments/<name>.ts`.
-- An **eval suite** is a named set of evals to run together.
+- An **eval suite** is a named set of evals to run together. An eval's suite is its parent folder under `evals/` (`benchmark`, `regression`, `docs`, or `other`).
 - An **experiment suite** is a named set of experiments with related configurations, for head to head comparisons.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
 - A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
@@ -112,7 +112,6 @@ The two directories mirror Supabase's two environments: `remote/` describes what
 ```md
 ---
 stage: build
-suite: benchmark
 product:
   - database
   - auth
@@ -124,7 +123,6 @@ motivation: AI-123
 ```
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
-`suite` is required on every eval (`benchmark`, `regression`, or `other`). Run an eval suite with `--suite regression` / `--suite other`. Select experiment suites separately with `--experiment-suite benchmark` or `--experiment-suite no-skills`.
 
 ## Eval Modes
 
@@ -161,10 +159,7 @@ Skills come from [`supabase/agent-skills`](https://github.com/supabase/agent-ski
 
 To use a skill in an experiment, reference its directory name in the experiment's `skills` array.
 
-Both runtimes load skills lazily ([progressive disclosure](https://ai-sdk.dev/cookbook/guides/agent-skills)): only each skill's name+description is in the system prompt, and the agent pulls a skill's full instructions on demand. They differ only in how the body is fetched, because the tools-mode agent has no filesystem:
-
-- **Local-stack (sandbox) mode:** skills are installed into the workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) (baked into the sandbox image, sourced from the local `skills/` directory — never the network) under `.claude/skills/`. When a task matches, the agent reads `.claude/skills/<name>/SKILL.md` (and any files it references) with its file tools.
-- **Tools mode:** no filesystem, so a `load_skill` tool returns a skill's full instructions when the agent calls it with the skill's name.
+Skills are installed into the sandbox workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) under each harness's native skills folder (`.claude/skills/` for Claude Code, `.agents/skills/` for Codex and OpenCode). The `ai-sdk` harness exposes a `load_skill` tool to support skill loading.
 
 ## Framework Checks
 
