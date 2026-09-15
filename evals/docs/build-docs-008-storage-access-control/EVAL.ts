@@ -12,6 +12,10 @@ import {
   pickProbeBucket,
 } from './buckets.js';
 import {
+  applyPendingMigrations,
+  checkMigrationsWereApplied,
+} from './migrations.js';
+import {
   checkAnonCannotRead,
   checkOwnerCanRead,
   checkOwnerCanUpload,
@@ -28,6 +32,7 @@ const GUIDE_PATH = 'guides/storage/security/access-control';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
+    const migrations = await applyPendingMigrations(ctx);
     const buckets = await loadBuckets(ctx);
     const rlsEnabled = await checkRlsEnabled(ctx);
     const bucket = pickProbeBucket(buckets);
@@ -37,6 +42,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const probes = 'probes' in setup ? setup.probes : undefined;
     const blocked = 'failure' in setup ? setup.failure : undefined;
     const checks: CheckResult[] = [
+      checkMigrationsWereApplied(migrations),
       checkBucketExists(buckets),
       checkBucketsArePrivate(buckets),
       rlsEnabled,
