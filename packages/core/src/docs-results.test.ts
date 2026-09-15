@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseClaudeCodeToolCall } from './agents/claude-code/parser.js';
 import {
   buildDocsResult,
@@ -1010,6 +1010,63 @@ describe('buildDocsResult', () => {
     ]);
 
     expect(result.calls[0].resultChars).toBe(Math.round(50.8 * 1024));
+  });
+});
+
+describe('EVAL_DOCS_HOST', () => {
+  const PREVIEW =
+    'https://docs-git-my-branch-supabase.vercel.app/docs/guides/functions/secrets.md';
+
+  afterEach(() => {
+    delete process.env.EVAL_DOCS_HOST;
+  });
+
+  /** A Codex page-open of `url`, the shape a docs eval's reference link produces. */
+  function pageOpen(url: string): ToolCallRecord {
+    return toolCall(
+      'web_search',
+      { query: url, action: { type: 'other' } },
+      { name: 'web_search' }
+    );
+  }
+
+  it('drops a deploy preview when the variable is unset', () => {
+    expect(buildDocsResult([pageOpen(PREVIEW)]).calls).toEqual([]);
+  });
+
+  it('counts a deploy preview as a page read when the variable names its host', () => {
+    process.env.EVAL_DOCS_HOST = 'docs-git-my-branch-supabase.vercel.app';
+
+    const result = buildDocsResult([pageOpen(PREVIEW)]);
+
+    expect(result.calls).toHaveLength(1);
+    expect(result.calls[0].hasContent).toBe(true);
+    expect(result.calls[0].pages).toEqual([{ url: PREVIEW }]);
+  });
+
+  it('still counts supabase.com when the variable names another host', () => {
+    process.env.EVAL_DOCS_HOST = 'docs-git-my-branch-supabase.vercel.app';
+    const published = 'https://supabase.com/docs/guides/functions/secrets.md';
+
+    const result = buildDocsResult([pageOpen(published)]);
+
+    expect(result.calls).toHaveLength(1);
+    expect(result.calls[0].pages).toEqual([{ url: published }]);
+  });
+
+  it('drops a host the variable does not name', () => {
+    process.env.EVAL_DOCS_HOST = 'docs-git-my-branch-supabase.vercel.app';
+
+    expect(
+      buildDocsResult([pageOpen('https://example.com/docs/guides/functions')])
+        .calls
+    ).toEqual([]);
+  });
+
+  it('ignores an empty or whitespace-only value', () => {
+    process.env.EVAL_DOCS_HOST = '   ';
+
+    expect(buildDocsResult([pageOpen(PREVIEW)]).calls).toEqual([]);
   });
 });
 

@@ -41,6 +41,10 @@ on:
         type: boolean
         required: false
         default: false
+      docs_host:
+        description: "Extra host to count as a docs page read, for scoring a docs eval against an unpublished page (e.g. docs-git-my-branch-supabase.vercel.app)"
+        required: false
+        default: ""
   schedule:
     - cron: '15 6 * * *'
   pull_request:
@@ -272,6 +276,9 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # Empty unless a dispatch names one, which leaves supabase.com as the
+      # only docs host, the same as before this input existed.
+      EVAL_DOCS_HOST: ${{ inputs.docs_host }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
