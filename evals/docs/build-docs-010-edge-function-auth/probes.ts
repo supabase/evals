@@ -91,13 +91,18 @@ export async function checkEndpointIsServed(
 
   const served =
     answer.reached && answer.status !== 404 && answer.status !== 503;
+  const unreachableDependency =
+    answer.status === 503 &&
+    /name resolution|dns|fetch failed/i.test(answer.body);
 
   return {
     name: 'the order-history endpoint answers',
     passed: served,
-    notes: answer.reached
-      ? `status ${answer.status}: ${preview(answer.body)}`
-      : `nothing served at /functions/v1/${FUNCTION}: ${answer.body}`,
+    notes: !answer.reached
+      ? `nothing served at /functions/v1/${FUNCTION}: ${answer.body}`
+      : unreachableDependency
+        ? `the worker could not reach the network to load its imports, so this run measured nothing about the handler: ${preview(answer.body)}`
+        : `status ${answer.status}: ${preview(answer.body)}`,
   };
 }
 
@@ -185,12 +190,32 @@ async function invoke(
   headers: Record<string, string>,
   body?: Record<string, unknown>
 ): Promise<Answer> {
-  const url = `${probes.stack.apiUrl}/functions/v1/${FUNCTION}`;
+  const posted = await send(probes, 'POST', headers, body);
+  if (posted.status !== 405) return posted;
+  return send(probes, 'GET', headers, body);
+}
+
+async function send(
+  probes: Probes,
+  method: 'GET' | 'POST',
+  headers: Record<string, string>,
+  body?: Record<string, unknown>
+): Promise<Answer> {
+  const url = new URL(`${probes.stack.apiUrl}/functions/v1/${FUNCTION}`);
+  if (method === 'GET' && body) {
+    for (const [key, value] of Object.entries(body)) {
+      url.searchParams.set(key, String(value));
+    }
+  }
+
   try {
     const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...headers },
-      body: JSON.stringify(body ?? {}),
+      method,
+      headers:
+        method === 'POST'
+          ? { 'content-type': 'application/json', ...headers }
+          : headers,
+      body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined,
     });
     return {
       status: response.status,
