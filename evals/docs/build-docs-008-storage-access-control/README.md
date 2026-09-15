@@ -49,7 +49,17 @@ design it wants rather than letting a check decide.
 
 ## How the scorer is ordered
 
-The catalog reads first. Every probe stores an object, so the bucket and row level security checks have to describe
+Pending migrations apply first. `supabase migration up --local` runs before anything is read, and
+`the agent applied the migrations it wrote` reds when there was something to apply.
+
+That split is what keeps the page's signal readable. An agent that writes correct SQL and never applies it leaves
+`storage.buckets` empty, which would otherwise red the bucket check and all eight probes together for an
+operational step this page says nothing about. Applying first costs that agent one check instead of nine.
+
+`migration up` rather than `db reset`, because a reset would discard a bucket the agent created at runtime through
+a client or by hand, and both are correct answers.
+
+The catalog reads next. Every probe stores an object, so the bucket and row level security checks have to describe
 what the agent left behind rather than what the scorer added to it.
 
 The probes then drive the Storage API through a client rather than inserting into `storage.objects`. The API is what
@@ -122,6 +132,10 @@ whatever the checks say.
 **A page-faithful policy set passes.** The guide's per-user upload example paired with its `owner_id` read example
 scores every check on a private bucket. The eval is pointed at the bucket rather than at the policies, and a
 baseline where agents reach a private bucket unprompted is a baseline where the page is not the binding constraint.
+
+**`the agent applied the migrations it wrote` is the check to watch.** It is the one check that scores the CLI
+lifecycle rather than anything the page teaches, and agents red it often. An eval passes only when every check
+passes, so correct policies on a correct private bucket still fail overall on that check alone.
 
 **The guide's weaker examples do not compose.** Its bucket-only upload example, `with check (bucket_id =
 'my_bucket_id')`, paired with the `owner_id` read example, lets any signed-in person store a file inside someone
