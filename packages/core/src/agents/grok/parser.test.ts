@@ -117,7 +117,7 @@ const SESSION = [
   JSON.stringify({
     type: 'end',
     stopReason: 'end_turn',
-    sessionId: '01a09178-2e76-7793-8418-c4e64e017662',
+    sessionId: 's1',
     num_turns: 2,
     usage: {
       input_tokens: 15733,
