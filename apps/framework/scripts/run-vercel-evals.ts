@@ -21,6 +21,9 @@ const AGENT_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
+  // Scoring runs in the sandbox, so a docs host named on the runner has to be
+  // forwarded or the scorer never sees it.
+  'EVAL_DOCS_HOST',
 ];
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
@@ -552,7 +555,7 @@ function vercelCredentialsFromEnv(): {
   };
 }
 
-/** Serializes configured provider keys into the repo-root `.env` file. */
+/** Serializes the env the sandbox needs, provider keys and scoring config, into the repo-root `.env` file. */
 function agentEnvironment(): string {
   const lines: string[] = [];
   for (const name of AGENT_ENV_NAMES) {
