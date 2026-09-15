@@ -39,6 +39,15 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   Confirm the row is absent as the superuser instead of inferring absence from the error, and treat any
   code outside `42501` as could-not-measure rather than as a pass.
 
+- **A download probe is not a positive control when the bucket decides delivery.** `the owner can read
+  their own picture back` passes on a public Storage bucket carrying no read policy at all, because
+  Storage serves `/object/public/<bucket>/<path>` from the bucket's own flag and never consults
+  `storage.objects`. Every policy-shaped check in the scorer agreed while the file was world-readable.
+  #292
+  **Fix.** Pair it with a read that does go through the policies. Listing is the one the bucket flag
+  does not cover, so the owner can only list their own object when a read policy admits them. Add a raw
+  fetch of the public url as the behavioral counterpart.
+
 - **`git ls-files` in a scorer matches nothing, so a committed-secret check passes vacuously.** The
   harness strips `.git` when it copies the seed into the container, so the workspace is not a
   repository unless the agent made one. `deploy-functions-001` scans tracked files for its secret and
@@ -64,6 +73,15 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   told them to, so nothing in the workspace carried their choice and the central check red all six
   runs. One of them named the right answer in a code comment. #257
   **Fix.** Give the choice somewhere to land in the seed.
+- **Correct SQL in an unapplied migration reds every check that reads the database.** Two of three
+  baseline runs wrote a private bucket with per-user policies into a migration and never ran
+  `supabase db reset`, so `storage.buckets` was empty at scoring time and the bucket check plus all
+  eight access probes red together. Both migrations were correct, one more thorough than the eval's own
+  reference solution, and the scores were 1 of 13. The page under test says nothing about applying
+  migrations. #292
+  **Fix.** Run `supabase migration up --local` before reading anything, and give the lifecycle a check
+  of its own so it costs one check rather than nine. `migration up` rather than `db reset`, because a
+  reset discards a bucket the agent created at runtime through a client, which is equally correct.
 - **The environment cannot support the correct behavior.** A handler setting `ssl: 'require'` could
   not reach a local database that speaks no TLS, so both end-to-end checks red on a more correct
   solution. #257
@@ -107,6 +125,11 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Stop-on-pass retries hide variance.** `attempts: 2` means attempt one failed. That can be agent
   variance rather than a scorer defect, and the two read identically in a summary. #218
   **Fix.** Read the attempts, and treat one green run as a signal rather than proof.
+- **One baseline's failure mode is not the eval's.** The same eval on the same model red an
+  operational step in two of three runs, then in none of three on the next refresh. Reading the first
+  set as characteristic would have put the blame on the page. #292
+  **Fix.** Refresh twice before describing how agents fail, and say which refresh a failure mode came
+  from.
 - **Fixed marker literals leak between runs.** #168
   **Fix.** Scope markers to the run.
 
@@ -153,6 +176,12 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   source is a live bind mount, so code written mid-run is served. Environment is not. #285
   **Fix.** `projectRunning: false`, so the agent starts the stack after writing its files and owns the
   ordering. Restarting the stack from the scorer would be first-of-its-kind and is not needed.
+- **A scorer cannot delete from the Storage tables.** `storage.objects` and `storage.buckets` carry
+  `protect_objects_delete` and `protect_buckets_delete`, which raise on any delete, and `postgres` owns
+  neither table, so it can neither drop the triggers nor `set role supabase_storage_admin`. A scorer
+  that wants to reset Storage state has to go through the Storage API or connect as
+  `supabase_storage_admin` directly. #292
+  **Fix.** Scope every object name to the run instead, so a fresh stack needs no cleanup.
 - **`kong` does not come up on its own.** With `services: [gotrue, kong]`, `supabase status` reports no
   `API_URL`. Adding `postgrest` brings it up. #261
 - **A framework the eval seeds is not installed on the host.** The host-side build and test helpers
