@@ -31547,7 +31547,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -31561,8 +31561,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 503: {\"message\":\"name resolution failed\"}"
+        "passed": true,
+        "notes": "function removed the seeded message (id 4) from the queue"
       }
     ],
     "skills": {
@@ -31578,32 +31578,193 @@
     "docs": {
       "calls": [
         {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- version/help ---' && supabase --version && supabase functions --help && printf '%s\\\\n' '--- config ---' && sed -n '1,240p' supabase/config.toml && printf '%s\\\\n' '--- existing migration ---' && sed -n '1,240p' supabase/migrations/20260101000000_enable_cron_and_queues.sql && printf '%s\\\\n' '--- changelog ---' && curl -L --max-time 20 -s https://supabase.com/changelog.md | head -120 && printf '%s\\\\n' '--- dirs ---' && find supabase -maxdepth 3 -type f -print\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
-          ]
+          ],
+          "resultChars": 6850
         }
       ]
     },
-    "usage": [
-      {
-        "model": "gpt-5.6-luna",
-        "inputTokens": 807687,
-        "cacheReadInputTokens": 753488,
-        "cacheWriteInputTokens": 54127,
-        "outputTokens": 9575
-      }
-    ],
-    "stepCount": 24,
-    "toolCallCount": 21,
-    "durationMs": 111699,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
-    "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
+    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
     "sourcePath": "codex-gpt-5.6-luna/build-cli-003-pg-cron-queue-workflow/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-003-pg-cron-queue-workflow",
+    "stage": "build",
+    "product": [
+      "database",
+      "edge-functions",
+      "cron",
+      "queues"
+    ],
+    "topic": [
+      "sql",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
+        "passed": true,
+        "notes": "schedule='* * * * *', active=true"
+      },
+      {
+        "name": "cron command enqueues to the 'tasks' queue",
+        "passed": true,
+        "notes": "queue depth 0 -> 1"
+      },
+      {
+        "name": "process-tasks function drains the queue",
+        "passed": true,
+        "notes": "function removed the seeded message (id 5) from the queue"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- config ---' && sed -n '1,260p' supabase/config.toml && printf '%s\\\\n' '--- migration ---' && sed -n '1,260p' supabase/migrations/20260101000000_enable_cron_and_queues.sql && printf '%s\\\\n' '--- cli ---' && supabase --version && printf '%s\\\\n' '--- help snippets ---' && supabase migration new --help && supabase functions --help && printf '%s\\\\n' '--- changelog ---' && curl -L --fail --silent https://supabase.com/changelog.md | rg -i -C 2 'cron|queue|edge function' | head -100 && printf '%s\\\\n' '--- docs ---' && curl -L --fail --silent https://supabase.com/docs/guides/queues/quickstart.md | head -120\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
+            }
+          ],
+          "resultChars": 13526
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- cron docs ---' && curl -L --fail --silent https://supabase.com/docs/guides/cron/quickstart.md | rg -n -C 3 'schedule|job|sql|pg_cron' | head -160 && printf '%s\\\\n' '--- queue api ---' && curl -L --fail --silent https://supabase.com/docs/guides/queues/api.md | rg -n -C 3 'create|read|pop|delete|send' | head -220 && printf '%s\\\\n' '--- local status ---' && supabase status || true && printf '%s\\\\n' '--- directory detail ---' && find supabase -maxdepth 3 -type f -print | sort\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api.md"
+            }
+          ],
+          "resultChars": 4091
+        }
+      ]
+    },
+    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
+    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna/build-cli-003-pg-cron-queue-workflow/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-003-pg-cron-queue-workflow",
+    "stage": "build",
+    "product": [
+      "database",
+      "edge-functions",
+      "cron",
+      "queues"
+    ],
+    "topic": [
+      "sql",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
+        "passed": true,
+        "notes": "schedule='* * * * *', active=true"
+      },
+      {
+        "name": "cron command enqueues to the 'tasks' queue",
+        "passed": true,
+        "notes": "queue depth 0 -> 1"
+      },
+      {
+        "name": "process-tasks function drains the queue",
+        "passed": false,
+        "notes": "function returned 200 but message 3 is still queued, so it was read but never removed"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -120; printf '\\\\n--- cron docs ---\\\\n'; curl -fsSL https://supabase.com/docs/guides/cron/quickstart.md | head -220; printf '\\\\n--- queues docs ---\\\\n'; curl -fsSL https://supabase.com/docs/guides/queues/quickstart.md | head -260; printf '\\\\n--- functions local files ---\\\\n'; find supabase -maxdepth 3 -type f -print\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
+            }
+          ],
+          "resultChars": 15128
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/queues/api.md | rg -n -C 3 'create|send|pop|delete|queue' | head -220; printf '\\\\n--- pgmq installed functions ---\\\\n'; psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -Atc \\\"select extname, extversion from pg_extension where extname in ('pgmq','pg_cron','pg_net'); select n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='pgmq' and p.proname in ('create','send','pop','read','delete') order by p.proname,2;\\\"\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/api.md"
+            }
+          ],
+          "resultChars": 612
+        }
+      ]
+    },
+    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
+    "promptSourcePath": "evals/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna/build-cli-003-pg-cron-queue-workflow/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-5.6-luna",
