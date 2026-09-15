@@ -42,3 +42,10 @@ export const selectionQueryKeys = {
   key: "item",
   run: "run",
 } satisfies UrlKeys<typeof selectionQueryParsers>
+
+/**
+ * The trace viewer overlay. Set to an eval id to open that run's span tree
+ * (lazily fetched from /data/traces/<evalId>.json); empty clears the overlay.
+ */
+export const traceEvalParser = parseAsString.withDefault("")
+export const TRACE_EVAL_QUERY_KEY = "trace"

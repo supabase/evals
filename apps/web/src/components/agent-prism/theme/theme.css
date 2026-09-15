@@ -1,0 +1,232 @@
+/*
+ * AgentPrism design tokens, remapped onto the app's own Supabase semantic
+ * tokens (index.css) instead of AgentPrism's generic defaults — so the trace
+ * viewer's surface, borders, and status colors are the SAME tokens the rest
+ * of the app already uses, not a second unrelated palette. Per-span-type
+ * badges (LLM/TOOL/CHAIN/...) keep distinct hues for scannability, but are
+ * tuned to sit on the app's actual dark surface rather than AgentPrism's own.
+ * `:root`/`.dark` here just mirror index.css's `.light`/`.dark` split (same
+ * ThemeProvider toggle), not a separate light/dark system.
+ */
+
+:root {
+  /* Structure: same tokens as the rest of the app's chrome. */
+  --agentprism-background: var(--background);
+  --agentprism-foreground: var(--foreground);
+  --agentprism-primary: var(--primary);
+  --agentprism-primary-foreground: var(--primary-foreground);
+  /* Foreground-tinted overlay, not the app's own `--secondary` — that token
+     lightens off `--background` (an "elevation" trick), which clips to white
+     in light mode where the background is already near-max lightness. This
+     stays visibly distinct from the surface in both themes. */
+  --agentprism-secondary: oklch(from var(--foreground) l c h / 8%);
+  --agentprism-secondary-foreground: var(--secondary-foreground);
+  --agentprism-muted: var(--muted);
+  --agentprism-muted-foreground: var(--muted-foreground);
+  --agentprism-accent: var(--accent);
+  --agentprism-accent-foreground: var(--accent-foreground);
+
+  /* Brand: the actual Supabase green, not AgentPrism's default purple. */
+  --agentprism-brand: var(--primary);
+  --agentprism-brand-foreground: var(--primary-foreground);
+  --agentprism-brand-secondary: oklch(from var(--foreground) l c h / 8%);
+  --agentprism-brand-secondary-foreground: var(--secondary-foreground);
+
+  /* Borders */
+  --agentprism-border: var(--border);
+  --agentprism-border-subtle: oklch(from var(--border) l c h / 50%);
+  --agentprism-border-strong: oklch(from var(--border) l c h / 90%);
+  --agentprism-border-inverse: var(--foreground);
+
+  /* Status — reuses the app's own warning/destructive/info tokens. Supabase
+     has no separate "success" token; the brand green already carries that
+     meaning across the product (e.g. "active"/"healthy" states). */
+  --agentprism-success: var(--primary);
+  --agentprism-success-muted: oklch(from var(--primary) l c h / 15%);
+  --agentprism-success-muted-foreground: var(--primary);
+  --agentprism-error: var(--destructive);
+  --agentprism-error-muted: oklch(from var(--destructive) l c h / 15%);
+  --agentprism-error-muted-foreground: var(--destructive);
+  --agentprism-warning: var(--warning);
+  --agentprism-warning-muted: oklch(from var(--warning) l c h / 15%);
+  --agentprism-warning-muted-foreground: var(--warning);
+  --agentprism-pending: var(--info);
+  --agentprism-pending-muted: oklch(from var(--info) l c h / 15%);
+  --agentprism-pending-muted-foreground: var(--info);
+
+  /* Code (JSON viewer syntax highlighting) */
+  --agentprism-code-string: var(--primary);
+  --agentprism-code-number: var(--warning);
+  --agentprism-code-key: var(--info);
+  --agentprism-code-base: var(--muted-foreground);
+
+  /* Badges */
+  --agentprism-badge-default: var(--muted);
+  --agentprism-badge-default-foreground: var(--muted-foreground);
+
+  /* Agent invocation (the root span) — the most prominent span in a trace,
+     so it gets the brand color itself. */
+  --agentprism-avatar-agent: var(--primary);
+  --agentprism-badge-agent: oklch(from var(--primary) l c h / 15%);
+  --agentprism-badge-agent-foreground: var(--primary);
+  --agentprism-timeline-agent: var(--primary);
+
+  /* LLM */
+  --agentprism-avatar-llm: oklch(58% 0.2 292);
+  --agentprism-badge-llm: oklch(58% 0.2 292 / 15%);
+  --agentprism-badge-llm-foreground: oklch(65% 0.19 292);
+  --agentprism-timeline-llm: oklch(65% 0.19 292);
+
+  /* Tool */
+  --agentprism-avatar-tool: oklch(68% 0.16 45);
+  --agentprism-badge-tool: oklch(68% 0.16 45 / 15%);
+  --agentprism-badge-tool-foreground: oklch(70% 0.15 45);
+  --agentprism-timeline-tool: oklch(70% 0.15 45);
+
+  /* Chain */
+  --agentprism-avatar-chain: oklch(65% 0.13 220);
+  --agentprism-badge-chain: oklch(65% 0.13 220 / 15%);
+  --agentprism-badge-chain-foreground: oklch(68% 0.13 220);
+  --agentprism-timeline-chain: oklch(68% 0.13 220);
+
+  /* Retrieval */
+  --agentprism-avatar-retrieval: oklch(68% 0.13 205);
+  --agentprism-badge-retrieval: oklch(68% 0.13 205 / 15%);
+  --agentprism-badge-retrieval-foreground: oklch(70% 0.13 205);
+  --agentprism-timeline-retrieval: oklch(70% 0.13 205);
+
+  /* Embedding */
+  --agentprism-avatar-embedding: var(--primary);
+  --agentprism-badge-embedding: oklch(from var(--primary) l c h / 15%);
+  --agentprism-badge-embedding-foreground: var(--primary);
+  --agentprism-timeline-embedding: var(--primary);
+
+  /* Guardrail */
+  --agentprism-avatar-guardrail: var(--destructive);
+  --agentprism-badge-guardrail: oklch(from var(--destructive) l c h / 15%);
+  --agentprism-badge-guardrail-foreground: var(--destructive);
+  --agentprism-timeline-guardrail: var(--destructive);
+
+  /* Create agent */
+  --agentprism-avatar-create-agent: oklch(68% 0.13 205);
+  --agentprism-badge-create-agent: oklch(68% 0.13 205 / 15%);
+  --agentprism-badge-create-agent-foreground: oklch(70% 0.13 205);
+  --agentprism-timeline-create-agent: oklch(70% 0.13 205);
+
+  /* Span */
+  --agentprism-avatar-span: var(--muted-foreground);
+  --agentprism-badge-span: var(--muted);
+  --agentprism-badge-span-foreground: var(--muted-foreground);
+  --agentprism-timeline-span: var(--muted-foreground);
+
+  /* Event */
+  --agentprism-avatar-event: var(--muted-foreground);
+  --agentprism-badge-event: var(--muted);
+  --agentprism-badge-event-foreground: var(--muted-foreground);
+  --agentprism-timeline-event: var(--muted-foreground);
+
+  /* Unknown */
+  --agentprism-avatar-unknown: var(--muted-foreground);
+  --agentprism-badge-unknown: var(--muted);
+  --agentprism-badge-unknown-foreground: var(--muted-foreground);
+  --agentprism-timeline-unknown: var(--muted-foreground);
+}
+
+.dark {
+  --agentprism-background: var(--background);
+  --agentprism-foreground: var(--foreground);
+  --agentprism-primary: var(--primary);
+  --agentprism-primary-foreground: var(--primary-foreground);
+  --agentprism-secondary: oklch(from var(--foreground) l c h / 8%);
+  --agentprism-secondary-foreground: var(--secondary-foreground);
+  --agentprism-muted: var(--muted);
+  --agentprism-muted-foreground: var(--muted-foreground);
+  --agentprism-accent: var(--accent);
+  --agentprism-accent-foreground: var(--accent-foreground);
+
+  --agentprism-brand: var(--primary);
+  --agentprism-brand-foreground: var(--primary-foreground);
+  --agentprism-brand-secondary: oklch(from var(--foreground) l c h / 8%);
+  --agentprism-brand-secondary-foreground: var(--secondary-foreground);
+
+  --agentprism-border: var(--border);
+  --agentprism-border-subtle: oklch(from var(--border) l c h / 50%);
+  --agentprism-border-strong: oklch(from var(--border) l c h / 90%);
+  --agentprism-border-inverse: var(--foreground);
+
+  --agentprism-success: var(--primary);
+  --agentprism-success-muted: oklch(from var(--primary) l c h / 18%);
+  --agentprism-success-muted-foreground: var(--primary);
+  --agentprism-error: var(--destructive);
+  --agentprism-error-muted: oklch(from var(--destructive) l c h / 18%);
+  --agentprism-error-muted-foreground: var(--destructive);
+  --agentprism-warning: var(--warning);
+  --agentprism-warning-muted: oklch(from var(--warning) l c h / 18%);
+  --agentprism-warning-muted-foreground: var(--warning);
+  --agentprism-pending: var(--info);
+  --agentprism-pending-muted: oklch(from var(--info) l c h / 18%);
+  --agentprism-pending-muted-foreground: var(--info);
+
+  --agentprism-code-string: var(--primary);
+  --agentprism-code-number: var(--warning);
+  --agentprism-code-key: var(--info);
+  --agentprism-code-base: var(--muted-foreground);
+
+  --agentprism-badge-default: var(--muted);
+  --agentprism-badge-default-foreground: var(--muted-foreground);
+
+  --agentprism-avatar-agent: var(--primary);
+  --agentprism-badge-agent: oklch(from var(--primary) l c h / 18%);
+  --agentprism-badge-agent-foreground: var(--primary);
+  --agentprism-timeline-agent: var(--primary);
+
+  --agentprism-avatar-llm: oklch(78% 0.14 292);
+  --agentprism-badge-llm: oklch(78% 0.14 292 / 18%);
+  --agentprism-badge-llm-foreground: oklch(80% 0.13 292);
+  --agentprism-timeline-llm: oklch(78% 0.14 292);
+
+  --agentprism-avatar-tool: oklch(80% 0.12 45);
+  --agentprism-badge-tool: oklch(80% 0.12 45 / 18%);
+  --agentprism-badge-tool-foreground: oklch(82% 0.11 45);
+  --agentprism-timeline-tool: oklch(80% 0.12 45);
+
+  --agentprism-avatar-chain: oklch(80% 0.1 220);
+  --agentprism-badge-chain: oklch(80% 0.1 220 / 18%);
+  --agentprism-badge-chain-foreground: oklch(82% 0.1 220);
+  --agentprism-timeline-chain: oklch(80% 0.1 220);
+
+  --agentprism-avatar-retrieval: oklch(82% 0.1 205);
+  --agentprism-badge-retrieval: oklch(82% 0.1 205 / 18%);
+  --agentprism-badge-retrieval-foreground: oklch(84% 0.1 205);
+  --agentprism-timeline-retrieval: oklch(82% 0.1 205);
+
+  --agentprism-avatar-embedding: var(--primary);
+  --agentprism-badge-embedding: oklch(from var(--primary) l c h / 18%);
+  --agentprism-badge-embedding-foreground: var(--primary);
+  --agentprism-timeline-embedding: var(--primary);
+
+  --agentprism-avatar-guardrail: var(--destructive);
+  --agentprism-badge-guardrail: oklch(from var(--destructive) l c h / 18%);
+  --agentprism-badge-guardrail-foreground: var(--destructive);
+  --agentprism-timeline-guardrail: var(--destructive);
+
+  --agentprism-avatar-create-agent: oklch(82% 0.1 205);
+  --agentprism-badge-create-agent: oklch(82% 0.1 205 / 18%);
+  --agentprism-badge-create-agent-foreground: oklch(84% 0.1 205);
+  --agentprism-timeline-create-agent: oklch(82% 0.1 205);
+
+  --agentprism-avatar-span: var(--muted-foreground);
+  --agentprism-badge-span: var(--muted);
+  --agentprism-badge-span-foreground: var(--muted-foreground);
+  --agentprism-timeline-span: var(--muted-foreground);
+
+  --agentprism-avatar-event: var(--muted-foreground);
+  --agentprism-badge-event: var(--muted);
+  --agentprism-badge-event-foreground: var(--muted-foreground);
+  --agentprism-timeline-event: var(--muted-foreground);
+
+  --agentprism-avatar-unknown: var(--muted-foreground);
+  --agentprism-badge-unknown: var(--muted);
+  --agentprism-badge-unknown-foreground: var(--muted-foreground);
+  --agentprism-timeline-unknown: var(--muted-foreground);
+}

@@ -19,7 +19,7 @@
  * specific agent, so adding one never touches this file.
  */
 
-import type { AgentHarness, AgentRunResult } from '../index.js';
+import type { AgentHarness, AgentRunResult, TranscriptPart } from '../index.js';
 import type { ModelProvider, ReasoningEffortLevel } from '../eval-metadata.js';
 import { adaptTranscript } from '../parsers/adapt.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
@@ -103,7 +103,7 @@ export function createCliAgent<M extends string = string>(
       await writeSandboxFile(sandbox, USER_PROMPT_PATH, args.userPrompt);
 
       const start = Date.now();
-      const { command, raw, stepCount } = await runner.exec({
+      const { command, raw, stepCount, rollout } = await runner.exec({
         sandbox,
         model: options.model,
         apiKey,
@@ -118,9 +118,31 @@ export function createCliAgent<M extends string = string>(
       const { events } = raw
         ? parser.parseTranscript(raw, {
             mcpServerNames: Object.keys(args.mcpServers ?? {}),
+            rollout,
           })
         : { events: [] };
       const adapted = adaptTranscript(events);
+
+      // The initiating prompt belongs in the transcript — the trace viewer
+      // renders it as the run's first span — but CLI streams don't reliably
+      // echo it (Codex's `--json` stream never does). Seed it unless the
+      // parser already surfaced a user message (Claude Code echoes the prompt
+      // into its JSONL). `start` is when the run was initiated: real timing,
+      // not a fabricated position.
+      const first = adapted.transcript[0];
+      const transcript =
+        args.userPrompt.trim() === '' ||
+        (first?.type === 'message' && first.role === 'user')
+          ? adapted.transcript
+          : [
+              {
+                type: 'message',
+                role: 'user',
+                content: args.userPrompt,
+                ts: start,
+              } satisfies TranscriptPart,
+              ...adapted.transcript,
+            ];
 
       // Surface run failures that would otherwise be invisible in results
       // (visible under --debug): the CLI's own error events, or a run that
@@ -140,7 +162,7 @@ export function createCliAgent<M extends string = string>(
         // CLI's stdout is JSONL, not prose.
         agentReport: adapted.agentReport,
         toolCalls: adapted.toolCalls,
-        transcript: adapted.transcript,
+        transcript,
         stoppedReason:
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
         usage: runner.extractUsage?.(raw, options.model),
