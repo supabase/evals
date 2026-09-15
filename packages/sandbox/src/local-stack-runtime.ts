@@ -119,7 +119,7 @@ export function localStackRuntime(
           .filter(Boolean)
           .join('\n\n'),
         scoringContext: buildLocalStackScoringContext(sandbox, hosted),
-        ensureReady: () => ensureEdgeRuntime(sandbox),
+        ensureReady: () => ensureEdgeRuntime(sandbox, includeServices),
         exportWorkspace: (hostDir: string) =>
           sandbox.copyToHost(sandbox.workdir, hostDir),
         close: async () => {

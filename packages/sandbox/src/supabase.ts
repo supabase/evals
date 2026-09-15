@@ -440,6 +440,11 @@ export function buildSupabaseStartCommand(
 /**
  * Bring the edge runtime back if the agent's last command took it down.
  *
+ * Scoped to the edge runtime because it is the only container a normal CLI
+ * command adopts and then removes. Anything else requires the agent to run
+ * `supabase stop`, which takes the whole stack down and leaves `supabase
+ * start` able to rebuild it. Widen this if a second such command shows up.
+ *
  * Since CLI 2.117.0, `supabase functions serve` adopts the `edge_runtime`
  * container and removes it when the command exits. Agents routinely end a run
  * with that blocking command, so by scoring time Kong has no upstream and every
@@ -450,7 +455,14 @@ export function buildSupabaseStartCommand(
  * Runs detached so the harness owns the process, and is a no-op when the
  * container is already up.
  */
-export async function ensureEdgeRuntime(sandbox: DockerSandbox): Promise<void> {
+export async function ensureEdgeRuntime(
+  sandbox: DockerSandbox,
+  includeServices?: readonly string[]
+): Promise<void> {
+  // An eval that excludes edge-runtime never had one; starting it here would
+  // hand the scorer a service the scenario deliberately left out.
+  if (includeServices && !includeServices.includes('edge-runtime')) return;
+
   const running = await sandbox.runShell(
     "docker ps --filter 'name=supabase_edge_runtime' --format '{{.Names}}'"
   );
