@@ -437,6 +437,42 @@ export function buildSupabaseStartCommand(
  * containers/volumes/networks. Best-effort: never throws, so teardown cannot
  * mask an eval failure or block sandbox cleanup.
  */
+/**
+ * Bring the edge runtime back if the agent's last command took it down.
+ *
+ * Since CLI 2.117.0, `supabase functions serve` adopts the `edge_runtime`
+ * container and removes it when the command exits. Agents routinely end a run
+ * with that blocking command, so by scoring time Kong has no upstream and every
+ * function invocation answers `503 {"message":"name resolution failed"}`.
+ * `supabase start` will not repair this: it sees db and kong healthy and exits
+ * without recreating anything.
+ *
+ * Runs detached so the harness owns the process, and is a no-op when the
+ * container is already up.
+ */
+export async function ensureEdgeRuntime(sandbox: DockerSandbox): Promise<void> {
+  const running = await sandbox.runShell(
+    "docker ps --filter 'name=supabase_edge_runtime' --format '{{.Names}}'"
+  );
+  if (running.stdout.trim()) return;
+
+  // No --no-verify-jwt: that would disable the auth gate scorers assert on
+  // (build-functions-007 expects 401 without a key).
+  await sandbox.runShell(
+    'nohup supabase functions serve > /tmp/functions-serve.log 2>&1 & disown'
+  );
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    const check = await sandbox.runShell(
+      "docker ps --filter 'name=supabase_edge_runtime' --format '{{.Names}}'"
+    );
+    if (check.stdout.trim()) return;
+  }
+  // Scorers that don't touch functions still run fine, so report and continue.
+  console.warn('[sandbox] edge runtime did not come back before scoring');
+}
+
 export async function teardownSupabaseProject(
   sandbox: DockerSandbox
 ): Promise<void> {
