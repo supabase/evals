@@ -6,7 +6,10 @@ import {
 } from '@supabase-evals/core';
 import { dockerAwareLocalStackRuntime } from './_lib/docker-aware-local-stack.js';
 
-const DOCKERLESS_ARM_EVALS = new Set(['build-database-002-stack-lifecycle']);
+const DOCKERLESS_ARM_EVALS = new Set([
+  'build-database-002-stack-lifecycle',
+  'build-cli-004-worktree-stacks',
+]);
 
 export default defineExperiment({
   suite: ['regression'],
