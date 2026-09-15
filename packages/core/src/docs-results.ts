@@ -267,14 +267,11 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       // of the query string, which renders a page open and a search for that
       // same url identically.
       //
-      // Only `search` actually arrives intact on CLI 0.138: exec re-parses the
-      // app-server action, which serializes camelCase (`openPage`), into a
-      // snake_case enum (`open_page`), so both page-reading variants land on
-      // the catch-all and reach us as `other`. `search` survives because it's
-      // one word in either casing. The `other` calls fall through to the
-      // url-shape branch below, same as before. See codex's
-      // event_processor_with_jsonl_output.rs (the from_value round trip) and
-      // app-server-protocol v2/item.rs vs protocol/models.rs for the two enums.
+      // Only `search` arrives intact: exec re-parses the app-server action,
+      // which serializes camelCase (`openPage`), into a snake_case enum
+      // (`open_page`), so both page-reading variants land on the catch-all and
+      // reach us as `other`. `search` survives because it's one word in either
+      // casing. Reported at https://github.com/openai/codex/issues/45773.
       const action = webSearchAction(body);
 
       if (action?.type === 'open_page' || action?.type === 'find_in_page') {
@@ -314,7 +311,8 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
       //
       // Codex reports no result for these calls, the same way `web_fetch`
       // carries no body here. `hasContent` says the channel delivers page text
-      // to the model, not that the harness captured it.
+      // to the model, not that the harness captured it. An open that 404s
+      // looks the same as one that served the page.
       if (action?.type === 'other' && URL_PATTERN.test(query)) {
         if (!isSupabaseApexUrl(query)) continue;
         calls.push({
