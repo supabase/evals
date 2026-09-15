@@ -45967,6 +45967,349 @@
     "sourcePath": "codex-gpt-5.6-no-skills/resolve-security-002-rls-cross-tenant-leak/run-3/result.json"
   },
   {
+    "experiment": "grok-4.6",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.6",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Correctly diagnosed deny-all RLS, kept RLS enabled, and added authenticated owner-scoped SELECT and INSERT policies using auth.uid() with USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"exposing table to Data API GRANT authenticated RLS empty results\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
+              "title": "Build a Social Auth App with Expo React Native"
+            }
+          ],
+          "resultChars": 20380
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"row level security policies authenticated select insert auth.uid\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            }
+          ],
+          "resultChars": 20379
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"changelog breaking-change Data API GRANT RLS\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 20379
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.6",
+        "inputTokens": 708625,
+        "cacheReadInputTokens": 599936,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 7813
+      }
+    ],
+    "stepCount": 19,
+    "toolCallCount": 43,
+    "durationMs": 138959,
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 1,
+    "sourcePath": "grok-4.6/resolve-dataapi-001-empty-results/run-1/result.json"
+  },
+  {
+    "experiment": "grok-4.6",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.6",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": false,
+    "checks": [
+      {
+        "name": "created auth sessions",
+        "passed": false,
+        "notes": "Internal server error"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "supabase changelog.md breaking-change Data API GRANT tables RLS 2026",
+          "pages": [],
+          "resultChars": 4093
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Exposing a Table to the Data API GRANT RLS authenticated\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 20379
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"row level security policies auth.uid authenticated select insert\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            }
+          ],
+          "resultChars": 20379
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.6",
+        "inputTokens": 433348,
+        "cacheReadInputTokens": 382848,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 6687
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 38,
+    "durationMs": 163403,
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 2,
+    "sourcePath": "grok-4.6/resolve-dataapi-001-empty-results/run-2/result.json"
+  },
+  {
+    "experiment": "grok-4.6",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.6",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Correctly diagnosed deny-all RLS with no policies, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid() using USING and WITH CHECK."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"exposing table to Data API GRANT authenticated RLS empty results\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/quickstarts/with-expo-react-native-social-auth",
+              "title": "Build a Social Auth App with Expo React Native"
+            }
+          ],
+          "resultChars": 20380
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com changelog.md breaking-change Data API GRANT RLS 2026",
+          "pages": [],
+          "resultChars": 3415
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"row level security policies authenticated users own rows auth.uid\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            }
+          ],
+          "resultChars": 20379
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"changelog breaking change tables not exposed Data API\", limit: 2) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/upgrading",
+              "title": "Upgrading"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 20373
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.6",
+        "inputTokens": 521714,
+        "cacheReadInputTokens": 461568,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 6839
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 38,
+    "durationMs": 145524,
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 3,
+    "sourcePath": "grok-4.6/resolve-dataapi-001-empty-results/run-3/result.json"
+  },
+  {
     "experiment": "opencode-kimi-k3",
     "experimentSuite": "benchmark",
     "experimentDisplay": {
