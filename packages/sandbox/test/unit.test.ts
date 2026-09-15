@@ -463,7 +463,6 @@ describe('services frontmatter → computeExcludedServices (regression)', () => 
     [
       '---',
       'stage: build',
-      'suite: regression',
       'interface: cli',
       'product: [database]',
       'topic: [migrations]',
@@ -507,7 +506,6 @@ describe('interface frontmatter', () => {
     [
       '---',
       'stage: resolve',
-      'suite: regression',
       interfaceLine,
       'product: database',
       'topic: migrations',
@@ -545,7 +543,6 @@ describe('cliVersion frontmatter', () => {
       [
         '---',
         'stage: resolve',
-        'suite: regression',
         'interface: cli',
         'cliVersion: 2.109.1',
         'product: database',
@@ -564,7 +561,6 @@ describe('cliVersion frontmatter', () => {
         [
           '---',
           'stage: resolve',
-          'suite: regression',
           'interface: cli',
           'cliVersion: latest',
           'product: database',
@@ -582,7 +578,6 @@ describe('skills frontmatter', () => {
     [
       '---',
       'stage: build',
-      'suite: regression',
       'interface: cli',
       'product: [database]',
       'topic: [sdk]',
@@ -615,7 +610,6 @@ describe('skipCliInstall frontmatter', () => {
     [
       '---',
       'stage: build',
-      'suite: regression',
       'interface: cli',
       'product: [database]',
       'topic: [sdk]',

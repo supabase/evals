@@ -40,7 +40,12 @@ export const evalTopicSchema = z.enum([
 export const EVAL_TOPICS = evalTopicSchema.options;
 export type EvalTopic = z.infer<typeof evalTopicSchema>;
 
-export const evalSuiteSchema = z.enum(['benchmark', 'regression', 'other']);
+export const evalSuiteSchema = z.enum([
+  'benchmark',
+  'regression',
+  'docs',
+  'other',
+]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
 
@@ -48,6 +53,7 @@ export const experimentSuiteSchema = z.enum([
   'benchmark',
   'no-skills',
   'regression',
+  'docs',
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
@@ -107,7 +113,6 @@ export type EvalMetadata = {
   stage: EvalStage;
   product: EvalProduct[];
   topic: EvalTopic[];
-  suite: EvalSuite;
   interface: EvalInterface;
   /** Supabase CLI version this scenario requires (sandbox evals only). */
   cliVersion?: string;
@@ -158,7 +163,6 @@ export const evalMetadataSchema = z.object({
   stage: evalStageSchema,
   product: z.array(evalProductSchema).min(1),
   topic: z.array(evalTopicSchema).min(1),
-  suite: evalSuiteSchema,
   interface: evalInterfaceSchema,
   cliVersion: cliVersionSchema.optional(),
   services: z.array(z.string().min(1)).optional(),
@@ -231,7 +235,6 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     stage: toToken(data.stage),
     product: toTokenList(data.product ?? data.products),
     topic: toTokenList(data.topic ?? data.topics),
-    suite: toToken(data.suite),
     interface: toToken(data.interface),
     cliVersion: data.cliVersion,
     // `services: []` means database only; an omitted key means the full stack.
