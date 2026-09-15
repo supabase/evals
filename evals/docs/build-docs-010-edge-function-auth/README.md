@@ -96,6 +96,15 @@ whatever the checks say.
 a bad query carries no order and reds nothing on its own. `a signed-in customer gets their own orders back` is what
 catches it, and its note carries the status and the body.
 
+**The probes send POST and retry as GET on a 405.** The prompt does not say which method the endpoint should take,
+and an order history reads naturally as a GET. Sending only POST reds a correct handler, which is what the first
+baseline did. The body's fields move to the query string on the retry.
+
+**A worker that cannot reach the network reds two checks for a reason that is not the page.** `npm:@supabase/server`
+is fetched at boot, and a sandbox that cannot resolve the registry answers `503` with a name resolution error on
+every call. `the order-history endpoint answers` says so in its note. Treat such a run as lost rather than folding
+it into the score.
+
 **The edge runtime caches a booted worker.** With `policy = "per_worker"` the function is compiled on the first
 request and reused, so swapping the handler's source and calling again answers with the previous one. A run is not
 affected, because the agent writes the function before the stack starts. Anyone rescoring a workspace by hand has to
