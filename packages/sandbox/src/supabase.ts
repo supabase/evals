@@ -433,34 +433,17 @@ export function buildSupabaseStartCommand(
 }
 
 /**
- * Stop this workspace's local stack and remove any eval-created Supabase
- * containers/volumes/networks. Best-effort: never throws, so teardown cannot
- * mask an eval failure or block sandbox cleanup.
- */
-/**
  * Bring the edge runtime back if the agent's last command took it down.
  *
- * Scoped to the edge runtime because it is the only container a normal CLI
- * command adopts and then removes. Anything else requires the agent to run
- * `supabase stop`, which takes the whole stack down and leaves `supabase
- * start` able to rebuild it. Widen this if a second such command shows up.
- *
- * Since CLI 2.117.0, `supabase functions serve` adopts the `edge_runtime`
- * container and removes it when the command exits. Agents routinely end a run
- * with that blocking command, so by scoring time Kong has no upstream and every
- * function invocation answers `503 {"message":"name resolution failed"}`.
- * `supabase start` will not repair this: it sees db and kong healthy and exits
- * without recreating anything.
- *
- * Runs detached so the harness owns the process, and is a no-op when the
- * container is already up.
+ * Since CLI 2.117.0 `supabase functions serve` removes the `edge_runtime`
+ * container when it exits, leaving Kong with no upstream to resolve.
+ * `supabase start` won't recreate it, it sees db and kong healthy and exits.
  */
 export async function ensureEdgeRuntime(
   sandbox: DockerSandbox,
   includeServices?: readonly string[]
 ): Promise<void> {
-  // An eval that excludes edge-runtime never had one; starting it here would
-  // hand the scorer a service the scenario deliberately left out.
+  // Don't hand the scorer a service the eval deliberately left out.
   if (includeServices && !includeServices.includes('edge-runtime')) return;
 
   const running = await sandbox.runShell(
@@ -468,8 +451,7 @@ export async function ensureEdgeRuntime(
   );
   if (running.stdout.trim()) return;
 
-  // No --no-verify-jwt: that would disable the auth gate scorers assert on
-  // (build-functions-007 expects 401 without a key).
+  // No --no-verify-jwt, build-functions-007 expects a 401 without a key.
   await sandbox.runShell(
     'nohup supabase functions serve > /tmp/functions-serve.log 2>&1 & disown'
   );
@@ -481,10 +463,15 @@ export async function ensureEdgeRuntime(
     );
     if (check.stdout.trim()) return;
   }
-  // Scorers that don't touch functions still run fine, so report and continue.
+  // Non-fatal, scorers that never invoke a function are unaffected.
   console.warn('[sandbox] edge runtime did not come back before scoring');
 }
 
+/**
+ * Stop this workspace's local stack and remove any eval-created Supabase
+ * containers/volumes/networks. Best-effort: never throws, so teardown cannot
+ * mask an eval failure or block sandbox cleanup.
+ */
 export async function teardownSupabaseProject(
   sandbox: DockerSandbox
 ): Promise<void> {
