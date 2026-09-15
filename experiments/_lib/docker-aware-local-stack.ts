@@ -33,7 +33,7 @@ import { resolveCliVersion, type CliChannel } from './cli-channel.js';
 
 export type DockerState = 'available' | 'no-daemon' | 'absent';
 
-// Schema is duplicated in evals/build-database-002-stack-lifecycle/scoring.ts
+// Schema is duplicated in evals/regression/build-database-002-stack-lifecycle/scoring.ts
 // so evals stay self-contained; keep the two in sync. The scorer only reads
 // `channel` and `sessionStartedMs` from this marker — it never uses `docker`
 // (what the experiment staged) to decide pass/fail.

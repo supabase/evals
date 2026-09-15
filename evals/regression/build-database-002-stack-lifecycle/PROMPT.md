@@ -1,6 +1,5 @@
 ---
 stage: build
-suite: regression
 interface: cli
 product:
   - database

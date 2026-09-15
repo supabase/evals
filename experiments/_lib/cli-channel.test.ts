@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. experiments/_lib evals/build-database-002-stack-lifecycle
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. experiments/_lib evals/regression/build-database-002-stack-lifecycle
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const STABLE_ENV = 'SUPABASE_CLI_STABLE_VERSION';

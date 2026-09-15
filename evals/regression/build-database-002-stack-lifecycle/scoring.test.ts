@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. experiments/_lib evals/build-database-002-stack-lifecycle
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. experiments/_lib evals/regression/build-database-002-stack-lifecycle
 import { describe, expect, it } from 'vitest';
 import {
   commandSegments,
