@@ -446,10 +446,13 @@ export async function ensureEdgeRuntime(
   // Don't hand the scorer a service the eval deliberately left out.
   if (includeServices && !includeServices.includes('edge-runtime')) return;
 
-  const running = await sandbox.runShell(
-    "docker ps --filter 'name=supabase_edge_runtime' --format '{{.Names}}'"
-  );
-  if (running.stdout.trim()) return;
+  // `supabase status` is scoped to this workspace's project, unlike a
+  // `docker ps` name filter which matches every project on the daemon. It
+  // exits non-zero when the stack isn't running and drops FUNCTIONS_URL when
+  // the edge runtime is gone.
+  const status = await sandbox.runShell('supabase status -o json');
+  if (status.exitCode !== 0) return;
+  if (status.stdout.includes('"FUNCTIONS_URL"')) return;
 
   // No --no-verify-jwt, build-functions-007 expects a 401 without a key.
   await sandbox.runShell(
@@ -458,10 +461,9 @@ export async function ensureEdgeRuntime(
 
   for (let attempt = 0; attempt < 10; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 3_000));
-    const check = await sandbox.runShell(
-      "docker ps --filter 'name=supabase_edge_runtime' --format '{{.Names}}'"
-    );
-    if (check.stdout.trim()) return;
+    const check = await sandbox.runShell('supabase status -o json');
+    if (check.exitCode === 0 && check.stdout.includes('"FUNCTIONS_URL"'))
+      return;
   }
   // Non-fatal, scorers that never invoke a function are unaffected.
   console.warn('[sandbox] edge runtime did not come back before scoring');
