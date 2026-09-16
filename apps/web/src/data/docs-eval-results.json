@@ -1,0 +1,309 @@
+[
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "not applicable: order_total runs as its caller"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 728331,
+        "cacheReadInputTokens": 666572,
+        "cacheWriteInputTokens": 61699,
+        "outputTokens": 5240
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 14,
+    "durationMs": 193757,
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-011-database-functions/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "not applicable: order_total runs as its caller"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, shell_fetch, shell_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error https://supabase.com/docs/guides/database/functions.md | sed -n '1,240p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ],
+          "resultChars": 5314
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error https://supabase.com/docs/guides/database/functions.md | sed -n '241,520p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ],
+          "resultChars": 7050
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1386522,
+        "cacheReadInputTokens": 1301519,
+        "cacheWriteInputTokens": 84919,
+        "outputTokens": 4899
+      }
+    ],
+    "stepCount": 28,
+    "toolCallCount": 12,
+    "durationMs": 155493,
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-011-database-functions/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "not applicable: order_total runs as its caller"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/functions Supabase Database Functions",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 738938,
+        "cacheReadInputTokens": 664763,
+        "cacheWriteInputTokens": 74124,
+        "outputTokens": 5159
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 14,
+    "durationMs": 162241,
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-011-database-functions/run-3/result.json"
+  }
+]
