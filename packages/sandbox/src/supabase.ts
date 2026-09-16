@@ -24,7 +24,7 @@ import {
 import { SKILLS_CLI_VERSION } from './skills.js';
 import { ALL_SUPABASE_SERVICES, type SupabaseService } from './types.js';
 
-export const SUPABASE_CLI_VERSION = '2.67.1';
+export const SUPABASE_CLI_VERSION = '2.117.0';
 
 const SANDBOX_IMAGE_REPOSITORY = 'supabase-evals-sandbox';
 
@@ -430,6 +430,43 @@ export function buildSupabaseStartCommand(
   return excluded.length > 0
     ? `supabase start -x ${excluded.join(',')}`
     : 'supabase start';
+}
+
+/**
+ * Bring the edge runtime back if the agent's last command took it down.
+ *
+ * Since CLI 2.117.0 `supabase functions serve` removes the `edge_runtime`
+ * container when it exits, leaving Kong with no upstream to resolve.
+ * `supabase start` won't recreate it, it sees db and kong healthy and exits.
+ */
+export async function ensureEdgeRuntime(
+  sandbox: DockerSandbox,
+  includeServices?: readonly string[]
+): Promise<void> {
+  // Don't hand the scorer a service the eval deliberately left out.
+  if (includeServices && !includeServices.includes('edge-runtime')) return;
+
+  // `supabase status` is scoped to this workspace's project, unlike a
+  // `docker ps` name filter which matches every project on the daemon. It
+  // exits non-zero when the stack isn't running and drops FUNCTIONS_URL when
+  // the edge runtime is gone.
+  const status = await sandbox.runShell('supabase status -o json');
+  if (status.exitCode !== 0) return;
+  if (status.stdout.includes('"FUNCTIONS_URL"')) return;
+
+  // No --no-verify-jwt, build-functions-007 expects a 401 without a key.
+  await sandbox.runShell(
+    'nohup supabase functions serve > /tmp/functions-serve.log 2>&1 & disown'
+  );
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    const check = await sandbox.runShell('supabase status -o json');
+    if (check.exitCode === 0 && check.stdout.includes('"FUNCTIONS_URL"'))
+      return;
+  }
+  // Non-fatal, scorers that never invoke a function are unaffected.
+  console.warn('[sandbox] edge runtime did not come back before scoring');
 }
 
 /**
