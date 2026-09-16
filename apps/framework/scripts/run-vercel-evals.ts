@@ -476,9 +476,9 @@ async function downloadResults(
   outputDir: string
 ): Promise<void> {
   const archive = join(outputDir, artifactDirectory(pair), `run-${run}.tgz`);
-  // downloadFile streams into its destination, so a failed download leaves a
-  // truncated file. Land it beside the archive and rename, since a partial
-  // .tgz under the real name would upload and then break publish-results.
+  // Download to a `.partial` file so we don't treat an incomplete streamed
+  // download as complete and fail publish-results.
+  // https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/session.ts#L624-L635
   const partial = `${archive}.partial`;
   const downloaded = await sandbox.downloadFile(
     { path: '/tmp/eval-results.tgz' },
