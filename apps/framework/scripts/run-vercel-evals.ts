@@ -296,6 +296,17 @@ async function runPairOnce(
       cwd: sandbox.cwd,
       timeoutMs: 30_000,
     });
+    // TEMPORARY: plants a filename upload-artifact rejects, to prove the
+    // archived artifact survives it. Revert before merge.
+    await runSandboxCommand(sandbox, label, 'poison workspace', {
+      cmd: 'bash',
+      args: [
+        '-c',
+        `d="results/${pair.experiment}/${pair.eval_id}/run-${run}/workspace"; mkdir -p "$d"; touch "$d/$(printf 'poison"name\nsecond line')"; ls -b "$d"`,
+      ],
+      cwd: sandbox.cwd,
+      timeoutMs: 30_000,
+    });
     await runSandboxCommand(sandbox, label, 'pack results', {
       cmd: 'tar',
       args: [
