@@ -564,6 +564,8 @@ export type LocalStackSession = {
    * the agent finishes, before scoring.
    */
   exportWorkspace(hostDir: string): Promise<void>;
+  /** Repair session state the agent tore down, after it finishes and before scoring. */
+  ensureReady?(): Promise<void>;
   close(): Promise<void>;
 };
 

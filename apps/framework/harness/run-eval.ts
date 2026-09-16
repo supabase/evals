@@ -449,6 +449,7 @@ async function runOne(
       mcpServers: session.mcpServers,
       timeoutSec: TIMEOUT_SEC,
     });
+    await session.ensureReady?.();
     // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
     // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
     const hostWorkspace = workspacePath(expName, ev.id, runIndex);

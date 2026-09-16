@@ -1,7 +1,6 @@
 ---
 stage: build
 interface: cli
-cliVersion: 2.109.1
 product:
   - auth
   - database
