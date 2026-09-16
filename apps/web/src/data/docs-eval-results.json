@@ -8,6 +8,701 @@
       "modelId": "gpt-5.6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200, TLS requested, terminated by the probe, {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"read probe\",\"note\":\"a4f8a5de-3069-4177-b3bb-af50dedd45af\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "1 database connection opened across six invocations"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 140458,
+        "cacheReadInputTokens": 108462,
+        "cacheWriteInputTokens": 31972,
+        "outputTokens": 2448
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 7,
+    "durationMs": 32418,
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/docs/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-004-postgres-connection/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200, TLS requested, terminated by the probe, {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"read probe\",\"note\":\"131a2b6f-521b-4fda-9fa0-b4bf8bc29b9f\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "1 database connection opened across six invocations"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 129072,
+        "cacheReadInputTokens": 95645,
+        "cacheWriteInputTokens": 33406,
+        "outputTokens": 2830
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 10,
+    "durationMs": 33555,
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/docs/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-004-postgres-connection/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-004-postgres-connection",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the handler reads a row the scorer inserted",
+        "passed": true,
+        "notes": "GET 200, TLS requested, terminated by the probe, {\"items\":[{\"id\":\"1\",\"name\":\"starter widget\",\"note\":\"seeded row\"},{\"id\":\"2\",\"name\":\"read probe\",\"note\":\"0b5d405a-d010-447c-a43f-2c72454dcea0\"}]}"
+      },
+      {
+        "name": "the handler writes a row that lands in items",
+        "passed": true,
+        "notes": "POST 201, one row with the run marker"
+      },
+      {
+        "name": "the database client is created once per module, not per request",
+        "passed": true,
+        "notes": "1 database connection opened across six invocations"
+      },
+      {
+        "name": "the transaction pooler string is what the app reads at runtime",
+        "passed": false,
+        "notes": "client at api/items.mjs resolves no connection string from the environment"
+      },
+      {
+        "name": "prepared statements are turned off on the pooled connection",
+        "passed": true,
+        "notes": "not applicable, the connection is not pooled"
+      },
+      {
+        "name": "the connection pool is capped for a serverless invocation",
+        "passed": true,
+        "notes": "api/items.mjs max 1"
+      },
+      {
+        "name": "every Supabase host in the workspace is one CONNECT.md lists",
+        "passed": true,
+        "notes": "hosts found: db.qwltzrndbfhkxmpvsjac.supabase.co, aws-1-us-east-2.pooler.supabase.com"
+      },
+      {
+        "name": "no connection string is hardcoded in application source",
+        "passed": true,
+        "notes": "no connection string literal in application source"
+      },
+      {
+        "name": "migration tooling, if configured, uses the direct connection string",
+        "passed": true,
+        "notes": "no migration configuration found"
+      },
+      {
+        "name": "the agent read the connecting to Postgres guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 208623,
+        "cacheReadInputTokens": 184593,
+        "cacheWriteInputTokens": 23997,
+        "outputTokens": 3411
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 10,
+    "durationMs": 45885,
+    "prompt": "I'm deploying this API to Vercel serverless functions. Every request reads and\nwrites one row of one Postgres table. Finish api/items.mjs so it holds up in\nproduction.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/connecting-to-postgres.md",
+    "promptSourcePath": "evals/docs/build-docs-004-postgres-connection/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-004-postgres-connection/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-d01475fa@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-d01475fa@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/server-side/creating-a-client Supabase creating a client Next.js",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:github.com/supabase/supabase examples/auth/nextjs lib/supabase/server.ts updateSession getClaims createServerClient",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 530264,
+        "cacheReadInputTokens": 475189,
+        "cacheWriteInputTokens": 55030,
+        "outputTokens": 3787
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 12,
+    "durationMs": 57069,
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/docs/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-005-server-side-auth/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-fa6f2851@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-fa6f2851@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, lib/supabase/proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in app/login/route.ts, lib/supabase/proxy.ts, lib/supabase/server.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, web_search but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 322184,
+        "cacheReadInputTokens": 289425,
+        "cacheWriteInputTokens": 32708,
+        "outputTokens": 4457
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 12,
+    "durationMs": 64073,
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/docs/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-005-server-side-auth/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-005-server-side-auth",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "project dependencies installed",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the app builds",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "the dashboard renders the signed-in viewer email",
+        "passed": true,
+        "notes": "GET /dashboard 200, rendered \"owner-9732fed2@example.test\""
+      },
+      {
+        "name": "a tampered session cookie does not get the dashboard",
+        "passed": true,
+        "notes": "GET /dashboard 307, rendered null"
+      },
+      {
+        "name": "the viewer stays signed in across two page loads",
+        "passed": true,
+        "notes": "second GET /dashboard 200, rendered \"owner-9732fed2@example.test\""
+      },
+      {
+        "name": "server code verifies the token rather than trusting stored session state",
+        "passed": true,
+        "notes": "verifying call in app/dashboard/page.tsx, proxy.ts"
+      },
+      {
+        "name": "the cookie adapter implements only getAll and setAll",
+        "passed": true,
+        "notes": "adapters in app/login/route.ts, lib/supabase/server.ts, proxy.ts"
+      },
+      {
+        "name": "no deprecated auth-helpers import",
+        "passed": true,
+        "notes": "no @supabase/auth-helpers-nextjs import"
+      },
+      {
+        "name": "the agent read the server-side client guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via web_search, shell_fetch but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error https://supabase.com/docs/guides/auth/server-side/creating-a-client.md && printf '\\\\n---FILES---\\\\n' && rg --files -g '\"'!node_modules'\"' -g '\"'! .next'\"' | head -200\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client.md"
+            }
+          ],
+          "resultChars": 34184
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 336490,
+        "cacheReadInputTokens": 298638,
+        "cacheWriteInputTokens": 37807,
+        "outputTokens": 4718
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 11,
+    "durationMs": 61968,
+    "prompt": "I have a Next.js app where people log in. I want the dashboard to render on the\nserver already knowing who is viewing it, and people should stay signed in as\nthey move between pages.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/server-side/creating-a-client.md",
+    "promptSourcePath": "evals/docs/build-docs-005-server-side-auth/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-005-server-side-auth/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "build-docs-006-database-tables",
     "stage": "build",
     "product": [

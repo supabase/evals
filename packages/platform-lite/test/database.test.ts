@@ -205,7 +205,9 @@ describe('database', () => {
       });
 
       expect(error).toBeNull();
-      expect(data).toEqual([{ echo_input: 'lite-rpc' }]);
+      // PostgREST returns a bare value for scalar functions
+      // https://docs.postgrest.org/en/v12/references/api/functions.html
+      expect(data).toEqual('lite-rpc');
     } finally {
       await platform.dispose();
     }

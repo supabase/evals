@@ -13,7 +13,7 @@ import {
 } from '@supabase-evals/core';
 import { DockerSandbox } from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
-import { teardownSupabaseProject } from './supabase.js';
+import { ensureEdgeRuntime, teardownSupabaseProject } from './supabase.js';
 import { buildSkillsPrompt } from './skills.js';
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
@@ -119,6 +119,7 @@ export function localStackRuntime(
           .filter(Boolean)
           .join('\n\n'),
         scoringContext: buildLocalStackScoringContext(sandbox, hosted),
+        ensureReady: () => ensureEdgeRuntime(sandbox, includeServices),
         exportWorkspace: (hostDir: string) =>
           sandbox.copyToHost(sandbox.workdir, hostDir),
         close: async () => {
