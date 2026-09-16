@@ -2,6 +2,7 @@
 
 import { APIError, Sandbox } from '@vercel/sandbox';
 import { execFileSync } from 'node:child_process';
+import { renameSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import pLimit from 'p-limit';
@@ -475,12 +476,17 @@ async function downloadResults(
   outputDir: string
 ): Promise<void> {
   const archive = join(outputDir, artifactDirectory(pair), `run-${run}.tgz`);
+  // downloadFile streams into its destination, so a failed download leaves a
+  // truncated file. Land it beside the archive and rename, since a partial
+  // .tgz under the real name would upload and then break publish-results.
+  const partial = `${archive}.partial`;
   const downloaded = await sandbox.downloadFile(
     { path: '/tmp/eval-results.tgz' },
-    { path: archive },
+    { path: partial },
     { mkdirRecursive: true }
   );
   if (!downloaded) throw new Error('results archive was missing');
+  renameSync(partial, archive);
   console.log(`${jobLabel(pair, run)} results downloaded to ${archive}`);
 }
 
