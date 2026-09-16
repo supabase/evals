@@ -2,7 +2,7 @@
 
 import { APIError, Sandbox } from '@vercel/sandbox';
 import { execFileSync } from 'node:child_process';
-import { renameSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import pLimit from 'p-limit';
@@ -297,6 +297,16 @@ async function runPairOnce(
       cwd: sandbox.cwd,
       timeoutMs: 30_000,
     });
+    // TEMPORARY: plants a filename upload-artifact rejects. Revert before merge.
+    await runSandboxCommand(sandbox, label, 'poison workspace', {
+      cmd: 'bash',
+      args: [
+        '-c',
+        `d="results/${pair.experiment}/${pair.eval_id}/run-${run}/workspace"; mkdir -p "$d"; touch "$d/$(printf 'poison"name')"; ls -b "$d"`,
+      ],
+      cwd: sandbox.cwd,
+      timeoutMs: 30_000,
+    });
     await runSandboxCommand(sandbox, label, 'pack results', {
       cmd: 'tar',
       args: [
@@ -487,6 +497,9 @@ async function downloadResults(
   );
   if (!downloaded) throw new Error('results archive was missing');
   renameSync(partial, archive);
+  // TEMPORARY: leaves a truncated .partial behind, as a failed download would,
+  // to prove it never reaches the extract step. Revert before merge.
+  writeFileSync(`${archive}.partial`, readFileSync(archive).subarray(0, 40));
   console.log(`${jobLabel(pair, run)} results downloaded to ${archive}`);
 }
 
