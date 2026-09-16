@@ -31105,90 +31105,6 @@
       {
         "name": "REST API returns no todos to anonymous requests",
         "passed": true,
-        "notes": "0 rows"
-      },
-      {
-        "name": "REST API returns the todos to authenticated requests",
-        "passed": true,
-        "notes": "2 rows"
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'command -v supabase; supabase --version; echo exit:$?; supabase --help | head -60; echo '\"'--- git ---'; git status --short --branch; echo '--- changelog ---'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -80\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4435
-        }
-      ]
-    },
-    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
-    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-5.6-luna/build-cli-001-bootstrap-app/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-5.6-luna",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-5.6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "build-cli-001-bootstrap-app",
-    "stage": "build",
-    "product": [
-      "database",
-      "data-api"
-    ],
-    "topic": [
-      "migrations",
-      "rls"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "todos table is created by a migration file",
-        "passed": true
-      },
-      {
-        "name": "todos table exists with at least 2 seeded rows",
-        "passed": true,
-        "notes": "found 2 rows"
-      },
-      {
-        "name": "row level security is enabled on todos",
-        "passed": true
-      },
-      {
-        "name": "a SELECT policy targets the authenticated role",
-        "passed": true
-      },
-      {
-        "name": "REST API returns no todos to anonymous requests",
-        "passed": true,
         "notes": "error 42501: permission denied for table todos"
       },
       {
@@ -31210,105 +31126,81 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -80; printf '%s\\\\n' '--- init help ---'; supabase init --help; printf '%s\\\\n' '--- migration help ---'; supabase migration --help; printf '%s\\\\n' '--- db help ---'; supabase db --help\"",
+          "source": "search_docs",
+          "query": "query {\n  guides: searchDocs(query: \"local development migrations Row Level Security Data API authenticated anon select policy\", limit: 5) {\n    nodes { title href content }\n  }\n}",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-flutter",
+              "title": "Build a User Management App with Flutter"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            }
+          ],
+          "resultChars": 138455
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
-          ],
-          "resultChars": 3761
-        }
-      ]
-    },
-    "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
-    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-5.6-luna/build-cli-001-bootstrap-app/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-5.6-luna",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-5.6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "build-cli-001-bootstrap-app",
-    "stage": "build",
-    "product": [
-      "database",
-      "data-api"
-    ],
-    "topic": [
-      "migrations",
-      "rls"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "todos table is created by a migration file",
-        "passed": true
-      },
-      {
-        "name": "todos table exists with at least 2 seeded rows",
-        "passed": true,
-        "notes": "found 2 rows"
-      },
-      {
-        "name": "row level security is enabled on todos",
-        "passed": true
-      },
-      {
-        "name": "a SELECT policy targets the authenticated role",
-        "passed": true
-      },
-      {
-        "name": "REST API returns no todos to anonymous requests",
-        "passed": true,
-        "notes": "0 rows"
-      },
-      {
-        "name": "REST API returns the todos to authenticated requests",
-        "passed": true,
-        "notes": "2 rows"
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": [
+          ]
+        },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -80; printf '%s\\\\n' '--- cli help ---'; supabase migration --help; supabase start --help; supabase init --help\"",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 4766
+          "resultChars": 4329
         }
       ]
     },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1314777,
+        "cacheReadInputTokens": 1265431,
+        "cacheWriteInputTokens": 49238,
+        "outputTokens": 5955
+      }
+    ],
+    "stepCount": 36,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 161656,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 340295,
+      "duration": 243156,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2720769175,
+        "egress": 6098549
+      }
+    },
     "prompt": "We're kicking off a todos app and I want the Supabase side ready for the team\nto build on. Set it up the way we'd run it in development, with schema changes\ntracked as migrations so they can be reviewed and replayed.\n\nFor the first slice we just need a `todos` table. Todos aren't public: anyone\nsigned in can read all of them, but nothing should be writable through the API\nfor now. Add a couple of sample todos so there's something to look at.\n\nBefore you hand it back, make sure the running API actually behaves that way —\nsigned-in users get the todos, signed-out requests get nothing.",
-    "promptSourcePath": "evals/build-cli-001-bootstrap-app/PROMPT.md",
-    "run": 3,
-    "sourcePath": "codex-gpt-5.6-luna/build-cli-001-bootstrap-app/run-3/result.json"
+    "promptSourcePath": "evals/benchmark/build-cli-001-bootstrap-app/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna/build-cli-001-bootstrap-app/run-1/result.json"
   },
   {
     "experiment": "codex-gpt-5.6-luna",
