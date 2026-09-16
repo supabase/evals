@@ -16668,7 +16668,7 @@
       {
         "name": "the weather function reads WEATHER_API_KEY from the environment",
         "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment via Deno.env.get(\"WEATHER_API_KEY\")."
+        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
       },
       {
         "name": "WEATHER_API_KEY value is not committed to the repo",
@@ -16685,126 +16685,73 @@
       ]
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions environment variables secrets CORS example Deno.serve\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/inspecting-edge-function-environment-variables-wg5qOQ",
+              "title": "Inspecting edge function environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            }
+          ],
+          "resultChars": 38791
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Function CORS headers example _shared cors.ts\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/cors",
+              "title": "CORS (Cross-Origin Resource Sharing) support for Invoking from the browser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 12981
+        }
+      ]
     },
+    "usage": [
+      {
+        "model": "claude-sonnet-5",
+        "inputTokens": 3513106,
+        "cacheReadInputTokens": 3433428,
+        "cacheWriteInputTokens": 79580,
+        "outputTokens": 20947
+      }
+    ],
+    "stepCount": 55,
+    "toolCallCount": 53,
+    "durationMs": 290573,
     "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
-    "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
+    "promptSourcePath": "evals/benchmark/deploy-functions-001-edge-function-secrets/PROMPT.md",
     "run": 1,
     "sourcePath": "claude-code-sonnet-5/deploy-functions-001-edge-function-secrets/run-1/result.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "deploy-functions-001-edge-function-secrets",
-    "stage": "deploy",
-    "product": [
-      "edge-functions"
-    ],
-    "topic": [
-      "security"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "WEATHER_API_KEY is set as a Function secret on the project",
-        "passed": true
-      },
-      {
-        "name": "the weather function is deployed to the project",
-        "passed": true,
-        "notes": "status ACTIVE"
-      },
-      {
-        "name": "the weather function reads WEATHER_API_KEY from the environment",
-        "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
-      },
-      {
-        "name": "WEATHER_API_KEY value is not committed to the repo",
-        "passed": true
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
-    "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
-    "run": 2,
-    "sourcePath": "claude-code-sonnet-5/deploy-functions-001-edge-function-secrets/run-2/result.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "deploy-functions-001-edge-function-secrets",
-    "stage": "deploy",
-    "product": [
-      "edge-functions"
-    ],
-    "topic": [
-      "security"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "WEATHER_API_KEY is set as a Function secret on the project",
-        "passed": true
-      },
-      {
-        "name": "the weather function is deployed to the project",
-        "passed": true,
-        "notes": "status ACTIVE"
-      },
-      {
-        "name": "the weather function reads WEATHER_API_KEY from the environment",
-        "passed": true,
-        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
-      },
-      {
-        "name": "WEATHER_API_KEY value is not committed to the repo",
-        "passed": true
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
-    "promptSourcePath": "evals/deploy-functions-001-edge-function-secrets/PROMPT.md",
-    "run": 3,
-    "sourcePath": "claude-code-sonnet-5/deploy-functions-001-edge-function-secrets/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
