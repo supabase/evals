@@ -297,14 +297,14 @@ async function runPairOnce(
       cwd: sandbox.cwd,
       timeoutMs: 30_000,
     });
-    await runSandboxCommand(sandbox, label, 'pack results', {
+    await runSandboxCommand(sandbox, label, 'pack workspace', {
       cmd: 'tar',
       args: [
         '--exclude=*/node_modules',
         '-czf',
-        '/tmp/eval-results.tgz',
+        '/tmp/eval-workspace.tgz',
         '-C',
-        `results/${pair.experiment}`,
+        `results/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
         '.',
       ],
       cwd: sandbox.cwd,
@@ -467,27 +467,47 @@ async function runSandboxCommand(
 }
 
 // Agent workspaces can contain filenames upload-artifact rejects, and one bad
-// name fails the whole artifact, so results stay tarred until publish-results.
+// name fails the whole artifact, so only the workspace stays tarred until
+// publish-results. Framework-owned result.json travels separately.
 // https://github.com/actions/toolkit/blob/193fa46c20fde8b0ed54194bc08b841c78c0776d/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts#L10-L20
-async function downloadResults(
-  sandbox: Sandbox,
+export async function downloadResults(
+  sandbox: Pick<Sandbox, 'downloadFile'>,
   pair: EvalPair,
   run: number,
   outputDir: string
 ): Promise<void> {
-  const archive = join(outputDir, artifactDirectory(pair), `run-${run}.tgz`);
+  const destination = join(
+    outputDir,
+    artifactDirectory(pair),
+    pair.eval_id,
+    `run-${run}`
+  );
+  const result = join(destination, 'result.json');
+  const workspace = join(destination, 'workspace.tgz');
   // Download to a `.partial` file so we don't treat an incomplete streamed
   // download as complete and fail publish-results.
   // https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/session.ts#L624-L635
-  const partial = `${archive}.partial`;
-  const downloaded = await sandbox.downloadFile(
-    { path: '/tmp/eval-results.tgz' },
-    { path: partial },
+  const resultPartial = `${result}.partial`;
+  const workspacePartial = `${workspace}.partial`;
+  const resultDownloaded = await sandbox.downloadFile(
+    {
+      path: `results/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
+    },
+    { path: resultPartial },
     { mkdirRecursive: true }
   );
-  if (!downloaded) throw new Error('results archive was missing');
-  renameSync(partial, archive);
-  console.log(`${jobLabel(pair, run)} results downloaded to ${archive}`);
+  if (!resultDownloaded) throw new Error('result.json was missing');
+  const workspaceDownloaded = await sandbox.downloadFile(
+    { path: '/tmp/eval-workspace.tgz' },
+    { path: workspacePartial },
+    { mkdirRecursive: true }
+  );
+  if (!workspaceDownloaded) throw new Error('workspace archive was missing');
+  renameSync(workspacePartial, workspace);
+  // result.json is the completion marker used by publish-results, so expose it
+  // only after its workspace archive is complete.
+  renameSync(resultPartial, result);
+  console.log(`${jobLabel(pair, run)} results downloaded to ${destination}`);
 }
 
 /** Stops and deletes a Sandbox while preserving the pair's original outcome. */

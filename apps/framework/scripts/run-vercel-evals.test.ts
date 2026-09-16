@@ -1,6 +1,19 @@
 import { APIError } from '@vercel/sandbox';
+import { execFileSync } from 'node:child_process';
+import {
+  copyFileSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  downloadResults,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
   parsePairs,
@@ -55,6 +68,84 @@ describe('Vercel eval controller', () => {
     expect(() => parsePairs('[{"eval_id":"eval-1"}]')).toThrow(
       'each pair must contain'
     );
+  });
+
+  it('downloads result metadata separately from agent workspace files', async () => {
+    const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-test-'));
+    const sandboxFiles = join(temporary, 'sandbox');
+    const workspaceSource = join(sandboxFiles, 'workspace');
+    const workspaceArchive = join(sandboxFiles, 'workspace.tgz');
+    const resultSource = join(sandboxFiles, 'result.json');
+    const output = join(temporary, 'downloaded');
+    const pair = {
+      eval_id: 'eval-1',
+      experiment: 'experiment-1',
+      experiment_suite: 'benchmark',
+      eval_suite: 'benchmark',
+    };
+    const poisonFilename = 'poison"name';
+
+    try {
+      mkdirSync(workspaceSource, { recursive: true });
+      writeFileSync(join(workspaceSource, poisonFilename), '');
+      writeFileSync(
+        resultSource,
+        JSON.stringify({
+          experiment: pair.experiment,
+          eval: pair.eval_id,
+          interface: 'cli',
+        })
+      );
+      execFileSync('tar', [
+        '-czf',
+        workspaceArchive,
+        '-C',
+        workspaceSource,
+        '.',
+      ]);
+
+      await downloadResults(
+        {
+          downloadFile: async (source, destination) => {
+            const fixture = source.path.endsWith('result.json')
+              ? resultSource
+              : workspaceArchive;
+            mkdirSync(dirname(destination.path), { recursive: true });
+            copyFileSync(fixture, destination.path);
+            return destination.path;
+          },
+        },
+        pair,
+        1,
+        output
+      );
+
+      const runDirectory = join(
+        output,
+        'raw-results-experiment-1__eval-1',
+        pair.eval_id,
+        'run-1'
+      );
+      expect(readdirSync(runDirectory).sort()).toEqual([
+        'result.json',
+        'workspace.tgz',
+      ]);
+      expect(
+        JSON.parse(readFileSync(join(runDirectory, 'result.json'), 'utf8'))
+      ).toMatchObject({ experiment: pair.experiment, eval: pair.eval_id });
+
+      const extracted = join(temporary, 'extracted');
+      mkdirSync(extracted);
+      execFileSync('tar', [
+        '-xzf',
+        join(runDirectory, 'workspace.tgz'),
+        '-C',
+        extracted,
+      ]);
+      expect(readFileSync(join(extracted, poisonFilename), 'utf8')).toBe('');
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
   });
 
   it('retries sandbox creation only on 429s and 5xx API responses', () => {
