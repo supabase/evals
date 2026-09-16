@@ -280,6 +280,18 @@ export type ModelUsage = z.infer<typeof modelUsageSchema>;
 export const agentUsageSchema = z.array(modelUsageSchema);
 export type AgentUsage = z.infer<typeof agentUsageSchema>;
 
+const sandboxUsageShape = {
+  activeCpuDurationMs: z.number(),
+  duration: z.number(),
+  memory: z.number(),
+  networkTransfer: z.object({
+    ingress: z.number(),
+    egress: z.number(),
+  }),
+};
+export const sandboxUsageSchema = z.object(sandboxUsageShape);
+export type SandboxUsage = z.infer<typeof sandboxUsageSchema>;
+
 /** Input tokens the model processed fresh, outside the cache. */
 export function uncachedInputTokens(u: ModelUsage): number {
   return u.inputTokens - u.cacheReadInputTokens - u.cacheWriteInputTokens;
@@ -390,6 +402,7 @@ const evalResultShape = {
   toolCallCount: z.number().optional(),
   // Wall-clock time of the agent run only. Sandbox boot and scoring are excluded.
   durationMs: z.number().optional(),
+  sandboxUsage: sandboxUsageSchema.optional(),
 };
 
 // Raw result files may carry extra fields we don't model; tolerate them.

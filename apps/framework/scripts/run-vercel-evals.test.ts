@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  cleanupSandbox,
   downloadResults,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
@@ -146,6 +147,41 @@ describe('Vercel eval controller', () => {
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }
+  });
+
+  it('returns stopped sandbox usage', async () => {
+    const stopped = {
+      activeCpuDurationMs: 12_345,
+      duration: 23_456,
+      memory: 8_192,
+      networkTransfer: { ingress: 100, egress: 200 },
+    };
+
+    await expect(
+      cleanupSandbox(
+        {
+          name: 'sandbox-1',
+          stop: async () => stopped,
+          delete: async () => undefined,
+        },
+        '[experiment-1 x eval-1 run 1]'
+      )
+    ).resolves.toEqual(stopped);
+  });
+
+  it('returns no usage when the sandbox cannot stop', async () => {
+    await expect(
+      cleanupSandbox(
+        {
+          name: 'sandbox-1',
+          stop: async () => {
+            throw new Error('sandbox timed out');
+          },
+          delete: async () => undefined,
+        },
+        '[experiment-1 x eval-1 run 1]'
+      )
+    ).resolves.toBeUndefined();
   });
 
   it('retries sandbox creation only on 429s and 5xx API responses', () => {

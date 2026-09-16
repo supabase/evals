@@ -1,8 +1,13 @@
 #!/usr/bin/env tsx
 
 import { APIError, Sandbox } from '@vercel/sandbox';
+import {
+  rawEvalResultSchema,
+  sandboxUsageSchema,
+  type SandboxUsage,
+} from '@supabase-evals/core/eval-metadata';
 import { execFileSync } from 'node:child_process';
-import { renameSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import pLimit from 'p-limit';
@@ -174,6 +179,7 @@ async function runPairOnce(
   const { pair, run } = options;
   const label = jobLabel(pair, run);
   let sandbox: Sandbox | undefined;
+  let downloadedResultPath: string | undefined;
 
   try {
     sandbox = await createSandbox(label, {
@@ -310,12 +316,29 @@ async function runPairOnce(
       cwd: sandbox.cwd,
       timeoutMs: 3 * 60 * 1_000,
     });
-    await downloadResults(sandbox, pair, run, options.outputDir);
+    downloadedResultPath = await downloadResults(
+      sandbox,
+      pair,
+      run,
+      options.outputDir
+    );
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error(String(error));
   } finally {
-    if (sandbox) await cleanupSandbox(sandbox, label);
+    if (sandbox) {
+      const sandboxUsage = await cleanupSandbox(sandbox, label);
+      if (downloadedResultPath && sandboxUsage) {
+        const parsed: unknown = JSON.parse(
+          readFileSync(downloadedResultPath, 'utf8')
+        );
+        const result = rawEvalResultSchema.parse(parsed);
+        writeFileSync(
+          downloadedResultPath,
+          JSON.stringify({ ...result, sandboxUsage }, null, 2)
+        );
+      }
+    }
   }
 }
 
@@ -475,7 +498,7 @@ export async function downloadResults(
   pair: EvalPair,
   run: number,
   outputDir: string
-): Promise<void> {
+): Promise<string> {
   const destination = join(
     outputDir,
     artifactDirectory(pair),
@@ -508,12 +531,23 @@ export async function downloadResults(
   // only after its workspace archive is complete.
   renameSync(resultPartial, result);
   console.log(`${jobLabel(pair, run)} results downloaded to ${destination}`);
+  return result;
 }
 
-/** Stops and deletes a Sandbox while preserving the pair's original outcome. */
-async function cleanupSandbox(sandbox: Sandbox, label: string): Promise<void> {
+interface CleanupSandbox {
+  name: string;
+  stop: () => Promise<unknown>;
+  delete: () => Promise<unknown>;
+}
+
+/** Stops and deletes a Sandbox, returning any metered usage reported at stop. */
+export async function cleanupSandbox(
+  sandbox: CleanupSandbox,
+  label: string
+): Promise<SandboxUsage | undefined> {
+  let stopped: unknown;
   try {
-    await sandbox.stop();
+    stopped = await sandbox.stop();
     console.log(`${label} sandbox ${sandbox.name} stopped`);
   } catch (error) {
     console.warn(`${label} sandbox stop failed: ${errorMessage(error)}`);
@@ -524,6 +558,8 @@ async function cleanupSandbox(sandbox: Sandbox, label: string): Promise<void> {
   } catch (error) {
     console.warn(`${label} sandbox delete failed: ${errorMessage(error)}`);
   }
+  if (stopped === undefined) return undefined;
+  return sandboxUsageSchema.parse(stopped);
 }
 
 /** Parses and validates the pair list supplied by GitHub Actions. */
