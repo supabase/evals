@@ -98,7 +98,7 @@ export function createOpencodeRunner(
     // and re-check the parser. See ./parser.ts. Must stay >= 1.17.0: earlier
     // CLIs don't await the run event loop (opencode #31389) and intermittently
     // exit 0 mid-step, ending runs with no final report.
-    defaultCliVersion: '1.18.5',
+    defaultCliVersion: '1.18.31',
     defaultModel: DEFAULT_OPENCODE_MODEL,
 
     async install(sandbox, version) {
