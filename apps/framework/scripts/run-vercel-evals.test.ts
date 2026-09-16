@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import {
   cleanupSandbox,
   downloadResults,
+  finalizeResult,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
   parsePairs,
@@ -105,7 +106,7 @@ describe('Vercel eval controller', () => {
         '.',
       ]);
 
-      await downloadResults(
+      const pendingResult = await downloadResults(
         {
           downloadFile: async (source, destination) => {
             const fixture = source.path.endsWith('result.json')
@@ -128,12 +129,22 @@ describe('Vercel eval controller', () => {
         'run-1'
       );
       expect(readdirSync(runDirectory).sort()).toEqual([
+        'result.json.partial',
+        'workspace.tgz',
+      ]);
+      expect(
+        JSON.parse(readFileSync(pendingResult.partialPath, 'utf8'))
+      ).toMatchObject({ experiment: pair.experiment, eval: pair.eval_id });
+
+      const sandboxUsage = { memory: 8_192 };
+      finalizeResult(pendingResult, sandboxUsage);
+      expect(readdirSync(runDirectory).sort()).toEqual([
         'result.json',
         'workspace.tgz',
       ]);
       expect(
-        JSON.parse(readFileSync(join(runDirectory, 'result.json'), 'utf8'))
-      ).toMatchObject({ experiment: pair.experiment, eval: pair.eval_id });
+        JSON.parse(readFileSync(pendingResult.finalPath, 'utf8'))
+      ).toMatchObject({ sandboxUsage });
 
       const extracted = join(temporary, 'extracted');
       mkdirSync(extracted);
@@ -149,6 +160,22 @@ describe('Vercel eval controller', () => {
     }
   });
 
+  it('keeps malformed results hidden as partial', () => {
+    const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-test-'));
+    const partialPath = join(temporary, 'result.json.partial');
+    const finalPath = join(temporary, 'result.json');
+
+    try {
+      writeFileSync(partialPath, '{');
+      expect(() =>
+        finalizeResult({ partialPath, finalPath }, { memory: 8_192 })
+      ).toThrow();
+      expect(readdirSync(temporary)).toEqual(['result.json.partial']);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+
   it('returns stopped sandbox usage', async () => {
     const stopped = {
       activeCpuDurationMs: 12_345,
@@ -156,6 +183,21 @@ describe('Vercel eval controller', () => {
       memory: 8_192,
       networkTransfer: { ingress: 100, egress: 200 },
     };
+
+    await expect(
+      cleanupSandbox(
+        {
+          name: 'sandbox-1',
+          stop: async () => stopped,
+          delete: async () => undefined,
+        },
+        '[experiment-1 x eval-1 run 1]'
+      )
+    ).resolves.toEqual(stopped);
+  });
+
+  it('accepts stopped usage without optional SDK metrics', async () => {
+    const stopped = { memory: 8_192 };
 
     await expect(
       cleanupSandbox(

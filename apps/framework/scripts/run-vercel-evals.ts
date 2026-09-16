@@ -179,7 +179,7 @@ async function runPairOnce(
   const { pair, run } = options;
   const label = jobLabel(pair, run);
   let sandbox: Sandbox | undefined;
-  let downloadedResultPath: string | undefined;
+  let pendingResult: PendingResult | undefined;
 
   try {
     sandbox = await createSandbox(label, {
@@ -316,7 +316,7 @@ async function runPairOnce(
       cwd: sandbox.cwd,
       timeoutMs: 3 * 60 * 1_000,
     });
-    downloadedResultPath = await downloadResults(
+    pendingResult = await downloadResults(
       sandbox,
       pair,
       run,
@@ -328,16 +328,7 @@ async function runPairOnce(
   } finally {
     if (sandbox) {
       const sandboxUsage = await cleanupSandbox(sandbox, label);
-      if (downloadedResultPath && sandboxUsage) {
-        const parsed: unknown = JSON.parse(
-          readFileSync(downloadedResultPath, 'utf8')
-        );
-        const result = rawEvalResultSchema.parse(parsed);
-        writeFileSync(
-          downloadedResultPath,
-          JSON.stringify({ ...result, sandboxUsage }, null, 2)
-        );
-      }
+      if (pendingResult) finalizeResult(pendingResult, sandboxUsage);
     }
   }
 }
@@ -493,12 +484,17 @@ async function runSandboxCommand(
 // name fails the whole artifact, so only the workspace stays tarred until
 // publish-results. Framework-owned result.json travels separately.
 // https://github.com/actions/toolkit/blob/193fa46c20fde8b0ed54194bc08b841c78c0776d/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts#L10-L20
+export interface PendingResult {
+  partialPath: string;
+  finalPath: string;
+}
+
 export async function downloadResults(
   sandbox: Pick<Sandbox, 'downloadFile'>,
   pair: EvalPair,
   run: number,
   outputDir: string
-): Promise<string> {
+): Promise<PendingResult> {
   const destination = join(
     outputDir,
     artifactDirectory(pair),
@@ -527,11 +523,26 @@ export async function downloadResults(
   );
   if (!workspaceDownloaded) throw new Error('workspace archive was missing');
   renameSync(workspacePartial, workspace);
-  // result.json is the completion marker used by publish-results, so expose it
-  // only after its workspace archive is complete.
-  renameSync(resultPartial, result);
   console.log(`${jobLabel(pair, run)} results downloaded to ${destination}`);
-  return result;
+  return { partialPath: resultPartial, finalPath: result };
+}
+
+/** Adds controller metadata before exposing result.json as complete. */
+export function finalizeResult(
+  pendingResult: PendingResult,
+  sandboxUsage?: SandboxUsage
+): void {
+  if (sandboxUsage) {
+    const parsed: unknown = JSON.parse(
+      readFileSync(pendingResult.partialPath, 'utf8')
+    );
+    const result = rawEvalResultSchema.parse(parsed);
+    writeFileSync(
+      pendingResult.partialPath,
+      JSON.stringify({ ...result, sandboxUsage }, null, 2)
+    );
+  }
+  renameSync(pendingResult.partialPath, pendingResult.finalPath);
 }
 
 interface CleanupSandbox {

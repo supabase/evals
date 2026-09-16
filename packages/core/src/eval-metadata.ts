@@ -281,13 +281,15 @@ export const agentUsageSchema = z.array(modelUsageSchema);
 export type AgentUsage = z.infer<typeof agentUsageSchema>;
 
 const sandboxUsageShape = {
-  activeCpuDurationMs: z.number(),
-  duration: z.number(),
+  activeCpuDurationMs: z.number().optional(),
+  duration: z.number().optional(),
   memory: z.number(),
-  networkTransfer: z.object({
-    ingress: z.number(),
-    egress: z.number(),
-  }),
+  networkTransfer: z
+    .object({
+      ingress: z.number(),
+      egress: z.number(),
+    })
+    .optional(),
 };
 export const sandboxUsageSchema = z.object(sandboxUsageShape);
 export type SandboxUsage = z.infer<typeof sandboxUsageSchema>;
