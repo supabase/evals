@@ -1104,7 +1104,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -1114,12 +1114,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 5) from the queue"
       }
     ],
     "skills": {
@@ -1128,39 +1128,41 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
-          "source": "web_fetch",
-          "query": "List any entries tagged breaking-change, or any entries relating to Cron (pg_cron), Queues (pgmq), or Edge Functions. Include dates and linked page URLs.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "curl -s https://supabase.com/changelog.md | head -80",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 15131
+          "resultChars": 4278
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"cron job schedule pgmq queue send message\", limit: 6) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"pg_cron schedule job every minute queues pgmq send\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues/pgmq",
-              "title": "PGMQ Extension"
-            },
             {
               "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
               "title": "pg_net: Async Networking"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
-              "title": "pg_cron debugging guide"
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron",
+              "title": "Cron"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
             },
             {
               "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
@@ -1171,104 +1173,82 @@
               "title": "Install"
             }
           ],
-          "resultChars": 72794
+          "resultChars": 69432
         },
         {
-          "source": "web_fetch",
-          "query": "What exactly changed in the delay parameter behavior between pgmq 1.4.4 and 1.5.1? Quote the details.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "cd /tmp && for p in guides/cron/quickstart guides/queues/quickstart guides/functions/schedule-functions; do echo \"##### $p\"; curl -sf \"https://supabase.com/docs/$p.md\" | head -120; echo; done",
           "pages": [
             {
-              "url": "https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects"
+              "url": "https://supabase.com/docs/$p.md"
             }
           ],
-          "resultChars": 599
+          "resultChars": 11724
         },
         {
-          "source": "web_fetch",
-          "query": "Show how to schedule a job with cron.schedule, the naming/syntax rules, how to schedule sub-minute or every-minute jobs, and how to edit/unschedule a job. Include any notes about job names and idempotency.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "cd /tmp && curl -s https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects.md | head -60",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
+              "url": "https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects.md"
             }
           ],
-          "resultChars": 1351
+          "resultChars": 1415
         },
         {
-          "source": "web_fetch",
-          "query": "Show how to create a queue, send a message, read messages, and delete/archive them. Include the pgmq function names and the pgmq_public API wrappers, and any notes about queue types (logged/unlogged) and required permissions.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "cd /tmp && curl -sf https://supabase.com/docs/guides/queues/api.md | head -200",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
+              "url": "https://supabase.com/docs/guides/queues/api.md"
             }
           ],
-          "resultChars": 1683
+          "resultChars": 2187
         },
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"withSupabase @supabase/server edge function auth secret publishable\", limit: 3) { nodes { title href } } }",
-          "hasContent": false,
+          "source": "shell_fetch",
+          "query": "cd /tmp && for p in guides/functions/secrets guides/functions/auth; do echo \"##### $p\"; curl -sf \"https://supabase.com/docs/$p.md\" | head -90; echo; done",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
-              "title": "Which package to use"
+              "url": "https://supabase.com/docs/$p.md"
             }
           ],
-          "resultChars": 434
+          "resultChars": 7788
         },
         {
-          "source": "web_fetch",
-          "query": "Explain the withSupabase helper from @supabase/server: the auth option values (publishable, secret, session/jwt), what ctx contains (supabase, supabaseAdmin, authMode, claims?), and how to write a server-to-server endpoint only callable with the secret key. Include code examples verbatim.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "cd /tmp && curl -sf https://supabase.com/docs/guides/functions/auth.md | sed -n '90,200p'",
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/functions/auth.md"
             }
           ],
-          "resultChars": 1471
+          "resultChars": 3738
         },
         {
-          "source": "web_fetch",
-          "query": "Summarize when to use @supabase/server vs @supabase/ssr vs supabase-js, and show the withSupabase usage examples verbatim including the ctx object fields.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "cd /tmp && echo \"##### quickstart\"; curl -sf https://supabase.com/docs/guides/functions/quickstart.md | head -100",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package.md"
+              "url": "https://supabase.com/docs/guides/functions/quickstart.md"
             }
           ],
-          "resultChars": 1156
+          "resultChars": 4304
         }
       ]
     },
     "usage": [
       {
         "model": "claude-opus-5",
-        "inputTokens": 2089074,
-        "cacheReadInputTokens": 2026642,
-        "cacheWriteInputTokens": 62356,
-        "outputTokens": 26151
-      },
-      {
-        "model": "claude-haiku-4-5-20251001",
-        "inputTokens": 45843,
-        "cacheReadInputTokens": 0,
-        "cacheWriteInputTokens": 0,
-        "outputTokens": 7071
+        "inputTokens": 1765154,
+        "cacheReadInputTokens": 1702737,
+        "cacheWriteInputTokens": 62353,
+        "outputTokens": 20595
       }
     ],
-    "stepCount": 53,
-    "toolCallCount": 50,
-    "durationMs": 460699,
+    "stepCount": 51,
+    "toolCallCount": 49,
+    "durationMs": 428173,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -1297,7 +1277,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -1307,12 +1287,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 10) from the queue"
       }
     ],
     "skills": {
@@ -1328,18 +1308,18 @@
       "calls": [
         {
           "source": "web_fetch",
-          "query": "List any entries tagged breaking-change, or any entries related to Cron (pg_cron), Queues (pgmq), or Edge Functions. Include dates and links.",
+          "query": "List any entries tagged breaking-change, and any entries related to pg_cron, cron jobs, queues/pgmq, or edge functions. Include dates and links.",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 12508
+          "resultChars": 7815
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"cron schedule job every minute pg_cron unschedule\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"pg_cron schedule job queues pgmq send read delete edge function\", limit: 12) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -1347,123 +1327,193 @@
               "title": "pg_net: Async Networking"
             },
             {
-              "url": "https://supabase.com/docs/guides/cron",
-              "title": "Cron"
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
             },
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
               "title": "pg_cron debugging guide"
             },
             {
-              "url": "https://supabase.com/docs/guides/cron/install",
-              "title": "Install"
+              "url": "https://supabase.com/docs/guides/cron/quickstart",
+              "title": "Quickstart"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/upgrading",
               "title": "Upgrading"
-            }
-          ],
-          "resultChars": 35638
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"queues pgmq read message delete archive edge function\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
-              "title": "Consuming Supabase Queue Messages with Edge Functions"
             },
             {
               "url": "https://supabase.com/docs/guides/queues/pgmq",
               "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron",
+              "title": "Cron"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/install",
+              "title": "Install"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
+              "title": "Foreign Data Wrappers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
             }
           ],
-          "resultChars": 25854
+          "resultChars": 120348
         },
         {
           "source": "web_fetch",
-          "query": "What exactly changed about the `delay` parameter behavior between pgmq 1.4.4 and 1.5.1? Quote the details.",
+          "query": "Show the exact SQL syntax for scheduling a cron job with a name (cron.schedule), the every-minute syntax, how to unschedule, and any guidance about naming or idempotency.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
+            }
+          ],
+          "resultChars": 1108
+        },
+        {
+          "source": "web_fetch",
+          "query": "Show how to create a queue (pgmq.create), send messages, and read/pop/delete/archive messages. Include the exact function signatures and the pgmq_public wrapper usage from supabase-js (schema('pgmq_public').rpc(...)). Note argument names for read (sleep_seconds, n) and delete (message_id).",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
+            }
+          ],
+          "resultChars": 1253
+        },
+        {
+          "source": "web_fetch",
+          "query": "What exactly changed about the delay parameter in pgmq 1.5.1? What is the gotcha when calling pgmq.send with a delay argument, and what should callers do?",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects"
             }
           ],
-          "resultChars": 584
+          "resultChars": 573
         },
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge functions environment variables SUPABASE_SERVICE_ROLE_KEY secret key default secrets\", limit: 3) { nodes { title href content } } }",
+          "source": "web_fetch",
+          "query": "What are the config.toml options under [functions.<name>]? List keys like verify_jwt, auth, import_map, entrypoint, static_files. Is verify_jwt deprecated in favour of an 'auth' key? Show exact syntax and allowed values.",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/functions/secrets",
-              "title": "Environment Variables"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
-              "title": "Self-Hosted Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/local-development/cli/config.md"
             }
           ],
-          "resultChars": 28165
+          "resultChars": 215
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"edge function verify_jwt config.toml security authentication invoke\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
+          "query": "{ searchDocs(query: \"config.toml functions verify_jwt auth apikey none edge function local config\", limit: 3) { nodes { title href } } }",
+          "hasContent": false,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
             {
               "url": "https://supabase.com/docs/guides/functions/function-configuration",
               "title": "Function Configuration"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth-headers",
-              "title": "Authorization headers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
-              "title": "Auth Hooks"
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
             }
           ],
-          "resultChars": 27599
+          "resultChars": 394
         },
         {
           "source": "web_fetch",
-          "query": "Describe all auth modes for withSupabase from @supabase/server, especially `auth: 'secret'`. What is the recommended pattern for a service-to-service / cron-invoked worker function? Include code examples and any notes about verify_jwt and the apikey header.",
+          "query": "Show the exact config.toml syntax for per-function settings. Is there an 'auth' key with values none/apikey/user, and is verify_jwt deprecated? Give the exact TOML block example.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration.md"
+            }
+          ],
+          "resultChars": 1020
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"queues edge function worker read delete messages service role\", limit: 4) { nodes { title href } } }",
+          "hasContent": false,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
+            }
+          ],
+          "resultChars": 232
+        },
+        {
+          "source": "web_fetch",
+          "query": "How should an edge function verify the caller? Show the recommended pattern for creating a supabase client with the service role key vs forwarding the user's Authorization header. Is there guidance about anon key being able to invoke functions when verify_jwt is true, and how to restrict to service_role?",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/functions/auth.md"
             }
           ],
-          "resultChars": 1435
+          "resultChars": 1276
+        },
+        {
+          "source": "web_fetch",
+          "query": "Give the complete example edge function code for consuming/draining a Supabase Queue: imports, client creation, reading messages, and deleting/archiving them. Include exact rpc names and argument names, and any cron scheduling SQL shown.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions.md"
+            }
+          ],
+          "resultChars": 2460
+        },
+        {
+          "source": "web_fetch",
+          "query": "Show the complete code example for the 'secret' auth mode: the exact import statement and package/version, how the handler is defined (e.g. Supabase.serve / defineFunction?), the ctx object fields including supabaseAdmin and authMode, and the corresponding config.toml. Quote code verbatim.",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ],
+          "resultChars": 1099
         }
       ]
     },
     "usage": [
       {
         "model": "claude-opus-5",
-        "inputTokens": 2602747,
-        "cacheReadInputTokens": 2505099,
-        "cacheWriteInputTokens": 97586,
-        "outputTokens": 24583
+        "inputTokens": 1553172,
+        "cacheReadInputTokens": 1499281,
+        "cacheWriteInputTokens": 53825,
+        "outputTokens": 22147
       },
       {
         "model": "claude-haiku-4-5-20251001",
-        "inputTokens": 39189,
+        "inputTokens": 42379,
         "cacheReadInputTokens": 0,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 5096
+        "outputTokens": 5104
       }
     ],
-    "stepCount": 42,
-    "toolCallCount": 40,
-    "durationMs": 425522,
+    "stepCount": 47,
+    "toolCallCount": 45,
+    "durationMs": 413081,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -1492,7 +1542,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -1502,12 +1552,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 3) from the queue"
       }
     ],
     "skills": {
@@ -1523,19 +1573,68 @@
     "docs": {
       "calls": [
         {
-          "source": "web_fetch",
-          "query": "List any entries tagged breaking-change, and any entries related to Cron (pg_cron), Queues (pgmq), or Edge Functions. Include dates and links.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "curl -sS https://supabase.com/changelog.md | head -80",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 3980
+          "resultChars": 4328
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -sS \"https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects.md\" 2>&1 | head -60",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects.md"
+            }
+          ],
+          "resultChars": 1370
+        },
+        {
+          "source": "shell_fetch",
+          "query": "for p in guides/cron guides/queues guides/queues/api; do echo \"############ $p\"; curl -sS \"https://supabase.com/docs/$p.md\" | head -120; done",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/$p.md"
+            }
+          ],
+          "resultChars": 5214
+        },
+        {
+          "source": "shell_fetch",
+          "query": "for p in guides/queues/quickstart guides/cron/quickstart; do echo \"############ $p\"; curl -sS \"https://supabase.com/docs/$p.md\"; done 2>&1 | head -200",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/$p.md"
+            }
+          ],
+          "resultChars": 8043
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -sS \"https://supabase.com/docs/guides/cron/quickstart.md\" 2>&1 | head -150",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
+            }
+          ],
+          "resultChars": 4597
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -sS \"https://supabase.com/docs/guides/cron/quickstart.md\" 2>&1 | sed -n '150,200p'",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
+            }
+          ],
+          "resultChars": 1393
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"cron job schedule queue pgmq enqueue message\", limit: 6) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"edge function read messages from queue pgmq worker\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -1547,60 +1646,56 @@
               "title": "PGMQ Extension"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
-              "title": "pg_net: Async Networking"
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
-              "title": "pg_cron debugging guide"
+              "url": "https://supabase.com/docs/guides/queues/api",
+              "title": "API"
             },
             {
-              "url": "https://supabase.com/docs/guides/queues/quickstart",
-              "title": "Quickstart"
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            }
+          ],
+          "resultChars": 68250
+        },
+        {
+          "source": "shell_fetch",
+          "query": "echo \"######## schedule-functions\"; curl -sS \"https://supabase.com/docs/guides/functions/schedule-functions.md\" | head -70; echo; echo \"######## secrets/env vars\"; curl -sS \"https://supabase.com/docs/guides/functions/secrets.md\" | head -60",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions.md"
             },
             {
-              "url": "https://supabase.com/docs/guides/cron/install",
-              "title": "Install"
+              "url": "https://supabase.com/docs/guides/functions/secrets.md"
             }
           ],
-          "resultChars": 83282
+          "resultChars": 4350
         },
         {
-          "source": "web_fetch",
-          "query": "How do you schedule a cron job (function name, signature, job naming, every-minute syntax)? How do you edit/unschedule? Any notes on calling SQL vs edge functions, and where job runs are logged?",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "curl -sS \"https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions.md\"",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/cron.md"
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions.md"
             }
           ],
-          "resultChars": 1272
+          "resultChars": 3873
         },
         {
-          "source": "web_fetch",
-          "query": "Show how to create a queue, send/enqueue a message, and read+delete messages, both in SQL and via the pgmq_public Data API / supabase-js. Include exact function signatures and argument names.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "curl -sS \"https://supabase.com/docs/guides/queues/pgmq.md\" | head -100",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
+              "url": "https://supabase.com/docs/guides/queues/pgmq.md"
             }
           ],
-          "resultChars": 1195
-        },
-        {
-          "source": "web_fetch",
-          "query": "What exactly changed about the delay parameter between pgmq 1.4.4 and 1.5.1? What should callers of pgmq.send do differently?",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects"
-            }
-          ],
-          "resultChars": 527
+          "resultChars": 2151
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"withSupabase @supabase/server edge function auth secret ctx.supabaseAdmin\", limit: 2) { nodes { title href } } }",
+          "query": "{ searchDocs(query: \"withSupabase @supabase/server ctx.supabaseAdmin auth secret publishable\", limit: 3) { nodes { title href } } }",
           "hasContent": false,
           "pages": [
             {
@@ -1615,48 +1710,29 @@
           "resultChars": 320
         },
         {
-          "source": "web_fetch",
-          "query": "Document the withSupabase helper from @supabase/server: its options (auth modes publishable/secret/user), the ctx object (supabaseAdmin, supabaseClient, authMode, user), and how requests must authenticate for each mode. Include code examples verbatim.",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "curl -sS \"https://supabase.com/docs/guides/functions/auth.md\" 2>&1 | head -80",
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/functions/auth.md"
             }
           ],
-          "resultChars": 2052
-        },
-        {
-          "source": "web_fetch",
-          "query": "Show the [functions.<name>] configuration keys, especially verify_jwt and enabled. Quote the exact TOML example.",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/config.md"
-            }
-          ],
-          "resultChars": 215
+          "resultChars": 3677
         }
       ]
     },
     "usage": [
       {
         "model": "claude-opus-5",
-        "inputTokens": 2465276,
-        "cacheReadInputTokens": 2402444,
-        "cacheWriteInputTokens": 62736,
-        "outputTokens": 29234
-      },
-      {
-        "model": "claude-haiku-4-5-20251001",
-        "inputTokens": 42571,
-        "cacheReadInputTokens": 0,
-        "cacheWriteInputTokens": 0,
-        "outputTokens": 2855
+        "inputTokens": 2207144,
+        "cacheReadInputTokens": 2139311,
+        "cacheWriteInputTokens": 67755,
+        "outputTokens": 23219
       }
     ],
-    "stepCount": 62,
-    "toolCallCount": 59,
-    "durationMs": 564747,
+    "stepCount": 59,
+    "toolCallCount": 56,
+    "durationMs": 418872,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -9613,12 +9689,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 2 -> 3"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 32) from the queue"
+        "notes": "function removed the seeded message (id 12) from the queue"
       }
     ],
     "skills": {
@@ -9626,20 +9702,79 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"pg_cron schedule job send message to queue pgmq\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
+              "title": "pg_net: Async Networking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
+              "title": "pg_cron debugging guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/install",
+              "title": "Install"
+            }
+          ],
+          "resultChars": 83282
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -sL \"https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects.md\" | head -60",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog/39378-potential-breaking-change-in-pgmq-from-1-4-4-to-1-5-1-and-temporary-halt-on-upgrade-for-existing-projects.md"
+            }
+          ],
+          "resultChars": 1370
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"withSupabase server edge function ctx supabaseAdmin authMode\", limit: 3) { nodes { title href } } }",
+          "hasContent": false,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            }
+          ],
+          "resultChars": 333
+        }
+      ]
     },
     "usage": [
       {
         "model": "claude-opus-5",
-        "inputTokens": 975989,
-        "cacheReadInputTokens": 939134,
-        "cacheWriteInputTokens": 36797,
-        "outputTokens": 22186
+        "inputTokens": 3553342,
+        "cacheReadInputTokens": 3470475,
+        "cacheWriteInputTokens": 82757,
+        "outputTokens": 28601
       }
     ],
-    "stepCount": 37,
-    "toolCallCount": 36,
-    "durationMs": 377155,
+    "stepCount": 68,
+    "toolCallCount": 67,
+    "durationMs": 600332,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -9683,7 +9818,7 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 6) from the queue"
+        "notes": "function removed the seeded message (id 10) from the queue"
       }
     ],
     "skills": {
@@ -9694,86 +9829,82 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"cron job schedule send message to queue pgmq\", limit: 6) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "query": "{ searchDocs(query: \"queues pgmq read delete messages API\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/queues/pgmq",
               "title": "PGMQ Extension"
             },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
-              "title": "pg_net: Async Networking"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/install",
-              "title": "Install"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
-              "title": "pg_cron debugging guide"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
-              "title": "Scheduling Edge Functions"
-            }
-          ],
-          "resultChars": 74837
-        },
-        {
-          "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"edge function read and delete messages from queue pgmq_public\", limit: 6) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
             {
               "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
               "title": "Consuming Supabase Queue Messages with Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/queues/pgmq",
-              "title": "PGMQ Extension"
-            },
-            {
               "url": "https://supabase.com/docs/guides/queues/api",
               "title": "API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0019_insecure_queue_exposed_in_api",
+              "title": "Database Advisor: Lint 0019_insecure_queue_exposed_in_api"
             }
           ],
-          "resultChars": 28293
+          "resultChars": 43503
         },
         {
           "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"Supabase Cron schedule job every minute cron.schedule\", limit: 2) {\n    nodes { title href content }\n  }\n}",
+          "query": "{ searchDocs(query: \"cron schedule job every minute pg_cron queue send\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
+              "title": "pg_net: Async Networking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/send-sms-hook",
+              "title": "Send SMS Hook"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook",
+              "title": "Send Email Hook"
+            },
             {
               "url": "https://supabase.com/docs/guides/cron",
               "title": "Cron"
             },
             {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
+              "title": "pg_cron debugging guide"
             }
           ],
-          "resultChars": 10735
+          "resultChars": 90341
         }
       ]
     },
     "usage": [
       {
         "model": "claude-opus-5",
-        "inputTokens": 1314135,
-        "cacheReadInputTokens": 1265993,
-        "cacheWriteInputTokens": 48082,
-        "outputTokens": 16273
+        "inputTokens": 1250837,
+        "cacheReadInputTokens": 1195212,
+        "cacheWriteInputTokens": 55571,
+        "outputTokens": 23956
       }
     ],
-    "stepCount": 33,
-    "toolCallCount": 32,
-    "durationMs": 331507,
+    "stepCount": 35,
+    "toolCallCount": 34,
+    "durationMs": 462090,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -9812,12 +9943,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 2 -> 3"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 20) from the queue"
+        "notes": "function removed the seeded message (id 27) from the queue"
       }
     ],
     "skills": {
@@ -9828,62 +9959,97 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"queues edge function read delete messages pgmq worker\", limit: 6) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Queues pgmq create queue read delete messages\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
-              "title": "Consuming Supabase Queue Messages with Edge Functions"
-            },
-            {
               "url": "https://supabase.com/docs/guides/queues/pgmq",
               "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
             },
             {
               "url": "https://supabase.com/docs/guides/queues/api",
               "title": "API"
             },
             {
-              "url": "https://supabase.com/docs/guides/queues/quickstart",
-              "title": "Quickstart"
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
             }
           ],
-          "resultChars": 68440
+          "resultChars": 66129
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"cron schedule job every minute pgmq send queue\", limit: 2) { nodes { title href } } }",
-          "hasContent": false,
+          "query": "{ searchDocs(query: \"cron job schedule pg_cron quickstart every minute\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
               "title": "pg_net: Async Networking"
             },
             {
+              "url": "https://supabase.com/docs/guides/cron/install",
+              "title": "Install"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
+              "title": "pg_cron debugging guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron",
+              "title": "Cron"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            }
+          ],
+          "resultChars": 26198
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Queues API pgmq_public read delete archive send\", limit: 2) { nodes { title href } } }",
+          "hasContent": false,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
+            },
+            {
               "url": "https://supabase.com/docs/guides/queues/pgmq",
               "title": "PGMQ Extension"
             }
           ],
-          "resultChars": 273
+          "resultChars": 250
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Queues quickstart\", limit: 1) { nodes { title content } } }",
+          "hasContent": true,
+          "pages": [],
+          "resultChars": 5520
         }
       ]
     },
     "usage": [
       {
         "model": "claude-opus-5",
-        "inputTokens": 650730,
-        "cacheReadInputTokens": 620413,
-        "cacheWriteInputTokens": 30275,
-        "outputTokens": 16590
+        "inputTokens": 1312006,
+        "cacheReadInputTokens": 1260745,
+        "cacheWriteInputTokens": 51207,
+        "outputTokens": 17581
       }
     ],
-    "stepCount": 28,
-    "toolCallCount": 27,
-    "durationMs": 356707,
+    "stepCount": 36,
+    "toolCallCount": 35,
+    "durationMs": 290227,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -15750,7 +15916,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -15764,8 +15930,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 5) from the queue"
       }
     ],
     "skills": {
@@ -15774,43 +15940,14 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"pg_cron schedule invoke edge function net.http_post\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
-              "title": "pg_net: Async Networking"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
-              "title": "Scheduling Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron",
-              "title": "Cron"
-            }
-          ],
-          "resultChars": 58538
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"pgmq queues read delete messages edge function example\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"pgmq queues cron send read delete edge function\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -15830,15 +15967,55 @@
               "title": "Backup and Restore using the CLI"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
+              "title": "pg_net: Async Networking"
             }
           ],
-          "resultChars": 103837
+          "resultChars": 103942
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"withSupabase edge function server helper supabaseAdmin auth mode secret publishable\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"cron schedule invoke edge function net.http_post example\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
+              "title": "pg_net: Async Networking"
+            }
+          ],
+          "resultChars": 25078
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"pgmq create queue local development supabase queues quickstart\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/expose-self-hosted-queues",
+              "title": "Expose Queues for local and self-hosted Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
+            }
+          ],
+          "resultChars": 15315
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"withSupabase edge function server helper supabaseAdmin authMode secret publishable\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -15852,32 +16029,24 @@
             {
               "url": "https://supabase.com/docs/guides/functions/auth",
               "title": "Securing Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/secrets",
-              "title": "Environment Variables"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
-              "title": "Getting Started with Edge Functions (Dashboard)"
             }
           ],
-          "resultChars": 41476
+          "resultChars": 26098
         }
       ]
     },
     "usage": [
       {
         "model": "claude-sonnet-5",
-        "inputTokens": 3857995,
-        "cacheReadInputTokens": 3772650,
-        "cacheWriteInputTokens": 85243,
-        "outputTokens": 28095
+        "inputTokens": 2369877,
+        "cacheReadInputTokens": 2295143,
+        "cacheWriteInputTokens": 74668,
+        "outputTokens": 18855
       }
     ],
-    "stepCount": 57,
-    "toolCallCount": 54,
-    "durationMs": 618823,
+    "stepCount": 41,
+    "toolCallCount": 39,
+    "durationMs": 340005,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -15906,7 +16075,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -15920,8 +16089,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 4) from the queue"
       }
     ],
     "skills": {
@@ -15930,20 +16099,27 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"pg_cron schedule queue pgmq send message every minute\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"pg_cron schedule job send queue message example\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
               "title": "pg_net: Async Networking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/send-sms-hook",
+              "title": "Send SMS Hook"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook",
+              "title": "Send Email Hook"
             },
             {
               "url": "https://supabase.com/docs/guides/queues/pgmq",
@@ -15952,108 +16128,72 @@
             {
               "url": "https://supabase.com/docs/guides/functions/schedule-functions",
               "title": "Scheduling Edge Functions"
-            },
+            }
+          ],
+          "resultChars": 102399
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Edge Functions read messages from queue pgmq worker example\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
               "title": "Automatic embeddings"
             },
-            {
-              "url": "https://supabase.com/docs/guides/cron",
-              "title": "Cron"
-            }
-          ],
-          "resultChars": 68390
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Supabase Queues edge function read and delete messages pgmq\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
             {
               "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
               "title": "Consuming Supabase Queue Messages with Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues",
-              "title": "Supabase Queues"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues/api",
-              "title": "API"
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
             },
             {
               "url": "https://supabase.com/docs/guides/queues/pgmq",
               "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/egress",
+              "title": "Manage Egress usage"
             }
           ],
-          "resultChars": 61864
+          "resultChars": 76479
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"cron.schedule example every minute select pgmq.send queue_name\", limit: 3) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Edge Functions secrets SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY automatically injected environment variables\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
-              "title": "pg_net: Async Networking"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
-            }
-          ],
-          "resultChars": 54697
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"withSupabase edge function helper supabaseAdmin authMode secret publishable\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
-              "title": "Getting Started with Edge Functions (Dashboard)"
-            },
             {
               "url": "https://supabase.com/docs/guides/functions/secrets",
               "title": "Environment Variables"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "API keys"
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
             }
           ],
-          "resultChars": 49775
+          "resultChars": 28165
         }
       ]
     },
     "usage": [
       {
         "model": "claude-sonnet-5",
-        "inputTokens": 2692917,
-        "cacheReadInputTokens": 2627411,
-        "cacheWriteInputTokens": 65418,
-        "outputTokens": 11280
+        "inputTokens": 2511498,
+        "cacheReadInputTokens": 2444777,
+        "cacheWriteInputTokens": 66639,
+        "outputTokens": 20690
       }
     ],
-    "stepCount": 50,
-    "toolCallCount": 47,
-    "durationMs": 276315,
+    "stepCount": 51,
+    "toolCallCount": 49,
+    "durationMs": 261716,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -16082,7 +16222,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -16096,8 +16236,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 5) from the queue"
       }
     ],
     "skills": {
@@ -16106,14 +16246,15 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"pg_cron schedule job cron.schedule syntax\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"pg_cron schedule edge function pg_net queues example\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -16121,8 +16262,28 @@
               "title": "pg_net: Async Networking"
             },
             {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
+            {
               "url": "https://supabase.com/docs/guides/cron/quickstart",
               "title": "Quickstart"
+            }
+          ],
+          "resultChars": 56835
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase Queues pgmq send read delete example cron worker\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
             },
             {
               "url": "https://supabase.com/docs/guides/cron",
@@ -16133,17 +16294,53 @@
               "title": "pg_cron debugging guide"
             },
             {
+              "url": "https://supabase.com/docs/guides/queues/api",
+              "title": "API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgmq",
+              "title": "pgmq: Queues"
+            }
+          ],
+          "resultChars": 13479
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"schedule edge function with cron dashboard example pg_net http_post local development host.docker.internal\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
+              "title": "pg_net: Async Networking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/webhooks",
+              "title": "Database Webhooks"
+            },
+            {
               "url": "https://supabase.com/docs/guides/cron/install",
               "title": "Install"
             }
           ],
-          "resultChars": 33022
+          "resultChars": 29911
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"pgmq create queue send read delete message queue\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"queues quickstart create queue pgmq.create send read example\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
+            },
             {
               "url": "https://supabase.com/docs/guides/queues/pgmq",
               "title": "PGMQ Extension"
@@ -16155,17 +16352,13 @@
             {
               "url": "https://supabase.com/docs/guides/queues/api",
               "title": "API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues",
-              "title": "Supabase Queues"
             }
           ],
           "resultChars": 36950
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"withSupabase edge function ctx.supabase server helper auth none\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"withSupabase edge function apiKey publishable secret authMode supabaseAdmin\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -16173,38 +16366,38 @@
               "title": "Securing Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
-              "title": "Which package to use"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai-tools/byo-mcp",
-              "title": "Deploy MCP servers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/function-configuration",
-              "title": "Function Configuration"
-            },
-            {
               "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
               "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
             }
           ],
-          "resultChars": 36512
+          "resultChars": 73065
         }
       ]
     },
     "usage": [
       {
         "model": "claude-sonnet-5",
-        "inputTokens": 3124610,
-        "cacheReadInputTokens": 3038841,
-        "cacheWriteInputTokens": 85693,
-        "outputTokens": 15563
+        "inputTokens": 2363561,
+        "cacheReadInputTokens": 2279314,
+        "cacheWriteInputTokens": 84187,
+        "outputTokens": 20013
       }
     ],
-    "stepCount": 44,
-    "toolCallCount": 42,
-    "durationMs": 328251,
+    "stepCount": 41,
+    "toolCallCount": 38,
+    "durationMs": 346882,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -22388,20 +22581,77 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"schedule edge function with pg_cron and pg_net\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
+              "title": "pg_net: Async Networking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron",
+              "title": "Cron"
+            }
+          ],
+          "resultChars": 58538
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"pgmq read messages queue example\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api",
+              "title": "API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues",
+              "title": "Supabase Queues"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0019_insecure_queue_exposed_in_api",
+              "title": "Database Advisor: Lint 0019_insecure_queue_exposed_in_api"
+            }
+          ],
+          "resultChars": 60021
+        }
+      ]
     },
     "usage": [
       {
         "model": "claude-sonnet-5",
-        "inputTokens": 592440,
-        "cacheReadInputTokens": 569468,
-        "cacheWriteInputTokens": 22940,
-        "outputTokens": 8478
+        "inputTokens": 1569142,
+        "cacheReadInputTokens": 1528825,
+        "cacheWriteInputTokens": 40251,
+        "outputTokens": 13758
       }
     ],
-    "stepCount": 16,
-    "toolCallCount": 15,
-    "durationMs": 182466,
+    "stepCount": 35,
+    "toolCallCount": 34,
+    "durationMs": 315575,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -22430,7 +22680,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -22444,8 +22694,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 7) from the queue"
       }
     ],
     "skills": {
@@ -22453,89 +22703,20 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"schedule edge function invocation pg_cron pg_net queue example\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
-              "title": "pg_net: Async Networking"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
-              "title": "Scheduling Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
-              "title": "pg_cron debugging guide"
-            }
-          ],
-          "resultChars": 64090
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"cron quickstart schedule a queue job\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/install",
-              "title": "Install"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_cron",
-              "title": "pg_cron: Schedule Recurring Jobs with Cron Syntax in Postgres"
-            }
-          ],
-          "resultChars": 10451
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"schedule edge function cron vault project_url service_role_key secret\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
-              "title": "Scheduling Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
-              "title": "pg_net: Async Networking"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
-            }
-          ],
-          "resultChars": 25078
-        }
-      ]
+      "calls": []
     },
     "usage": [
       {
         "model": "claude-sonnet-5",
-        "inputTokens": 3046684,
-        "cacheReadInputTokens": 2958661,
-        "cacheWriteInputTokens": 87943,
-        "outputTokens": 25377
+        "inputTokens": 758420,
+        "cacheReadInputTokens": 732242,
+        "cacheWriteInputTokens": 26138,
+        "outputTokens": 10225
       }
     ],
-    "stepCount": 44,
-    "toolCallCount": 43,
-    "durationMs": 508041,
+    "stepCount": 21,
+    "toolCallCount": 20,
+    "durationMs": 206578,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -22579,7 +22760,7 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 9) from the queue"
+        "notes": "function removed the seeded message (id 6) from the queue"
       }
     ],
     "skills": {
@@ -22587,20 +22768,125 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"cron schedule edge function pg_net http_post\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
+              "title": "pg_net: Async Networking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/webhook-debugging-guide-M8sk47",
+              "title": "Webhook debugging guide"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            }
+          ],
+          "resultChars": 61145
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"pgmq queue read delete edge function example\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            }
+          ],
+          "resultChars": 103837
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Scheduling Edge Functions cron.schedule net.http_post service_role_key local development\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
+              "title": "pg_net: Async Networking"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            }
+          ],
+          "resultChars": 25078
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"withSupabase edge function server helper supabaseAdmin authMode secret publishable\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "API keys"
+            }
+          ],
+          "resultChars": 45410
+        }
+      ]
     },
     "usage": [
       {
         "model": "claude-sonnet-5",
-        "inputTokens": 2387288,
-        "cacheReadInputTokens": 2330081,
-        "cacheWriteInputTokens": 57119,
-        "outputTokens": 23518
+        "inputTokens": 2318499,
+        "cacheReadInputTokens": 2232166,
+        "cacheWriteInputTokens": 86267,
+        "outputTokens": 30571
       }
     ],
-    "stepCount": 44,
-    "toolCallCount": 43,
-    "durationMs": 460850,
+    "stepCount": 36,
+    "toolCallCount": 35,
+    "durationMs": 491094,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -28047,7 +28333,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -28057,12 +28343,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 4) from the queue"
       }
     ],
     "skills": {
@@ -28079,7 +28365,7 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/changelog.md pgmq queues cron edge functions 2026 ...",
+          "query": "site:supabase.com/docs pgmq pg_cron queue edge function scheduled worker local development",
           "pages": []
         }
       ]
@@ -28087,15 +28373,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 789946,
-        "cacheReadInputTokens": 737248,
-        "cacheWriteInputTokens": 52623,
-        "outputTokens": 8569
+        "inputTokens": 612895,
+        "cacheReadInputTokens": 557615,
+        "cacheWriteInputTokens": 55226,
+        "outputTokens": 7335
       }
     ],
-    "stepCount": 25,
-    "toolCallCount": 22,
-    "durationMs": 104675,
+    "stepCount": 18,
+    "toolCallCount": 26,
+    "durationMs": 79204,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -28124,7 +28410,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -28134,12 +28420,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "function returned 200 but message 5 is still queued, so it was read but never removed"
+        "passed": true,
+        "notes": "function removed the seeded message (id 4) from the queue"
       }
     ],
     "skills": {
@@ -28156,23 +28442,38 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs pgmq queue cron schedule Edge Function local Supabase queue read delete ...",
-          "pages": []
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/queues/consuming-messages/edge-functions",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages/edge-functions"
+            }
+          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 519018,
-        "cacheReadInputTokens": 471089,
-        "cacheWriteInputTokens": 47875,
-        "outputTokens": 5823
+        "inputTokens": 616587,
+        "cacheReadInputTokens": 563461,
+        "cacheWriteInputTokens": 53072,
+        "outputTokens": 5442
       }
     ],
     "stepCount": 18,
     "toolCallCount": 16,
-    "durationMs": 71522,
+    "durationMs": 72681,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -28206,17 +28507,17 @@
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
         "passed": true,
-        "notes": "schedule='*/1 * * * *', active=true"
+        "notes": "schedule='* * * * *', active=true"
       },
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
+        "notes": "function removed the seeded message (id 3) from the queue"
       }
     ],
     "skills": {
@@ -28233,21 +28534,16 @@
       "calls": [
         {
           "source": "web_search",
+          "query": "site:supabase.com/docs queues pgmq cron edge function local Supabase queue pg_cron ...",
+          "pages": []
+        },
+        {
+          "source": "web_search",
           "query": "https://supabase.com/changelog.md",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
-            }
-          ]
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/docs/guides/queues/pgmq",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues/pgmq"
             }
           ]
         }
@@ -28256,15 +28552,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 1199209,
-        "cacheReadInputTokens": 1134054,
-        "cacheWriteInputTokens": 65071,
-        "outputTokens": 8694
+        "inputTokens": 641178,
+        "cacheReadInputTokens": 586388,
+        "cacheWriteInputTokens": 54733,
+        "outputTokens": 6075
       }
     ],
-    "stepCount": 28,
-    "toolCallCount": 25,
-    "durationMs": 127964,
+    "stepCount": 19,
+    "toolCallCount": 16,
+    "durationMs": 76342,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -34748,7 +35044,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -34758,12 +35054,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "notes": "queue depth 1 -> 2"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 404: Function not found"
+        "passed": true,
+        "notes": "function removed the seeded message (id 4) from the queue"
       }
     ],
     "skills": {
@@ -34776,15 +35072,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 301674,
-        "cacheReadInputTokens": 269058,
-        "cacheWriteInputTokens": 32565,
-        "outputTokens": 6318
+        "inputTokens": 353012,
+        "cacheReadInputTokens": 319116,
+        "cacheWriteInputTokens": 33839,
+        "outputTokens": 6088
       }
     ],
-    "stepCount": 17,
-    "toolCallCount": 16,
-    "durationMs": 60916,
+    "stepCount": 19,
+    "toolCallCount": 23,
+    "durationMs": 75724,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -34817,18 +35113,18 @@
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": true,
-        "notes": "schedule='* * * * *', active=true"
+        "passed": false,
+        "notes": "job not found in cron.job"
       },
       {
         "name": "cron command enqueues to the 'tasks' queue",
-        "passed": true,
-        "notes": "queue depth 0 -> 1"
+        "passed": false,
+        "notes": "job not found, so its command can't run"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": false,
-        "notes": "HTTP 404: Function not found"
+        "notes": "couldn't enqueue a test message. Is the 'tasks' queue created? query failed: ERROR:  relation \"pgmq.q_tasks\" does not exist\nLINE 2:         INSERT INTO pgmq.q_tasks (vt, message, headers)\n                            ^\nQUERY:  \n        INSERT INTO pgmq.q_tasks (vt, message, headers)\n        VALUES ($2, $1, $3)\n        RETURNING msg_id;\n        \nCONTEXT:  PL/pgSQL function pgmq.send(text,jsonb,jsonb,timestamp with time zone) line 14 at RETURN QUERY\nSQL function \"send\" statement 1\n"
       }
     ],
     "skills": {
@@ -34836,26 +35132,20 @@
       "loaded": []
     },
     "docs": {
-      "calls": [
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs pgmq create queue pg_cron schedule send queue ...",
-          "pages": []
-        }
-      ]
+      "calls": []
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 423102,
-        "cacheReadInputTokens": 379038,
-        "cacheWriteInputTokens": 44016,
-        "outputTokens": 4618
+        "inputTokens": 138304,
+        "cacheReadInputTokens": 109368,
+        "cacheWriteInputTokens": 28909,
+        "outputTokens": 4026
       }
     ],
-    "stepCount": 16,
-    "toolCallCount": 15,
-    "durationMs": 54244,
+    "stepCount": 9,
+    "toolCallCount": 8,
+    "durationMs": 40271,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -34899,7 +35189,7 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
+        "notes": "function removed the seeded message (id 3) from the queue"
       }
     ],
     "skills": {
@@ -34912,15 +35202,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 368783,
-        "cacheReadInputTokens": 336400,
-        "cacheWriteInputTokens": 32320,
-        "outputTokens": 5661
+        "inputTokens": 341219,
+        "cacheReadInputTokens": 306763,
+        "cacheWriteInputTokens": 34405,
+        "outputTokens": 5775
       }
     ],
-    "stepCount": 21,
-    "toolCallCount": 16,
-    "durationMs": 82230,
+    "stepCount": 17,
+    "toolCallCount": 14,
+    "durationMs": 70101,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -40306,7 +40596,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -40316,12 +40606,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 4) from the queue"
       }
     ],
     "skills": {
@@ -40338,11 +40628,6 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/queues pgmq create queue send read archive delete message Edge Function ...",
-          "pages": []
-        },
-        {
-          "source": "web_search",
           "query": "https://supabase.com/changelog.md",
           "hasContent": true,
           "pages": [
@@ -40352,18 +40637,13 @@
           ]
         },
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"sed -n '1,260p' supabase/config.toml; sed -n '1,260p' supabase/migrations/20260101000000_enable_cron_and_queues.sql; curl -fsSL https://supabase.com/changelog.md | sed -n '1,220p'; command -v supabase || true; supabase --version 2>/dev/null || true; supabase --help 2>/dev/null | sed -n '1,220p'\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 3992
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/queues Supabase queue Edge Function processing messages ...",
+          "pages": []
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 3 'queue|pgmq|cron|edge function' | sed -n '1,260p'; curl -fsSL https://supabase.com/docs/guides/queues/quickstart.md | sed -n '1,300p'; curl -fsSL https://supabase.com/docs/guides/cron/quickstart.md | sed -n '1,260p'; supabase status -o env 2>&1 | sed -n '1,220p'; supabase migration new --help | sed -n '1,180p'; supabase functions new --help | sed -n '1,180p'\"",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,180p'; curl -fsSL https://supabase.com/docs/guides/queues/quickstart.md | sed -n '1,260p'; curl -fsSL https://supabase.com/docs/guides/cron/quickstart.md | sed -n '1,260p'; curl -fsSL https://supabase.com/docs/guides/functions/examples/queue-processing.md | sed -n '1,280p'\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
@@ -40373,52 +40653,50 @@
             },
             {
               "url": "https://supabase.com/docs/guides/cron/quickstart.md"
-            }
-          ],
-          "resultChars": 20493
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"sed -n '1,220p' supabase/functions/process-tasks/deno.json; sed -n '1,160p' supabase/functions/process-tasks/.npmrc; curl -fsSL https://supabase.com/docs/guides/functions/auth.md | sed -n '1,260p'; curl -fsSL https://supabase.com/docs/guides/functions/connect-to-postgres.md | sed -n '1,260p'\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth.md"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres.md"
+              "url": "https://supabase.com/docs/guides/functions/examples/queue-processing.md"
             }
           ],
-          "resultChars": 3298
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/guides monitoring debugging Supabase logs Edge Functions local",
-          "pages": []
+          "resultChars": 15528
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | sed -n '1,260p'; supabase functions serve process-tasks\"",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/sitemap.xml | rg -o 'https://supabase.com/docs[\"'^<]+'\"' | rg -i 'queue|cron' | sed -n '1,200p'; supabase migration --help | sed -n '1,220p'; supabase functions --help | sed -n '1,240p'; supabase db --help | sed -n '1,240p'; supabase status -o env\"",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+              "url": "https://supabase.com/docs/sitemap.xml"
             }
           ],
-          "resultChars": 979
+          "resultChars": 9445
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions.md | sed -n '1,320p'; curl -fsSL https://supabase.com/docs/guides/queues/api.md | sed -n '1,360p'; supabase migration new enqueue_tasks_workflow\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api.md"
+            }
+          ],
+          "resultChars": 6142
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-sol",
-        "inputTokens": 807094,
-        "cacheReadInputTokens": 738051,
-        "cacheWriteInputTokens": 68986,
-        "outputTokens": 7035
+        "inputTokens": 902646,
+        "cacheReadInputTokens": 838753,
+        "cacheWriteInputTokens": 63818,
+        "outputTokens": 7547
       }
     ],
-    "stepCount": 19,
-    "toolCallCount": 17,
-    "durationMs": 217157,
+    "stepCount": 25,
+    "toolCallCount": 25,
+    "durationMs": 177789,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -40447,7 +40725,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -40461,8 +40739,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 6) from the queue"
       }
     ],
     "skills": {
@@ -40488,44 +40766,63 @@
           ]
         },
         {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/guides/queues pgmq create send read delete queue quickstart ...",
-          "pages": []
-        },
-        {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -i -n -C 2 'breaking-change|queue|cron|edge function' | sed -n '1,240p'; supabase status --output json 2>&1 | sed -n '1,220p'; supabase migration new setup_enqueue_tasks; supabase functions new process-tasks; rg --files supabase | sort\"",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '-- files --' && find . -maxdepth 4 -type f -not -path './supabase/.temp/*' -print | sort && printf '%s\\\\n' '-- refs --' && rg --files /tmp/sandbox-da05a40d/.agents/skills/supabase-postgres-best-practices/references | sort && printf '%s\\\\n' '-- local status --' && supabase status -o env || true && printf '%s\\\\n' '-- start help --' && supabase start --help && printf '%s\\\\n' '-- changelog --' && curl -fsSL https://supabase.com/changelog.md | rg -i -C 2 'breaking|queue|cron|edge function' | head -n 160 && printf '%s\\\\n' '-- queues docs --' && curl -fsSL https://supabase.com/docs/guides/queues/quickstart.md | sed -n '1,240p' && printf '%s\\\\n' '-- cron docs --' && curl -fsSL https://supabase.com/docs/guides/cron/quickstart.md | sed -n '1,220p'\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
             }
           ],
-          "resultChars": 1677
+          "resultChars": 30174
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/queues/api.md | sed -n '1,300p' && printf '%s\\\\n' '-- function env/docs --' && curl -fsSL https://supabase.com/docs/guides/functions/secrets.md | sed -n '1,200p' && printf '%s\\\\n' '-- relevant best practices --' && sed -n '1,220p' /tmp/sandbox-da05a40d/.agents/skills/supabase-postgres-best-practices/references/lock-skip-locked.md && sed -n '1,200p' /tmp/sandbox-da05a40d/.agents/skills/supabase-postgres-best-practices/references/security-privileges.md\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/api.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets.md"
+            }
+          ],
+          "resultChars": 8055
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | sed -n '1,240p' && printf '%s\\\\n' '-- containers --' && docker ps --format '{{.Names}} {{.Status}}' | sort && printf '%s\\\\n' '-- edge logs --' && docker logs --tail 200 supabase_edge_runtime_pg-cron-queue-workflow 2>&1 || true && printf '%s\\\\n' '-- status --' && supabase status\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 1700
         },
         {
           "source": "web_search",
-          "query": "https://supabase.com/docs/guides/monitoring-and-debugging",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/monitoring-and-debugging"
-            }
-          ]
+          "query": "site:supabase.com/docs monitoring debugging Supabase Edge Functions logs",
+          "pages": []
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-sol",
-        "inputTokens": 1157193,
-        "cacheReadInputTokens": 1083728,
-        "cacheWriteInputTokens": 73387,
-        "outputTokens": 8013
+        "inputTokens": 974174,
+        "cacheReadInputTokens": 906297,
+        "cacheWriteInputTokens": 67805,
+        "outputTokens": 8303
       }
     ],
-    "stepCount": 26,
-    "toolCallCount": 17,
-    "durationMs": 281614,
+    "stepCount": 24,
+    "toolCallCount": 24,
+    "durationMs": 288140,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -40596,39 +40893,55 @@
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/queues Supabase queue pgmq send read delete ...",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/guides/queues Supabase queue pgmq send read delete",
+          "query": "site:supabase.com/docs/guides/queues Supabase queues pgmq send read delete JavaScript Edge Function ...",
           "pages": []
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | rg -ni \"breaking|queue|cron|edge function\" | head -80'",
-          "hasContent": true,
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,220p'; curl -fsSL https://supabase.com/docs/guides/queues/quickstart.md | sed -n '1,260p'; curl -fsSL https://supabase.com/docs/guides/cron/quickstart.md | sed -n '1,240p'; curl -fsSL https://supabase.com/docs/guides/functions/schedule-functions.md | sed -n '1,280p'\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions.md"
             }
           ],
-          "resultChars": 14559
+          "resultChars": 17175
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"sed -n '1,200p' supabase/functions/process-tasks/deno.json && curl -fsSL https://supabase.com/docs/guides/functions/auth.md | sed -n '1,260p' && curl -fsSL https://supabase.com/docs/guides/functions/dependencies.md | sed -n '1,200p'\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/dependencies.md"
+            }
+          ],
+          "resultChars": 5605
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-sol",
-        "inputTokens": 1144739,
-        "cacheReadInputTokens": 1078040,
-        "cacheWriteInputTokens": 66615,
-        "outputTokens": 9381
+        "inputTokens": 1071486,
+        "cacheReadInputTokens": 1011362,
+        "cacheWriteInputTokens": 60031,
+        "outputTokens": 9198
       }
     ],
-    "stepCount": 28,
-    "toolCallCount": 45,
-    "durationMs": 266569,
+    "stepCount": 31,
+    "toolCallCount": 32,
+    "durationMs": 215272,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -50649,6 +50962,77 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
+        "notes": "function removed the seeded message (id 4) from the queue"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/queues pgmq create queue send read delete Edge Functions ...",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-sol",
+        "inputTokens": 521206,
+        "cacheReadInputTokens": 488834,
+        "cacheWriteInputTokens": 32312,
+        "outputTokens": 6182
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 15,
+    "durationMs": 146061,
+    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
+    "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-sol-no-skills/build-cli-003-pg-cron-queue-workflow/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-sol-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-003-pg-cron-queue-workflow",
+    "stage": "build",
+    "product": [
+      "database",
+      "edge-functions",
+      "cron",
+      "queues"
+    ],
+    "topic": [
+      "sql",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
+        "passed": true,
+        "notes": "schedule='* * * * *', active=true"
+      },
+      {
+        "name": "cron command enqueues to the 'tasks' queue",
+        "passed": true,
+        "notes": "queue depth 1 -> 2"
+      },
+      {
+        "name": "process-tasks function drains the queue",
+        "passed": true,
         "notes": "function removed the seeded message (id 5) from the queue"
       }
     ],
@@ -50660,7 +51044,7 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs guides queues pgmq Edge Functions read delete queue JavaScript ...",
+          "query": "site:supabase.com/docs/guides/queues pgmq create queue send read delete Edge Functions ...",
           "pages": []
         }
       ]
@@ -50668,19 +51052,19 @@
     "usage": [
       {
         "model": "gpt-5.6-sol",
-        "inputTokens": 534559,
-        "cacheReadInputTokens": 488812,
-        "cacheWriteInputTokens": 45687,
-        "outputTokens": 5921
+        "inputTokens": 604636,
+        "cacheReadInputTokens": 557795,
+        "cacheWriteInputTokens": 46778,
+        "outputTokens": 5292
       }
     ],
-    "stepCount": 20,
-    "toolCallCount": 17,
-    "durationMs": 185273,
+    "stepCount": 21,
+    "toolCallCount": 15,
+    "durationMs": 147966,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-5.6-sol-no-skills/build-cli-003-pg-cron-queue-workflow/run-1/result.json"
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-sol-no-skills/build-cli-003-pg-cron-queue-workflow/run-2/result.json"
   },
   {
     "experiment": "codex-gpt-5.6-sol-no-skills",
@@ -50733,80 +51117,15 @@
     "usage": [
       {
         "model": "gpt-5.6-sol",
-        "inputTokens": 490505,
-        "cacheReadInputTokens": 452862,
-        "cacheWriteInputTokens": 37571,
-        "outputTokens": 5186
+        "inputTokens": 318734,
+        "cacheReadInputTokens": 285668,
+        "cacheWriteInputTokens": 33012,
+        "outputTokens": 5905
       }
     ],
-    "stepCount": 24,
-    "toolCallCount": 13,
-    "durationMs": 217724,
-    "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
-    "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-5.6-sol-no-skills/build-cli-003-pg-cron-queue-workflow/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-5.6-sol-no-skills",
-    "experimentSuite": "no-skills",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-5.6-sol",
-      "reasoningEffort": "medium"
-    },
-    "eval": "build-cli-003-pg-cron-queue-workflow",
-    "stage": "build",
-    "product": [
-      "database",
-      "edge-functions",
-      "cron",
-      "queues"
-    ],
-    "topic": [
-      "sql",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
-        "passed": true,
-        "notes": "schedule='* * * * *', active=true"
-      },
-      {
-        "name": "cron command enqueues to the 'tasks' queue",
-        "passed": true,
-        "notes": "queue depth 1 -> 2"
-      },
-      {
-        "name": "process-tasks function drains the queue",
-        "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
-      }
-    ],
-    "skills": {
-      "available": [],
-      "loaded": []
-    },
-    "docs": {
-      "calls": []
-    },
-    "usage": [
-      {
-        "model": "gpt-5.6-sol",
-        "inputTokens": 250011,
-        "cacheReadInputTokens": 212189,
-        "cacheWriteInputTokens": 37780,
-        "outputTokens": 4776
-      }
-    ],
-    "stepCount": 14,
-    "toolCallCount": 18,
-    "durationMs": 193193,
+    "stepCount": 18,
+    "toolCallCount": 15,
+    "durationMs": 136053,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -56162,7 +56481,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -56176,8 +56495,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 4) from the queue"
       }
     ],
     "skills": {
@@ -56194,42 +56513,23 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"pgmq queue pg_cron schedule send message every minute edge function pop\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"pgmq queues cron schedule job every minute send message\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
             },
             {
               "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
               "title": "pg_net: Async Networking"
             },
             {
-              "url": "https://supabase.com/docs/guides/queues/pgmq",
-              "title": "PGMQ Extension"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
-              "title": "Scheduling Edge Functions"
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
             }
           ],
-          "resultChars": 75234
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/queues.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues.md"
-            }
-          ],
-          "resultChars": 1584
+          "resultChars": 64701
         },
         {
           "source": "web_fetch",
@@ -56243,86 +56543,29 @@
           "resultChars": 8777
         },
         {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/cron.md",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "curl -s https://supabase.com/changelog.md | grep -in -B2 -A4 \"breaking\" | grep -i -A4 -B2 \"cron\\|queue\\|pgmq\\|edge\" | head -40",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/cron.md"
+              "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 1405
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/queues/pgmq.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues/pgmq.md"
-            }
-          ],
-          "resultChars": 19011
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/cron/schedule.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/cron/schedule.md"
-            }
-          ]
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/cron/quickstart.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
-            }
-          ],
-          "resultChars": 6155
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"withSupabase @supabase/server edge function supabaseAdmin authMode secret\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
-              "title": "Which package to use"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
-              "title": "Getting Started with Edge Functions (Dashboard)"
-            }
-          ],
-          "resultChars": 34743
+          "resultChars": 2491
         }
       ]
     },
     "usage": [
       {
         "model": "moonshotai/kimi-k3",
-        "inputTokens": 1206747,
-        "cacheReadInputTokens": 1156768,
+        "inputTokens": 1539609,
+        "cacheReadInputTokens": 1446560,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 13838
+        "outputTokens": 15541
       }
     ],
-    "stepCount": 36,
-    "toolCallCount": 47,
-    "durationMs": 283295,
+    "stepCount": 50,
+    "toolCallCount": 60,
+    "durationMs": 647083,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -56360,7 +56603,7 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 2 -> 3"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
@@ -56393,7 +56636,35 @@
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"pg_cron schedule job every minute enqueue pgmq queue send\", limit: 5) { nodes { title href content } } }",
+          "query": "{\n  searchDocs(query: \"edge function consume read delete messages from queue pgmq_public\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api",
+              "title": "API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            }
+          ],
+          "resultChars": 68250
+        },
+        {
+          "source": "search_docs",
+          "query": "{\n  searchDocs(query: \"cron schedule job send message to pgmq queue every minute\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
           "hasContent": true,
           "pages": [
             {
@@ -56403,10 +56674,6 @@
             {
               "url": "https://supabase.com/docs/guides/queues/pgmq",
               "title": "PGMQ Extension"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
             },
             {
               "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
@@ -56415,64 +56682,71 @@
             {
               "url": "https://supabase.com/docs/guides/functions/schedule-functions",
               "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/broadcast",
+              "title": "Broadcast"
             }
           ],
-          "resultChars": 75234
+          "resultChars": 100557
         },
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"cron.schedule job SQL snippet every minute\", limit: 3) { nodes { title href content } } }",
+          "source": "web_fetch",
+          "query": "https://supabase.com/docs/guides/queues/quickstart.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/cron/quickstart",
-              "title": "Quickstart"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
-              "title": "pg_net: Async Networking"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cron",
-              "title": "Cron"
+              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
             }
           ],
-          "resultChars": 23346
+          "resultChars": 8777
         },
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Queues pgmq create queue pop delete message consume edge function\", limit: 3) { nodes { title href content } } }",
+          "source": "web_fetch",
+          "query": "https://supabase.com/docs/guides/cron/quickstart.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/queues/pgmq",
-              "title": "PGMQ Extension"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
-              "title": "Consuming Supabase Queue Messages with Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues/api",
-              "title": "API"
+              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
             }
           ],
-          "resultChars": 27216
+          "resultChars": 6702
+        },
+        {
+          "source": "web_fetch",
+          "query": "https://supabase.com/docs/guides/functions/consume-queue-messages.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/consume-queue-messages.md"
+            }
+          ]
+        },
+        {
+          "source": "web_fetch",
+          "query": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions.md"
+            }
+          ],
+          "resultChars": 3874
         }
       ]
     },
     "usage": [
       {
         "model": "moonshotai/kimi-k3",
-        "inputTokens": 1609603,
-        "cacheReadInputTokens": 1566142,
+        "inputTokens": 2329424,
+        "cacheReadInputTokens": 2135712,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 11980
+        "outputTokens": 20222
       }
     ],
-    "stepCount": 36,
-    "toolCallCount": 48,
-    "durationMs": 615375,
+    "stepCount": 47,
+    "toolCallCount": 58,
+    "durationMs": 645776,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -56515,7 +56789,7 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 4) from the queue"
+        "notes": "function removed the seeded message (id 2) from the queue"
       }
     ],
     "skills": {
@@ -56531,19 +56805,36 @@
     "docs": {
       "calls": [
         {
-          "source": "web_fetch",
-          "query": "https://supabase.com/changelog.md",
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function consume pgmq queue read delete messages supabase-js\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/changelog.md"
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/resumable-websockets",
+              "title": "Resumable WebSockets with Edge Functions"
             }
           ],
-          "resultChars": 94994
+          "resultChars": 41206
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"pg_cron schedule job send message to pgmq queue every minute\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"pg_cron schedule job pgmq queue send message every minute\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -56555,58 +56846,54 @@
               "title": "PGMQ Extension"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
-            },
-            {
               "url": "https://supabase.com/docs/guides/functions/schedule-functions",
               "title": "Scheduling Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/pgcron-debugging-guide-n1KTaz",
+              "title": "pg_cron debugging guide"
             },
             {
               "url": "https://supabase.com/docs/guides/cron",
               "title": "Cron"
             }
           ],
-          "resultChars": 68390
+          "resultChars": 44705
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"consume queue messages edge function pgmq_public read delete\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"edge function verify_jwt config.toml require authorization new api keys publishable secret\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
-              "title": "Consuming Supabase Queue Messages with Edge Functions"
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
             },
             {
-              "url": "https://supabase.com/docs/guides/queues/pgmq",
-              "title": "PGMQ Extension"
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "API keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/queues/api",
-              "title": "API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
             }
           ],
-          "resultChars": 57952
+          "resultChars": 29173
         }
       ]
     },
     "usage": [
       {
         "model": "moonshotai/kimi-k3",
-        "inputTokens": 1099994,
-        "cacheReadInputTokens": 1047776,
+        "inputTokens": 2838180,
+        "cacheReadInputTokens": 2685888,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 17079
+        "outputTokens": 25171
       }
     ],
-    "stepCount": 28,
-    "toolCallCount": 42,
-    "durationMs": 452095,
+    "stepCount": 51,
+    "toolCallCount": 61,
+    "durationMs": 720338,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
@@ -63978,7 +64265,7 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "pg_cron job 'enqueue-tasks' scheduled to run every minute",
@@ -63992,8 +64279,8 @@
       },
       {
         "name": "process-tasks function drains the queue",
-        "passed": false,
-        "notes": "HTTP 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"secret\\\".\",\"hint\":\"The apikey looks like a legacy JW"
+        "passed": true,
+        "notes": "function removed the seeded message (id 3) from the queue"
       }
     ],
     "skills": {
@@ -64004,128 +64291,66 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"pgmq queues cron schedule send message every minute\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "query": "{ searchDocs(query: \"pg_cron schedule job every minute pgmq send queue\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues/pgmq",
-              "title": "PGMQ Extension"
-            },
             {
               "url": "https://supabase.com/docs/guides/database/extensions/pg_net",
               "title": "pg_net: Async Networking"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-phone-mfa",
-              "title": "Configure Phone Sign-in & MFA"
-            }
-          ],
-          "resultChars": 72505
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
+              "url": "https://supabase.com/docs/guides/cron",
+              "title": "Cron"
+            },
             {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 94994
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/cron.md",
-          "hasContent": true,
-          "pages": [
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
+            },
             {
-              "url": "https://supabase.com/docs/guides/cron.md"
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
             }
           ],
-          "resultChars": 1405
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/queues.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues.md"
-            }
-          ],
-          "resultChars": 1584
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/cron/quickstart.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
-            }
-          ],
-          "resultChars": 6155
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/queues/quickstart.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues/quickstart.md"
-            }
-          ],
-          "resultChars": 8777
-        },
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/queues/api.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues/api.md"
-            }
-          ],
-          "resultChars": 2143
+          "resultChars": 48142
         },
         {
           "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"withSupabase @supabase/server edge function ctx supabaseAdmin authMode secret\", limit: 4) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "query": "{ searchDocs(query: \"config.toml functions verify_jwt configuration\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
-              "title": "Which package to use"
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
             }
           ],
-          "resultChars": 25488
+          "resultChars": 14760
         }
       ]
     },
     "usage": [
       {
         "model": "moonshotai/kimi-k3",
-        "inputTokens": 1865151,
-        "cacheReadInputTokens": 1792928,
+        "inputTokens": 2315282,
+        "cacheReadInputTokens": 2188000,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 20280
+        "outputTokens": 20288
       }
     ],
-    "stepCount": 39,
-    "toolCallCount": 51,
-    "durationMs": 409377,
+    "stepCount": 53,
+    "toolCallCount": 67,
+    "durationMs": 399788,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 1,
@@ -64163,12 +64388,12 @@
       {
         "name": "cron command enqueues to the 'tasks' queue",
         "passed": true,
-        "notes": "queue depth 1 -> 2"
+        "notes": "queue depth 0 -> 1"
       },
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 6) from the queue"
+        "notes": "function removed the seeded message (id 11) from the queue"
       }
     ],
     "skills": {
@@ -64179,7 +64404,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"pg_cron schedule job send message to pgmq queue every minute\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"pg_cron schedule job every minute pgmq send queue\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -64191,34 +64416,34 @@
               "title": "PGMQ Extension"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
+              "url": "https://supabase.com/docs/guides/cron",
+              "title": "Cron"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/schedule-functions",
               "title": "Scheduling Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/cron",
-              "title": "Cron"
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
             }
           ],
-          "resultChars": 68390
+          "resultChars": 48142
         }
       ]
     },
     "usage": [
       {
         "model": "moonshotai/kimi-k3",
-        "inputTokens": 815213,
-        "cacheReadInputTokens": 779584,
+        "inputTokens": 716595,
+        "cacheReadInputTokens": 612672,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 15264
+        "outputTokens": 11778
       }
     ],
-    "stepCount": 32,
-    "toolCallCount": 43,
-    "durationMs": 375637,
+    "stepCount": 24,
+    "toolCallCount": 27,
+    "durationMs": 680929,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 2,
@@ -64261,7 +64486,7 @@
       {
         "name": "process-tasks function drains the queue",
         "passed": true,
-        "notes": "function removed the seeded message (id 5) from the queue"
+        "notes": "function removed the seeded message (id 7) from the queue"
       }
     ],
     "skills": {
@@ -64271,47 +64496,8 @@
     "docs": {
       "calls": [
         {
-          "source": "web_fetch",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 94994
-        },
-        {
           "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"Supabase Queues pgmq create queue send message read delete\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/queues/quickstart",
-              "title": "Quickstart"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues/api",
-              "title": "API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues",
-              "title": "Supabase Queues"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
-              "title": "Consuming Supabase Queue Messages with Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/pgmq",
-              "title": "pgmq: Queues"
-            }
-          ],
-          "resultChars": 18895
-        },
-        {
-          "source": "search_docs",
-          "query": "{\n  searchDocs(query: \"pg_cron schedule job every minute cron.schedule\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "query": "{ searchDocs(query: \"pg_cron schedule job every minute pgmq queue send message\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -64319,49 +64505,62 @@
               "title": "pg_net: Async Networking"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
-              "title": "Scheduling Edge Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-hooks/send-sms-hook",
-              "title": "Send SMS Hook"
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
             },
             {
               "url": "https://supabase.com/docs/guides/cron",
               "title": "Cron"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook",
-              "title": "Send Email Hook"
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/schedule-functions",
+              "title": "Scheduling Edge Functions"
             }
           ],
-          "resultChars": 83290
+          "resultChars": 68390
         },
         {
-          "source": "web_fetch",
-          "query": "https://supabase.com/docs/guides/cron/quickstart.md",
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"consume pgmq queue messages edge function pgmq_public read delete rpc\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/cron/quickstart.md"
+              "url": "https://supabase.com/docs/guides/queues/consuming-messages-with-edge-functions",
+              "title": "Consuming Supabase Queue Messages with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/pgmq",
+              "title": "PGMQ Extension"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/api",
+              "title": "API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
             }
           ],
-          "resultChars": 6155
+          "resultChars": 37704
         }
       ]
     },
     "usage": [
       {
         "model": "moonshotai/kimi-k3",
-        "inputTokens": 1834652,
-        "cacheReadInputTokens": 1761344,
+        "inputTokens": 866458,
+        "cacheReadInputTokens": 820928,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 16786
+        "outputTokens": 10211
       }
     ],
-    "stepCount": 41,
-    "toolCallCount": 55,
-    "durationMs": 314099,
+    "stepCount": 25,
+    "toolCallCount": 30,
+    "durationMs": 261327,
     "prompt": "I want to set up a recurring background workflow on my local Supabase stack.\n\nCan you set up a cron job called `enqueue-tasks` to run every minute and push a task into a queue called `tasks`? Then add a `process-tasks` edge function that reads messages off the `tasks` queue and removes them, so a scheduled worker can keep the backlog drained.",
     "promptSourcePath": "evals/benchmark/build-cli-003-pg-cron-queue-workflow/PROMPT.md",
     "run": 3,
