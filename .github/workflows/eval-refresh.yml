@@ -375,15 +375,17 @@ jobs:
           name: raw-results
           path: results/downloaded
 
-      - name: Extract raw results
-        # Results arrive tarred so upload-artifact never sees agent-written filenames.
+      - name: Extract raw workspaces
+        # Workspaces arrive tarred so upload-artifact never sees agent-written filenames.
         shell: bash
         run: |
           set -euo pipefail
 
           if [ -d results/downloaded ]; then
-            find results/downloaded -name '*.tgz' -print0 | while IFS= read -r -d '' archive; do
-              tar -xzf "$archive" -C "$(dirname "$archive")"
+            find results/downloaded -name 'workspace.tgz' -print0 | while IFS= read -r -d '' archive; do
+              workspace="$(dirname "$archive")/workspace"
+              mkdir -p "$workspace"
+              tar -xzf "$archive" -C "$workspace"
               rm "$archive"
             done
           fi

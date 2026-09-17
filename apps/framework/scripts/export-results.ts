@@ -162,6 +162,7 @@ async function readResultFile(
     stepCount: parsedResult.stepCount,
     toolCallCount: parsedResult.toolCallCount,
     durationMs: parsedResult.durationMs,
+    sandboxUsage: parsedResult.sandboxUsage,
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
     attempts: parsedResult.attempts,
