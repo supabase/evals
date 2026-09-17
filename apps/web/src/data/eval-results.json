@@ -12613,6 +12613,280 @@
       "modelId": "claude-opus-5",
       "reasoningEffort": "high"
     },
+    "eval": "deploy-functions-001-edge-function-secrets",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "WEATHER_API_KEY is set as a Function secret on the project",
+        "passed": true
+      },
+      {
+        "name": "the weather function is deployed to the project",
+        "passed": true,
+        "notes": "status ACTIVE"
+      },
+      {
+        "name": "the weather function reads WEATHER_API_KEY from the environment",
+        "passed": true,
+        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+      },
+      {
+        "name": "WEATHER_API_KEY value is not committed to the repo",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5",
+        "inputTokens": 978028,
+        "cacheReadInputTokens": 940828,
+        "cacheWriteInputTokens": 37142,
+        "outputTokens": 16748
+      }
+    ],
+    "stepCount": 35,
+    "toolCallCount": 34,
+    "durationMs": 299207,
+    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
+    "promptSourcePath": "evals/benchmark/deploy-functions-001-edge-function-secrets/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-opus-5-no-skills/deploy-functions-001-edge-function-secrets/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "deploy-functions-001-edge-function-secrets",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "WEATHER_API_KEY is set as a Function secret on the project",
+        "passed": true
+      },
+      {
+        "name": "the weather function is deployed to the project",
+        "passed": true,
+        "notes": "status ACTIVE"
+      },
+      {
+        "name": "the weather function reads WEATHER_API_KEY from the environment",
+        "passed": true,
+        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment via Deno.env.get(\"WEATHER_API_KEY\")."
+      },
+      {
+        "name": "WEATHER_API_KEY value is not committed to the repo",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"withSupabase @supabase/server edge function auth publishable CORS\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/cors",
+              "title": "CORS (Cross-Origin Resource Sharing) support for Invoking from the browser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/unable-to-call-edge-function",
+              "title": "Unable to call Edge Function"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            }
+          ],
+          "resultChars": 24047
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"edge function secrets environment variables set --env-file\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/inspecting-edge-function-environment-variables-wg5qOQ",
+              "title": "Inspecting edge function environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            }
+          ],
+          "resultChars": 38347
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5",
+        "inputTokens": 1738127,
+        "cacheReadInputTokens": 1673038,
+        "cacheWriteInputTokens": 65023,
+        "outputTokens": 20112
+      }
+    ],
+    "stepCount": 41,
+    "toolCallCount": 40,
+    "durationMs": 469198,
+    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
+    "promptSourcePath": "evals/benchmark/deploy-functions-001-edge-function-secrets/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-opus-5-no-skills/deploy-functions-001-edge-function-secrets/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "deploy-functions-001-edge-function-secrets",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "WEATHER_API_KEY is set as a Function secret on the project",
+        "passed": true
+      },
+      {
+        "name": "the weather function is deployed to the project",
+        "passed": true,
+        "notes": "status ACTIVE"
+      },
+      {
+        "name": "the weather function reads WEATHER_API_KEY from the environment",
+        "passed": true,
+        "judgeNotes": "Reads WEATHER_API_KEY from the runtime environment using Deno.env.get(\"WEATHER_API_KEY\")."
+      },
+      {
+        "name": "WEATHER_API_KEY value is not committed to the repo",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{\n  searchDocs(query: \"edge functions manage secrets environment variables deploy\", limit: 5) {\n    nodes {\n      title\n      href\n      content\n    }\n  }\n}",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment Variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            }
+          ],
+          "resultChars": 77161
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5",
+        "inputTokens": 1352646,
+        "cacheReadInputTokens": 1312463,
+        "cacheWriteInputTokens": 40105,
+        "outputTokens": 23592
+      }
+    ],
+    "stepCount": 47,
+    "toolCallCount": 46,
+    "durationMs": 403127,
+    "prompt": "Our weather widget currently calls WeatherAPI straight from the browser, which\nleaks our API key. I want to move that behind a Supabase Edge Function called\n`weather` that holds the key server-side and proxies the request.\n\nThe function should read the key from an environment variable named\n`WEATHER_API_KEY`. Our key already lives in a local `.env` file at the project\nroot.\n\nDeploy the function to our project so it's live, and make sure the deployed\nfunction can actually read the key at runtime.",
+    "promptSourcePath": "evals/benchmark/deploy-functions-001-edge-function-secrets/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-opus-5-no-skills/deploy-functions-001-edge-function-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5",
+      "reasoningEffort": "high"
+    },
     "eval": "deploy-self-hosting-001-docker-compose",
     "stage": "deploy",
     "product": [
