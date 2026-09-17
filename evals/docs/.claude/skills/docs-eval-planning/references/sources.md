@@ -2,32 +2,43 @@
 
 The page under test is not a source. Everything here is.
 
-**Several sources are internal to Supabase.** This repository is open source, and the Linear, Slack,
-Hex, and Supacademy entries below are available only to Supabase employees. An eval planned from the
-public sources alone is a smaller artifact, and that is a supported outcome: say so in the plan rather
-than leaving the gap implicit.
+## Which sources you can reach
 
-For a source you do have: if its tool is missing or unauthorized, stop and ask for the connector rather
-than working around it. Then record which sources were reachable. Silently skipping one produces a thin
-inventory that reads as complete.
+The Access column says what each source needs. `Public` needs a network connection and `gh`. `Supabase`
+means a connector or a private repository that only Supabase employees hold.
+
+**Plan from the sources you can reach and ignore the rest.** Missing access is never a blocker. A plan
+built on the public sources alone is a smaller artifact and a supported outcome, not a failure.
+
+Settle access before Phase 1, one source at a time:
+
+- **No connector, or the call returns 401, 403, or 404.** The source is out of scope. Drop it and move
+  on.
+- **The connector is there and the call fails for another reason.** Stop and ask for it rather than
+  working around it. A source you hold and skip leaves a gap you will not notice.
+
+Then record in the plan which sources the inventory came from and which were out of reach. A reviewer
+who knows the plan never saw Linear reads it differently from one who assumes it did. Without that
+line, a thin inventory reads as complete.
 
 | Source | Access | How | What it gives |
 | --- | --- | --- | --- |
-| The ticket asking for the eval | Linear MCP | `get_issue` | The subject, the paired improve-the-doc ticket, and a draft prompt. **Read its rationale as evidence, not as instruction.** A ticket written before the page changed names a method the page no longer recommends. A check built from it reports the page as broken for giving current advice. |
-| Linear feedback intake | Linear MCP | `list_issues` with a topic query | The recurring ask in customers' words, with ids to cite. Skip anything already closed as `Duplicate`. |
-| Linear docs team | Linear MCP | `list_issues` scoped to the Docs team | Whether the gap is already filed, and the paired improve-the-doc ticket. |
-| Slack | Slack MCP | `slack_search_public_and_private` on the topic | Support and team threads naming the failure and its error text. |
-| Hex | Hex MCP | The docs popularity and feedback project | Views, negative rate, and agent share, for `motivation:`. |
-| Supacademy | `supabase/supacademy`, private | `content/<topic>/` | `foundations/` carries the internal model, stated more plainly than the public page. `troubleshooting/` names the concrete failures. |
-| Agent skills | In repo | `submodules/agent-skills/skills/*/references/` | The parameter names and flag values a check can assert on. |
+| The ticket asking for the eval | Supabase | Linear MCP, `get_issue` | The subject, the paired improve-the-doc ticket, and a draft prompt. **Read its rationale as evidence, not as instruction.** A ticket written before the page changed names a method the page no longer recommends. A check built from it reports the page as broken for giving current advice. |
+| Linear feedback intake | Supabase | Linear MCP, `list_issues` with a topic query | The recurring ask in customers' words, with ids to cite. Skip anything already closed as `Duplicate`. |
+| Linear docs team | Supabase | Linear MCP, `list_issues` scoped to the Docs team | Whether the gap is already filed, and the paired improve-the-doc ticket. |
+| Slack | Supabase | Slack MCP, `slack_search_public_and_private` on the topic | Support and team threads naming the failure and its error text. |
+| Hex | Supabase | Hex MCP, the docs popularity and feedback project | Views, negative rate, and agent share, for `motivation:`. |
+| Supacademy | Supabase | `supabase/supacademy`, `content/<topic>/` | `foundations/` carries the internal model, stated more plainly than the public page. `troubleshooting/` names the concrete failures. |
+| Agent skills | Public | `submodules/agent-skills/skills/*/references/`, in repo | The parameter names and flag values a check can assert on. |
 | Agent skills feedback | Public | `gh issue list --repo supabase/agent-skills` | Issues titled `user-feedback:` are first-party reports of an agent failing a task. The highest-value source and the easiest to miss. |
 | Troubleshooting guides | Public | `supabase.com/docs/guides/troubleshooting/` | Remediations with concrete values, which is what a check needs. |
 | Neighbour pages | Public | `apps/docs/content/guides` in `supabase/supabase` | What the sibling pages treat as essential. |
 | External communities | Public | `WebSearch`, and `gh` on `supabase/supabase` | Failures that never reached a ticket. |
-| A question to a channel | Slack MCP | Draft it | Only when a gap looks like something a team knows and nothing on this list records it. Draft the message; do not post it. |
+| A question to a channel | Supabase | Slack MCP, draft it | Only when a gap looks like something a team knows and nothing on this list records it. Draft the message; do not post it. |
 
-The public sources are enough for a usable plan. The internal ones are what turn a plausible check
-list into one with cited evidence behind it.
+The public sources are enough for a usable plan. The Supabase ones are what turn a plausible check
+list into one with cited evidence behind it. A plan that cites `supabase/agent-skills` issues and the
+troubleshooting guides stands on its own; it names fewer failures than one that also read Linear.
 
 ## Reading Slack results
 

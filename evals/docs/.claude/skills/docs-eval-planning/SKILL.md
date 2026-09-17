@@ -81,8 +81,9 @@ Build the list from the sources, then diff it against the page. Anything the sou
 and the page omits is a candidate check, and it should fail a solution written from the page. That
 failure is the finding the paired docs ticket acts on.
 
-Several sources are internal to Supabase. If one you have access to is unauthorized, stop and ask for
-the connector rather than working around it, then record in the plan which sources were reachable.
+Several sources need Supabase employee access. Settle which ones you can reach before you start, plan
+from those, and ignore the rest. Missing access is never a blocker. Record in the plan which sources
+the inventory came from and which were out of reach.
 
 This phase ends with a failure-point inventory: one bullet per finding, each carrying an issue id, a
 thread, or a url. A finding with no source does not go in.
