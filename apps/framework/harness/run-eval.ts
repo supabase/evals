@@ -155,7 +155,6 @@ function discoverEvals(): EvalManifest[] {
       const relPath = `evals/${suiteDir}/${id}/PROMPT.md`;
       const localDir = join(evalDir, 'local');
       const promptPath = join(evalDir, 'PROMPT.md');
-      if (!existsSync(promptPath)) continue;
       const evalPath = join(evalDir, 'EVAL.ts');
       const metadata = parseEvalMarkdown(
         readFileSync(promptPath, 'utf8'),
