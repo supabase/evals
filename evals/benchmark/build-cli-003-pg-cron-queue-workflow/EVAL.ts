@@ -165,9 +165,6 @@ async function checkFunctionDrains(
     };
   }
 
-  // Invoke the way a scheduled worker would. The secret key clears both gates a
-  // function might put up: the verify_jwt gateway, and `@supabase/server`'s
-  // `auth: 'secret'`, which rejects legacy anon/service_role JWTs outright.
   const res = await fetch(`${apiUrl}/functions/v1/${FUNCTION}`, {
     method: 'POST',
     headers: {
