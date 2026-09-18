@@ -1,0 +1,1843 @@
+[
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"stacksRunning\":3,\"fleetWallClockMs\":146414,\"supabaseStartInvocations\":7,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1789720781766},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1789720825414},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1789720825212}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"docker --version; docker info --format '{{.ServerVersion}}' 2>&1 || true; curl -L --max-time 15 -sS https://supabase.com/changelog.md | head -80\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4382
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 783994,
+        "cacheReadInputTokens": 722869,
+        "cacheWriteInputTokens": 61053,
+        "outputTokens": 6845
+      }
+    ],
+    "stepCount": 24,
+    "toolCallCount": 28,
+    "durationMs": 192700,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54332 (legacy/docker), feature-b: 127.0.0.1:54342 (legacy/docker), feature-c: 127.0.0.1:54352 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"stacksRunning\":3,\"fleetWallClockMs\":88998,\"supabaseStartInvocations\":4,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54332\",\"readyMs\":1789720748920},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54342\",\"readyMs\":1789720748998},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54352\",\"readyMs\":1789720748988}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs local development supabase config.toml ports db port api port ...",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 831823,
+        "cacheReadInputTokens": 769215,
+        "cacheWriteInputTokens": 62533,
+        "outputTokens": 6456
+      }
+    ],
+    "stepCount": 25,
+    "toolCallCount": 39,
+    "durationMs": 153893,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"stacksRunning\":3,\"fleetWallClockMs\":162928,\"supabaseStartInvocations\":7,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1789720841928},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1789720783895},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1789720783904}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"git status --short --branch; supabase --version; supabase --help | sed -n '1,220p'; printf '\\\\n---START HELP---\\\\n'; supabase start --help | sed -n '1,220p'; printf '\\\\n---INIT HELP---\\\\n'; supabase init --help | sed -n '1,180p'; printf '\\\\n---MIGRATION HELP---\\\\n'; supabase migration new --help | sed -n '1,160p'; printf '\\\\n---CHANGELOG---\\\\n'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -120\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17564
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"sed -n '300,430p' feature-a/supabase/config.toml; printf '\\\\n--- docs local config snippets ---\\\\n'; curl -fsSL --max-time 20 https://supabase.com/docs/guides/local-development/cli/config.md | rg -n -C 2 'port|project_id|worktree' | head -160\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/config.md"
+            }
+          ],
+          "resultChars": 4351
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 992746,
+        "cacheReadInputTokens": 928429,
+        "cacheWriteInputTokens": 64236,
+        "outputTokens": 7832
+      }
+    ],
+    "stepCount": 27,
+    "toolCallCount": 35,
+    "durationMs": 209730,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna/build-cli-004-worktree-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":2,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"set -e\nprintf '%s\\\\n' '---supabase version---'\nsupabase --version || true\nprintf '%s\\\\n' '---docker---'\ndocker --version || true\ndocker compose version || true\nprintf '%s\\\\n' '---changelog head---'\ncurl -fsSL https://supabase.com/changelog.md | head -40 || true\nprintf '%s\\\\n' '---cli help---'\nsupabase --help | head -120\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6473
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 257080,
+        "cacheReadInputTokens": 223957,
+        "cacheWriteInputTokens": 33090,
+        "outputTokens": 5476
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 15,
+    "durationMs": 60282,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-cli-absent/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":7,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -20'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 904
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 927508,
+        "cacheReadInputTokens": 866257,
+        "cacheWriteInputTokens": 61161,
+        "outputTokens": 7067
+      }
+    ],
+    "stepCount": 30,
+    "toolCallCount": 40,
+    "durationMs": 182985,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-cli-absent/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":4,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,80p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4280
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/docs/guides/local-development/cli/config.md | rg -n \"port|project_id|studio|smtp|inbucket|realtime\" | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/config.md"
+            }
+          ],
+          "resultChars": 49
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/local-development/cli/config Supabase local config ports",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 407230,
+        "cacheReadInputTokens": 362277,
+        "cacheWriteInputTokens": 44905,
+        "outputTokens": 5741
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 24,
+    "durationMs": 62821,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-cli-absent/build-cli-004-worktree-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":3,\"fleetWallClockMs\":93614,\"supabaseStartInvocations\":4,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1789720740680},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1789720740794},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1789720740772}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs local development CLI config.toml port settings supabase start multiple projects ...",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 553056,
+        "cacheReadInputTokens": 501747,
+        "cacheWriteInputTokens": 51261,
+        "outputTokens": 5217
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 23,
+    "durationMs": 134698,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-cli-beta/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":3,\"fleetWallClockMs\":96099,\"supabaseStartInvocations\":4,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1789720744279},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1789720744279},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1789720744279}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs local development Supabase CLI start config ports config.toml ...",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 552442,
+        "cacheReadInputTokens": 492268,
+        "cacheWriteInputTokens": 60117,
+        "outputTokens": 6538
+      }
+    ],
+    "stepCount": 19,
+    "toolCallCount": 30,
+    "durationMs": 147232,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-cli-beta/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54332 (legacy/docker), feature-b: 127.0.0.1:54342 (legacy/docker), feature-c: 127.0.0.1:54352 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":3,\"fleetWallClockMs\":188780,\"supabaseStartInvocations\":9,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54332\",\"readyMs\":1789720793415},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54342\",\"readyMs\":1789720854175},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54352\",\"readyMs\":1789720854161}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 935689,
+        "cacheReadInputTokens": 870014,
+        "cacheWriteInputTokens": 65603,
+        "outputTokens": 5879
+      }
+    ],
+    "stepCount": 24,
+    "toolCallCount": 36,
+    "durationMs": 217957,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-cli-beta/build-cli-004-worktree-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":11,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"supabase start --help && printf '\\\\n--- INIT ---\\\\n' && supabase init --help && printf '\\\\n--- DOCKER ---\\\\n' && docker --version 2>/dev/null || true && docker compose version 2>/dev/null || true && printf '\\\\n--- CHANGELOG HEAD ---\\\\n' && curl -fsSL https://supabase.com/changelog.md | sed -n '1,100p'\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 10207
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 2306881,
+        "cacheReadInputTokens": 2246907,
+        "cacheWriteInputTokens": 59806,
+        "outputTokens": 9993
+      }
+    ],
+    "stepCount": 56,
+    "toolCallCount": 48,
+    "durationMs": 268621,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-cli-nodaemon/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":11,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs local development multiple projects ports config.toml api port db port",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1041737,
+        "cacheReadInputTokens": 970662,
+        "cacheWriteInputTokens": 70997,
+        "outputTokens": 7813
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 38,
+    "durationMs": 251862,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-cli-nodaemon/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.53\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":4,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"git --version && supabase init --help && supabase start --help && printf '\\\\n---CHANGELOG CHECK---\\\\n' && curl -fsSL https://supabase.com/changelog.md | head -80\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 9227
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 394278,
+        "cacheReadInputTokens": 355257,
+        "cacheWriteInputTokens": 38967,
+        "outputTokens": 6494
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 24,
+    "durationMs": 61601,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-cli-nodaemon/build-cli-004-worktree-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54332 (legacy/docker), feature-b: 127.0.0.1:54342 (legacy/docker), feature-c: 127.0.0.1:54352 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"stable\",\"stacksRunning\":3,\"fleetWallClockMs\":103025,\"supabaseStartInvocations\":4,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54332\",\"readyMs\":1789720753495},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54342\",\"readyMs\":1789720753497},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54352\",\"readyMs\":1789720753495}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,120p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6679
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 743901,
+        "cacheReadInputTokens": 675597,
+        "cacheWriteInputTokens": 68238,
+        "outputTokens": 6687
+      }
+    ],
+    "stepCount": 22,
+    "toolCallCount": 22,
+    "durationMs": 146583,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-cli-stable/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54332 (legacy/docker), feature-b: 127.0.0.1:54342 (legacy/docker), feature-c: 127.0.0.1:54352 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"stable\",\"stacksRunning\":3,\"fleetWallClockMs\":131855,\"supabaseStartInvocations\":6,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54332\",\"readyMs\":1789720779924},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54342\",\"readyMs\":1789720740181},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54352\",\"readyMs\":1789720779733}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6728
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/local-development/cli/config | sed -n '1,220p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/config"
+            }
+          ],
+          "resultChars": 579151
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 974024,
+        "cacheReadInputTokens": 902511,
+        "cacheWriteInputTokens": 71444,
+        "outputTokens": 5693
+      }
+    ],
+    "stepCount": 23,
+    "toolCallCount": 33,
+    "durationMs": 163852,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-cli-stable/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54332 (legacy/docker), feature-b: 127.0.0.1:54342 (legacy/docker), feature-c: 127.0.0.1:54352 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"stable\",\"stacksRunning\":3,\"fleetWallClockMs\":173808,\"supabaseStartInvocations\":8,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54332\",\"readyMs\":1789720796597},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54342\",\"readyMs\":1789720822028},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54352\",\"readyMs\":1789720742413}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -80; printf '\\\\n--- supabase init help ---\\\\n'; supabase init --help; printf '\\\\n--- start help ---\\\\n'; supabase start --help; printf '\\\\n--- status help ---\\\\n'; supabase status --help\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6977
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 922715,
+        "cacheReadInputTokens": 861540,
+        "cacheWriteInputTokens": 61100,
+        "outputTokens": 6109
+      }
+    ],
+    "stepCount": 25,
+    "toolCallCount": 34,
+    "durationMs": 203627,
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-cli-stable/build-cli-004-worktree-stacks/run-3/result.json"
+  }
+]
