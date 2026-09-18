@@ -49,10 +49,9 @@ export const grokRunner: AgentRunner<GrokModel> = {
   displayName: 'Grok Build',
   apiKeyEnvVar: 'XAI_API_KEY',
   cliPackage: '@xai-official/grok',
-  // Keep this version. The schema of the stream changes between releases, and
-  // the documentation in the CLI does not agree with the events that it sends.
-  // If you increase the version, examine the parser against a true run.
-  defaultCliVersion: '1.0.13',
+  // The CLI's own docs don't match the events it sends, so check the parser
+  // against a real transcript before bumping. See ./parser.ts.
+  defaultCliVersion: '1.0.34',
   defaultModel: DEFAULT_GROK_MODEL,
 
   async install(sandbox, version, apiKey) {

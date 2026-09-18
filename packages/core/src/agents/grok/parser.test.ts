@@ -391,7 +391,7 @@ describe('grok runner: GROK_HOME', () => {
 
   it('assigns GROK_HOME in the shell when unpacking the binary', async () => {
     const { sandbox, calls } = recordingSandbox();
-    await grokRunner.install(sandbox, '1.0.13', 'xai-test');
+    await grokRunner.install(sandbox, grokRunner.defaultCliVersion, 'xai-test');
     const warmup = calls.at(-1)!;
     expect(warmup.command).toContain(EXPANDS);
     expect(warmup.env).not.toHaveProperty('GROK_HOME');
