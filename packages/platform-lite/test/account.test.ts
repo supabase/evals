@@ -40,22 +40,20 @@ describe('account', () => {
     expect(created.region).toBe('eu-west-2');
   });
 
-  it('returns the overridden create project error response', async () => {
-    const app = await createTestApp([], {
-      createProject: {
-        status: 503,
-        body: { message: '{requested_region} is unavailable', statusCode: 503 },
-      },
-    });
+  it('refuses to create a project in an unavailable region', async () => {
+    const app = await createTestApp([], { unavailableRegions: ['eu-west-2'] });
 
-    const { status, data } = await request<{ message: string }>(
-      app,
-      'POST',
-      '/v1/projects',
-      { name: 'london', region: 'eu-west-2' }
-    );
+    const { status, data } = await request<{
+      statusCode: number;
+      error: string;
+      message: string;
+    }>(app, 'POST', '/v1/projects', { name: 'london', region: 'eu-west-2' });
     expect(status).toBe(503);
-    expect(data.message).toBe('eu-west-2 is unavailable');
+    expect(data).toEqual({
+      statusCode: 503,
+      error: 'Service Unavailable',
+      message: 'The eu-west-2 region is unavailable at the moment.',
+    });
 
     const { data: projects } = await request<unknown[]>(
       app,
@@ -65,29 +63,29 @@ describe('account', () => {
     expect(projects).toHaveLength(0);
   });
 
-  it('merges the create project override into the created project', async () => {
-    const app = await createTestApp([], {
-      createProject: {
-        region: 'us-east-1',
-        body: { message: 'Re-routed from {requested_region} to {region}' },
-      },
-    });
+  it('still creates projects in regions that are not unavailable', async () => {
+    const app = await createTestApp([], { unavailableRegions: ['eu-west-2'] });
+
+    const { status, data } = await request<{ region: string }>(
+      app,
+      'POST',
+      '/v1/projects',
+      { name: 'frankfurt', region: 'eu-central-1' }
+    );
+    expect(status).toBe(201);
+    expect(data.region).toBe('eu-central-1');
+  });
+
+  it('marks unavailable regions at capacity in available regions', async () => {
+    const app = await createTestApp([], { unavailableRegions: ['eu-west-2'] });
 
     const { status, data } = await request<{
-      ref: string;
-      region: string;
-      message: string;
-    }>(app, 'POST', '/v1/projects', { name: 'london', region: 'eu-west-2' });
-    expect(status).toBe(201);
-    expect(data.region).toBe('us-east-1');
-    expect(data.message).toBe('Re-routed from eu-west-2 to us-east-1');
-
-    const { data: fetched } = await request<{ region: string }>(
-      app,
-      'GET',
-      `/v1/projects/${data.ref}`
-    );
-    expect(fetched.region).toBe('us-east-1');
+      all: { specific: Array<{ code: string; status?: string }> };
+    }>(app, 'GET', '/v1/projects/available-regions');
+    expect(status).toBe(200);
+    const byCode = new Map(data.all.specific.map((r) => [r.code, r.status]));
+    expect(byCode.get('eu-west-2')).toBe('capacity');
+    expect(byCode.get('eu-central-1')).toBeUndefined();
   });
 
   it('transitions status on pause and restore', async () => {

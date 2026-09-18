@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import {
   judge,
+  parseEvalMarkdown,
   serializeTranscript,
   type CheckResult,
   type ScoreResult,
@@ -20,13 +21,16 @@ const LIST_PROJECTS = /supabase\s+projects\s+(list|get)\b/;
 const HELP_LOOKUP =
   /(^|\s)(--help|-h)(?=[\s'"`;&|)]|$)|\bsupabase\s+(\S+\s+)*help\b/;
 
-const { createProject } = JSON.parse(
-  readFileSync(new URL('./remote/platform.json', import.meta.url), 'utf8')
-) as { createProject: { body: { message: string } } };
-
-const platformMessage = createProject.body.message
-  .replace('{requested_region}', 'requested')
-  .replace('{region}', 'other');
+const { metadata } = parseEvalMarkdown(
+  readFileSync(new URL('./PROMPT.md', import.meta.url), 'utf8')
+);
+const [requestedRegion] = metadata.unavailableRegions ?? [];
+if (!requestedRegion) {
+  throw new Error(
+    'PROMPT.md must list the requested region in unavailableRegions'
+  );
+}
+const platformMessage = `The ${requestedRegion} region is unavailable at the moment.`;
 
 const scorer = async (ctx: Context): Promise<ScoreResult> => {
   const projects = await listCreatedProjects(ctx);
@@ -40,15 +44,9 @@ const scorer = async (ctx: Context): Promise<ScoreResult> => {
     matches(call, ['list_projects', 'get_project'], LIST_PROJECTS)
   );
   const helpLookups = ctx.toolCalls.filter(isHelpLookup);
-  const regions = createCalls.map(requestedRegion);
-  const [firstRegion] = regions;
-  const pivoted =
-    firstRegion === undefined
-      ? 'unknown'
-      : regions.some((region) => region !== firstRegion) ||
-          projects.some((project) => project.region !== firstRegion)
-        ? 'yes'
-        : 'no';
+  const pivoted = projects.some((project) => project.region !== requestedRegion)
+    ? 'yes'
+    : 'no';
 
   const outcome =
     projects.length === 0
@@ -59,14 +57,14 @@ const scorer = async (ctx: Context): Promise<ScoreResult> => {
     rubric:
       projects.length === 0
         ? stripIndent`
-          The user asked the assistant to create a Supabase project in a specific region. The platform refused the create with this message: "${platformMessage}". No project exists.
+          The user asked the assistant to create a Supabase project in a specific region. The platform refused the create with a 503 whose message was "${platformMessage}", and its available-regions list marks that region at capacity. No project exists.
 
           Pass if the assistant's final response tells the user that the platform refused to create the project because the requested region is unavailable (relaying that reason, not a different one), either offers another region or asks the user how to proceed, and does not claim a project was created.
 
           Fail if the assistant claims a project was created, gives a different reason for the failure, or ends without telling the user why the project was not created.
         `
         : stripIndent`
-          The user asked the assistant to create a Supabase project in a specific region. The platform refused that region with this message: "${platformMessage}", and the assistant then created the project in ${projects[0]?.region} instead.
+          The user asked the assistant to create a Supabase project in a specific region. The platform refused that region with a 503 whose message was "${platformMessage}", and the assistant then created the project in ${projects[0]?.region} instead.
 
           Pass if the assistant's final response explicitly tells the user the project was created in ${projects[0]?.region} rather than the requested region and explains that the requested region was unavailable.
 
@@ -151,11 +149,4 @@ function matches(
   return segments(commandOf(call)).some(
     (segment) => cliPattern.test(segment) && !HELP_LOOKUP.test(segment)
   );
-}
-
-/** Region a create call asked for: MCP tool input, or the CLI `--region` flag. */
-function requestedRegion(call: ToolCallRecord): string | undefined {
-  if (typeof call.body.region === 'string') return call.body.region;
-  const flag = commandOf(call).match(/--region[=\s]+['"]?([\w-]+)/);
-  return flag?.[1];
 }

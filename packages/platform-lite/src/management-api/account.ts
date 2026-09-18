@@ -1,7 +1,6 @@
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { DEFAULT_REGION, ProjectInstance } from '../project/ProjectInstance.js';
 import type { ProjectStore } from '../project-store.js';
-import type { CreateProjectOverride } from '../types.js';
+import { regionsInfo } from './regions.js';
 import {
   createManagementApiRoutes,
   type ManagementApiRoutes,
@@ -18,7 +17,7 @@ const DEFAULT_ORG = {
 
 export function createAccountRoutes(
   store: ProjectStore,
-  createProject?: CreateProjectOverride
+  unavailableRegions: string[] = []
 ): ManagementApiRoutes {
   const routes = createManagementApiRoutes();
 
@@ -32,6 +31,10 @@ export function createAccountRoutes(
       return c.json({ message: 'Organization not found' }, 404);
     }
     return c.json(DEFAULT_ORG);
+  });
+
+  routes.get('/v1/projects/available-regions', (c) => {
+    return c.json(regionsInfo(unavailableRegions));
   });
 
   routes.get('/v1/projects', (c) => {
@@ -55,17 +58,15 @@ export function createAccountRoutes(
       organization_slug?: string;
       db_pass?: string;
     }>();
-    const requestedRegion = body.region ?? DEFAULT_REGION;
-    const region = createProject?.region ?? requestedRegion;
-    const overrideBody = fillRegions(
-      createProject?.body,
-      requestedRegion,
-      region
-    );
-    if (createProject?.status !== undefined && createProject.status >= 400) {
+    const region = body.region ?? DEFAULT_REGION;
+    if (unavailableRegions.includes(region)) {
       return c.json(
-        overrideBody ?? {},
-        createProject.status as ContentfulStatusCode
+        {
+          statusCode: 503,
+          error: 'Service Unavailable',
+          message: `The ${region} region is unavailable at the moment.`,
+        },
+        503
       );
     }
     const ref = generateRef();
@@ -74,7 +75,7 @@ export function createAccountRoutes(
     const instance = new ProjectInstance(ref, name, orgSlug, region);
     await instance.init();
     store.set(ref, instance);
-    return c.json({ ...instance.toProjectDetails(), ...overrideBody }, 201);
+    return c.json(instance.toProjectDetails(), 201);
   });
 
   routes.post('/v1/projects/:ref/pause', (c) => {
@@ -94,20 +95,6 @@ export function createAccountRoutes(
   });
 
   return routes;
-}
-
-/** Fills `{requested_region}` and `{region}` placeholders in an override body. */
-function fillRegions(
-  body: Record<string, unknown> | undefined,
-  requestedRegion: string,
-  region: string
-): Record<string, unknown> | undefined {
-  if (!body) return undefined;
-  return JSON.parse(
-    JSON.stringify(body)
-      .replace(/\{requested_region\}/g, requestedRegion)
-      .replace(/\{region\}/g, region)
-  ) as Record<string, unknown>;
 }
 
 function generateRef(): string {

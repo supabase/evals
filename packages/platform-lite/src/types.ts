@@ -23,15 +23,10 @@ export type ProjectSeed = {
   pgvector?: boolean;
 };
 
-export type CreateProjectOverride = {
-  status?: number;
-  region?: string;
-  body?: Record<string, unknown>;
-};
-
 export type AppOptions = {
   seedDir?: string;
   projects?: ProjectSeed[];
   accessToken?: string;
-  createProject?: CreateProjectOverride;
+  /** Regions that refuse project creation with the platform's 503 and show as at capacity. */
+  unavailableRegions?: string[];
 };

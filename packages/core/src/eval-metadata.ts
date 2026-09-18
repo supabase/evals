@@ -152,6 +152,12 @@ export type EvalMetadata = {
    * with `projectRunning: false`.
    */
   skipCliInstall?: boolean;
+  /**
+   * Regions the mocked platform (platform-lite) treats as unavailable: project
+   * creation there returns the platform's 503 and available-regions marks them
+   * at capacity. Omit for every region available.
+   */
+  unavailableRegions?: string[];
 };
 
 export type ParsedEvalMarkdown = {
@@ -173,6 +179,7 @@ export const evalMetadataSchema = z.object({
   hostedProject: z.union([z.boolean(), z.stringbool()]).optional(),
   skills: z.array(z.string().min(1)).optional(),
   skipCliInstall: z.union([z.boolean(), z.stringbool()]).optional(),
+  unavailableRegions: z.array(z.string().min(1)).optional(),
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
@@ -251,6 +258,10 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
       ? toIdentifierList(data.skills)
       : undefined,
     skipCliInstall: data.skipCliInstall,
+    unavailableRegions:
+      data.unavailableRegions === undefined
+        ? undefined
+        : toIdentifierList(data.unavailableRegions),
   };
 }, evalMetadataSchema);
 

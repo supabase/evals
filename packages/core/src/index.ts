@@ -33,7 +33,6 @@ import {
   createManagementApiClient,
   createPlatform,
   loadFunctionSeeds,
-  type AppOptions,
   type ManagementApiClient,
   type PgServerHandle,
   type PlatformHandle,
@@ -859,7 +858,7 @@ export type EvalSessionArgs = {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
-  platformSeedJson?: string;
+  unavailableRegions?: string[];
   pgvector?: boolean;
   /**
    * Host to bind the platform-lite server to. Defaults to 127.0.0.1 (host-side,
@@ -1320,8 +1319,8 @@ export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
-  /** JSON file overriding platform-lite responses (`{ "createProject": { status, region, body } }`). */
-  platformSeedJson?: string;
+  /** Regions where platform-lite refuses project creation (see `unavailableRegions` frontmatter). */
+  unavailableRegions?: string[];
   pgvector?: boolean;
   /** Management API access token; defaults to the in-process eval token. */
   accessToken?: string;
@@ -1349,21 +1348,13 @@ export async function bootPlatformBackend(opts: {
     ? await loadFunctionSeeds(opts.functionsSeedDir)
     : undefined;
 
-  const platformSeed =
-    opts.platformSeedJson && existsSync(opts.platformSeedJson)
-      ? (JSON.parse(readFileSync(opts.platformSeedJson, 'utf8')) as Pick<
-          AppOptions,
-          'createProject'
-        >)
-      : undefined;
-
   const accessToken = opts.accessToken ?? ACCESS_TOKEN;
   const platform = await createPlatform({
     accessToken,
     projects: [
       { ref: opts.ref, sql, logs, functions, pgvector: opts.pgvector },
     ],
-    createProject: platformSeed?.createProject,
+    unavailableRegions: opts.unavailableRegions,
   });
 
   let server: ServerHandle | undefined;
