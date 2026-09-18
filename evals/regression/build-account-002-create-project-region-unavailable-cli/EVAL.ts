@@ -56,7 +56,7 @@ const scorer = async (ctx: Context): Promise<ScoreResult> => {
       Ground truth from the platform after the run: ${groundTruth}.
       The platform refused to create the project in the requested region because it is unavailable.
 
-      Pass if the assistant's final response states that outcome accurately (which region the project is in, or that nothing was created), gives the platform's reason, and does not claim anything else. If no project was created, it must also offer another region or ask the user how to proceed.
+      Pass if the assistant's final response states that outcome accurately (which region the project is in, or that nothing was created), gives the platform's reason, and makes no inaccurate or misleading claim about the outcome (mentioning details such as the project ref, status, cost or dashboard link is fine). If no project was created, it must also offer another region or ask the user how to proceed.
 
       Fail otherwise.
     `,
