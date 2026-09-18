@@ -29,12 +29,8 @@
  * contains the output. Thus this parser keeps the data of the call, and sends
  * one `tool_result` event at the end.
  *
- * The CLI has one limit. It sends a web search as `{variant: 'WebSearch',
- * backend: true}`, with no query and no result, because xAI does the search on
- * its servers. This parser counts a `web_search` tool call. But
- * `docs-results.ts` needs a query, thus a Grok web search cannot become a
- * documentation call. Grok has two other methods to read the documentation:
- * `search_docs` through MCP, and `curl` in the shell. This parser records both.
+ * xAI runs web search on its servers and returns a synthesized answer with a
+ * `citations` array of the urls it examined.
  */
 
 import { isRecord, parseJsonlRecords } from '../../json.js';
