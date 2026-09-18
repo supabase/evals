@@ -4,11 +4,13 @@ import {
   platformLiteRuntime,
   supabaseMcpServer,
 } from '@supabase-evals/core';
-import { localStackRuntime } from '@supabase-evals/sandbox';
+import {
+  dockerAwareLocalStackRuntime,
+  skipUnlessCli,
+} from './_lib/docker-aware-local-stack.js';
 
 export default defineExperiment({
-  // cli: the pinned-CLI baseline column for CLI-team evals.
-  suite: ['benchmark', 'regression', 'cli'],
+  suite: ['cli'],
   agent: codexAgent({
     model: 'gpt-5.6-luna',
     reasoningEffort: 'medium',
@@ -16,6 +18,7 @@ export default defineExperiment({
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],
   }),
-  localStack: localStackRuntime(),
+  localStack: dockerAwareLocalStackRuntime({ channel: 'beta' }),
   skills: ['supabase', 'supabase-postgres-best-practices'],
+  skipEval: skipUnlessCli,
 });
