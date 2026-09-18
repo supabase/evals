@@ -326,6 +326,7 @@ function readSessionSeedArgs(ev: EvalManifest) {
       ? functionsSeedDir
       : undefined,
     unavailableRegions: ev.metadata.unavailableRegions,
+    rerouteRegions: ev.metadata.rerouteRegions,
     pgvector: ev.metadata.product.includes('vectors'),
   };
 }

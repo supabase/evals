@@ -16,7 +16,8 @@ const DEFAULT_ORG = {
 
 export function createAccountRoutes(
   store: ProjectStore,
-  unavailableRegions: string[] = []
+  unavailableRegions: string[] = [],
+  rerouteRegions: Record<string, string> = {}
 ): ManagementApiRoutes {
   const routes = createManagementApiRoutes();
 
@@ -53,22 +54,32 @@ export function createAccountRoutes(
       organization_slug?: string;
       db_pass?: string;
     }>();
-    const region = body.region ?? DEFAULT_REGION;
-    if (unavailableRegions.includes(region)) {
+    const requestedRegion = body.region ?? DEFAULT_REGION;
+    if (unavailableRegions.includes(requestedRegion)) {
       return c.json(
         {
-          message: `The ${region} region is unavailable at the moment. Visit https://status.supabase.com for further updates.`,
+          message: `The ${requestedRegion} region is unavailable at the moment. Visit https://status.supabase.com for further updates.`,
         },
         503
       );
     }
+    const region = rerouteRegions[requestedRegion] ?? requestedRegion;
     const ref = generateRef();
     const name = body.name ?? ref;
     const orgSlug = body.organization_slug ?? DEFAULT_ORG.slug;
     const instance = new ProjectInstance(ref, name, orgSlug, region);
     await instance.init();
     store.set(ref, instance);
-    return c.json(instance.toProjectDetails(), 201);
+    if (region === requestedRegion) {
+      return c.json(instance.toProjectDetails(), 201);
+    }
+    return c.json(
+      {
+        ...instance.toProjectDetails(),
+        message: `WARNING: the ${requestedRegion} region is currently unavailable. Your project was created in ${region} instead.`,
+      },
+      201
+    );
   });
 
   routes.post('/v1/projects/:ref/pause', (c) => {

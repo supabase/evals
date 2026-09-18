@@ -5,6 +5,8 @@ product:
   - database
 topic:
   - observability
+rerouteRegions:
+  eu-west-2: us-east-1
 motivation: >-
   Explores how agents behave in a hypothetical scenario where project creation succeeds in a different region than requested, with an explicit warning.
 ---

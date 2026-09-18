@@ -157,6 +157,11 @@ export type EvalMetadata = {
    * creation there returns the platform's 503. Omit for every region available.
    */
   unavailableRegions?: string[];
+  /**
+   * Regions the mocked platform reroutes: a project requested in a key region
+   * is created in the value region, and the create response warns about it.
+   */
+  rerouteRegions?: Record<string, string>;
 };
 
 export type ParsedEvalMarkdown = {
@@ -179,6 +184,7 @@ export const evalMetadataSchema = z.object({
   skills: z.array(z.string().min(1)).optional(),
   skipCliInstall: z.union([z.boolean(), z.stringbool()]).optional(),
   unavailableRegions: z.array(z.string().min(1)).optional(),
+  rerouteRegions: z.record(z.string().min(1), z.string().min(1)).optional(),
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
@@ -261,6 +267,7 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
       data.unavailableRegions === undefined
         ? undefined
         : toIdentifierList(data.unavailableRegions),
+    rerouteRegions: data.rerouteRegions,
   };
 }, evalMetadataSchema);
 
