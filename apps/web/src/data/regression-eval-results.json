@@ -18,7 +18,7 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "at most one project exists at the end",
@@ -31,12 +31,12 @@
       },
       {
         "name": "accurately told the user the outcome for the requested region",
-        "passed": true,
+        "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "Accurately states that no project was created because eu-west-2 (London) was unavailable, and offers to retry later or use another region."
+        "judgeNotes": "It accurately states that no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks the user how to proceed."
       },
       {
-        "name": "metric: create attempts = 1",
+        "name": "metric: create attempts = 2",
         "passed": true
       },
       {
@@ -73,49 +73,21 @@
             }
           ],
           "resultChars": 6649
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"create project region organization database password\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
-              "title": "Supabase for Platforms"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
-              "title": "Backup and Restore using the CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/multigres",
-              "title": "Multigres"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles",
-              "title": "Postgres Roles"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/quickstarts/face-similarity",
-              "title": "Face similarity search"
-            }
-          ],
-          "resultChars": 70610
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 216403,
-        "cacheReadInputTokens": 169460,
-        "cacheWriteInputTokens": 46919,
-        "outputTokens": 1255
+        "inputTokens": 207446,
+        "cacheReadInputTokens": 166860,
+        "cacheWriteInputTokens": 40559,
+        "outputTokens": 1209
       }
     ],
-    "stepCount": 8,
+    "stepCount": 9,
     "toolCallCount": 8,
-    "durationMs": 13722,
+    "durationMs": 15241,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-001-create-project-region-unavailable/PROMPT.md",
     "run": 1,
@@ -155,89 +127,7 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately says no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks how to proceed. It also adds an unnecessary status-page claim."
-      },
-      {
-        "name": "metric: create attempts = 2",
-        "passed": true
-      },
-      {
-        "name": "metric: delete attempts = 0",
-        "passed": true
-      },
-      {
-        "name": "metric: verified with a list call = yes",
-        "passed": true
-      },
-      {
-        "name": "metric: pivoted to another region = no",
-        "passed": true
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "usage": [
-      {
-        "model": "gpt-5.6-luna",
-        "inputTokens": 224624,
-        "cacheReadInputTokens": 185724,
-        "cacheWriteInputTokens": 38870,
-        "outputTokens": 1119
-      }
-    ],
-    "stepCount": 10,
-    "toolCallCount": 8,
-    "durationMs": 14896,
-    "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
-    "promptSourcePath": "evals/regression/build-account-001-create-project-region-unavailable/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-5.6-luna/build-account-001-create-project-region-unavailable/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-5.6-luna",
-    "experimentSuite": "regression",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-5.6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "build-account-001-create-project-region-unavailable",
-    "stage": "build",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "observability"
-    ],
-    "suite": "regression",
-    "interface": "mcp",
-    "passed": false,
-    "checks": [
-      {
-        "name": "at most one project exists at the end",
-        "passed": true,
-        "notes": "no projects created"
-      },
-      {
-        "name": "did not attempt to delete a project",
-        "passed": true
-      },
-      {
-        "name": "accurately told the user the outcome for the requested region",
-        "passed": false,
-        "notes": "no project exists",
-        "judgeNotes": "It accurately says nothing was created because eu-west-2 was unavailable, but it neither offers another region nor asks how the user wants to proceed."
+        "judgeNotes": "It accurately states that no project was created because eu-west-2 was unavailable, but it neither offers an alternative region nor asks how the user wants to proceed."
       },
       {
         "name": "metric: create attempts = 2",
@@ -269,29 +159,123 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -i -m 5 'breaking-change|project|region' || true\"",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 6698
+          "resultChars": 766
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 207485,
-        "cacheReadInputTokens": 166895,
-        "cacheWriteInputTokens": 40563,
-        "outputTokens": 1228
+        "inputTokens": 197672,
+        "cacheReadInputTokens": 158726,
+        "cacheWriteInputTokens": 38919,
+        "outputTokens": 1135
       }
     ],
     "stepCount": 9,
     "toolCallCount": 8,
-    "durationMs": 15801,
+    "durationMs": 14779,
+    "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
+    "promptSourcePath": "evals/regression/build-account-001-create-project-region-unavailable/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna/build-account-001-create-project-region-unavailable/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-account-001-create-project-region-unavailable",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "at most one project exists at the end",
+        "passed": true,
+        "notes": "no projects created"
+      },
+      {
+        "name": "did not attempt to delete a project",
+        "passed": true
+      },
+      {
+        "name": "accurately told the user the outcome for the requested region",
+        "passed": true,
+        "notes": "no project exists",
+        "judgeNotes": "Accurately states that no project was created because eu-west-2 was temporarily unavailable, and offers to retry or use another authorized region."
+      },
+      {
+        "name": "metric: create attempts = 2",
+        "passed": true
+      },
+      {
+        "name": "metric: delete attempts = 0",
+        "passed": true
+      },
+      {
+        "name": "metric: verified with a list call = yes",
+        "passed": true
+      },
+      {
+        "name": "metric: pivoted to another region = no",
+        "passed": true
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4296
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 232660,
+        "cacheReadInputTokens": 192580,
+        "cacheWriteInputTokens": 40050,
+        "outputTokens": 1249
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 9,
+    "durationMs": 15133,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-001-create-project-region-unavailable/PROMPT.md",
     "run": 3,
@@ -331,10 +315,10 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately states that no project was created and that eu-west-2 was unavailable, but it neither offers another region nor asks the user how to proceed."
+        "judgeNotes": "It accurately says no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks how the user wants to proceed."
       },
       {
-        "name": "metric: create attempts = 3",
+        "name": "metric: create attempts = 2",
         "passed": true
       },
       {
@@ -359,35 +343,41 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase"
+      ]
     },
     "docs": {
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -i -m 5 'breaking-change|project|region' || true\"",
-          "hasContent": true,
+          "query": "/bin/bash -lc 'curl -L --max-time 20 -s https://supabase.com/changelog.md | head -80'",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 766
+          "resultChars": 4247
+        },
+        {
+          "source": "web_search",
+          "query": "site:status.supabase.com eu-west-2 Supabase region unavailable",
+          "pages": []
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 263618,
-        "cacheReadInputTokens": 237313,
-        "cacheWriteInputTokens": 26263,
-        "outputTokens": 2024
+        "inputTokens": 177516,
+        "cacheReadInputTokens": 142751,
+        "cacheWriteInputTokens": 34735,
+        "outputTokens": 1753
       }
     ],
-    "stepCount": 14,
-    "toolCallCount": 11,
-    "durationMs": 31929,
+    "stepCount": 10,
+    "toolCallCount": 9,
+    "durationMs": 22204,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-002-create-project-region-unavailable-cli/PROMPT.md",
     "run": 1,
@@ -427,14 +417,14 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately reports that no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks the user how to proceed."
+        "judgeNotes": "It accurately states that no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks how the user wants to proceed."
       },
       {
         "name": "metric: create attempts = 2",
         "passed": true
       },
       {
-        "name": "metric: help lookups = 6",
+        "name": "metric: help lookups = 2",
         "passed": true
       },
       {
@@ -463,29 +453,49 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,80p'\"",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 4247
+          "resultChars": 4296
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging project creation region unavailable\", limit: 3) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/multigres",
+              "title": "Multigres"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            }
+          ],
+          "resultChars": 22698
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 241366,
-        "cacheReadInputTokens": 196702,
-        "cacheWriteInputTokens": 44628,
-        "outputTokens": 1861
+        "inputTokens": 283629,
+        "cacheReadInputTokens": 240558,
+        "cacheWriteInputTokens": 43029,
+        "outputTokens": 2250
       }
     ],
-    "stepCount": 12,
-    "toolCallCount": 15,
-    "durationMs": 27231,
+    "stepCount": 14,
+    "toolCallCount": 12,
+    "durationMs": 28283,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-002-create-project-region-unavailable-cli/PROMPT.md",
     "run": 2,
@@ -525,14 +535,14 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately says no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks how to proceed. It also adds unrelated claims about credentials and organization validity."
+        "judgeNotes": "It accurately states that no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks the user how to proceed."
       },
       {
-        "name": "metric: create attempts = 1",
+        "name": "metric: create attempts = 2",
         "passed": true
       },
       {
-        "name": "metric: help lookups = 2",
+        "name": "metric: help lookups = 3",
         "passed": true
       },
       {
@@ -561,28 +571,28 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -L --max-time 15 -s https://supabase.com/changelog.md | sed -n '1,100p'\"",
+          "query": "/bin/bash -lc \"supabase --version; supabase projects --help 2>&1 | sed -n '1,220p'; curl -L --max-time 15 -s https://supabase.com/changelog.md | sed -n '1,80p'\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 5223
+          "resultChars": 6465
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 204632,
-        "cacheReadInputTokens": 160658,
-        "cacheWriteInputTokens": 43941,
-        "outputTokens": 1381
+        "inputTokens": 206138,
+        "cacheReadInputTokens": 168126,
+        "cacheWriteInputTokens": 37979,
+        "outputTokens": 1667
       }
     ],
     "stepCount": 11,
     "toolCallCount": 8,
-    "durationMs": 45543,
+    "durationMs": 22260,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-002-create-project-region-unavailable-cli/PROMPT.md",
     "run": 3,
@@ -3994,7 +4004,7 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately says no project was created because eu-west-2 was temporarily unavailable, but it neither offers another region nor asks how the user wants to proceed."
+        "judgeNotes": "It accurately says no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks how the user wants to proceed."
       },
       {
         "name": "metric: create attempts = 2",
@@ -4023,15 +4033,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 157514,
-        "cacheReadInputTokens": 132884,
-        "cacheWriteInputTokens": 24606,
-        "outputTokens": 902
+        "inputTokens": 210429,
+        "cacheReadInputTokens": 172456,
+        "cacheWriteInputTokens": 37943,
+        "outputTokens": 1078
       }
     ],
-    "stepCount": 8,
+    "stepCount": 10,
     "toolCallCount": 6,
-    "durationMs": 17377,
+    "durationMs": 19168,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-001-create-project-region-unavailable/PROMPT.md",
     "run": 1,
@@ -4071,10 +4081,10 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately says no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks how to proceed."
+        "judgeNotes": "It accurately states that no project was created because eu-west-2 is unavailable, but fails to offer another region or ask how the user wants to proceed."
       },
       {
-        "name": "metric: create attempts = 2",
+        "name": "metric: create attempts = 1",
         "passed": true
       },
       {
@@ -4100,15 +4110,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 263670,
-        "cacheReadInputTokens": 229132,
-        "cacheWriteInputTokens": 34496,
-        "outputTokens": 1500
+        "inputTokens": 178552,
+        "cacheReadInputTokens": 144949,
+        "cacheWriteInputTokens": 33576,
+        "outputTokens": 846
       }
     ],
-    "stepCount": 14,
-    "toolCallCount": 9,
-    "durationMs": 24765,
+    "stepCount": 9,
+    "toolCallCount": 5,
+    "durationMs": 26382,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-001-create-project-region-unavailable/PROMPT.md",
     "run": 2,
@@ -4148,7 +4158,7 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately says no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks how the user wants to proceed."
+        "judgeNotes": "It accurately states no project was created because eu-west-2 was temporarily unavailable, but it neither offers another region nor asks the user how to proceed."
       },
       {
         "name": "metric: create attempts = 2",
@@ -4159,7 +4169,7 @@
         "passed": true
       },
       {
-        "name": "metric: verified with a list call = yes",
+        "name": "metric: verified with a list call = no",
         "passed": true
       },
       {
@@ -4177,15 +4187,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 233895,
-        "cacheReadInputTokens": 197663,
-        "cacheWriteInputTokens": 36196,
-        "outputTokens": 1179
+        "inputTokens": 128616,
+        "cacheReadInputTokens": 108412,
+        "cacheWriteInputTokens": 20183,
+        "outputTokens": 828
       }
     ],
-    "stepCount": 12,
-    "toolCallCount": 8,
-    "durationMs": 20557,
+    "stepCount": 7,
+    "toolCallCount": 5,
+    "durationMs": 22073,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-001-create-project-region-unavailable/PROMPT.md",
     "run": 3,
@@ -4225,10 +4235,10 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately states that no project was created because eu-west-2 is unavailable, but it does not offer another region or ask how the user wants to proceed."
+        "judgeNotes": "Accurately states no project was created because eu-west-2 was unavailable, but does not offer an alternative region or explicitly ask how the user wants to proceed."
       },
       {
-        "name": "metric: create attempts = 3",
+        "name": "metric: create attempts = 2",
         "passed": true
       },
       {
@@ -4258,15 +4268,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 118698,
-        "cacheReadInputTokens": 95272,
-        "cacheWriteInputTokens": 23396,
-        "outputTokens": 1575
+        "inputTokens": 192396,
+        "cacheReadInputTokens": 157072,
+        "cacheWriteInputTokens": 35294,
+        "outputTokens": 1356
       }
     ],
     "stepCount": 10,
-    "toolCallCount": 8,
-    "durationMs": 23456,
+    "toolCallCount": 7,
+    "durationMs": 22178,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-002-create-project-region-unavailable-cli/PROMPT.md",
     "run": 1,
@@ -4306,10 +4316,10 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "It accurately states that no project was created because eu-west-2 is unavailable, but it neither offers another region nor asks how the user wants to proceed."
+        "judgeNotes": "It accurately states that no project was created because eu-west-2 was unavailable, but it neither offers another region nor asks how the user wants to proceed."
       },
       {
-        "name": "metric: create attempts = 1",
+        "name": "metric: create attempts = 3",
         "passed": true
       },
       {
@@ -4339,15 +4349,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 80750,
-        "cacheReadInputTokens": 57726,
-        "cacheWriteInputTokens": 23003,
-        "outputTokens": 1045
+        "inputTokens": 169265,
+        "cacheReadInputTokens": 139688,
+        "cacheWriteInputTokens": 29541,
+        "outputTokens": 2118
       }
     ],
-    "stepCount": 7,
-    "toolCallCount": 5,
-    "durationMs": 14056,
+    "stepCount": 12,
+    "toolCallCount": 9,
+    "durationMs": 36588,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-002-create-project-region-unavailable-cli/PROMPT.md",
     "run": 2,
@@ -4387,7 +4397,7 @@
         "name": "accurately told the user the outcome for the requested region",
         "passed": false,
         "notes": "no project exists",
-        "judgeNotes": "No project was created and the reason was accurate, but the response did not offer another region or ask how the user wanted to proceed."
+        "judgeNotes": "Accurately states that no project was created because eu-west-2 was unavailable, but fails to offer another region or ask how the user wants to proceed."
       },
       {
         "name": "metric: create attempts = 2",
@@ -4420,15 +4430,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 126816,
-        "cacheReadInputTokens": 101943,
-        "cacheWriteInputTokens": 24843,
-        "outputTokens": 1391
+        "inputTokens": 117335,
+        "cacheReadInputTokens": 89360,
+        "cacheWriteInputTokens": 27948,
+        "outputTokens": 1343
       }
     ],
-    "stepCount": 10,
-    "toolCallCount": 8,
-    "durationMs": 25318,
+    "stepCount": 9,
+    "toolCallCount": 7,
+    "durationMs": 20964,
     "prompt": "Create a new Supabase project called acme-web in the eu-west-2 (London) region for my Default Organization org. I have already reviewed and accepted any costs for this project, so do not ask me to confirm them; use a generated database password.",
     "promptSourcePath": "evals/regression/build-account-002-create-project-region-unavailable-cli/PROMPT.md",
     "run": 3,
