@@ -15,12 +15,6 @@ type Context = Pick<
   'mgmt' | 'ref' | 'toolCalls' | 'transcript'
 >;
 
-const CREATE_PROJECT = /supabase\s+projects\s+create\b/;
-const DELETE_PROJECT = /supabase\s+projects\s+delete\b/;
-const LIST_PROJECTS = /supabase\s+projects\s+(list|get)\b/;
-const HELP_LOOKUP =
-  /(^|\s)(--help|-h)(?=[\s'"`;&|)]|$)|\bsupabase\s+(\S+\s+)*help\b/;
-
 const { metadata } = parseEvalMarkdown(
   readFileSync(new URL('./PROMPT.md', import.meta.url), 'utf8')
 );
@@ -33,16 +27,9 @@ const platformMessage = `WARNING: the ${requestedRegion} region is currently una
 
 const scorer = async (ctx: Context): Promise<ScoreResult> => {
   const projects = await listCreatedProjects(ctx);
-  const createCalls = ctx.toolCalls.filter((call) =>
-    matches(call, ['create_project'], CREATE_PROJECT)
-  );
-  const deleteCalls = ctx.toolCalls.filter((call) =>
-    matches(call, ['delete_project'], DELETE_PROJECT)
-  );
-  const listCalls = ctx.toolCalls.filter((call) =>
-    matches(call, ['list_projects', 'get_project'], LIST_PROJECTS)
-  );
-  const helpLookups = ctx.toolCalls.filter(isHelpLookup);
+  const createCalls = mcpCalls(ctx.toolCalls, ['create_project']);
+  const deleteCalls = mcpCalls(ctx.toolCalls, ['delete_project']);
+  const listCalls = mcpCalls(ctx.toolCalls, ['list_projects', 'get_project']);
 
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript),
@@ -71,7 +58,6 @@ const scorer = async (ctx: Context): Promise<ScoreResult> => {
       judgeNotes: verdict.notes,
     },
     metric('create attempts', createCalls.length),
-    metric('help lookups', helpLookups.length),
     metric('delete attempts', deleteCalls.length),
     metric('verified with a list call', listCalls.length > 0 ? 'yes' : 'no'),
   ];
@@ -106,28 +92,11 @@ function metric(name: string, value: string | number): CheckResult {
   return { name: `metric: ${name} = ${value}`, passed: true };
 }
 
-function commandOf(call: ToolCallRecord): string {
-  return (
-    call.command ??
-    (typeof call.body.command === 'string' ? call.body.command : '')
-  );
-}
-
-function segments(command: string): string[] {
-  return command.split(/&&|\|\||[;|\n]/);
-}
-
-function isHelpLookup(call: ToolCallRecord): boolean {
-  return segments(commandOf(call)).some((segment) => HELP_LOOKUP.test(segment));
-}
-
-function matches(
-  call: ToolCallRecord,
-  toolNames: string[],
-  cliPattern: RegExp
-): boolean {
-  if (toolNames.includes(call.tool.toolName)) return true;
-  return segments(commandOf(call)).some(
-    (segment) => cliPattern.test(segment) && !HELP_LOOKUP.test(segment)
+function mcpCalls(
+  calls: ToolCallRecord[],
+  toolNames: string[]
+): ToolCallRecord[] {
+  return calls.filter(
+    (call) => call.tool.kind === 'mcp' && toolNames.includes(call.tool.toolName)
   );
 }
