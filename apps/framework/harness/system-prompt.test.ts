@@ -7,7 +7,12 @@ import {
 } from '@supabase-evals/sandbox';
 import { buildSystemPrompt } from './system-prompt.js';
 
-const CLI_AGENTS: AgentHarnessId[] = ['claude-code', 'codex', 'opencode'];
+const CLI_AGENTS: AgentHarnessId[] = [
+  'claude-code',
+  'codex',
+  'grok',
+  'opencode',
+];
 
 const skills: SkillEntry[] = [
   {

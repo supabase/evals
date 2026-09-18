@@ -12,6 +12,7 @@
  *
  *   - `.claude/skills/`  — Claude Code's project scope.
  *   - `.agents/skills/`  — Codex's and OpenCode's project scope.
+ *   - `.grok/skills/`    — Grok Build's project scope.
  *
  * Each CLI then discovers, advertises and loads the skills itself, in its own
  * words (Codex injects a `<skills_instructions>` block, OpenCode exposes a
@@ -26,12 +27,14 @@ import type { AgentHarnessId, SkillSource } from '@supabase-evals/core';
 import type { DockerSandbox } from './docker-sandbox.js';
 
 /** Version of Vercel's `skills` CLI baked into the sandbox image (pinned). */
-export const SKILLS_CLI_VERSION = '1.5.11';
+export const SKILLS_CLI_VERSION = '1.7.0';
 
 /** Claude Code's project scope. */
 const CLAUDE_CODE_SKILLS_DIR = '.claude/skills';
 /** Codex's and OpenCode's shared project scope. */
 const AGENTS_SKILLS_DIR = '.agents/skills';
+/** Grok Build's project scope. */
+const GROK_SKILLS_DIR = '.grok/skills';
 
 /**
  * The workspace-relative project scope each harness discovers skills in, or
@@ -47,11 +50,7 @@ const SKILLS_PATH_BY_AGENT: Record<AgentHarnessId, string | null> = {
   'ai-sdk': null,
   'claude-code': CLAUDE_CODE_SKILLS_DIR,
   codex: AGENTS_SKILLS_DIR,
-  // Grok Build reads `.claude/skills` natively, but the skills CLI has no
-  // `grok` agent id and rejects the whole install when one is named. So grok
-  // is `null` here, and the `claude-code` entry above populates the directory
-  // that grok reads.
-  grok: null,
+  grok: GROK_SKILLS_DIR,
   opencode: AGENTS_SKILLS_DIR,
 };
 
@@ -67,14 +66,14 @@ for (const id of agentHarnessIdSchema.options) {
 /**
  * `skills add --agent` ids we install for — every harness with a project scope.
  * Installed unconditionally rather than only for the experiment's own harness:
- * the ids collapse to just two directories, an unused one costs a directory
+ * the ids collapse to a handful of directories, an unused one costs a directory
  * copy of a few kilobytes, and keeping one code path means no agent id has to
  * be threaded through `createAgentEnvironment` for correctness.
  *
  * Naming them explicitly also matters. With no `--agent` flag the CLI falls
  * back to *every* agent it knows when it cannot detect an installed one,
- * littering the scored, exported workspace with ~52 stray entries. That
- * fallback does happen to cover both directories we want, so it is not why
+ * littering the scored, exported workspace with dozens of stray entries. That
+ * fallback does happen to cover the directories we want, so it is not why
  * skills reach an agent; it is a workspace-pollution and determinism problem.
  * Detection depends on the surrounding environment, so naming the agents is
  * what makes the install predictable.
@@ -216,7 +215,7 @@ export async function installSkills(
   }
 
   // `skills add <dir>` installs into the cwd's project scopes, and runShell's
-  // cwd is the workspace, so skills land in <workspace>/{.claude,.agents}/skills.
+  // cwd is the workspace, so skills land in <workspace>/{.claude,.agents,.grok}/skills.
   const install = await sandbox.runShell(buildSkillsAddCommand());
   if (!install.ok) {
     throw new Error(
