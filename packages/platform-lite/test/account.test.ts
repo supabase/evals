@@ -76,18 +76,6 @@ describe('account', () => {
     expect(data.region).toBe('eu-central-1');
   });
 
-  it('marks unavailable regions at capacity in available regions', async () => {
-    const app = await createTestApp([], { unavailableRegions: ['eu-west-2'] });
-
-    const { status, data } = await request<{
-      all: { specific: Array<{ code: string; status?: string }> };
-    }>(app, 'GET', '/v1/projects/available-regions');
-    expect(status).toBe(200);
-    const byCode = new Map(data.all.specific.map((r) => [r.code, r.status]));
-    expect(byCode.get('eu-west-2')).toBe('capacity');
-    expect(byCode.get('eu-central-1')).toBeUndefined();
-  });
-
   it('transitions status on pause and restore', async () => {
     const app = await createTestApp([{ ref: 'my-proj', name: 'My Project' }]);
 

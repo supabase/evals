@@ -1,6 +1,5 @@
 import { DEFAULT_REGION, ProjectInstance } from '../project/ProjectInstance.js';
 import type { ProjectStore } from '../project-store.js';
-import { regionsInfo } from './regions.js';
 import {
   createManagementApiRoutes,
   type ManagementApiRoutes,
@@ -31,10 +30,6 @@ export function createAccountRoutes(
       return c.json({ message: 'Organization not found' }, 404);
     }
     return c.json(DEFAULT_ORG);
-  });
-
-  routes.get('/v1/projects/available-regions', (c) => {
-    return c.json(regionsInfo(unavailableRegions));
   });
 
   routes.get('/v1/projects', (c) => {

@@ -27,6 +27,6 @@ export type AppOptions = {
   seedDir?: string;
   projects?: ProjectSeed[];
   accessToken?: string;
-  /** Regions that refuse project creation with the platform's 503 and show as at capacity. */
+  /** Regions where project creation returns the platform's 503. */
   unavailableRegions?: string[];
 };

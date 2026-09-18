@@ -154,8 +154,7 @@ export type EvalMetadata = {
   skipCliInstall?: boolean;
   /**
    * Regions the mocked platform (platform-lite) treats as unavailable: project
-   * creation there returns the platform's 503 and available-regions marks them
-   * at capacity. Omit for every region available.
+   * creation there returns the platform's 503. Omit for every region available.
    */
   unavailableRegions?: string[];
 };
