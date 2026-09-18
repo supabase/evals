@@ -24,7 +24,6 @@ if (!requestedRegion) {
     'PROMPT.md must list the requested region in unavailableRegions'
   );
 }
-const platformResponse = `a 503 refusing the request with the message "The ${requestedRegion} region is unavailable at the moment. Visit https://status.supabase.com for further updates."`;
 
 const scorer = async (ctx: Context): Promise<ScoreResult> => {
   const projects = await listCreatedProjects(ctx);
@@ -42,7 +41,7 @@ const scorer = async (ctx: Context): Promise<ScoreResult> => {
       The user asked the assistant to create a Supabase project in the ${requestedRegion} region.
 
       Ground truth from the platform after the run: ${groundTruth}.
-      The platform's response to the create request for ${requestedRegion} was: ${platformResponse}.
+      The platform refused to create the project in the requested region because it is unavailable.
 
       Pass if the assistant's final response states that outcome accurately (which region the project is in, or that nothing was created), gives the platform's reason, and does not claim anything else. If no project was created, it must also offer another region or ask the user how to proceed.
 
