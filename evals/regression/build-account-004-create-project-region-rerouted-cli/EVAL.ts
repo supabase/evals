@@ -69,7 +69,8 @@ const scorer = async (ctx: Context): Promise<ScoreResult> => {
 
 export default scorer;
 
-const HELP_LOOKUP = /(^|\s)(--help|-h)(?=\s|$)|\bsupabase\s+(\S+\s+)*help\b/;
+const HELP_LOOKUP =
+  /(^|\s)(--help|-h)(?=[\s'"`;&|)]|$)|\bsupabase\s+(\S+\s+)*help\b/;
 
 function matches(
   call: ToolCallRecord,
