@@ -377,6 +377,19 @@ jobs:
           name: raw-results
           path: results/downloaded
 
+      - name: Extract raw results
+        # Results arrive tarred so upload-artifact never sees agent-written filenames.
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -d results/downloaded ]; then
+            find results/downloaded -name '*.tgz' -print0 | while IFS= read -r -d '' archive; do
+              tar -xzf "$archive" -C "$(dirname "$archive")"
+              rm "$archive"
+            done
+          fi
+
       - name: Audit pair results
         id: audit
         shell: bash

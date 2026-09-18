@@ -1,19 +1,16 @@
 #!/usr/bin/env tsx
 
 import { APIError, Sandbox } from '@vercel/sandbox';
-import { execFile, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { renameSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { promisify } from 'node:util';
 import pLimit from 'p-limit';
 import pRetry, { AbortError } from 'p-retry';
 import { z } from 'zod';
 import { positiveInteger, readFlag } from '../lib/cli-args.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-const execFileAsync = promisify(execFile);
 /** Base for sandbox URLs printed during runs */
 const SANDBOX_DASHBOARD_URL =
   'https://vercel.com/supabase/evals-runner/sandboxes';
@@ -470,34 +467,28 @@ async function runSandboxCommand(
   throw new SandboxCommandError(step, result.exitCode, output);
 }
 
-// Only clears this run's subtree, since sibling runs of the same pair land
-// in the same directory from their own Sandboxes.
+// Agent workspaces can contain filenames upload-artifact rejects, and one bad
+// name fails the whole artifact, so results stay tarred until publish-results.
+// https://github.com/actions/toolkit/blob/193fa46c20fde8b0ed54194bc08b841c78c0776d/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts#L10-L20
 async function downloadResults(
   sandbox: Sandbox,
   pair: EvalPair,
   run: number,
   outputDir: string
 ): Promise<void> {
-  const staging = mkdtempSync(join(tmpdir(), 'vercel-eval-results-'));
-  const archive = join(staging, 'results.tgz');
-  const destination = join(outputDir, artifactDirectory(pair));
-  try {
-    const downloaded = await sandbox.downloadFile(
-      { path: '/tmp/eval-results.tgz' },
-      { path: archive },
-      { mkdirRecursive: true }
-    );
-    if (!downloaded) throw new Error('results archive was missing');
-    rmSync(join(destination, pair.eval_id, `run-${run}`), {
-      recursive: true,
-      force: true,
-    });
-    mkdirSync(destination, { recursive: true });
-    await execFileAsync('tar', ['-xzf', archive, '-C', destination]);
-    console.log(`${jobLabel(pair, run)} results downloaded to ${destination}`);
-  } finally {
-    rmSync(staging, { recursive: true, force: true });
-  }
+  const archive = join(outputDir, artifactDirectory(pair), `run-${run}.tgz`);
+  // Download to a `.partial` file so we don't treat an incomplete streamed
+  // download as complete and fail publish-results.
+  // https://github.com/vercel/sandbox/blob/bf2bc66003fc89cf07a1346a7ea63951747cbec6/packages/vercel-sandbox/src/session.ts#L624-L635
+  const partial = `${archive}.partial`;
+  const downloaded = await sandbox.downloadFile(
+    { path: '/tmp/eval-results.tgz' },
+    { path: partial },
+    { mkdirRecursive: true }
+  );
+  if (!downloaded) throw new Error('results archive was missing');
+  renameSync(partial, archive);
+  console.log(`${jobLabel(pair, run)} results downloaded to ${archive}`);
 }
 
 /** Stops and deletes a Sandbox while preserving the pair's original outcome. */

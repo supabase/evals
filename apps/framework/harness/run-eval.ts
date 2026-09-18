@@ -155,6 +155,7 @@ function discoverEvals(): EvalManifest[] {
       const relPath = `evals/${suiteDir}/${id}/PROMPT.md`;
       const localDir = join(evalDir, 'local');
       const promptPath = join(evalDir, 'PROMPT.md');
+      if (!existsSync(promptPath)) continue;
       const evalPath = join(evalDir, 'EVAL.ts');
       const metadata = parseEvalMarkdown(
         readFileSync(promptPath, 'utf8'),
@@ -448,6 +449,7 @@ async function runOne(
       mcpServers: session.mcpServers,
       timeoutSec: TIMEOUT_SEC,
     });
+    await session.ensureReady?.();
     // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
     // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
     const hostWorkspace = workspacePath(expName, ev.id, runIndex);
