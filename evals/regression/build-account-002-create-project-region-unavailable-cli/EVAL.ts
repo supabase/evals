@@ -4,15 +4,15 @@ import {
   parseEvalMarkdown,
   serializeTranscript,
   type CheckResult,
+  type LocalStackEvalContext,
   type ScoreResult,
   type ToolCallRecord,
-  type ToolEvalContext,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 
 type Context = Pick<
-  ToolEvalContext,
-  'mgmt' | 'ref' | 'toolCalls' | 'transcript'
+  LocalStackEvalContext,
+  'hostedMgmt' | 'hostedRef' | 'toolCalls' | 'transcript'
 >;
 
 const CREATE_PROJECT = /supabase\s+projects\s+create\b/;
@@ -107,12 +107,15 @@ type Project = { ref: string; region: string };
 
 /** Projects the agent created, excluding the one seeded into the mocked platform. */
 async function listCreatedProjects(ctx: Context): Promise<Project[]> {
-  const { data, error } = await ctx.mgmt.GET('/v1/projects');
+  if (!ctx.hostedMgmt) {
+    throw new Error('this eval needs hostedProject: true in PROMPT.md');
+  }
+  const { data, error } = await ctx.hostedMgmt.GET('/v1/projects');
   if (error) {
     throw new Error(`failed to list projects: ${JSON.stringify(error)}`);
   }
   return (data ?? [])
-    .filter((project) => project.ref !== ctx.ref)
+    .filter((project) => project.ref !== ctx.hostedRef)
     .map(({ ref, region }) => ({ ref, region }));
 }
 
