@@ -61,6 +61,8 @@ const scorer = async (ctx: Context): Promise<ScoreResult> => {
 
 export default scorer;
 
+const HELP_LOOKUP = /(^|\s)(--help|-h)(?=\s|$)|\bsupabase\s+(\S+\s+)*help\b/;
+
 function matches(
   call: ToolCallRecord,
   toolNames: string[],
@@ -70,5 +72,7 @@ function matches(
   const command =
     call.command ??
     (typeof call.body.command === 'string' ? call.body.command : '');
-  return cliPattern.test(command);
+  return command
+    .split(/&&|\|\||[;|\n]/)
+    .some((segment) => cliPattern.test(segment) && !HELP_LOOKUP.test(segment));
 }
