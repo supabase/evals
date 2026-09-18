@@ -8,7 +8,7 @@ topic:
   - sql
 projectRunning: false
 needsDocker: false
-motivation: https://linear.app/supabase/issue/CLI-2398/add-a-docker-less-local-stack-e2e-eval-agent-cli-lifecycle
+motivation: CLI-2398, https://linear.app/supabase/issue/CLI-2398/add-a-docker-less-local-stack-e2e-eval-agent-cli-lifecycle
 ---
 
 I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the
