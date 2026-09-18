@@ -7,7 +7,8 @@ import {
 import { localStackRuntime } from '@supabase-evals/sandbox';
 
 export default defineExperiment({
-  suite: ['benchmark', 'regression'],
+  // cli: the pinned-CLI baseline column for CLI-team evals.
+  suite: ['benchmark', 'regression', 'cli'],
   agent: codexAgent({
     model: 'gpt-5.6-luna',
     reasoningEffort: 'medium',

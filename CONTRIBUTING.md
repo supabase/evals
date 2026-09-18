@@ -9,6 +9,7 @@ First, determine the eval suite for your scenario:
 - **Regression** evals are suitable for most scenarios. If we notice agents make a narrow mistake, we track it here to reproduce the issue, verify a fix, and monitor for regression. These scenarios are not included in the benchmark so they don't inflate scores.
 - **Benchmark** evals are scenarios we've intentionally selected for the published benchmark report. These should be representative of the user journey on Supabase to cover a breadth of dimensions.
 - **Docs** evals are owned by docs team for their own analysis of how agents interpret docs pages, refreshed as-needed.
+- **CLI** evals are owned by the CLI team: one scenario run unchanged across forced CLI environments (Docker available / daemon unreachable / absent; pinned, stable and beta CLI) via the `cli` experiment suite.
 
 Then add a folder under `evals/<suite>/` containing:
 
@@ -68,3 +69,14 @@ Common workflows:
 - **Add or change a docs eval.** Add the scenario under `evals/docs/<id>/` (see [Adding an eval](#adding-an-eval)), open a PR, and add the `run-evals-changed` label. Results for the changed evals are committed back to your branch and viewable in the Vercel preview.
 - **Refresh every docs eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: docs` and `experiment_suite: docs`. It opens a draft PR with the updated `docs-eval-results.json` for you to review and merge.
 - **Analyze results over time.** Every merge that changes `docs-eval-results.json` appends a snapshot to [`docs-results.jsonl`](https://supabase.github.io/evals/docs-results.jsonl) on GitHub Pages, alongside the [benchmark](https://supabase.github.io/evals/results.jsonl) and [regression](https://supabase.github.io/evals/regression-results.jsonl) histories.
+
+## CLI evals
+
+The CLI team owns `evals/cli/` and its results. CLI evals run on the pinned-CLI baseline (`codex-gpt-5.6-luna`) plus `codex-gpt-5.6-luna-cli-{stable,beta,nodaemon,absent}`, which install the latest stable or beta CLI and force Docker-less sandboxes to compare the same scenario across CLI environments.
+
+Common workflows:
+
+- **Add or change a CLI eval.** Add the scenario under `evals/cli/<id>/` (see [Adding an eval](#adding-an-eval)); set `needsDocker: false` in its `PROMPT.md` frontmatter if it can run without Docker, open a PR, and add the `run-evals-changed` label. Results for the changed evals are committed back to your branch and viewable in the Vercel preview.
+- **Refresh every CLI eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: cli` and `experiment_suite: cli`. It opens a draft PR with the updated `cli-eval-results.json` for you to review and merge.
+- **Analyze results over time.** Every merge that changes `cli-eval-results.json` appends a snapshot to [`cli-results.jsonl`](https://supabase.github.io/evals/cli-results.jsonl) on GitHub Pages, alongside the [benchmark](https://supabase.github.io/evals/results.jsonl), [regression](https://supabase.github.io/evals/regression-results.jsonl), and [docs](https://supabase.github.io/evals/docs-results.jsonl) histories.
+- **Run the unit tests.** `pnpm --filter @supabase-evals/framework exec vitest run --root ../.. experiments/_lib evals/cli` (the CLI runtime helpers plus every CLI eval's scorer tests; these paths sit outside the package `test` scripts, so `pnpm check` does not run them)

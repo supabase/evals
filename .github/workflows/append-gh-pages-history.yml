@@ -7,6 +7,7 @@ on:
       - apps/web/src/data/eval-results.json
       - apps/web/src/data/regression-eval-results.json
       - apps/web/src/data/docs-eval-results.json
+      - apps/web/src/data/cli-eval-results.json
   workflow_dispatch:
 
 permissions:
@@ -58,8 +59,9 @@ jobs:
           append_if_changed apps/web/src/data/eval-results.json results.jsonl
           append_if_changed apps/web/src/data/regression-eval-results.json regression-results.jsonl
           append_if_changed apps/web/src/data/docs-eval-results.json docs-results.jsonl
+          append_if_changed apps/web/src/data/cli-eval-results.json cli-results.jsonl
 
-          for history in results.jsonl regression-results.jsonl docs-results.jsonl; do
+          for history in results.jsonl regression-results.jsonl docs-results.jsonl cli-results.jsonl; do
             [ -f "$history" ] && git add "$history"
           done
           if git diff --cached --quiet; then

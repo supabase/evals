@@ -98,16 +98,16 @@ jobs:
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             experiments_override=""
             eval_id=""
-            suite="regression"
-            experiment_suite="regression"
+            suite="regression,cli"
+            experiment_suite="regression,cli"
             runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
           else
             experiments_override=""
             eval_id=""
-            suite="benchmark,regression,docs"
-            experiment_suite="benchmark,no-skills,regression,docs"
+            suite="benchmark,regression,docs,cli"
+            experiment_suite="benchmark,no-skills,regression,docs,cli"
             runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
@@ -224,6 +224,7 @@ jobs:
               benchmark) experiment_suites=(benchmark no-skills) ;;
               regression) experiment_suites=(regression) ;;
               docs) experiment_suites=(docs) ;;
+              cli) experiment_suites=(cli) ;;
               *) continue ;;
             esac
 
@@ -462,7 +463,7 @@ jobs:
             pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
           fi
 
-          for eval_suite in regression docs; do
+          for eval_suite in regression docs cli; do
             if jq -e --arg s "$eval_suite" 'any(.[]; .eval_suite == $s)' <<< "$pairs" > /dev/null; then
               export_args=(--suite "$eval_suite" --runs "${{ needs.prepare.outputs.runs }}" --output "apps/web/src/data/${eval_suite}-eval-results.json")
               if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
