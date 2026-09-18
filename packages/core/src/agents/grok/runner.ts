@@ -125,16 +125,14 @@ export const grokRunner: AgentRunner<GrokModel> = {
 
   deriveStopReason(raw, command) {
     if (!raw) return processStopReason(command);
-    const { records } = parseJsonlRecords(raw);
-    // The last `end` event has more importance than an earlier `error` event.
-    // Grok also sends an `error` event for a fault that it corrects. Thus an
-    // `error` event before a correct `end` event shows a run that continued.
-    const end = [...records].reverse().find((r) => r.type === 'end');
-    const reason =
-      typeof end?.stopReason === 'string' ? end.stopReason : undefined;
+    // The last `end` event wins over an earlier `error` event. Grok sends an
+    // `error` event for a fault it then corrects, so an `error` before a good
+    // `end` shows a run that continued.
+    const reason = lastEndEvent(raw)?.stopReason;
     if (reason === 'end_turn') return 'stop';
-    if (reason) return reason; // e.g. max_turns / refusal — surface verbatim
-    // There is no `end` event. Thus an `error` event gives the best cause.
+    if (typeof reason === 'string' && reason.length > 0) return reason; // max_turns / refusal — verbatim
+    // No usable stop reason, so an `error` event gives the best cause.
+    const { records } = parseJsonlRecords(raw);
     if (records.some((r) => r.type === 'error')) return 'error';
     return processStopReason(command);
   },
@@ -148,10 +146,7 @@ export const grokRunner: AgentRunner<GrokModel> = {
     // data. The `usage` events during the run contain this data. But Claude Code
     // and Codex also lose the data. Get the data for the three agents, or for no
     // agent.
-    if (!raw) return undefined;
-    const { records } = parseJsonlRecords(raw);
-    const end = [...records].reverse().find((r) => r.type === 'end');
-    const byModel = end?.modelUsage;
+    const byModel = lastEndEvent(raw)?.modelUsage;
     if (!isRecord(byModel)) return undefined;
     const usage = Object.entries(byModel).flatMap(([reported, u]) => {
       if (!isRecord(u)) return [];

@@ -305,6 +305,15 @@ describe('grok runner', () => {
     expect(grokRunner.deriveStopReason!(raw, ok)).toBe('error');
   });
 
+  it('ignores an empty stop reason and falls back to the error event', () => {
+    const raw = [
+      JSON.stringify({ type: 'error', message: 'rate limited' }),
+      JSON.stringify({ type: 'end', stopReason: '' }),
+    ].join('\n');
+    const ok = { ok: true, exitCode: 0, stdout: '', stderr: '' };
+    expect(grokRunner.deriveStopReason!(raw, ok)).toBe('error');
+  });
+
   it('lets a clean end outrank an error the run recovered from', () => {
     // Grok emits `error` for recoverable faults too, so an error before a
     // terminal end_turn is a retry that worked, not a failed run.
