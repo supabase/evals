@@ -43,16 +43,16 @@ describe('account', () => {
   it('refuses to create a project in an unavailable region', async () => {
     const app = await createTestApp([], { unavailableRegions: ['eu-west-2'] });
 
-    const { status, data } = await request<{
-      statusCode: number;
-      error: string;
-      message: string;
-    }>(app, 'POST', '/v1/projects', { name: 'london', region: 'eu-west-2' });
+    const { status, data } = await request<{ message: string }>(
+      app,
+      'POST',
+      '/v1/projects',
+      { name: 'london', region: 'eu-west-2' }
+    );
     expect(status).toBe(503);
     expect(data).toEqual({
-      statusCode: 503,
-      error: 'Service Unavailable',
-      message: 'The eu-west-2 region is unavailable at the moment.',
+      message:
+        'The eu-west-2 region is unavailable at the moment. Visit https://status.supabase.com for further updates.',
     });
 
     const { data: projects } = await request<unknown[]>(

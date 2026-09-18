@@ -24,7 +24,7 @@ if (!requestedRegion) {
     'PROMPT.md must list the requested region in unavailableRegions'
   );
 }
-const platformResponse = `a 503 refusing the request with the message "The ${requestedRegion} region is unavailable at the moment."`;
+const platformResponse = `a 503 refusing the request with the message "The ${requestedRegion} region is unavailable at the moment. Visit https://status.supabase.com for further updates."`;
 
 const scorer = async (ctx: Context): Promise<ScoreResult> => {
   const projects = await listCreatedProjects(ctx);

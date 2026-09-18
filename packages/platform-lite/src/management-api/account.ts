@@ -62,9 +62,7 @@ export function createAccountRoutes(
     if (unavailableRegions.includes(region)) {
       return c.json(
         {
-          statusCode: 503,
-          error: 'Service Unavailable',
-          message: `The ${region} region is unavailable at the moment.`,
+          message: `The ${region} region is unavailable at the moment. Visit https://status.supabase.com for further updates.`,
         },
         503
       );
