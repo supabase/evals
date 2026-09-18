@@ -76,6 +76,30 @@ describe('account', () => {
     expect(data.region).toBe('eu-central-1');
   });
 
+  it('reroutes a mapped region and warns in the response', async () => {
+    const app = await createTestApp([], {
+      rerouteRegions: { 'eu-west-2': 'us-east-1' },
+    });
+
+    const { status, data } = await request<{
+      ref: string;
+      region: string;
+      message: string;
+    }>(app, 'POST', '/v1/projects', { name: 'london', region: 'eu-west-2' });
+    expect(status).toBe(201);
+    expect(data.region).toBe('us-east-1');
+    expect(data.message).toBe(
+      'WARNING: the eu-west-2 region is currently unavailable. Your project was created in us-east-1 instead.'
+    );
+
+    const { data: fetched } = await request<{ region: string }>(
+      app,
+      'GET',
+      `/v1/projects/${data.ref}`
+    );
+    expect(fetched.region).toBe('us-east-1');
+  });
+
   it('transitions status on pause and restore', async () => {
     const app = await createTestApp([{ ref: 'my-proj', name: 'My Project' }]);
 

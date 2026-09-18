@@ -29,4 +29,6 @@ export type AppOptions = {
   accessToken?: string;
   /** Regions where project creation returns the platform's 503. */
   unavailableRegions?: string[];
+  /** Requested region -> region the project is actually created in, with a warning in the response. */
+  rerouteRegions?: Record<string, string>;
 };
