@@ -4,7 +4,10 @@ import {
   platformLiteRuntime,
   supabaseMcpServer,
 } from '@supabase-evals/core';
-import { dockerAwareLocalStackRuntime } from './_lib/docker-aware-local-stack.js';
+import {
+  dockerAwareLocalStackRuntime,
+  skipUnlessCli,
+} from './_lib/docker-aware-local-stack.js';
 
 export default defineExperiment({
   suite: ['cli'],
@@ -15,10 +18,9 @@ export default defineExperiment({
   runtime: platformLiteRuntime({
     mcpServers: [supabaseMcpServer()],
   }),
+  // Currently equal to the pin (npm `latest` == SUPABASE_CLI_VERSION); kept
+  // as drift insurance between pin bumps.
   localStack: dockerAwareLocalStackRuntime({ channel: 'stable' }),
   skills: ['supabase', 'supabase-postgres-best-practices'],
-  // Only CLI evals exercise the installed CLI version; hosted evals seed .temp
-  // version files pinned to the baseline CLI's service versions.
-  skipEval: (ev) =>
-    ev.metadata.interface !== 'cli' || ev.metadata.hostedProject === true,
+  skipEval: skipUnlessCli,
 });

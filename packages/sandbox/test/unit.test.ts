@@ -636,6 +636,43 @@ describe('skipCliInstall frontmatter', () => {
   });
 });
 
+describe('needsDocker frontmatter', () => {
+  const buildMarkdown = (extra: string) =>
+    [
+      '---',
+      'stage: build',
+      'interface: cli',
+      'product: [database]',
+      'topic: [sdk]',
+      extra,
+      '---',
+      'body',
+    ].join('\n');
+
+  it('accepts a real boolean true and false', () => {
+    expect(
+      parseEvalMarkdown(buildMarkdown('needsDocker: true')).metadata.needsDocker
+    ).toBe(true);
+    expect(
+      parseEvalMarkdown(buildMarkdown('needsDocker: false')).metadata
+        .needsDocker
+    ).toBe(false);
+  });
+
+  it('accepts a quoted string form via z.stringbool()', () => {
+    expect(
+      parseEvalMarkdown(buildMarkdown('needsDocker: "false"')).metadata
+        .needsDocker
+    ).toBe(false);
+  });
+
+  it('defaults to undefined when omitted', () => {
+    expect(
+      parseEvalMarkdown(buildMarkdown('')).metadata.needsDocker
+    ).toBeUndefined();
+  });
+});
+
 describe('resolveSandboxPath', () => {
   it('accepts and normalizes relative paths', () => {
     expect(resolveSandboxPath('a/b.txt')).toBe('a/b.txt');

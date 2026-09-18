@@ -74,9 +74,14 @@ Common workflows:
 
 The CLI team owns `evals/cli/` and its results. CLI evals run on the pinned-CLI baseline (`codex-gpt-5.6-luna`) plus `codex-gpt-5.6-luna-cli-{stable,beta,nodaemon,absent}`, which install the latest stable or beta CLI and force Docker-less sandboxes to compare the same scenario across CLI environments.
 
+Which evals each arm picks up:
+
+- **pinned, stable, beta** run every `interface: cli` eval that isn't `hostedProject: true`.
+- **nodaemon, absent** additionally only run evals that also set `needsDocker: false` and `projectRunning: false` — the harness cannot pre-start a stack, or link a hosted project, without Docker.
+
 Common workflows:
 
 - **Add or change a CLI eval.** Add the scenario under `evals/cli/<id>/` (see [Adding an eval](#adding-an-eval)); set `needsDocker: false` in its `PROMPT.md` frontmatter if it can run without Docker, open a PR, and add the `run-evals-changed` label. Results for the changed evals are committed back to your branch and viewable in the Vercel preview.
-- **Refresh every CLI eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: cli` and `experiment_suite: cli`. It opens a draft PR with the updated `cli-eval-results.json` for you to review and merge.
+- **Refresh every CLI eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: cli` and `experiment_suite: cli`. It opens a draft PR with the updated `cli-eval-results.json` for you to review and merge. Leave `cli_stable_version`/`cli_beta_version` blank to resolve npm's latest dist-tags, or pin them to reproduce a specific run.
 - **Analyze results over time.** Every merge that changes `cli-eval-results.json` appends a snapshot to [`cli-results.jsonl`](https://supabase.github.io/evals/cli-results.jsonl) on GitHub Pages, alongside the [benchmark](https://supabase.github.io/evals/results.jsonl), [regression](https://supabase.github.io/evals/regression-results.jsonl), and [docs](https://supabase.github.io/evals/docs-results.jsonl) histories.
-- **Run the unit tests.** `pnpm --filter @supabase-evals/framework exec vitest run --root ../.. experiments/_lib evals/cli` (the CLI runtime helpers plus every CLI eval's scorer tests; these paths sit outside the package `test` scripts, so `pnpm check` does not run them)
+- **Run the unit tests.** `pnpm --filter @supabase-evals/framework test:cli-lib` (the CLI runtime helpers plus every CLI eval's scorer tests) — also part of `pnpm check`.

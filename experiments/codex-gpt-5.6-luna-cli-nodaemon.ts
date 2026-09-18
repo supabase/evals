@@ -4,7 +4,10 @@ import {
   platformLiteRuntime,
   supabaseMcpServer,
 } from '@supabase-evals/core';
-import { dockerAwareLocalStackRuntime } from './_lib/docker-aware-local-stack.js';
+import {
+  dockerAwareLocalStackRuntime,
+  skipUnlessDockerless,
+} from './_lib/docker-aware-local-stack.js';
 
 export default defineExperiment({
   suite: ['cli'],
@@ -21,6 +24,5 @@ export default defineExperiment({
     docker: 'no-daemon',
   }),
   skills: ['supabase', 'supabase-postgres-best-practices'],
-  // A Docker-less sandbox can only run evals that declare they don't need Docker.
-  skipEval: (ev) => ev.metadata.needsDocker !== false,
+  skipEval: skipUnlessDockerless,
 });

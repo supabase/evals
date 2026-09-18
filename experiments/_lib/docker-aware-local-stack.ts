@@ -10,6 +10,7 @@
 
 import {
   supabaseMcpServer,
+  type EvalMetadata,
   type LocalStackRuntime,
   type LocalStackSession,
   type LocalStackSessionArgs,
@@ -25,11 +26,30 @@ import {
   installSkills,
   installSupabaseCli,
   localStackRuntime,
-  teardownSupabaseProject,
   toAgentSandbox,
   type SupabaseService,
 } from '@supabase-evals/sandbox';
 import { resolveCliVersion, type CliChannel } from './cli-channel.js';
+
+/** Runs only evals that exercise the real CLI (never hosted-linked ones, which seed .temp pins instead). */
+export function skipUnlessCli(ev: {
+  id: string;
+  metadata: EvalMetadata;
+}): boolean {
+  return ev.metadata.interface !== 'cli' || ev.metadata.hostedProject === true;
+}
+
+/** A Docker-less sandbox can only run evals that declare they need no Docker and don't expect a pre-started stack. */
+export function skipUnlessDockerless(ev: {
+  id: string;
+  metadata: EvalMetadata;
+}): boolean {
+  return (
+    skipUnlessCli(ev) ||
+    ev.metadata.needsDocker !== false ||
+    ev.metadata.projectRunning !== false
+  );
+}
 
 export type DockerState = 'available' | 'no-daemon' | 'absent';
 
@@ -74,12 +94,18 @@ export function dockerAwareLocalStackRuntime(options: {
       // An eval's own `cliVersion:` frontmatter still wins over the channel,
       // same precedence as the stock local-stack runtime.
       const version = args.cliVersion ?? (await resolveCliVersion(channel));
+      console.log(
+        `[docker-aware-local-stack] channel=${channel} cliVersion=${version} docker=${state}`
+      );
 
       if (state === 'available') {
         const session = await localStackRuntime({
           cliVersion: version,
         }).startSession(args);
         try {
+          // The scoring context's exec has no root access inside the
+          // sandbox, so this marker is agent-writable — fine here since it's
+          // metrics-only, unlike the docker-less path's root-owned marker.
           await writeRuntimeMarker(
             (command) => session.scoringContext.exec(command),
             buildRuntimeMarker(channel, version, state, sessionStartedMs)
@@ -107,6 +133,7 @@ export function dockerAwareLocalStackRuntime(options: {
         image,
         network: 'host',
         mounts: args.mounts,
+        mountDockerSocket: false,
       });
 
       try {
@@ -117,6 +144,9 @@ export function dockerAwareLocalStackRuntime(options: {
         // Deliberately no socket-group grant here: CI's sandbox already ends
         // its Docker setup with `chmod 666 /var/run/docker.sock`, so the grant
         // would be a no-op there — DOCKER_HOST below is the real mechanism.
+        // For `absent`, a real Docker-less host wouldn't have DOCKER_HOST set
+        // at all — but leaving it set here costs nothing and blocks any
+        // future accidental socket exposure, so it stays for both states.
         sandbox.extraEnv = {
           ...sandbox.extraEnv,
           DOCKER_HOST: UNREACHABLE_DOCKER_HOST,
@@ -150,6 +180,18 @@ export function dockerAwareLocalStackRuntime(options: {
           );
         }
 
+        // The root shell above has a different PATH than the agent's
+        // SANDBOX_PATH, so also assert the binary is gone from the PATH the
+        // agent actually runs commands under.
+        const pathCheck = await sandbox.runShell(
+          '! command -v docker >/dev/null 2>&1'
+        );
+        if (!pathCheck.ok) {
+          throw new Error(
+            `docker is still on the agent's PATH after removal: ${pathCheck.stderr || pathCheck.stdout}`
+          );
+        }
+
         if (state === 'no-daemon') {
           await installDockerDaemonShim(sandbox, dockerVersion);
         }
@@ -159,18 +201,25 @@ export function dockerAwareLocalStackRuntime(options: {
         }
         const skills = await installSkills(sandbox, args.skills ?? []);
 
-        const ping = await sandbox.runShell(
-          'curl -sf --unix-socket /var/run/docker.sock http://localhost/_ping'
+        // With no bind mount, the socket must not exist at all — a stronger
+        // guarantee than the old warn-probe that merely checked reachability.
+        const socketAbsent = await sandbox.runShellAsRoot(
+          'test ! -e /var/run/docker.sock'
         );
-        if (ping.ok) {
-          console.warn(
-            '[docker-aware-local-stack] raw docker socket is reachable by the sandbox user; relying on DOCKER_HOST + shims'
+        if (!socketAbsent.ok) {
+          throw new Error(
+            'the Docker socket unexpectedly exists in a Docker-less sandbox'
           );
         }
 
-        await writeRuntimeMarker(
-          (command) => sandbox.runShell(command),
-          buildRuntimeMarker(channel, version, state, sessionStartedMs)
+        // Root-owned and read-only so the agent cannot rewrite it to fake
+        // the environment it's being evaluated in.
+        await sandbox.writeRootFile(
+          RUNTIME_MARKER_PATH,
+          JSON.stringify(
+            buildRuntimeMarker(channel, version, state, sessionStartedMs)
+          ),
+          '0444'
         );
 
         return {
@@ -197,10 +246,8 @@ export function dockerAwareLocalStackRuntime(options: {
           // Nothing to restore without Docker; the `available` path above
           // delegates to the stock session, which has its own ensureReady.
           ensureReady: async () => {},
-          close: async () => {
-            await teardownSupabaseProject(sandbox);
-            await sandbox.stop();
-          },
+          // No teardownSupabaseProject: nothing can have started without Docker.
+          close: () => sandbox.stop(),
         };
       } catch (err) {
         await sandbox.stop();
@@ -272,7 +319,7 @@ export function buildSupabaseShimScript(
   const lines = [
     '#!/bin/bash',
     `export DOCKER_HOST=${UNREACHABLE_DOCKER_HOST}`,
-    `REAL=${JSON.stringify(realBin)}`,
+    `REAL=${shellQuote(realBin)}`,
   ];
   if (excluded.length > 0) {
     lines.push(
@@ -300,9 +347,14 @@ export function buildDockerDaemonShimScript(dockerVersion: string): string {
     'case "$1" in',
     // --version must keep working so the CLI's new managed stack still
     // *chooses* Docker as its runtime (per supabase/cli#6563's probe).
-    '  --version|-v) echo ' + JSON.stringify(dockerVersion) + '; exit 0 ;;',
+    `  --version|-v) echo ${shellQuote(dockerVersion)}; exit 0 ;;`,
     'esac',
     `echo "Cannot connect to the Docker daemon at ${UNREACHABLE_DOCKER_HOST}. Is the docker daemon running?" >&2`,
     'exit 1',
   ].join('\n');
+}
+
+// Same implementation as packages/sandbox/src/local-stack-runtime.ts's.
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
 }
