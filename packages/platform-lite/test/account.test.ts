@@ -28,6 +28,68 @@ describe('account', () => {
     expect(fetched.name).toBe('test-project');
   });
 
+  it('creates the project in the requested region', async () => {
+    const app = await createTestApp();
+
+    const { data: created } = await request<{ region: string }>(
+      app,
+      'POST',
+      '/v1/projects',
+      { name: 'london', organization_slug: 'default-org', region: 'eu-west-2' }
+    );
+    expect(created.region).toBe('eu-west-2');
+  });
+
+  it('returns the overridden create project error response', async () => {
+    const app = await createTestApp([], {
+      createProject: {
+        status: 503,
+        body: { message: '{requested_region} is unavailable', statusCode: 503 },
+      },
+    });
+
+    const { status, data } = await request<{ message: string }>(
+      app,
+      'POST',
+      '/v1/projects',
+      { name: 'london', region: 'eu-west-2' }
+    );
+    expect(status).toBe(503);
+    expect(data.message).toBe('eu-west-2 is unavailable');
+
+    const { data: projects } = await request<unknown[]>(
+      app,
+      'GET',
+      '/v1/projects'
+    );
+    expect(projects).toHaveLength(0);
+  });
+
+  it('merges the create project override into the created project', async () => {
+    const app = await createTestApp([], {
+      createProject: {
+        region: 'us-east-1',
+        body: { message: 'Re-routed from {requested_region} to {region}' },
+      },
+    });
+
+    const { status, data } = await request<{
+      ref: string;
+      region: string;
+      message: string;
+    }>(app, 'POST', '/v1/projects', { name: 'london', region: 'eu-west-2' });
+    expect(status).toBe(201);
+    expect(data.region).toBe('us-east-1');
+    expect(data.message).toBe('Re-routed from eu-west-2 to us-east-1');
+
+    const { data: fetched } = await request<{ region: string }>(
+      app,
+      'GET',
+      `/v1/projects/${data.ref}`
+    );
+    expect(fetched.region).toBe('us-east-1');
+  });
+
   it('transitions status on pause and restore', async () => {
     const app = await createTestApp([{ ref: 'my-proj', name: 'My Project' }]);
 

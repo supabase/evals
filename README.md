@@ -102,7 +102,7 @@ Every eval contains:
 
 1. `PROMPT.md` - frontmatter metadata plus the task description the agent sees.
 2. `EVAL.ts` - a default-exported scorer.
-3. Optional `remote/` - the hosted project's starting state, seeded into platform-lite: `project.sql` (database), `logs.jsonl` (observability logs), `functions/` (already-deployed edge functions).
+3. Optional `remote/` - the hosted project's starting state, seeded into platform-lite: `project.sql` (database), `logs.jsonl` (observability logs), `functions/` (already-deployed edge functions), `platform.json` (platform response overrides, currently `createProject: { status, region, body }`; body strings may use `{requested_region}` and `{region}` placeholders).
 4. Optional `local/` - the agent's starting files, copied into the sandbox workspace the agent works in (absent means an empty workspace, or no sandbox at all for tools evals).
 
 The two directories mirror Supabase's two environments: `remote/` describes what the customer's hosted project already looks like, `local/` describes what the developer's working directory already looks like.

@@ -318,12 +318,16 @@ function readSessionSeedArgs(ev: EvalManifest) {
   const projectSeedSql = join(ev.remoteDir, 'project.sql');
   const logsSeedJsonl = join(ev.remoteDir, 'logs.jsonl');
   const functionsSeedDir = join(ev.remoteDir, 'functions');
+  const platformSeedJson = join(ev.remoteDir, 'platform.json');
 
   return {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
     logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
     functionsSeedDir: existsSync(functionsSeedDir)
       ? functionsSeedDir
+      : undefined,
+    platformSeedJson: existsSync(platformSeedJson)
+      ? platformSeedJson
       : undefined,
     pgvector: ev.metadata.product.includes('vectors'),
   };

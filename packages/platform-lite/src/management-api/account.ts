@@ -1,5 +1,7 @@
-import { ProjectInstance } from '../project/ProjectInstance.js';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { DEFAULT_REGION, ProjectInstance } from '../project/ProjectInstance.js';
 import type { ProjectStore } from '../project-store.js';
+import type { CreateProjectOverride } from '../types.js';
 import {
   createManagementApiRoutes,
   type ManagementApiRoutes,
@@ -14,7 +16,10 @@ const DEFAULT_ORG = {
   opt_in_tags: [],
 };
 
-export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
+export function createAccountRoutes(
+  store: ProjectStore,
+  createProject?: CreateProjectOverride
+): ManagementApiRoutes {
   const routes = createManagementApiRoutes();
 
   routes.get('/v1/organizations', (c) => {
@@ -50,13 +55,26 @@ export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
       organization_slug?: string;
       db_pass?: string;
     }>();
+    const requestedRegion = body.region ?? DEFAULT_REGION;
+    const region = createProject?.region ?? requestedRegion;
+    const overrideBody = fillRegions(
+      createProject?.body,
+      requestedRegion,
+      region
+    );
+    if (createProject?.status !== undefined && createProject.status >= 400) {
+      return c.json(
+        overrideBody ?? {},
+        createProject.status as ContentfulStatusCode
+      );
+    }
     const ref = generateRef();
     const name = body.name ?? ref;
     const orgSlug = body.organization_slug ?? DEFAULT_ORG.slug;
-    const instance = new ProjectInstance(ref, name, orgSlug);
+    const instance = new ProjectInstance(ref, name, orgSlug, region);
     await instance.init();
     store.set(ref, instance);
-    return c.json(instance.toProjectDetails(), 201);
+    return c.json({ ...instance.toProjectDetails(), ...overrideBody }, 201);
   });
 
   routes.post('/v1/projects/:ref/pause', (c) => {
@@ -76,6 +94,20 @@ export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
   });
 
   return routes;
+}
+
+/** Fills `{requested_region}` and `{region}` placeholders in an override body. */
+function fillRegions(
+  body: Record<string, unknown> | undefined,
+  requestedRegion: string,
+  region: string
+): Record<string, unknown> | undefined {
+  if (!body) return undefined;
+  return JSON.parse(
+    JSON.stringify(body)
+      .replace(/\{requested_region\}/g, requestedRegion)
+      .replace(/\{region\}/g, region)
+  ) as Record<string, unknown>;
 }
 
 function generateRef(): string {

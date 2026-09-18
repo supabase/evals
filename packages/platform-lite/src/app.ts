@@ -42,7 +42,7 @@ export interface PlatformHandle extends AsyncDisposable {
 async function build(
   options: AppOptions
 ): Promise<{ app: Hono; store: ProjectStore }> {
-  const { accessToken, projects = [], seedDir } = options;
+  const { accessToken, projects = [], seedDir, createProject } = options;
 
   const store = createProjectStore();
 
@@ -63,7 +63,7 @@ async function build(
   const app = new Hono();
 
   const routeBundles = [
-    createAccountRoutes(store),
+    createAccountRoutes(store, createProject),
     createDatabaseRoutes(store),
     createFunctionsRoutes(store),
     createSecretsRoutes(store),

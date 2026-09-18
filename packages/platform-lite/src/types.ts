@@ -23,8 +23,15 @@ export type ProjectSeed = {
   pgvector?: boolean;
 };
 
+export type CreateProjectOverride = {
+  status?: number;
+  region?: string;
+  body?: Record<string, unknown>;
+};
+
 export type AppOptions = {
   seedDir?: string;
   projects?: ProjectSeed[];
   accessToken?: string;
+  createProject?: CreateProjectOverride;
 };

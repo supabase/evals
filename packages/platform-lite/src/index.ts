@@ -2,6 +2,7 @@ export { createPlatform } from './app.js';
 export type { PlatformHandle, ServerHandle, PgServerHandle } from './app.js';
 export type {
   AppOptions,
+  CreateProjectOverride,
   ProjectSeed,
   LogRow,
   EdgeFunctionSeed,
