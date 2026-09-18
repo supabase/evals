@@ -28,7 +28,7 @@ describe('opencode runner', () => {
 
   it('throws a clear error for a vendor missing from the provider enum', () => {
     expect(() => providerForModel('mistral/some-model')).toThrowError(
-      /Unsupported model vendor in "mistral\/some-model".*anthropic, openai, moonshotai/
+      /Unsupported model vendor in "mistral\/some-model".*anthropic, openai, moonshotai, spacexai/
     );
   });
 

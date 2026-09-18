@@ -12,6 +12,10 @@ const AGENT_ICONS: Partial<Record<ExperimentDisplay["agent"], AgentIcon>> = {
     default: "agent-openai-icon.svg",
     light: "agent-openai-icon-light.svg",
   },
+  grok: {
+    default: "agent-grok-icon.svg",
+    light: "agent-grok-icon-light.svg",
+  },
   opencode: {
     default: "agent-opencode-icon.svg",
     light: "agent-opencode-icon-light.svg",

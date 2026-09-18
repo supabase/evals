@@ -111,6 +111,7 @@ export type { DocsResultSandbox } from './docs-results.js';
 export { createCliAgent } from './agents/engine.js';
 export { claudeCodeAgent } from './agents/claude-code/index.js';
 export { codexAgent } from './agents/codex/index.js';
+export { grokAgent } from './agents/grok/index.js';
 export { opencodeAgent } from './agents/opencode/index.js';
 export type {
   AgentMetadata,
