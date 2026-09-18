@@ -27,6 +27,7 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import { discoverExperimentFiles } from '../lib/experiment-files.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
 import { buildSystemPrompt } from './system-prompt.js';
@@ -99,16 +100,17 @@ const CONCURRENCY = positiveInteger(
 const DEBUG = args.has('--debug');
 
 async function loadExperiments() {
-  const dir = join(ROOT, 'experiments');
-  const out: Array<{ name: string; config: ExperimentConfig }> = [];
-  for (const f of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
-    const mod = await import(pathToFileURL(join(dir, f)).href);
-    out.push({
-      name: f.replace(/\.ts$/, ''),
-      config: mod.default as ExperimentConfig,
-    });
-  }
-  return out;
+  const files = await discoverExperimentFiles(join(ROOT, 'experiments'));
+  return Promise.all(
+    files.map(async (file) => {
+      // Experiment modules are discovered from the filesystem.
+      const mod = await import(pathToFileURL(file.path).href);
+      return {
+        name: file.name,
+        config: mod.default as ExperimentConfig,
+      };
+    })
+  );
 }
 
 /**

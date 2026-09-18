@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { positiveInteger, readFlag } from './cli-args.js';
+import {
+  normalizeExperimentName,
+  positiveInteger,
+  readFlag,
+} from './cli-args.js';
 
 describe('readFlag', () => {
   it('reads flags in both --name value and --name=value form', () => {
@@ -14,6 +18,18 @@ describe('readFlag', () => {
     );
     expect(() => readFlag(['--runs='], 'runs')).toThrow(
       '--runs requires a value'
+    );
+  });
+});
+
+describe('normalizeExperimentName', () => {
+  it('accepts flat names, nested paths, and experiment file paths', () => {
+    expect(normalizeExperimentName('codex')).toBe('codex');
+    expect(normalizeExperimentName('experiments/cli/codex.ts')).toBe(
+      'cli/codex'
+    );
+    expect(normalizeExperimentName('.\\experiments\\cli\\codex.ts')).toBe(
+      'cli/codex'
     );
   });
 });

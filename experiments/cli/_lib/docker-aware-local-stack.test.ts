@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. experiments/_lib
+// Run: pnpm --filter @supabase-evals/framework test:cli-lib
 import type { EvalMetadata } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { SupabaseService } from '@supabase-evals/sandbox';

@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. experiments/_lib
+// Run: pnpm --filter @supabase-evals/framework test:cli-lib
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const STABLE_ENV = 'SUPABASE_CLI_STABLE_VERSION';

@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -27,6 +27,8 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import { discoverResultFiles } from '../lib/result-files.js';
+import { discoverExperimentFiles } from '../lib/experiment-files.js';
 import {
   formatIncompleteSampleSets,
   splitBySampleSetCompleteness,
@@ -55,12 +57,11 @@ async function loadExperimentMetadata(): Promise<
   Map<string, ExperimentExportMetadata>
 > {
   const map = new Map<string, ExperimentExportMetadata>();
-  for (const f of (await readdir(EXPERIMENTS_DIR)).filter((f) =>
-    f.endsWith('.ts')
-  )) {
-    const mod = await import(pathToFileURL(join(EXPERIMENTS_DIR, f)).href);
+  for (const file of await discoverExperimentFiles(EXPERIMENTS_DIR)) {
+    // Experiment modules are discovered from the filesystem.
+    const mod = await import(pathToFileURL(file.path).href);
     const config = mod.default as ExperimentConfig;
-    map.set(f.replace(/\.ts$/, ''), {
+    map.set(file.name, {
       display: getExperimentDisplayMetadata(config),
       experimentSuite: config.suite?.[0],
     });
@@ -214,57 +215,21 @@ async function loadEvalResults(): Promise<EvalResult[]> {
 
   const experimentMetadata = await loadExperimentMetadata();
   const results: EvalResult[] = [];
-  const experiments = await readdir(RESULTS_DIR);
 
-  for (const experiment of experiments) {
-    if (experiment.startsWith('.') || experiment.startsWith('_')) {
-      continue;
-    }
-
-    if (!shouldIncludeExperiment(experiment)) {
-      continue;
-    }
-
-    const experimentDir = join(RESULTS_DIR, experiment);
-    if (!(await stat(experimentDir)).isDirectory()) {
-      continue;
-    }
-
-    // Canonical raw layout: results/<experiment>/<eval>/run-<n>/result.json.
-    // One exported row per scored run.
-    for (const entry of await readdir(experimentDir)) {
-      const evalDir = join(experimentDir, entry);
-      if (!(await stat(evalDir)).isDirectory()) {
-        continue;
-      }
-
-      if (!shouldIncludeEval(entry)) {
-        continue;
-      }
-
-      for (const runEntry of (await readdir(evalDir)).sort()) {
-        if (!/^run-\d+$/.test(runEntry)) {
-          continue;
-        }
-
-        const resultFile = join(evalDir, runEntry, 'result.json');
-        if (!existsSync(resultFile)) {
-          continue;
-        }
-
-        const result = await readResultFile(
-          resultFile,
-          relative(RESULTS_DIR, resultFile).split(sep).join('/'),
-          experimentMetadata
-        );
-        if (
-          result &&
-          shouldIncludeSuite(result.suite) &&
-          shouldIncludeExperimentSuite(result.experimentSuite)
-        ) {
-          results.push(result);
-        }
-      }
+  for (const resultFile of await discoverResultFiles(RESULTS_DIR)) {
+    const result = await readResultFile(
+      resultFile,
+      relative(RESULTS_DIR, resultFile).split(sep).join('/'),
+      experimentMetadata
+    );
+    if (
+      result &&
+      shouldIncludeExperiment(result.experiment) &&
+      shouldIncludeEval(result.eval) &&
+      shouldIncludeSuite(result.suite) &&
+      shouldIncludeExperimentSuite(result.experimentSuite)
+    ) {
+      results.push(result);
     }
   }
 

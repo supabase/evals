@@ -42,7 +42,7 @@ Prefer building checks declaratively and returning the list in one place instead
 
 ## Adding an experiment
 
-Add a file under `experiments/` for the agent, model, and runtime setup you want to compare. Here you can configure which skills and MCP servers are available.
+Add a file under `experiments/<owner>/` for the agent, model, and runtime setup you want to compare. Team-owned experiments live in directories such as `experiments/ai/` or `experiments/cli/`; shared agent/runtime presets live in `experiments/presets.ts`; `_`-prefixed files and folders are private helpers and are not discovered as experiments.
 
 Select the experiment's `suite:` depending on your use case. If this experiment should be part of our published benchmark, assign `suite: ["benchmark"]` and include a corresponding `*-no-skills` variant to compare results with and without skills. You can also assign custom experiment suites for grouping related experiments for other head-to-head comparisons as desired.
 
@@ -62,7 +62,7 @@ Include refreshed results for PRs with new/changed evals so a reviewer can see r
 
 ## Docs evals
 
-The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-5.6-luna-no-skills`).
+The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`ai/codex-gpt-5.6-luna-no-skills`).
 
 Common workflows:
 
@@ -72,7 +72,7 @@ Common workflows:
 
 ## CLI evals
 
-The CLI team owns `evals/cli/` and its results. CLI evals run on the pinned-CLI baseline (`codex-gpt-5.6-luna`) plus `codex-gpt-5.6-luna-cli-{stable,beta,nodaemon,absent}`, which install the latest stable or beta CLI and force Docker-less sandboxes to compare the same scenario across CLI environments.
+The CLI team owns `evals/cli/` and its results. CLI evals run on the pinned-CLI baseline (`cli/codex-gpt-5.6-luna`) plus `cli/codex-gpt-5.6-luna-cli-{stable,beta,nodaemon,absent}`, which install the latest stable or beta CLI and force Docker-less sandboxes to compare the same scenario across CLI environments.
 
 Which evals each arm picks up:
 

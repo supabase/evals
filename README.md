@@ -28,7 +28,7 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 ## Concepts
 
 - An **eval** is one scenario under `evals/<suite>/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
-- An **experiment** is one agent/runtime/model setup under `experiments/<name>.ts`.
+- An **experiment** is one agent/runtime/model setup under `experiments/<owner>/<name>.ts`. Shared agent/runtime presets live in `experiments/presets.ts`.
 - An **eval suite** is a named set of evals to run together. An eval's suite is its parent folder under `evals/` (`benchmark`, `regression`, `docs`, `cli`, or `other`).
 - An **experiment suite** is a named set of experiments with related configurations, for head to head comparisons.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
@@ -42,7 +42,7 @@ Running evals executes experiment x eval pairs and writes local result files und
 Run a single eval with one experiment:
 
 ```bash
-pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment claude-code-sonnet-5
+pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment ai/claude-code-sonnet-5
 ```
 
 
@@ -50,8 +50,8 @@ Run selected evals across multiple experiments:
 
 ```bash
 pnpm eval -- \
-  --experiment claude-code-sonnet-5 \
-  --experiment claude-code-opus-5 \
+  --experiment ai/claude-code-sonnet-5 \
+  --experiment ai/claude-code-opus-5 \
   --eval resolve-dataapi-001-empty-results \
   --eval investigate-auth-001-deleted-user-access
 ```
@@ -64,7 +64,7 @@ Each run writes to `results/<experiment>/<eval>/run-<n>/result.json`. Add
 
 ```bash
 pnpm eval -- --eval resolve-dataapi-001-empty-results \
-  --experiment claude-code-sonnet-5 \
+  --experiment ai/claude-code-sonnet-5 \
   --runs 3 \
   --skip-existing
 ```

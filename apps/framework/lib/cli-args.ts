@@ -67,7 +67,10 @@ export function readRepeatedFlag(rawArgs: string[], name: string): string[] {
 }
 
 export function normalizeExperimentName(value: string): string {
-  return value.replace(/^experiments\//, '').replace(/\.ts$/, '');
+  return value
+    .replaceAll('\\', '/')
+    .replace(/^(?:\.\/)?experiments\//, '')
+    .replace(/\.ts$/, '');
 }
 
 export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
