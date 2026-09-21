@@ -6,6 +6,7 @@ export const AGENT_LABELS = {
   "ai-sdk": "AI SDK",
   "claude-code": "Claude Code",
   codex: "Codex",
+  grok: "Grok Build",
   opencode: "OpenCode",
 } satisfies Record<ExperimentDisplay["agent"], string>
 
@@ -60,6 +61,10 @@ function formatMoonshotaiModel(modelId: string) {
   return modelId.split("-").map(capitalize).join(" ")
 }
 
+function formatSpacexaiModel(modelId: string) {
+  return modelId.split("-").map(capitalize).join(" ")
+}
+
 function formatModel(display: ExperimentDisplay) {
   // opencode ids are AI Gateway `vendor/model` slugs; format just the model part.
   const modelId = display.modelId.replace(/^[a-z-]+\//, "")
@@ -70,6 +75,8 @@ function formatModel(display: ExperimentDisplay) {
       return formatOpenAiModel(modelId)
     case "moonshotai":
       return formatMoonshotaiModel(modelId)
+    case "spacexai":
+      return formatSpacexaiModel(modelId)
   }
 }
 

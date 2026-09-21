@@ -109,10 +109,10 @@ describe('buildSkillsPrompt', () => {
   });
 
   it('is empty for every CLI agent, which discovers its own skills', () => {
-    // Claude Code, Codex and OpenCode each walk their own project scope and
-    // advertise the skills themselves; our listing would duplicate theirs and
-    // name `files_read`, an ai-sdk-only tool.
-    for (const agent of ['claude-code', 'codex', 'opencode'] as const) {
+    // Each CLI walks its own project scope and advertises the skills itself.
+    // Our listing would duplicate that and name `files_read`, an ai-sdk-only
+    // tool.
+    for (const agent of ['claude-code', 'codex', 'grok', 'opencode'] as const) {
       expect(buildSkillsPrompt(agent, entries)).toBe('');
       expect(buildSkillsPrompt(agent, [])).toBe('');
     }
@@ -120,10 +120,10 @@ describe('buildSkillsPrompt', () => {
 });
 
 describe('buildSkillsAddCommand', () => {
-  it('installs for all three CLI harnesses, source before the variadic --agent', () => {
+  it('installs for every CLI harness, source before the variadic --agent', () => {
     const command = buildSkillsAddCommand('/tmp/staging');
     expect(command).toBe(
-      "skills add '/tmp/staging' --agent claude-code codex opencode --skill '*' --copy --yes"
+      "skills add '/tmp/staging' --agent claude-code codex grok opencode --skill '*' --copy --yes"
     );
     // --agent is variadic: it eats every following non-flag token. The source
     // dir must precede it (otherwise the CLI fails with "Missing required
@@ -135,9 +135,14 @@ describe('buildSkillsAddCommand', () => {
   });
 
   it('names the agents explicitly rather than letting the CLI guess', () => {
-    // With no --agent the CLI falls back to all ~71 agents it knows, littering
+    // With no --agent the CLI falls back to every agent it knows, littering
     // the exported workspace; the fallback is also install-order dependent.
-    expect(SKILLS_INSTALL_AGENTS).toEqual(['claude-code', 'codex', 'opencode']);
+    expect(SKILLS_INSTALL_AGENTS).toEqual([
+      'claude-code',
+      'codex',
+      'grok',
+      'opencode',
+    ]);
     expect(buildSkillsAddCommand()).toContain('--agent');
   });
 });
@@ -189,10 +194,12 @@ describe('installSkills', () => {
     expect(commands).toContain(buildSkillsAddCommand());
   });
 
-  it('installs into both .claude/skills and .agents/skills', () => {
-    // .claude/skills is Claude Code's project scope; .agents/skills is Codex's
-    // and OpenCode's. Codex does not read .claude/skills at all.
-    expect(SKILLS_INSTALL_DIRS).toEqual(['.claude/skills', '.agents/skills']);
+  it('installs into every harness project scope', () => {
+    expect(SKILLS_INSTALL_DIRS).toEqual([
+      '.claude/skills',
+      '.agents/skills',
+      '.grok/skills',
+    ]);
     expect(SKILLS_INSTALL_DIR).toBe('.claude/skills');
   });
 
@@ -230,7 +237,7 @@ describe('buildToolSurfaceAddendum', () => {
   it('is empty for every CLI agent, which never sees these tools', () => {
     // createCliAgent ignores `args.tools`; a CLI agent works the workspace with
     // its own built-in tools, so naming ours would describe tools it lacks.
-    for (const agent of ['claude-code', 'codex', 'opencode'] as const) {
+    for (const agent of ['claude-code', 'codex', 'grok', 'opencode'] as const) {
       expect(buildToolSurfaceAddendum(agent)).toBe('');
       expect(buildToolSurfaceAddendum(agent, { skipCliInstall: true })).toBe(
         ''

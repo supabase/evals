@@ -18,6 +18,7 @@ const FORWARDED_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
+  'XAI_API_KEY',
   // Pins the CLI channel versions the prepare job resolved for this run, so
   // every sandbox job in the run scores against the same version instead of
   // each independently re-resolving "latest" and drifting mid-run.
