@@ -1786,137 +1786,6 @@
       {
         "name": "the agent read the Custom Claims and RBAC guide the prompt referenced",
         "passed": true,
-        "notes": "web_search, shell_fetch"
-      }
-    ],
-    "skills": {
-      "available": [],
-      "loaded": []
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md"
-            }
-          ]
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control"
-            }
-          ]
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md | sed -n '1,260p'\"",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md"
-            }
-          ],
-          "resultChars": 7977
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error https://supabase.com/docs/guides/auth/auth-hooks | rg -n -C 3 'local|custom_access|pg-functions|hook' | head -160\"",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-hooks"
-            }
-          ],
-          "resultChars": 295232
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-5.6-luna",
-        "inputTokens": 1307751,
-        "cacheReadInputTokens": 1244422,
-        "cacheWriteInputTokens": 63221,
-        "outputTokens": 10439
-      }
-    ],
-    "stepCount": 36,
-    "toolCallCount": 20,
-    "agentRunDurationMs": 177824,
-    "sandboxUsage": {
-      "memory": 8192
-    },
-    "prompt": "My forum has regular members and moderators. Moderators can delete any post,\nand members can only delete their own. Set that up.\n\nThen get the local stack running so I can sign in as each of them and see it\nwork.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
-    "promptSourcePath": "evals/docs/build-docs-009-custom-claims-rbac/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-009-custom-claims-rbac/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-5.6-luna-no-skills",
-    "experimentSuite": "docs",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-5.6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "build-docs-009-custom-claims-rbac",
-    "stage": "build",
-    "product": [
-      "auth",
-      "database"
-    ],
-    "topic": [
-      "rls",
-      "security"
-    ],
-    "suite": "docs",
-    "interface": "cli",
-    "passed": true,
-    "checks": [
-      {
-        "name": "the local stack is running",
-        "passed": true
-      },
-      {
-        "name": "the access token hook is switched on for the local project",
-        "passed": true,
-        "notes": "enabled, pointing at pg-functions://postgres/public/custom_access_token_hook"
-      },
-      {
-        "name": "the moderator's role travels in their token and a member's does not",
-        "passed": true,
-        "notes": "the moderator's token carries it at user_role"
-      },
-      {
-        "name": "a member can delete their own post",
-        "passed": true
-      },
-      {
-        "name": "a member cannot delete another member's post",
-        "passed": true,
-        "notes": "the post is still there"
-      },
-      {
-        "name": "a moderator can delete another member's post",
-        "passed": true
-      },
-      {
-        "name": "a member cannot make themselves a moderator",
-        "passed": true,
-        "notes": "member_roles rejected the moderator write"
-      },
-      {
-        "name": "the agent read the Custom Claims and RBAC guide the prompt referenced",
-        "passed": true,
         "notes": "web_search"
       }
     ],
@@ -1938,12 +1807,7 @@
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/api custom claims role based access control RBAC Supabase",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs local development custom access token hook pg-functions uri config.toml",
+          "query": "site:supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac Supabase custom claims role based access control",
           "pages": []
         }
       ]
@@ -1951,22 +1815,22 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 1118988,
-        "cacheReadInputTokens": 1046708,
-        "cacheWriteInputTokens": 72202,
-        "outputTokens": 6623
+        "inputTokens": 966897,
+        "cacheReadInputTokens": 906138,
+        "cacheWriteInputTokens": 60684,
+        "outputTokens": 6961
       }
     ],
-    "stepCount": 26,
+    "stepCount": 25,
     "toolCallCount": 15,
-    "agentRunDurationMs": 118960,
+    "agentRunDurationMs": 134689,
     "sandboxUsage": {
       "memory": 8192
     },
     "prompt": "My forum has regular members and moderators. Moderators can delete any post,\nand members can only delete their own. Set that up.\n\nThen get the local stack running so I can sign in as each of them and see it\nwork.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
     "promptSourcePath": "evals/docs/build-docs-009-custom-claims-rbac/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-009-custom-claims-rbac/run-2/result.json"
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-009-custom-claims-rbac/run-1/result.json"
   },
   {
     "experiment": "codex-gpt-5.6-luna-no-skills",
@@ -2054,10 +1918,114 @@
               "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac"
             }
           ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 932738,
+        "cacheReadInputTokens": 880596,
+        "cacheWriteInputTokens": 52046,
+        "outputTokens": 7557
+      }
+    ],
+    "stepCount": 32,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 142080,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "My forum has regular members and moderators. Moderators can delete any post,\nand members can only delete their own. Set that up.\n\nThen get the local stack running so I can sign in as each of them and see it\nwork.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
+    "promptSourcePath": "evals/docs/build-docs-009-custom-claims-rbac/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-009-custom-claims-rbac/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-009-custom-claims-rbac",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true
+      },
+      {
+        "name": "the access token hook is switched on for the local project",
+        "passed": true,
+        "notes": "enabled, pointing at pg-functions://postgres/public/custom_access_token_hook"
+      },
+      {
+        "name": "the moderator's role travels in their token and a member's does not",
+        "passed": true,
+        "notes": "the moderator's token carries it at user_role"
+      },
+      {
+        "name": "a member can delete their own post",
+        "passed": true
+      },
+      {
+        "name": "a member cannot delete another member's post",
+        "passed": true,
+        "notes": "the post is still there"
+      },
+      {
+        "name": "a moderator can delete another member's post",
+        "passed": true
+      },
+      {
+        "name": "a member cannot make themselves a moderator",
+        "passed": true,
+        "notes": "member_roles rejected the moderator write"
+      },
+      {
+        "name": "the agent read the Custom Claims and RBAC guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md"
+            }
+          ]
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs local development auth hooks config.toml custom access token hook pg-functions",
+          "query": "site:supabase.com/docs/guides/api custom claims role based access control RBAC Supabase",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs local development auth hooks config.toml custom_access_token_hook pg-functions",
           "pages": []
         }
       ]
@@ -2065,15 +2033,15 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 2217168,
-        "cacheReadInputTokens": 2146259,
-        "cacheWriteInputTokens": 70765,
-        "outputTokens": 8775
+        "inputTokens": 1088165,
+        "cacheReadInputTokens": 1029348,
+        "cacheWriteInputTokens": 58724,
+        "outputTokens": 7216
       }
     ],
-    "stepCount": 48,
-    "toolCallCount": 20,
-    "agentRunDurationMs": 222318,
+    "stepCount": 31,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 130902,
     "sandboxUsage": {
       "memory": 8192
     },
