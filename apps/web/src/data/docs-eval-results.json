@@ -1727,5 +1727,336 @@
     "promptSourcePath": "evals/docs/build-docs-008-storage-access-control/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-008-storage-access-control/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-010-edge-function-auth",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "sdk",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321"
+      },
+      {
+        "name": "the order-history endpoint answers",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":3,\"item\":\"thistle-teapot-c5af2806\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a signed-in customer gets their own orders back",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":3,\"item\":\"thistle-teapot-c5af2806\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a signed-in customer does not get another customer's orders",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":3,\"item\":\"thistle-teapot-c5af2806\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a customer asking for another customer's orders still gets only their own",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":3,\"item\":\"thistle-teapot-c5af2806\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a caller with no session gets no orders",
+        "passed": true,
+        "notes": "apikey only: 401, no headers: 401"
+      },
+      {
+        "name": "the agent read the Securing Edge Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/functions/auth Supabase Edge Functions auth",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 772689,
+        "cacheReadInputTokens": 709607,
+        "cacheWriteInputTokens": 63022,
+        "outputTokens": 5968
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 177712,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our shop's app needs an endpoint that hands a signed-in customer their own\norder history. Call it `order-history`, reachable at\n`/functions/v1/order-history`, and answer with that customer's orders as JSON.\n\nNobody should be able to pull up anybody else's orders through it, and someone\nwho is not signed in should get nothing back.\n\nThen get the local stack running so I can call it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/auth.md",
+    "promptSourcePath": "evals/docs/build-docs-010-edge-function-auth/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-010-edge-function-auth/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-010-edge-function-auth",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "sdk",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321"
+      },
+      {
+        "name": "the order-history endpoint answers",
+        "passed": true,
+        "notes": "status 200: [{\"id\":2,\"customer_id\":\"db42130e-9c8e-4b0e-9f0d-0a3c90706a04\",\"item\":\"thistle-teapot-2b117160\",\"placed_on\":\"2026-09-21\"}]"
+      },
+      {
+        "name": "a signed-in customer gets their own orders back",
+        "passed": true,
+        "notes": "status 200: [{\"id\":2,\"customer_id\":\"db42130e-9c8e-4b0e-9f0d-0a3c90706a04\",\"item\":\"thistle-teapot-2b117160\",\"placed_on\":\"2026-09-21\"}]"
+      },
+      {
+        "name": "a signed-in customer does not get another customer's orders",
+        "passed": true,
+        "notes": "status 200: [{\"id\":2,\"customer_id\":\"db42130e-9c8e-4b0e-9f0d-0a3c90706a04\",\"item\":\"thistle-teapot-2b117160\",\"placed_on\":\"2026-09-21\"}]"
+      },
+      {
+        "name": "a customer asking for another customer's orders still gets only their own",
+        "passed": true,
+        "notes": "status 200: [{\"id\":2,\"customer_id\":\"db42130e-9c8e-4b0e-9f0d-0a3c90706a04\",\"item\":\"thistle-teapot-2b117160\",\"placed_on\":\"2026-09-21\"}]"
+      },
+      {
+        "name": "a caller with no session gets no orders",
+        "passed": true,
+        "notes": "apikey only: 401, no headers: 401"
+      },
+      {
+        "name": "the agent read the Securing Edge Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:github.com/supabase/cli \"failed to determine entrypoint\" supabase functions serve",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1256460,
+        "cacheReadInputTokens": 1181700,
+        "cacheWriteInputTokens": 74676,
+        "outputTokens": 6226
+      }
+    ],
+    "stepCount": 28,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 146079,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our shop's app needs an endpoint that hands a signed-in customer their own\norder history. Call it `order-history`, reachable at\n`/functions/v1/order-history`, and answer with that customer's orders as JSON.\n\nNobody should be able to pull up anybody else's orders through it, and someone\nwho is not signed in should get nothing back.\n\nThen get the local stack running so I can call it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/auth.md",
+    "promptSourcePath": "evals/docs/build-docs-010-edge-function-auth/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-010-edge-function-auth/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-010-edge-function-auth",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "sdk",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321"
+      },
+      {
+        "name": "the order-history endpoint answers",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":1,\"customer_id\":\"13d47998-cd7f-4289-b0d8-c12aac5e8b10\",\"item\":\"thistle-teapot-8ddb1d09\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a signed-in customer gets their own orders back",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":1,\"customer_id\":\"13d47998-cd7f-4289-b0d8-c12aac5e8b10\",\"item\":\"thistle-teapot-8ddb1d09\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a signed-in customer does not get another customer's orders",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":1,\"customer_id\":\"13d47998-cd7f-4289-b0d8-c12aac5e8b10\",\"item\":\"thistle-teapot-8ddb1d09\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a customer asking for another customer's orders still gets only their own",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":1,\"customer_id\":\"13d47998-cd7f-4289-b0d8-c12aac5e8b10\",\"item\":\"thistle-teapot-8ddb1d09\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a caller with no session gets no orders",
+        "passed": true,
+        "notes": "apikey only: 401, no headers: 401"
+      },
+      {
+        "name": "the agent read the Securing Edge Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, shell_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -L --fail --silent --show-error https://supabase.com/docs/guides/functions/auth.md'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ],
+          "resultChars": 7820
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1426460,
+        "cacheReadInputTokens": 1349364,
+        "cacheWriteInputTokens": 77009,
+        "outputTokens": 6345
+      }
+    ],
+    "stepCount": 29,
+    "toolCallCount": 26,
+    "agentRunDurationMs": 153203,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our shop's app needs an endpoint that hands a signed-in customer their own\norder history. Call it `order-history`, reachable at\n`/functions/v1/order-history`, and answer with that customer's orders as JSON.\n\nNobody should be able to pull up anybody else's orders through it, and someone\nwho is not signed in should get nothing back.\n\nThen get the local stack running so I can call it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/auth.md",
+    "promptSourcePath": "evals/docs/build-docs-010-edge-function-auth/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-010-edge-function-auth/run-3/result.json"
   }
 ]
