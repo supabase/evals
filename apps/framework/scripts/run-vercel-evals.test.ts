@@ -18,6 +18,7 @@ import {
   finalizeResult,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
+  packWorkspaceScript,
   parsePairs,
   runBounded,
   tagValue,
@@ -70,6 +71,33 @@ describe('Vercel eval controller', () => {
     expect(() => parsePairs('[{"eval_id":"eval-1"}]')).toThrow(
       'each pair must contain'
     );
+  });
+
+  it('packs an archive whether or not the eval left a workspace', () => {
+    const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-pack-'));
+
+    try {
+      for (const [name, createWorkspace] of [
+        ['with-workspace', true],
+        ['no-workspace', false],
+      ] as const) {
+        const workspace = join(temporary, name, 'workspace');
+        const archive = join(temporary, `${name}.tgz`);
+        if (createWorkspace) {
+          mkdirSync(workspace, { recursive: true });
+          writeFileSync(join(workspace, 'agent-output.txt'), 'hello');
+        }
+
+        execFileSync('sh', ['-c', packWorkspaceScript(workspace, archive)]);
+
+        const listing = execFileSync('tar', ['-tzf', archive], {
+          encoding: 'utf8',
+        });
+        expect(listing.includes('agent-output.txt')).toBe(createWorkspace);
+      }
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
   });
 
   it('downloads result metadata separately from agent workspace files', async () => {
