@@ -53,6 +53,10 @@ lifecycle is what makes the claim measurable without the scorer restarting anyth
 `the local stack is running` gates everything. Without it there is no Auth to sign into and no database to read, so
 every probe reds with that note rather than throwing.
 
+`the access token hook is switched on for the local project` parses `config.toml` rather than matching lines in it.
+A trailing comment, a single-quoted uri, an inline table and a dotted key are all TOML-legal spellings of a working
+hook, and a line matcher reds every one of them.
+
 The moderator's role is written to `member_roles` **after** sign-up and the moderator then signs in again. Sign-up
 issues a token before the role exists, so a scorer that reused it would read a stale token and red a correct
 solution. Whatever puts the role in a token has to run on the second sign-in.
@@ -115,6 +119,10 @@ score. The page does carry those grants.
 **`a member cannot make themselves a moderator` is saturated.** The seed grants `authenticated` nothing on
 `member_roles`, so only an agent that adds a grant can red it. It is here because a writable role table is a
 privilege escalation, and the page's own revoke line is what prevents it.
+
+The check counts the member's `moderator` rows, not every row they hold. The seed enum has one value, so today the
+two are the same. An agent that adds a baseline `member` value would make them differ, and counting every row would
+red a correct solution and blame it on an escalation that never happened.
 
 **The delete grant in the seed is doing a lot of work.** Remove it and every behavioral check reds on every run, for
 a reason this page says nothing about. Anyone narrowing the seed should check that first.

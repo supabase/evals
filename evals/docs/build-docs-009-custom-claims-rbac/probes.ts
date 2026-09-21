@@ -196,7 +196,7 @@ export async function checkMemberCannotSelfPromote(
     .from('member_roles')
     .insert({ member_id: probes.memberId, role: ROLE });
   const { rows } = await ctx.query(
-    `SELECT count(*)::int AS count FROM member_roles WHERE member_id = '${probes.memberId}';`
+    `SELECT count(*)::int AS count FROM member_roles WHERE member_id = '${probes.memberId}' AND role = '${ROLE}';`
   );
   const promoted = Number(rows[0]?.count ?? 0) > 0;
 
@@ -204,8 +204,8 @@ export async function checkMemberCannotSelfPromote(
     name: 'a member cannot make themselves a moderator',
     passed: !promoted,
     notes: promoted
-      ? 'a member wrote their own row into member_roles'
-      : 'member_roles rejected the write',
+      ? `a member wrote themselves a ${ROLE} row into member_roles`
+      : `member_roles rejected the ${ROLE} write`,
   };
 }
 

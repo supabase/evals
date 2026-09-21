@@ -1,8 +1,5 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-
-const HOOK_SECTION = /^\s*\[auth\.hook\.custom_access_token\]\s*$/;
-const ENABLED = /^\s*enabled\s*=\s*(true|"true")\s*$/i;
-const URI = /^\s*uri\s*=\s*"(.+)"\s*$/;
+import { parse as parseToml } from 'smol-toml';
 
 export type StackState = {
   running: boolean;
@@ -47,9 +44,22 @@ export async function checkHookIsEnabled(
     };
   }
 
-  const lines = config.split('\n');
-  const start = lines.findIndex((line) => HOOK_SECTION.test(line));
-  if (start === -1) {
+  let parsed: unknown;
+  try {
+    parsed = parseToml(config);
+  } catch (error) {
+    return {
+      name,
+      passed: false,
+      notes: `supabase/config.toml is not valid TOML: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  const hook = readTable(
+    readTable(readTable(parsed, 'auth'), 'hook'),
+    'custom_access_token'
+  );
+  if (!hook) {
     return {
       name,
       passed: false,
@@ -58,14 +68,9 @@ export async function checkHookIsEnabled(
     };
   }
 
-  let enabled = false;
-  let uri: string | undefined;
-  for (const line of lines.slice(start + 1)) {
-    if (/^\s*\[/.test(line)) break;
-    if (ENABLED.test(line)) enabled = true;
-    const match = URI.exec(line);
-    if (match) uri = match[1];
-  }
+  const enabled = hook.enabled === true || hook.enabled === 'true';
+  const uri =
+    typeof hook.uri === 'string' && hook.uri.length > 0 ? hook.uri : undefined;
 
   return {
     name,
@@ -76,6 +81,18 @@ export async function checkHookIsEnabled(
         : 'enabled with no uri, so Auth has no function to call'
       : 'the section is present but not enabled',
   };
+}
+
+function readTable(
+  value: unknown,
+  key: string
+): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const child = (value as Record<string, unknown>)[key];
+  if (typeof child !== 'object' || child === null || Array.isArray(child)) {
+    return undefined;
+  }
+  return child as Record<string, unknown>;
 }
 
 function firstError(result: {
