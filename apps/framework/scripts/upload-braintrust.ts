@@ -7,7 +7,7 @@
  * as trials. Each row carries the agent's messages and tool calls as child
  * spans so a run can be read step by step rather than downloaded as a blob.
  *
- * A second destination, not a replacement: `eval-results.json` is untouched.
+ * `eval-results.json` is untouched.
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -80,7 +80,7 @@ function git(...args: string[]): string | undefined {
     return execFileSync('git', args, {
       cwd: ROOT,
       encoding: 'utf8',
-      // `describe --exact-match` fails on most commits; its stderr would
+      // `describe --exact-match` fails on most commits. Its stderr would
       // otherwise read like an upload error.
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
@@ -150,8 +150,8 @@ export function tokenMetrics(
 
 /**
  * The most identifying argument per tool call, in transcript order, so a span
- * reads `Bash: find /tmp/…` rather than a bare `Bash`. The parsers normalize
- * these onto every `ToolCallRecord`; calls without one keep just their name.
+ * reads `Bash: find /tmp/…`. The parsers normalize these onto every
+ * `ToolCallRecord`. Calls without one keep just their name.
  */
 function toolLabels(toolCalls: unknown): (string | undefined)[] {
   if (!Array.isArray(toolCalls)) {
@@ -288,7 +288,7 @@ async function collectRows(
 /**
  * One child span per transcript entry, in order. Assistant messages are typed
  * `llm` and named after the model so the tree reads like Braintrust's own
- * agent integrations; tool calls are typed `tool` and carry their args.
+ * agent integrations. Tool calls are typed `tool` and carry their args.
  *
  * Child spans carry order but no duration: the CLI parsers leave each tool
  * call's `ts` timestamp at 0, so only the run's total duration is real. They
@@ -431,8 +431,7 @@ async function main() {
       root.end(row.endTime ? { endTime: row.endTime } : undefined);
     }
 
-    // The assigned name, not the requested one: Braintrust suffixes a
-    // collision, so a re-run at the same commit reports its real name.
+    // Braintrust suffixes a colliding name, so report the one it assigned.
     const summary = await bt.summarize({ summarizeScores: false });
     console.log(`✅ ${summary.experimentName} → ${summary.experimentUrl}`);
   }
@@ -440,7 +439,7 @@ async function main() {
   await flush();
 }
 
-// Skipped on import (tests); runs only as the CLI entrypoint.
+// Runs only as the CLI entrypoint, so importing it in tests is inert.
 if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {
   await main();
 }
