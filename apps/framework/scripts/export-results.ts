@@ -27,6 +27,7 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import { discoverExperimentFiles } from '../lib/experiment-files.js';
 import {
   formatIncompleteSampleSets,
   splitBySampleSetCompleteness,
@@ -55,12 +56,10 @@ async function loadExperimentMetadata(): Promise<
   Map<string, ExperimentExportMetadata>
 > {
   const map = new Map<string, ExperimentExportMetadata>();
-  for (const f of (await readdir(EXPERIMENTS_DIR)).filter((f) =>
-    f.endsWith('.ts')
-  )) {
-    const mod = await import(pathToFileURL(join(EXPERIMENTS_DIR, f)).href);
+  for (const experiment of await discoverExperimentFiles(EXPERIMENTS_DIR)) {
+    const mod = await import(pathToFileURL(experiment.path).href);
     const config = mod.default as ExperimentConfig;
-    map.set(f.replace(/\.ts$/, ''), {
+    map.set(experiment.name, {
       display: getExperimentDisplayMetadata(config),
       experimentSuite: config.suite?.[0],
     });
