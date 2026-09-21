@@ -10,6 +10,7 @@
  * A second destination, not a replacement: `eval-results.json` is untouched.
  */
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { z } from 'zod';
@@ -379,17 +380,14 @@ async function main() {
   }
 
   const info = repoInfo();
-  // 7-char prefix per Braintrust's per-commit guidance. Re-running an
-  // unchanged commit is safe: the SDK suffixes a colliding name rather than
-  // writing into the existing experiment.
-  const sha7 = info?.commit?.slice(0, 7) ?? 'nogit';
+  // Separates repeated runs on the same branch, which grouping by branch
+  // alone would merge together.
+  const runId = randomUUID();
 
   if (DRY) {
     for (const [experiment, rows] of byExperiment) {
       const evals = new Set(rows.map((row) => row.evalId)).size;
-      console.log(
-        `${experiment}@${sha7}: ${rows.length} row(s), ${evals} eval(s)`
-      );
+      console.log(`${experiment}: ${rows.length} row(s), ${evals} eval(s)`);
     }
     return;
   }
@@ -397,11 +395,10 @@ async function main() {
   const { init, flush } = await import('braintrust');
 
   for (const [experiment, rows] of byExperiment) {
-    const name = `${experiment}@${sha7}`;
     const meta = experimentMetadata.get(experiment);
     const bt = init({
       projectId,
-      experiment: name,
+      experiment,
       repoInfo: info,
       metadata: {
         agent: meta?.display.agent,
@@ -409,6 +406,9 @@ async function main() {
         model_id: meta?.display.modelId,
         reasoning_effort: meta?.display.reasoningEffort,
         experiment_suites: meta?.suites,
+        run_id: runId,
+        // Duplicated from repo_info because grouping only reads metadata.
+        ...(info?.branch ? { branch: info.branch } : {}),
         ...prUrl(),
       },
     });
