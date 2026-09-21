@@ -90,10 +90,14 @@ export async function checkEndpointIsServed(
   });
 
   const served =
-    answer.reached && answer.status !== 404 && answer.status !== 503;
+    answer.reached &&
+    answer.status !== 404 &&
+    answer.status !== 502 &&
+    answer.status !== 503;
   const unreachableDependency =
     answer.status === 503 &&
     /name resolution|dns|fetch failed/i.test(answer.body);
+  const workerNeverBooted = answer.status === 502;
 
   return {
     name: 'the order-history endpoint answers',
@@ -102,7 +106,9 @@ export async function checkEndpointIsServed(
       ? `nothing served at /functions/v1/${FUNCTION}: ${answer.body}`
       : unreachableDependency
         ? `the worker could not reach the network to load its imports, so this run measured nothing about the handler: ${preview(answer.body)}`
-        : `status ${answer.status}: ${preview(answer.body)}`,
+        : workerNeverBooted
+          ? `the gateway answered 502, so the worker never ran and this run measured nothing about the handler: ${preview(answer.body)}`
+          : `status ${answer.status}: ${preview(answer.body)}`,
   };
 }
 

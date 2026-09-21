@@ -109,9 +109,11 @@ it into the score.
 request and reused, so swapping the handler's source and calling again answers with the previous one. A run is not
 affected, because the agent writes the function before the stack starts. Anyone rescoring a workspace by hand has to
 restart the runtime between attempts, or they score whatever ran last. A missing function answers `503 BOOT_ERROR`
-rather than `404`, which is why `the order-history endpoint answers` rejects both.
+rather than `404`, and a worker the gateway could not reach answers 502, which is why `the order-history endpoint
+answers` rejects all three. None of them is a verdict on the handler, so each carries a note saying so.
 
-**`a caller with no session gets no orders` is partly the platform's verdict, not the page's.** With the default
-platform check left on, the request never reaches the handler, so an agent that wrote a wide-open handler still
-passes as long as it left that default alone. The check is here because switching the default off is the reported
-failure, and it only reds a solution that did both.
+**`a caller with no session gets no orders` is the handler's verdict.** The gateway does not stop a request
+carrying the publishable key and no `Authorization` header. It reaches the handler with no user, and a handler that
+queries with the service role answers 200 with every customer's orders whatever the platform default is set to. The
+check reds that solution on its own behaviour. The second request, the one with no headers at all, is the gateway's
+verdict: it answers 401 before the worker runs.
