@@ -52,6 +52,11 @@ design it wants rather than letting a check decide.
 Pending migrations apply first. `supabase migration up --local` runs before anything is read, and
 `the agent applied the migrations it wrote` reds when there was something to apply.
 
+Pending is the set of migration files in the workspace whose version is missing from
+`supabase_migrations.schema_migrations`. The scorer asks the database rather than parsing
+`supabase migration list`, whose table decorates every cell with backticks and whose text output the CLI
+swaps for JSON on its own agent detection.
+
 That split is what keeps the page's signal readable. An agent that writes correct SQL and never applies it leaves
 `storage.buckets` empty, which would otherwise red the bucket check and all eight probes together for an
 operational step this page says nothing about. Applying first costs that agent one check instead of nine.

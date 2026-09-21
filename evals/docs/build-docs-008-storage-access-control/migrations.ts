@@ -1,3 +1,5 @@
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 
 export type MigrationState = {
@@ -8,10 +10,7 @@ export type MigrationState = {
 export async function applyPendingMigrations(
   ctx: LocalStackEvalContext
 ): Promise<MigrationState> {
-  const listed = await ctx.exec('supabase migration list --local', {
-    timeoutMs: 120_000,
-  });
-  const pending = parsePending(listed.stdout ?? '');
+  const pending = await pendingVersions(ctx);
 
   if (pending.length === 0) {
     return { pending };
@@ -44,34 +43,37 @@ export function checkMigrationsWereApplied(state: MigrationState): CheckResult {
   };
 }
 
-function parsePending(stdout: string): string[] {
-  const json = stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .find((line) => line.startsWith('{') && line.includes('"migrations"'));
-
-  if (json) {
-    try {
-      const parsed = JSON.parse(json) as {
-        migrations?: { local?: string; remote?: string }[];
-      };
-      return (parsed.migrations ?? [])
-        .filter((entry) => entry.local && entry.local !== entry.remote)
-        .map((entry) => String(entry.local));
-    } catch {
-      return [];
-    }
+async function pendingVersions(ctx: LocalStackEvalContext): Promise<string[]> {
+  const onDisk = migrationVersionsOnDisk(ctx.hostWorkspace);
+  if (onDisk.length === 0) {
+    return [];
   }
 
-  const pending: string[] = [];
-  for (const line of stdout.split('\n')) {
-    if (!line.includes('|')) continue;
-    const [local, remote] = line.split('|').map((cell) => cell.trim());
-    if (!local || !/^\d+$/.test(local)) continue;
-    if (remote === local) continue;
-    pending.push(local);
+  const { rows: history } = await ctx.query(
+    "SELECT to_regclass('supabase_migrations.schema_migrations') IS NOT NULL AS present;"
+  );
+  if (history[0]?.present !== true) {
+    return onDisk;
   }
-  return pending;
+
+  const { rows } = await ctx.query(
+    'SELECT version FROM supabase_migrations.schema_migrations;'
+  );
+  const applied = new Set(rows.map((row) => String(row.version)));
+  return onDisk.filter((version) => !applied.has(version));
+}
+
+function migrationVersionsOnDisk(hostWorkspace: string): string[] {
+  let entries: string[];
+  try {
+    entries = readdirSync(join(hostWorkspace, 'supabase', 'migrations'));
+  } catch {
+    return [];
+  }
+  return entries
+    .map((entry) => /^(\d+)(?:_.*)?\.sql$/.exec(entry)?.[1])
+    .filter((version): version is string => version !== undefined)
+    .sort();
 }
 
 function firstError(output: string): string {
