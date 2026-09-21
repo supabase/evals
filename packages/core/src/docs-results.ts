@@ -199,6 +199,17 @@ function queryRequestsContent(graphqlQuery: string): boolean {
   return /\bcontent\b/.test(graphqlQuery.replace(/"[^"]*"/g, ''));
 }
 
+/**
+ * Supabase urls from Grok's web_search `citations` array.
+ * No `citations` field → undefined. Field with no Supabase urls → `[]`.
+ */
+function citationUrls(result: unknown): string[] | undefined {
+  if (!isRecord(result) || !Array.isArray(result.citations)) return undefined;
+  return result.citations.filter(
+    (url): url is string => typeof url === 'string' && isSupabaseApexUrl(url)
+  );
+}
+
 /** Extracts `{url, title}` pairs from a tool result, however much of it survived truncation. */
 function extractPages(result: unknown): DocsCallPage[] {
   const raw =
@@ -260,8 +271,29 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
     }
 
     if (call.name === 'web_search') {
-      const query = typeof body.query === 'string' ? body.query : undefined;
+      // Grok can also put the query on the result.
+      const resultQuery = isRecord(result) ? result.query : undefined;
+      const query =
+        typeof body.query === 'string'
+          ? body.query
+          : typeof resultQuery === 'string'
+            ? resultQuery
+            : undefined;
       if (!query) continue;
+
+      // A citations array means Grok. It lists every page, so skip the text
+      // scan, which would also pick up urls its prose merely quoted.
+      const citations = citationUrls(result);
+      if (citations) {
+        if (!/supabase/i.test(query)) continue;
+        calls.push({
+          source: 'web_search',
+          query,
+          pages: citations.map((url) => ({ url })),
+          resultChars: resultCharCount(result),
+        });
+        continue;
+      }
 
       // Codex states what its hosted search did, so trust that over the shape
       // of the query string, which renders a page open and a search for that

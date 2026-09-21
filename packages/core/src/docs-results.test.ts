@@ -276,6 +276,71 @@ describe('buildDocsResult', () => {
     ]);
   });
 
+  it("collects Grok's web_search citations as pages", () => {
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        { variant: 'WebSearch', backend: true },
+        {
+          name: 'web_search',
+          result: {
+            type: 'WebSearch',
+            query: 'site:supabase.com docs/guides/monitoring-and-debugging.md',
+            content:
+              'See {"url":"https://supabase.com/docs/guides/quoted-in-prose"} for details.',
+            citations: [
+              'https://supabase.com/docs/guides/monitoring-and-debugging',
+              'https://example.com/unrelated',
+            ],
+            allowed_domains: null,
+          },
+        }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'web_search',
+        query: 'site:supabase.com docs/guides/monitoring-and-debugging.md',
+        hasContent: undefined,
+        pages: [
+          { url: 'https://supabase.com/docs/guides/monitoring-and-debugging' },
+        ],
+        resultChars: expect.any(Number),
+      },
+    ]);
+  });
+
+  it('ignores urls quoted in Grok prose when no citation is Supabase', () => {
+    const result = buildDocsResult([
+      toolCall(
+        'web_search',
+        { variant: 'WebSearch', backend: true },
+        {
+          name: 'web_search',
+          result: {
+            type: 'WebSearch',
+            query: 'supabase row level security',
+            content:
+              'See {"url":"https://supabase.com/docs/guides/quoted-in-prose"} for details.',
+            citations: ['https://example.com/unrelated'],
+            allowed_domains: null,
+          },
+        }
+      ),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'web_search',
+        query: 'supabase row level security',
+        hasContent: undefined,
+        pages: [],
+        resultChars: expect.any(Number),
+      },
+    ]);
+  });
+
   it("drops a web search call that isn't Supabase-related", () => {
     const result = buildDocsResult([
       toolCall(

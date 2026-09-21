@@ -155,25 +155,21 @@ async function checkFunctionDrains(
   const status = await readStatus(ctx);
   const apiUrl =
     typeof status.API_URL === 'string' ? status.API_URL : undefined;
-  const serviceKey =
-    typeof status.SERVICE_ROLE_KEY === 'string'
-      ? status.SERVICE_ROLE_KEY
-      : undefined;
-  if (!apiUrl || !serviceKey) {
+  const secretKey =
+    typeof status.SECRET_KEY === 'string' ? status.SECRET_KEY : undefined;
+  if (!apiUrl || !secretKey) {
     return {
       name,
       passed: false,
-      notes: 'missing API_URL/SERVICE_ROLE_KEY from `supabase status`',
+      notes: 'missing API_URL/SECRET_KEY from `supabase status`',
     };
   }
 
-  // Invoke the way a scheduled worker would. The function holds its own service
-  // role, so the caller's key only needs to clear the verify_jwt gateway.
   const res = await fetch(`${apiUrl}/functions/v1/${FUNCTION}`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${serviceKey}`,
-      apikey: serviceKey,
+      Authorization: `Bearer ${secretKey}`,
+      apikey: secretKey,
       'content-type': 'application/json',
     },
     body: '{}',
