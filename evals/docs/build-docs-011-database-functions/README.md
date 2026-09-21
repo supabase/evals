@@ -21,8 +21,12 @@ security definer, security invoker, `search_path`, RLS, row level security, poli
 privilege, permission, role, `anon`, `authenticated`, schema-qualify, `rpc`, `plpgsql`, `language sql`,
 `auth.uid()`.
 
-The function's name and its argument are named, because the scorer has no address otherwise and because both apps
-calling the same name is the user's own framing. The answer is whose privileges it runs with.
+The function's name is given, because the scorer has no address otherwise and because both apps calling the same
+name is the user's own framing. The argument name is not. The scorer reads it from `pg_proc` and calls the function
+by whatever the agent chose, so `p_order_id` scores the same as `order_id`. PostgREST matches a named argument
+exactly, and `order_items.order_id` is a real column, so a hardcoded argument name would answer PGRST202 on a
+correct function, red the positive control, and let both leak checks pass on the same error. The answer the eval
+wants is whose privileges the function runs with.
 
 ## The seed carries the contract
 

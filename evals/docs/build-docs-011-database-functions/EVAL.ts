@@ -9,6 +9,7 @@ import {
   checkDefinerPinsSearchPath,
   checkFunctionExists,
   loadFunctions,
+  pickArgumentName,
 } from './catalog.js';
 import {
   checkAnonCannotGetATotal,
@@ -23,7 +24,7 @@ const GUIDE_PATH = 'guides/database/functions';
 const scorer: LocalStackScorer = async (ctx) => {
   try {
     const functions = await loadFunctions(ctx);
-    const setup = await setupProbes(ctx);
+    const setup = await setupProbes(ctx, pickArgumentName(functions));
     const probes = 'probes' in setup ? setup.probes : undefined;
     const blocked = 'failure' in setup ? setup.failure : undefined;
 

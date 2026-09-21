@@ -7,6 +7,8 @@ export type FunctionRow = {
   isDefiner: boolean;
   config: string;
   args: string;
+  argCount: number;
+  firstArgName: string;
 };
 
 export async function loadFunctions(
@@ -16,7 +18,9 @@ export async function loadFunctions(
     SELECT p.proname AS name,
            p.prosecdef AS is_definer,
            COALESCE(array_to_string(p.proconfig, ','), '') AS config,
-           pg_catalog.pg_get_function_identity_arguments(p.oid) AS args
+           pg_catalog.pg_get_function_identity_arguments(p.oid) AS args,
+           p.pronargs AS arg_count,
+           COALESCE(p.proargnames[1], '') AS first_arg_name
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = '${FUNCTION}';
@@ -27,7 +31,14 @@ export async function loadFunctions(
     isDefiner: row.is_definer === true || row.is_definer === 't',
     config: String(row.config ?? ''),
     args: String(row.args ?? ''),
+    argCount: Number(row.arg_count ?? 0),
+    firstArgName: String(row.first_arg_name ?? ''),
   }));
+}
+
+export function pickArgumentName(functions: FunctionRow[]): string | undefined {
+  return functions.find((fn) => fn.argCount === 1 && fn.firstArgName !== '')
+    ?.firstArgName;
 }
 
 export function checkFunctionExists(functions: FunctionRow[]): CheckResult {
@@ -53,10 +64,12 @@ export function checkDefinerPinsSearchPath(
     name: 'a function that runs as its creator pins its search path',
     passed: unpinned.length === 0,
     notes:
-      definers.length === 0
-        ? 'not applicable: order_total runs as its caller'
-        : unpinned.length > 0
-          ? `runs as its creator with no search path pinned: ${unpinned.map((fn) => fn.name).join(', ')}`
-          : `pinned: ${definers.map((fn) => fn.config).join(', ')}`,
+      functions.length === 0
+        ? `not applicable: no function named ${FUNCTION} in public`
+        : definers.length === 0
+          ? `not applicable: ${FUNCTION} runs as its caller`
+          : unpinned.length > 0
+            ? `runs as its creator with no search path pinned: ${unpinned.map((fn) => fn.name).join(', ')}`
+            : `pinned: ${definers.map((fn) => fn.config).join(', ')}`,
   };
 }

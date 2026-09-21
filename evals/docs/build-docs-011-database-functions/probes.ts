@@ -16,11 +16,21 @@ export type Probes = {
   customerClient: SupabaseClient;
   customerOrder: number;
   strangerOrder: number;
+  argName: string;
 };
 
 export type Setup = { probes: Probes } | { failure: string };
 
-export async function setupProbes(ctx: LocalStackEvalContext): Promise<Setup> {
+export async function setupProbes(
+  ctx: LocalStackEvalContext,
+  argName: string | undefined
+): Promise<Setup> {
+  if (!argName) {
+    return {
+      failure: `no single named argument on ${FUNCTION} to pass an order id to`,
+    };
+  }
+
   const run = randomUUID().slice(0, 8);
   const anonClient = await ctx.getClient();
   const customerClient = await ctx.getClient();
@@ -82,6 +92,7 @@ export async function setupProbes(ctx: LocalStackEvalContext): Promise<Setup> {
       customerClient,
       customerOrder: ids[0],
       strangerOrder: ids[1],
+      argName,
     },
   };
 }
@@ -90,7 +101,7 @@ export async function checkCustomerGetsOwnTotal(
   probes: Probes
 ): Promise<CheckResult> {
   const { data, error } = await probes.customerClient.rpc(FUNCTION, {
-    order_id: probes.customerOrder,
+    [probes.argName]: probes.customerOrder,
   });
   const value = numeric(data);
   const right = value !== undefined && Math.abs(value - CUSTOMER_TOTAL) <= 1;
@@ -108,7 +119,7 @@ export async function checkCustomerCannotGetAnothersTotal(
   probes: Probes
 ): Promise<CheckResult> {
   const { data, error } = await probes.customerClient.rpc(FUNCTION, {
-    order_id: probes.strangerOrder,
+    [probes.argName]: probes.strangerOrder,
   });
   const value = numeric(data);
   const leaked = value !== undefined && Math.abs(value - STRANGER_TOTAL) <= 1;
@@ -127,7 +138,7 @@ export async function checkAnonCannotGetATotal(
 ): Promise<CheckResult> {
   const results = await Promise.all(
     [probes.customerOrder, probes.strangerOrder].map((order) =>
-      probes.anonClient.rpc(FUNCTION, { order_id: order })
+      probes.anonClient.rpc(FUNCTION, { [probes.argName]: order })
     )
   );
   const leaked = results
