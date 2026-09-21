@@ -27,6 +27,7 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import { discoverExperimentFiles } from '../lib/experiment-files.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
 import { buildSystemPrompt } from './system-prompt.js';
@@ -101,10 +102,10 @@ const DEBUG = args.has('--debug');
 async function loadExperiments() {
   const dir = join(ROOT, 'experiments');
   const out: Array<{ name: string; config: ExperimentConfig }> = [];
-  for (const f of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
-    const mod = await import(pathToFileURL(join(dir, f)).href);
+  for (const experiment of await discoverExperimentFiles(dir)) {
+    const mod = await import(pathToFileURL(experiment.path).href);
     out.push({
-      name: f.replace(/\.ts$/, ''),
+      name: experiment.name,
       config: mod.default as ExperimentConfig,
     });
   }
@@ -396,7 +397,7 @@ async function runOne(
     if (!exp.localStack) {
       throw new Error(
         `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
-          `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/${expName}.ts.`
+          `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/<team>/${expName}.experiment.ts.`
       );
     }
     // Boots a platform-lite backend seeded from the eval's `remote/` dir so scorers
@@ -714,7 +715,7 @@ async function main() {
     for (const ev of suiteFiltered) {
       if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
-          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/${name}.ts)`
+          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/<team>/${name}.experiment.ts)`
         );
         continue;
       }
