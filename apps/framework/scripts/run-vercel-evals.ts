@@ -305,14 +305,13 @@ async function runPairOnce(
       timeoutMs: 30_000,
     });
     await runSandboxCommand(sandbox, label, 'pack workspace', {
-      cmd: 'tar',
+      cmd: 'sh',
       args: [
-        '--exclude=*/node_modules',
-        '-czf',
-        '/tmp/eval-workspace.tgz',
-        '-C',
-        `results/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
-        '.',
+        '-c',
+        packWorkspaceScript(
+          `results/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
+          '/tmp/eval-workspace.tgz'
+        ),
       ],
       cwd: sandbox.cwd,
       timeoutMs: 3 * 60 * 1_000,
@@ -488,6 +487,18 @@ async function runSandboxCommand(
 export interface PendingResult {
   partialPath: string;
   finalPath: string;
+}
+
+/**
+ * Only local-stack evals export a `workspace/` dir, and downloadResults
+ * requires an archive either way.
+ */
+export function packWorkspaceScript(workspaceDir: string, archivePath: string) {
+  return (
+    `if [ -d '${workspaceDir}' ]; then ` +
+    `tar --exclude='*/node_modules' -czf '${archivePath}' -C '${workspaceDir}' .; ` +
+    `else tar -czf '${archivePath}' -T /dev/null; fi`
+  );
 }
 
 export async function downloadResults(
