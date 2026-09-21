@@ -14,7 +14,6 @@ services:
   - kong
   - postgrest
   - edge-runtime
-projectRunning: false
 motivation: FDBKIN-19273
 ---
 
@@ -45,5 +44,3 @@ Two very different callers need to hit this one endpoint:
 Return the matching rows as JSON. The endpoint must be secure: only ever serve
 stats to a caller that is genuinely entitled to them, and turn away callers that
 are not.
-
-Get the local stack running so the function is reachable at the path above.

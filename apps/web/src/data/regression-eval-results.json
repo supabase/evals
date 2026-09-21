@@ -22,7 +22,7 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "seed rows present",
@@ -37,17 +37,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"2a6cd733-cc7f-448a-8167-7ddd809d3d53\",\"metric\":\"steps_a_muaw3x6t\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"efefd0cd-b8c8-4484-90ab-8df1072b02e3\",\"metric\":\"steps_a_mubef93b\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"2a6cd733-cc7f-448a-8167-7ddd809d3d53\",\"metric\":\"steps_a_muaw3x6t\",\"value\":111}]"
+        "passed": false,
+        "notes": "status 403: {\"error\":\"You may only request your own stats\"}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"ae2b8a69-a46e-499c-805e-2bdc0fc7e551\",\"metric\":\"steps_b_muaw3x6t\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"538092e9-019a-4b62-9309-4b5b3e4455c8\",\"metric\":\"steps_b_mubef93b\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -84,24 +84,32 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs @supabase/server withSupabase Edge Functions",
-          "pages": []
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 1228699,
-        "cacheReadInputTokens": 1166754,
-        "cacheWriteInputTokens": 61843,
-        "outputTokens": 10042
+        "inputTokens": 237278,
+        "cacheReadInputTokens": 197356,
+        "cacheWriteInputTokens": 39892,
+        "outputTokens": 3840
       }
     ],
-    "stepCount": 34,
-    "toolCallCount": 21,
-    "agentRunDurationMs": 176904,
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "stepCount": 10,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 48553,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
     "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
     "run": 1,
     "sourcePath": "codex-gpt-5.6-luna/build-functions-006-dual-auth-with-server/run-1/result.json"
@@ -144,17 +152,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"32ac8f71-1725-4f6d-a8fa-8034b85728c8\",\"metric\":\"steps_a_muaw34hr\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"e559761c-ce77-428c-bc17-a5cbb82d9157\",\"metric\":\"steps_a_mubeh48t\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"32ac8f71-1725-4f6d-a8fa-8034b85728c8\",\"metric\":\"steps_a_muaw34hr\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"e559761c-ce77-428c-bc17-a5cbb82d9157\",\"metric\":\"steps_a_mubeh48t\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"17e3e4f8-ec76-48b4-9a1b-c5a0b11ca8ee\",\"metric\":\"steps_b_muaw34hr\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"10534a36-0c51-4d15-a0cf-698551f31b5f\",\"metric\":\"steps_b_mubeh48t\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -191,34 +199,27 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs @supabase/server withSupabase Edge Functions",
+          "query": "site:supabase.com/changelog.md Supabase Edge Functions @supabase/server withSupabase ...",
           "pages": []
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '---FILES---'; rg --files -g '\"'!node_modules'\"' | sort; printf '%s\\\\n' '---SUPABASE HELP---'; supabase --version; supabase functions --help; printf '%s\\\\n' '---CHANGELOG HEAD---'; curl -L --max-time 15 -s https://supabase.com/changelog.md | head -80\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 6640
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 973812,
-        "cacheReadInputTokens": 915668,
-        "cacheWriteInputTokens": 58060,
-        "outputTokens": 6227
+        "inputTokens": 895906,
+        "cacheReadInputTokens": 840813,
+        "cacheWriteInputTokens": 55006,
+        "outputTokens": 8017
       }
     ],
-    "stepCount": 28,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 138309,
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "stepCount": 29,
+    "toolCallCount": 22,
+    "agentRunDurationMs": 103208,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
     "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
     "run": 2,
     "sourcePath": "codex-gpt-5.6-luna/build-functions-006-dual-auth-with-server/run-2/result.json"
@@ -246,7 +247,7 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "seed rows present",
@@ -261,17 +262,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"b337f974-3704-4619-bc68-f9ddc4c055b5\",\"metric\":\"steps_a_muaw3340\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"064dfa1b-5319-440a-8929-e6c905347bf9\",\"metric\":\"steps_a_mubei49w\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"b337f974-3704-4619-bc68-f9ddc4c055b5\",\"metric\":\"steps_a_muaw3340\",\"value\":111}]"
+        "passed": false,
+        "notes": "status 403: {\"error\":\"user_id does not match the authenticated user\"}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"60d2ee91-e78b-4049-99eb-fac0a957cc93\",\"metric\":\"steps_b_muaw3340\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"6bb6fce3-6fc8-4f67-a571-b7a20411a7dd\",\"metric\":\"steps_b_mubei49w\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -308,34 +309,27 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs @supabase/server withSupabase Edge Function",
+          "query": "site:supabase.com/docs @supabase/server withSupabase Edge Functions multi-auth",
           "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 1032726,
-        "cacheReadInputTokens": 968804,
-        "cacheWriteInputTokens": 63841,
-        "outputTokens": 7605
+        "inputTokens": 982739,
+        "cacheReadInputTokens": 919142,
+        "cacheWriteInputTokens": 63519,
+        "outputTokens": 8061
       }
     ],
-    "stepCount": 27,
-    "toolCallCount": 21,
-    "agentRunDurationMs": 139768,
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "stepCount": 26,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 85399,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
     "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-5.6-luna/build-functions-006-dual-auth-with-server/run-3/result.json"
@@ -3543,7 +3537,7 @@
     ],
     "suite": "regression",
     "interface": "cli",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "seed rows present",
@@ -3558,17 +3552,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"ee3fb63f-8250-40cd-a00c-70a4bfb6f720\",\"metric\":\"steps_a_muaw481k\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"3bf8e38e-de8e-467e-8a76-428d35b24ede\",\"metric\":\"steps_a_mubehvqc\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
-        "passed": true,
-        "notes": "status 200: [{\"user_id\":\"ee3fb63f-8250-40cd-a00c-70a4bfb6f720\",\"metric\":\"steps_a_muaw481k\",\"value\":111}]"
+        "passed": false,
+        "notes": "status 403: {\"error\":\"You may only request your own stats\"}"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"7dde60ab-77e4-4f5c-b482-7ecd02351d50\",\"metric\":\"steps_b_muaw481k\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"f4422245-aad1-40e1-8e03-1e1ec27ec70c\",\"metric\":\"steps_b_mubehvqc\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -3599,12 +3593,7 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs @supabase/server withSupabase Edge Function",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "github supabase server UserIdentity id userClaims",
+          "query": "site:supabase.com/docs @supabase/server withSupabase Edge Functions",
           "pages": []
         }
       ]
@@ -3612,16 +3601,19 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 1316480,
-        "cacheReadInputTokens": 1257005,
-        "cacheWriteInputTokens": 59370,
-        "outputTokens": 8029
+        "inputTokens": 510085,
+        "cacheReadInputTokens": 457558,
+        "cacheWriteInputTokens": 52470,
+        "outputTokens": 4415
       }
     ],
-    "stepCount": 35,
-    "toolCallCount": 19,
-    "agentRunDurationMs": 187269,
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "stepCount": 19,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 70276,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
     "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
     "run": 1,
     "sourcePath": "codex-gpt-5.6-luna-no-skills/build-functions-006-dual-auth-with-server/run-1/result.json"
@@ -3664,17 +3656,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"da4fa682-ac53-46c2-87bf-f132d7379d66\",\"metric\":\"steps_a_muaw2wxw\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"8517a0cd-2bc9-4ef2-93af-9e8976efdd2b\",\"metric\":\"steps_a_mubefgm4\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"da4fa682-ac53-46c2-87bf-f132d7379d66\",\"metric\":\"steps_a_muaw2wxw\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"8517a0cd-2bc9-4ef2-93af-9e8976efdd2b\",\"metric\":\"steps_a_mubefgm4\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"38ac636b-729b-4b65-a993-4caff1803c86\",\"metric\":\"steps_b_muaw2wxw\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"10714855-0b38-4656-85e2-78f4bf475d22\",\"metric\":\"steps_b_mubefgm4\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -3705,7 +3697,7 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs @supabase/server withSupabase Edge Function ...",
+          "query": "site:supabase.com/docs @supabase/server withSupabase Edge Functions API key",
           "pages": []
         }
       ]
@@ -3713,16 +3705,19 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 895599,
-        "cacheReadInputTokens": 837769,
-        "cacheWriteInputTokens": 57755,
-        "outputTokens": 5838
+        "inputTokens": 349314,
+        "cacheReadInputTokens": 307532,
+        "cacheWriteInputTokens": 41737,
+        "outputTokens": 3856
       }
     ],
-    "stepCount": 25,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 133598,
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "stepCount": 15,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 58221,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
     "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
     "run": 2,
     "sourcePath": "codex-gpt-5.6-luna-no-skills/build-functions-006-dual-auth-with-server/run-2/result.json"
@@ -3760,22 +3755,22 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"code\":\"UNAUTHORIZED_NO_AUTH_HEADER\",\"message\":\"Missing authorization header\",\"msg\":\"Missing authorization header\"}"
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"MISSING_CREDENTIALS\",\"message\":\"[@supabase/server] No credentials found on the request. This endpoint accepts auth mode(s):"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"6761fd41-5c15-482d-935c-2f8be35b345b\",\"metric\":\"steps_a_muaw37da\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"9e33a8bd-f8b0-41d4-b165-3ec70158d526\",\"metric\":\"steps_a_mubei1dp\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"6761fd41-5c15-482d-935c-2f8be35b345b\",\"metric\":\"steps_a_muaw37da\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"9e33a8bd-f8b0-41d4-b165-3ec70158d526\",\"metric\":\"steps_a_mubei1dp\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"e4b90506-ad75-4515-af9d-c28452f180d2\",\"metric\":\"steps_b_muaw37da\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"0b8e210d-bf56-4a47-ba91-1528238ff3be\",\"metric\":\"steps_b_mubei1dp\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -3785,7 +3780,7 @@
       {
         "name": "rejects an unverified (forged) user token",
         "passed": true,
-        "notes": "status 401: {\"code\":\"UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM\",\"message\":\"Unsupported JWT algorithm none\",\"msg\":\"Unsupported JWT algorithm none\"}"
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_JWT\",\"message\":\"[@supabase/server] The JWT in the Authorization header failed verification: its header is missing \\"
       },
       {
         "name": "a user token in the apikey slot is not treated as the service key",
@@ -3814,16 +3809,19 @@
     "usage": [
       {
         "model": "gpt-5.6-luna",
-        "inputTokens": 662604,
-        "cacheReadInputTokens": 615870,
-        "cacheWriteInputTokens": 46662,
-        "outputTokens": 4645
+        "inputTokens": 379226,
+        "cacheReadInputTokens": 338574,
+        "cacheWriteInputTokens": 40601,
+        "outputTokens": 4734
       }
     ],
-    "stepCount": 24,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 136879,
-    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.\n\nGet the local stack running so the function is reachable at the path above.",
+    "stepCount": 17,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 77939,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
     "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-5.6-luna-no-skills/build-functions-006-dual-auth-with-server/run-3/result.json"
