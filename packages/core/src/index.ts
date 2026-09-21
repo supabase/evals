@@ -95,6 +95,7 @@ export {
   modelProviderSchema,
   rawEvalResultSchema,
   reasoningEffortSchema,
+  sandboxUsageSchema,
   skillResultSchema,
   docsResultSchema,
   docsCallSchema,

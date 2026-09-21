@@ -1,6 +1,21 @@
 import { APIError } from '@vercel/sandbox';
+import { execFileSync } from 'node:child_process';
+import {
+  copyFileSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  cleanupSandbox,
+  downloadResults,
+  finalizeResult,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
   parsePairs,
@@ -55,6 +70,160 @@ describe('Vercel eval controller', () => {
     expect(() => parsePairs('[{"eval_id":"eval-1"}]')).toThrow(
       'each pair must contain'
     );
+  });
+
+  it('downloads result metadata separately from agent workspace files', async () => {
+    const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-test-'));
+    const sandboxFiles = join(temporary, 'sandbox');
+    const workspaceSource = join(sandboxFiles, 'workspace');
+    const workspaceArchive = join(sandboxFiles, 'workspace.tgz');
+    const resultSource = join(sandboxFiles, 'result.json');
+    const output = join(temporary, 'downloaded');
+    const pair = {
+      eval_id: 'eval-1',
+      experiment: 'experiment-1',
+      experiment_suite: 'benchmark',
+      eval_suite: 'benchmark',
+    };
+    const poisonFilename = 'poison"name';
+
+    try {
+      mkdirSync(workspaceSource, { recursive: true });
+      writeFileSync(join(workspaceSource, poisonFilename), '');
+      writeFileSync(
+        resultSource,
+        JSON.stringify({
+          experiment: pair.experiment,
+          eval: pair.eval_id,
+          interface: 'cli',
+        })
+      );
+      execFileSync('tar', [
+        '-czf',
+        workspaceArchive,
+        '-C',
+        workspaceSource,
+        '.',
+      ]);
+
+      const pendingResult = await downloadResults(
+        {
+          downloadFile: async (source, destination) => {
+            const fixture = source.path.endsWith('result.json')
+              ? resultSource
+              : workspaceArchive;
+            mkdirSync(dirname(destination.path), { recursive: true });
+            copyFileSync(fixture, destination.path);
+            return destination.path;
+          },
+        },
+        pair,
+        1,
+        output
+      );
+
+      const runDirectory = join(
+        output,
+        'raw-results-experiment-1__eval-1',
+        pair.eval_id,
+        'run-1'
+      );
+      expect(readdirSync(runDirectory).sort()).toEqual([
+        'result.json.partial',
+        'workspace.tgz',
+      ]);
+      expect(
+        JSON.parse(readFileSync(pendingResult.partialPath, 'utf8'))
+      ).toMatchObject({ experiment: pair.experiment, eval: pair.eval_id });
+
+      const sandboxUsage = { memory: 8_192 };
+      finalizeResult(pendingResult, sandboxUsage);
+      expect(readdirSync(runDirectory).sort()).toEqual([
+        'result.json',
+        'workspace.tgz',
+      ]);
+      expect(
+        JSON.parse(readFileSync(pendingResult.finalPath, 'utf8'))
+      ).toMatchObject({ sandboxUsage });
+
+      const extracted = join(temporary, 'extracted');
+      mkdirSync(extracted);
+      execFileSync('tar', [
+        '-xzf',
+        join(runDirectory, 'workspace.tgz'),
+        '-C',
+        extracted,
+      ]);
+      expect(readFileSync(join(extracted, poisonFilename), 'utf8')).toBe('');
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps malformed results hidden as partial', () => {
+    const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-test-'));
+    const partialPath = join(temporary, 'result.json.partial');
+    const finalPath = join(temporary, 'result.json');
+
+    try {
+      writeFileSync(partialPath, '{');
+      expect(() =>
+        finalizeResult({ partialPath, finalPath }, { memory: 8_192 })
+      ).toThrow();
+      expect(readdirSync(temporary)).toEqual(['result.json.partial']);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('returns stopped sandbox usage', async () => {
+    const stopped = {
+      activeCpuDurationMs: 12_345,
+      duration: 23_456,
+      memory: 8_192,
+      networkTransfer: { ingress: 100, egress: 200 },
+    };
+
+    await expect(
+      cleanupSandbox(
+        {
+          name: 'sandbox-1',
+          stop: async () => stopped,
+          delete: async () => undefined,
+        },
+        '[experiment-1 x eval-1 run 1]'
+      )
+    ).resolves.toEqual(stopped);
+  });
+
+  it('accepts stopped usage without optional SDK metrics', async () => {
+    const stopped = { memory: 8_192 };
+
+    await expect(
+      cleanupSandbox(
+        {
+          name: 'sandbox-1',
+          stop: async () => stopped,
+          delete: async () => undefined,
+        },
+        '[experiment-1 x eval-1 run 1]'
+      )
+    ).resolves.toEqual(stopped);
+  });
+
+  it('returns no usage when the sandbox cannot stop', async () => {
+    await expect(
+      cleanupSandbox(
+        {
+          name: 'sandbox-1',
+          stop: async () => {
+            throw new Error('sandbox timed out');
+          },
+          delete: async () => undefined,
+        },
+        '[experiment-1 x eval-1 run 1]'
+      )
+    ).resolves.toBeUndefined();
   });
 
   it('retries sandbox creation only on 429s and 5xx API responses', () => {

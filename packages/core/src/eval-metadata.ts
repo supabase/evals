@@ -282,6 +282,24 @@ export type ModelUsage = z.infer<typeof modelUsageSchema>;
 export const agentUsageSchema = z.array(modelUsageSchema);
 export type AgentUsage = z.infer<typeof agentUsageSchema>;
 
+/**
+ * Metered usage a Vercel Sandbox reports at `sandbox.stop()`
+ * https://vercel.com/docs/sandbox/sdk-reference#sandbox.stop
+ */
+const sandboxUsageShape = {
+  activeCpuDurationMs: z.number().optional(),
+  duration: z.number().optional(),
+  memory: z.number(),
+  networkTransfer: z
+    .object({
+      ingress: z.number(),
+      egress: z.number(),
+    })
+    .optional(),
+};
+export const sandboxUsageSchema = z.object(sandboxUsageShape);
+export type SandboxUsage = z.infer<typeof sandboxUsageSchema>;
+
 /** Input tokens the model processed fresh, outside the cache. */
 export function uncachedInputTokens(u: ModelUsage): number {
   return u.inputTokens - u.cacheReadInputTokens - u.cacheWriteInputTokens;
@@ -391,7 +409,8 @@ const evalResultShape = {
   stepCount: z.number().optional(),
   toolCallCount: z.number().optional(),
   // Wall-clock time of the agent run only. Sandbox boot and scoring are excluded.
-  durationMs: z.number().optional(),
+  agentRunDurationMs: z.number().optional(),
+  sandboxUsage: sandboxUsageSchema.optional(),
 };
 
 // Raw result files may carry extra fields we don't model; tolerate them.

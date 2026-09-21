@@ -367,7 +367,7 @@ async function runOne(
     usage?: AgentUsage;
     stepCount?: number;
     toolCallCount: number;
-    durationMs: number;
+    agentRunDurationMs: number;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -491,7 +491,7 @@ async function runOne(
       usage: run.usage,
       stepCount: run.stepCount,
       toolCallCount: run.toolCalls.length,
-      durationMs: run.durationMs,
+      agentRunDurationMs: run.durationMs,
     };
   }
 
@@ -554,7 +554,7 @@ async function runOne(
     usage: run.usage,
     stepCount: run.stepCount,
     toolCallCount: run.toolCalls.length,
-    durationMs: run.durationMs,
+    agentRunDurationMs: run.durationMs,
   };
 }
 
