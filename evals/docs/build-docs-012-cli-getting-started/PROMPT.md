@@ -26,8 +26,8 @@ I want to start using Supabase on Harbour, and I want to run it on my own
 machine while I build.
 
 There are two of us on this and we swap between laptops, so whoever picks the
-repository up next should end up running exactly what I am running, without
-being told what to install.
+repository up next should end up running exactly what I am running, without me
+having to talk them through it.
 
 Set that up. You do not need to build any features yet.
 

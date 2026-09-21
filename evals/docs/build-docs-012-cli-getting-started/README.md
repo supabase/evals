@@ -15,7 +15,8 @@ notices is missing.
 ## Do not reintroduce the vocabulary
 
 The prompt names the outcome. It never names the mechanism, because whether the page transmits the mechanism is the
-measurement. Keep all of these out of `PROMPT.md`:
+measurement. Keep all of these out of the prompt the agent reads, which is everything below the frontmatter in
+`PROMPT.md`:
 
 CLI, `supabase init`, `npm`, `npx`, install, dev dependency, `devDependencies`, `package.json`, pin, version,
 global, Homebrew, Scoop, Docker, `config.toml`, package runner, project-scoped.
