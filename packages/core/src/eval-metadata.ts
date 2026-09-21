@@ -407,7 +407,7 @@ const evalResultShape = {
   stepCount: z.number().optional(),
   toolCallCount: z.number().optional(),
   // Wall-clock time of the agent run only. Sandbox boot and scoring are excluded.
-  durationMs: z.number().optional(),
+  agentRunDurationMs: z.number().optional(),
   sandboxUsage: sandboxUsageSchema.optional(),
 };
 

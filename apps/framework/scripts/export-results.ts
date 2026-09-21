@@ -161,7 +161,7 @@ async function readResultFile(
     usage: parsedResult.usage,
     stepCount: parsedResult.stepCount,
     toolCallCount: parsedResult.toolCallCount,
-    durationMs: parsedResult.durationMs,
+    agentRunDurationMs: parsedResult.agentRunDurationMs,
     sandboxUsage: parsedResult.sandboxUsage,
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,

@@ -227,10 +227,10 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
           }
         />
       ) : null}
-      {result.durationMs !== undefined ? (
+      {result.agentRunDurationMs !== undefined ? (
         <EvalMetadataRow
           label="Duration"
-          value={formatDuration(result.durationMs)}
+          value={formatDuration(result.agentRunDurationMs)}
         />
       ) : null}
       {result.usage ? (
