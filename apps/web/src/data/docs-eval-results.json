@@ -1322,5 +1322,410 @@
     "promptSourcePath": "evals/docs/build-docs-007-edge-function-secrets/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-007-edge-function-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-008-storage-access-control",
+    "stage": "build",
+    "product": [
+      "storage",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the project has a bucket for the profile pictures",
+        "passed": true,
+        "notes": "avatars"
+      },
+      {
+        "name": "every bucket in the project is private",
+        "passed": true,
+        "notes": "private: avatars"
+      },
+      {
+        "name": "row level security is enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "the owner can upload their own profile picture",
+        "passed": true,
+        "notes": "avatars/92f26696-c8f0-49a7-94b8-f67597a1e75e/portrait-4f7b9699.txt"
+      },
+      {
+        "name": "the owner can see their own profile picture listed",
+        "passed": true,
+        "notes": "saw in avatars/92f26696-c8f0-49a7-94b8-f67597a1e75e: portrait-4f7b9699.txt"
+      },
+      {
+        "name": "the owner can read their own profile picture back",
+        "passed": true
+      },
+      {
+        "name": "another signed-in person cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "another signed-in person cannot list the owner's profile pictures",
+        "passed": true,
+        "notes": "listed nothing"
+      },
+      {
+        "name": "a signed-out visitor cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "the owner's profile picture is not served over the bucket's public url",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321/storage/v1/object/public/avatars/92f26696-c8f0-49a7-94b8-f67597a1e75e/portrait-4f7b9699.txt answered 400"
+      },
+      {
+        "name": "another signed-in person cannot write into the owner's own area",
+        "passed": true,
+        "notes": "new row violates row-level security policy"
+      },
+      {
+        "name": "the agent read the Storage Access Control guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 258871,
+        "cacheReadInputTokens": 229942,
+        "cacheWriteInputTokens": 28881,
+        "outputTokens": 3030
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 57578,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm adding profile pictures to our app. Everyone picks their own, and nobody\nshould be able to get at anyone else's. That includes guessing the address of\nsomeone's file, and calling whatever the app calls to load one.\n\nThe app talks to Supabase straight from the browser. We have no server of our\nown in between, so people upload and load their own picture themselves.\n\nGet our project set up so the app can start putting them somewhere.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/storage/security/access-control.md",
+    "promptSourcePath": "evals/docs/build-docs-008-storage-access-control/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-008-storage-access-control/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-008-storage-access-control",
+    "stage": "build",
+    "product": [
+      "storage",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": false,
+        "notes": "pending: 20240102000000; the scorer applied them so the rest of the checks could run"
+      },
+      {
+        "name": "the project has a bucket for the profile pictures",
+        "passed": true,
+        "notes": "profile-pictures"
+      },
+      {
+        "name": "every bucket in the project is private",
+        "passed": true,
+        "notes": "private: profile-pictures"
+      },
+      {
+        "name": "row level security is enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "the owner can upload their own profile picture",
+        "passed": true,
+        "notes": "profile-pictures/8959a336-ca1c-4dc4-9612-d64772fff6ac/portrait-d6494a5a.txt"
+      },
+      {
+        "name": "the owner can see their own profile picture listed",
+        "passed": true,
+        "notes": "saw in profile-pictures/8959a336-ca1c-4dc4-9612-d64772fff6ac: portrait-d6494a5a.txt"
+      },
+      {
+        "name": "the owner can read their own profile picture back",
+        "passed": true
+      },
+      {
+        "name": "another signed-in person cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "another signed-in person cannot list the owner's profile pictures",
+        "passed": true,
+        "notes": "listed nothing"
+      },
+      {
+        "name": "a signed-out visitor cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "the owner's profile picture is not served over the bucket's public url",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321/storage/v1/object/public/profile-pictures/8959a336-ca1c-4dc4-9612-d64772fff6ac/portrait-d6494a5a.txt answered 400"
+      },
+      {
+        "name": "another signed-in person cannot write into the owner's own area",
+        "passed": true,
+        "notes": "new row violates row-level security policy"
+      },
+      {
+        "name": "the agent read the Storage Access Control guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 132600,
+        "cacheReadInputTokens": 104098,
+        "cacheWriteInputTokens": 28475,
+        "outputTokens": 3005
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 28291,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm adding profile pictures to our app. Everyone picks their own, and nobody\nshould be able to get at anyone else's. That includes guessing the address of\nsomeone's file, and calling whatever the app calls to load one.\n\nThe app talks to Supabase straight from the browser. We have no server of our\nown in between, so people upload and load their own picture themselves.\n\nGet our project set up so the app can start putting them somewhere.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/storage/security/access-control.md",
+    "promptSourcePath": "evals/docs/build-docs-008-storage-access-control/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-008-storage-access-control/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-008-storage-access-control",
+    "stage": "build",
+    "product": [
+      "storage",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the project has a bucket for the profile pictures",
+        "passed": true,
+        "notes": "profile-pictures"
+      },
+      {
+        "name": "every bucket in the project is private",
+        "passed": true,
+        "notes": "private: profile-pictures"
+      },
+      {
+        "name": "row level security is enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "the owner can upload their own profile picture",
+        "passed": true,
+        "notes": "profile-pictures/7c6bbe71-62ec-4505-907a-1d46529d78ac/portrait-1cf49073.txt"
+      },
+      {
+        "name": "the owner can see their own profile picture listed",
+        "passed": true,
+        "notes": "saw in profile-pictures/7c6bbe71-62ec-4505-907a-1d46529d78ac: portrait-1cf49073.txt"
+      },
+      {
+        "name": "the owner can read their own profile picture back",
+        "passed": true
+      },
+      {
+        "name": "another signed-in person cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "another signed-in person cannot list the owner's profile pictures",
+        "passed": true,
+        "notes": "listed nothing"
+      },
+      {
+        "name": "a signed-out visitor cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "the owner's profile picture is not served over the bucket's public url",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321/storage/v1/object/public/profile-pictures/7c6bbe71-62ec-4505-907a-1d46529d78ac/portrait-1cf49073.txt answered 400"
+      },
+      {
+        "name": "another signed-in person cannot write into the owner's own area",
+        "passed": true,
+        "notes": "new row violates row-level security policy"
+      },
+      {
+        "name": "the agent read the Storage Access Control guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 216629,
+        "cacheReadInputTokens": 198062,
+        "cacheWriteInputTokens": 18525,
+        "outputTokens": 2818
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 54175,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm adding profile pictures to our app. Everyone picks their own, and nobody\nshould be able to get at anyone else's. That includes guessing the address of\nsomeone's file, and calling whatever the app calls to load one.\n\nThe app talks to Supabase straight from the browser. We have no server of our\nown in between, so people upload and load their own picture themselves.\n\nGet our project set up so the app can start putting them somewhere.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/storage/security/access-control.md",
+    "promptSourcePath": "evals/docs/build-docs-008-storage-access-control/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-008-storage-access-control/run-3/result.json"
   }
 ]
