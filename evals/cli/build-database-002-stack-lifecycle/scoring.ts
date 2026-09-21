@@ -7,6 +7,7 @@ import {
   type ToolCallRecord,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { parse as shellQuoteParse, type ParseEntry } from 'shell-quote';
 
 const MIN_SEEDED_NOTES = 2;
 const RUNTIME_MARKER_PATH = '/tmp/supabase-eval-runtime.json';
@@ -45,6 +46,11 @@ export const DETOUR_PATTERNS: RegExp[] = [
 ];
 
 // Read-only probes of the Docker socket are diagnostics, not workarounds; reported as a metric.
+// Deliberately left whole-command-string/regex-based (not per-segment,
+// shell-quote-argv-based) unlike `raw-docker-api-write` below: this is
+// observability only, never a pass/fail gate, so the looser, cheaper check
+// (e.g. matching a `DOCKER_HOST=unix://...` env value, not just an argv
+// flag) is an acceptable, deliberate tradeoff for a metric.
 export const RAW_SOCKET_PROBE_PATTERNS: RegExp[] = [
   /--unix-socket\s+\S*docker\.sock/i,
   /\bdocker\b[^\n]*\s-H\s*unix:\/\//i,
@@ -63,6 +69,65 @@ export const DETOUR_LEADING_WORDS = new Set([
   'podman',
   'nerdctl',
 ]);
+
+// HTTP-client binaries whose argv can mutate the Docker daemon over its raw
+// Unix socket. `raw-docker-api-write` below only evaluates a segment actually
+// LED by one of these — never text that merely mentions one inside an
+// echoed message, a commit message, or a heredoc report body.
+const HTTP_CLIENT_LEADING_WORDS = new Set(['curl', 'wget', 'http', 'httpie']);
+const UNIX_SOCKET_FLAG_RE = /^--unix-socket(?:=(.*))?$/;
+const MUTATING_METHOD_ARG_RE = /^(?:POST|PUT|DELETE)$/i;
+const DATA_FLAG_RE =
+  /^(?:-d|--data|--data-binary|--data-raw|--data-urlencode)(?:=.*)?$/;
+
+/** Whether `argv` (an HTTP client's own resolved arguments) targets the raw Docker socket. */
+function hasRawSocketArg(argv: readonly string[]): boolean {
+  return argv.some((token, i) => {
+    const match = token.match(UNIX_SOCKET_FLAG_RE);
+    if (!match) return false;
+    const value = match[1] ?? argv[i + 1];
+    return Boolean(value && /docker\.sock/i.test(value));
+  });
+}
+
+/** Whether `argv` (an HTTP client's own resolved arguments) carries a mutating verb (POST/PUT/DELETE or a body flag). */
+function hasMutatingHttpArg(argv: readonly string[]): boolean {
+  return argv.some((token, i) => {
+    if (DATA_FLAG_RE.test(token)) return true;
+    if (/^-X(?:POST|PUT|DELETE)$/i.test(token)) return true;
+    const eq = token.match(/^--request=(POST|PUT|DELETE)$/i);
+    if (eq) return true;
+    if (token === '-X' || token === '--request') {
+      return MUTATING_METHOD_ARG_RE.test(argv[i + 1] ?? '');
+    }
+    return false;
+  });
+}
+
+/**
+ * Whether a command segment is an HTTP client actually mutating the Docker
+ * daemon over its raw Unix socket — the socket target and mutating verb must
+ * be real argv tokens of the executed client, not text that merely sits
+ * inside some OTHER argument's quoted/echoed string. Takes the segment's
+ * real (unmasked) text — quoting a filesystem path like `--unix-socket
+ * "/var/run/docker.sock"` is ordinary and must still be detected; masking
+ * quoted literals would erase that value. It's still safe from an
+ * echoed/heredoc false positive because `findDetours` never calls this for a
+ * segment led by a passive word (`echo`, `printf`, …) in the first place —
+ * that gate, not masking, is what excludes descriptive text. Falls back to
+ * the pre-refactor whole-segment regex check if shell-quote can't tokenize
+ * this segment, so a scorer never crashes on a weird agent command.
+ */
+function hasRawDockerApiWrite(rawSegment: string): boolean {
+  const tokens = tryShellQuoteParse(rawSegment);
+  if (tokens === undefined) {
+    return RAW_SOCKET_RE.test(rawSegment) && MUTATING_HTTP_RE.test(rawSegment);
+  }
+  const argv = tokens.filter(
+    (token): token is string => typeof token === 'string'
+  );
+  return hasRawSocketArg(argv) && hasMutatingHttpArg(argv);
+}
 
 // Version/help/read-only probes of a runtime binary are diagnostics, not detours.
 const PROBE_ARGS = new Set([
@@ -93,21 +158,80 @@ const SUDO_PROBE_ARGS = new Set([
 // their content is excluded from context-pattern matching entirely.
 const PASSIVE_LEADING_WORDS = new Set(['echo', 'printf', 'cat', 'tee', 'git']);
 
-const SHELL_WRAPPER_RE = /^\s*(?:bash|sh|zsh)\s+-l?c\s+/;
+// Fallback only — mirrors the pre-refactor regex, used solely when
+// shell-quote itself throws on malformed input (see `tryShellQuoteParse`).
+// Still carries the absolute-path/flag-cluster fix so the fallback path
+// isn't silently reintroducing the bug it's covering for.
+const SHELL_WRAPPER_RE = /^\s*(?:\S*\/)?(?:bash|sh|zsh)\s+-\S*c\S*\s+/;
 const MAX_UNWRAP_DEPTH = 3;
 
-/** Repeatedly strips a leading `bash|sh|zsh -lc '…'`-style wrapper whose body is a quoted string, up to MAX_UNWRAP_DEPTH times (so nested wrappers are still detected). */
+const SHELL_WRAPPER_BINARIES = new Set(['bash', 'sh', 'zsh']);
+const SHELL_WRAPPER_FLAG_RE = /^-\S*c\S*$/;
+
+/** Best-effort tokenization via shell-quote; undefined on a throw so callers can fall back to a regex-based path — a scorer must never crash on a weird agent command. */
+function tryShellQuoteParse(text: string): ParseEntry[] | undefined {
+  try {
+    return shellQuoteParse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Detects a `[/path/to/]bash|sh|zsh -<flags>c<flags> '<script>'`-style
+ * wrapper via shell-quote's own tokenizer/operator handling — resolving
+ * quoting itself, so a single-quoted script comes back as ONE token rather
+ * than being re-split as if it were the outer command. This covers the
+ * absolute-path and flag-cluster spellings (`-lic`, `-ic`, …) the previous
+ * regex-only approach missed. Only unwraps when shell-quote resolves the
+ * command to exactly [binary, flags, body] — i.e. the body parsed as a
+ * single argument (typically because it was quoted).
+ */
+function shellWrapperBodyFromTokens(tokens: ParseEntry[]): string | undefined {
+  if (tokens.length !== 3) return undefined;
+  const [binary, flags, body] = tokens;
+  if (
+    typeof binary !== 'string' ||
+    typeof flags !== 'string' ||
+    typeof body !== 'string'
+  ) {
+    return undefined;
+  }
+  const basename = binary.slice(binary.lastIndexOf('/') + 1);
+  if (
+    !SHELL_WRAPPER_BINARIES.has(basename) ||
+    !SHELL_WRAPPER_FLAG_RE.test(flags)
+  ) {
+    return undefined;
+  }
+  return body;
+}
+
+/** Legacy single-pass regex unwrap — used only as `unwrapOnce`'s fallback when shell-quote throws. */
+function legacyUnwrapOnce(command: string): string | undefined {
+  const wrapperMatch = command.match(SHELL_WRAPPER_RE);
+  if (!wrapperMatch) return undefined;
+  const rest = command.slice(wrapperMatch[0].length);
+  const quote = rest[0];
+  if (quote !== "'" && quote !== '"') return undefined;
+  const closingIndex = rest.lastIndexOf(quote);
+  if (closingIndex <= 0) return undefined;
+  return rest.slice(1, closingIndex);
+}
+
+function unwrapOnce(command: string): string | undefined {
+  const tokens = tryShellQuoteParse(command);
+  if (tokens === undefined) return legacyUnwrapOnce(command);
+  return shellWrapperBodyFromTokens(tokens);
+}
+
+/** Repeatedly strips a leading `bash|sh|zsh -lc '…'`-style wrapper whose body is a single argument, up to MAX_UNWRAP_DEPTH times (so nested wrappers are still detected). */
 function unwrapShell(command: string): string {
   let body = command;
   for (let i = 0; i < MAX_UNWRAP_DEPTH; i++) {
-    const wrapperMatch = body.match(SHELL_WRAPPER_RE);
-    if (!wrapperMatch) break;
-    const rest = body.slice(wrapperMatch[0].length);
-    const quote = rest[0];
-    if (quote !== "'" && quote !== '"') break;
-    const closingIndex = rest.lastIndexOf(quote);
-    if (closingIndex <= 0) break;
-    body = rest.slice(1, closingIndex);
+    const next = unwrapOnce(body);
+    if (next === undefined) break;
+    body = next;
   }
   return body;
 }
@@ -131,6 +255,19 @@ function maskLiterals(text: string): string {
   return maskQuotedLiterals(maskHeredocs(text));
 }
 
+/**
+ * Same quoted spans as `maskQuotedLiterals`, but LENGTH- and POSITION-
+ * preserving (placeholder fill instead of deletion) — used only to locate
+ * segment-delimiter matches that are safe to reuse as offsets into the real,
+ * unmasked text (see `unmaskedCommandSegments`). The placeholder (`#`) can't
+ * itself match `SEGMENT_DELIMITER_RE`.
+ */
+function maskQuotedLiteralsPreservingOffsets(text: string): string {
+  const fill = (match: string) =>
+    `${match[0]}${'#'.repeat(match.length - 2)}${match[0]}`;
+  return text.replace(/"[^"]*"/g, fill).replace(/'[^']*'/g, fill);
+}
+
 const SEGMENT_DELIMITER_RE = /\n|;|&&|\|\||\||\(|(?<![<>&\d])&(?![&>])/;
 
 /** Unwraps a leading shell wrapper, masks quoted/heredoc literals, then splits into executable segments. */
@@ -138,6 +275,35 @@ export function commandSegments(command: string): string[] {
   const body = maskLiterals(unwrapShell(command));
   return body
     .split(SEGMENT_DELIMITER_RE)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+}
+
+/**
+ * `commandSegments`' unmasked, index-aligned counterpart: same unwrap and
+ * heredoc masking, and split at the same delimiter positions, but quoted
+ * literals keep their real content instead of being emptied. Needed where a
+ * check must inspect a real argv VALUE that happens to be quoted (e.g. a
+ * quoted `--unix-socket` path) — `commandSegments`' own output can't be used
+ * there because its quote-emptying would erase exactly that value. Never use
+ * this for context-pattern matching; that's what the masking in
+ * `commandSegments` exists to protect against.
+ */
+function unmaskedCommandSegments(command: string): string[] {
+  const heredocMasked = maskHeredocs(unwrapShell(command));
+  const boundarySafe = maskQuotedLiteralsPreservingOffsets(heredocMasked);
+
+  const delimiterRe = new RegExp(SEGMENT_DELIMITER_RE, 'g');
+  const segments: string[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = delimiterRe.exec(boundarySafe))) {
+    segments.push(heredocMasked.slice(cursor, match.index));
+    cursor = match.index + match[0].length;
+  }
+  segments.push(heredocMasked.slice(cursor));
+
+  return segments
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
 }
@@ -195,11 +361,22 @@ function isSudoProbe(remainingTokens: readonly string[]): boolean {
  * Labels of every detour the command matches. Evaluated per executable
  * segment (post unwrap+mask) so descriptive text — an echoed message, a
  * commit message, a heredoc report body — can't false-positive just because
- * it names a blocker; only `raw-docker-api-write` stays command-wide.
+ * it names a blocker; `raw-docker-api-write` is likewise per-segment, gated
+ * on the segment actually being led by an HTTP client. `raw-docker-api-write`
+ * specifically is checked against the UNMASKED segment (`rawSegments`, index-
+ * aligned with `commandSegments`' masked ones) — a real `--unix-socket
+ * "/var/run/docker.sock"` argument must still be caught even though it's
+ * quoted; only the leading-word gate above (computed from the masked
+ * segment, but unaffected by masking since the leading word itself is never
+ * inside quotes here) protects against the echoed/heredoc false positive.
  */
 export function findDetours(command: string): string[] {
   const labels: string[] = [];
-  for (const segment of commandSegments(command)) {
+  const segments = commandSegments(command);
+  const rawSegments = unmaskedCommandSegments(command);
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    const rawSegment = rawSegments[i] ?? segment;
     const tokens = leadingTokens(segment);
     const [word, ...rest] = tokens;
     if (word && PASSIVE_LEADING_WORDS.has(word)) continue;
@@ -208,18 +385,21 @@ export function findDetours(command: string): string[] {
       if (pattern.test(segment)) labels.push(pattern.source);
     }
 
-    if (!word || !DETOUR_LEADING_WORDS.has(word)) continue;
-    // sudo is a detour unless it's a read-only probe; other runtimes are
-    // only detours when the command isn't just a version/help/read-only probe.
-    if (word === 'sudo') {
-      if (isSudoProbe(rest)) continue;
-    } else if (rest[0] && PROBE_ARGS.has(rest[0])) {
-      continue;
+    if (word && DETOUR_LEADING_WORDS.has(word)) {
+      // sudo is a detour unless it's a read-only probe; other runtimes are
+      // only detours when the command isn't just a version/help/read-only probe.
+      const isProbe =
+        word === 'sudo'
+          ? isSudoProbe(rest)
+          : Boolean(rest[0] && PROBE_ARGS.has(rest[0]));
+      if (!isProbe) labels.push(`leading:${word}`);
+    } else if (
+      word &&
+      HTTP_CLIENT_LEADING_WORDS.has(word) &&
+      hasRawDockerApiWrite(rawSegment)
+    ) {
+      labels.push('raw-docker-api-write');
     }
-    labels.push(`leading:${word}`);
-  }
-  if (RAW_SOCKET_RE.test(command) && MUTATING_HTTP_RE.test(command)) {
-    labels.push('raw-docker-api-write');
   }
   return labels;
 }
@@ -247,7 +427,8 @@ export const stackLifecycleScorer: LocalStackScorer = async (ctx) => {
       (command) => findDetours(command).length > 0
     );
     const stack = await resolveStack(ctx);
-    const migrationCreatesNotes = await checkMigrationCreatesNotes(ctx);
+    const notesMigration = await findNotesMigration(ctx);
+    const migrationCreatesNotes = checkMigrationCreatesNotes(notesMigration);
     const notesRowCount = stack.ok
       ? await countNotesRows(ctx, stack)
       : undefined;
@@ -256,7 +437,7 @@ export const stackLifecycleScorer: LocalStackScorer = async (ctx) => {
       await checkProjectInitialised(ctx),
       migrationCreatesNotes,
       await checkStackReady(ctx, stack),
-      await checkMigrationApplied(ctx, stack),
+      await checkMigrationApplied(ctx, stack, notesMigration),
       checkNotesSeeded(stack, notesRowCount),
       checkNoCliDetours(cliDetourCommands),
       await checkMetrics(ctx, marker, cliDetourCommands, commands, stack),
@@ -335,45 +516,84 @@ async function checkProjectInitialised(
   }
 }
 
-async function checkMigrationCreatesNotes(
+const CREATES_NOTES_RE =
+  /create\s+table\s+(if\s+not\s+exists\s+)?("?public"?\.)?"?notes"?(?![\w$"])/i;
+// Filename timestamp isn't guaranteed to be exactly 14 digits in every agent
+// run; tolerant on width, but still sorts correctly (lexical sort on a
+// numeric-only prefix == chronological, same as the seeded 14-digit case).
+const MIGRATION_FILENAME_RE = /^(\d+)_(.+)\.sql$/;
+
+export type NotesMigrationProbe =
+  | { ok: true; version: string; file: string }
+  | { ok: false; notes: string };
+
+/**
+ * Finds the migration file that actually creates `notes` and its version, by
+ * reading `supabase/migrations/*.sql` files individually (not concatenated)
+ * so the specific file — and therefore its version — is known. Shared by
+ * `checkMigrationCreatesNotes` and `checkMigrationApplied` so the directory is
+ * scanned once and both checks agree on which migration is "the" one: an
+ * agent can't pass by leaving a migration file that creates `notes`, applying
+ * some unrelated migration, then hand-creating the table outside the
+ * migration flow.
+ */
+export async function findNotesMigration(
   ctx: LocalStackEvalContext
-): Promise<CheckResult> {
-  const name = 'notes table is created by a migration file';
+): Promise<NotesMigrationProbe> {
   try {
     if (!(await ctx.folderExists('supabase/migrations'))) {
       return {
-        name,
-        passed: false,
+        ok: false,
         notes:
           'supabase/migrations does not exist — was a Supabase project initialised?',
       };
     }
-    const result = await ctx.exec('cat supabase/migrations/*.sql');
-    if (!result.ok || !result.stdout.trim()) {
+    const listing = await ctx.exec('ls supabase/migrations 2>/dev/null | sort');
+    const files = listing.stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!listing.ok || files.length === 0) {
       return {
-        name,
-        passed: false,
+        ok: false,
         notes: 'no migration files found under supabase/migrations',
       };
     }
-    const createsNotes =
-      /create\s+table\s+(if\s+not\s+exists\s+)?("?public"?\.)?"?notes"?(?![\w$"])/i.test(
-        result.stdout
+    for (const file of files) {
+      const match = file.match(MIGRATION_FILENAME_RE);
+      if (!match) continue;
+      const result = await ctx.exec(
+        `cat ${shellQuote(`supabase/migrations/${file}`)}`
       );
+      if (result.ok && CREATES_NOTES_RE.test(result.stdout)) {
+        return { ok: true, version: match[1], file };
+      }
+    }
     return {
-      name,
-      passed: createsNotes,
-      notes: createsNotes
-        ? undefined
-        : 'no migration contains CREATE TABLE for notes',
+      ok: false,
+      notes: 'no migration contains CREATE TABLE for notes',
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    return { name, passed: false, notes: msg };
+    return { ok: false, notes: msg };
   }
 }
 
-type StackProbe =
+function checkMigrationCreatesNotes(
+  notesMigration: NotesMigrationProbe
+): CheckResult {
+  const name = 'notes table is created by a migration file';
+  if (!notesMigration.ok) {
+    return { name, passed: false, notes: notesMigration.notes };
+  }
+  return {
+    name,
+    passed: true,
+    notes: `${notesMigration.file} (version ${notesMigration.version})`,
+  };
+}
+
+export type StackProbe =
   | {
       ok: true;
       backend: 'managed' | 'legacy';
@@ -542,24 +762,40 @@ async function checkStackReady(
   }
 }
 
-async function checkMigrationApplied(
+/**
+ * Asserts the EXACT migration that creates `notes` was applied through the
+ * migration flow — not merely that some migration ran (which a hand-created
+ * `notes` table, applied alongside an unrelated migration, would also
+ * satisfy).
+ */
+export async function checkMigrationApplied(
   ctx: LocalStackEvalContext,
-  stack: StackProbe
+  stack: StackProbe,
+  notesMigration: NotesMigrationProbe
 ): Promise<CheckResult> {
-  const name = 'migration applied to the running stack';
+  const name =
+    'the migration that creates notes is applied to the running stack';
   if (!stack.ok) return { name, passed: false, notes: stack.notes };
+  if (!notesMigration.ok) {
+    return { name, passed: false, notes: notesMigration.notes };
+  }
   try {
     const result = await ctx.exec(
-      `psql ${shellQuote(stack.dbUrl)} -tAc 'select count(*) from supabase_migrations.schema_migrations'`
+      `psql ${shellQuote(stack.dbUrl)} -tAc "select count(*) from supabase_migrations.schema_migrations where version = '${notesMigration.version}'"`
     );
     if (!result.ok) {
       return { name, passed: false, notes: describeFailure(result) };
     }
     const count = Number(result.stdout.trim());
+    const passed = Number.isFinite(count) && count >= 1;
     return {
       name,
-      passed: Number.isFinite(count) && count >= 1,
-      notes: `count: ${result.stdout.trim()}`,
+      passed,
+      notes: `version ${notesMigration.version} (${notesMigration.file}): ${
+        passed
+          ? 'found in applied history'
+          : `not found in supabase_migrations.schema_migrations (count: ${result.stdout.trim()})`
+      }`,
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
