@@ -280,6 +280,10 @@ export type ModelUsage = z.infer<typeof modelUsageSchema>;
 export const agentUsageSchema = z.array(modelUsageSchema);
 export type AgentUsage = z.infer<typeof agentUsageSchema>;
 
+/**
+ * Metered usage a Vercel Sandbox reports at `sandbox.stop()`
+ * https://vercel.com/docs/sandbox/sdk-reference#sandbox.stop
+ */
 const sandboxUsageShape = {
   activeCpuDurationMs: z.number().optional(),
   duration: z.number().optional(),
