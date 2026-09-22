@@ -75,17 +75,10 @@ export interface LocalStackRuntimeOptions {
   mcpServers?: Record<string, McpServerConfig>;
   /**
    * Docker availability to stage in the sandbox (default `'available'`).
-   * `'no-daemon'` and `'absent'` stage a sandbox with no Docker at all — the
-   * socket is never bind-mounted and `DOCKER_HOST` points at an unreachable
-   * address — so an eval can exercise the Supabase CLI's behavior when
-   * Docker is missing, rather than merely simulated from inside a working
-   * Docker sandbox. `'no-daemon'` additionally shims the `docker` binary so
-   * `docker --version` keeps working (the CLI's runtime probe,
-   * supabase/cli#6563, must still *choose* Docker before discovering it
-   * can't reach it); `'absent'` removes the binary outright. Docker-less
-   * sessions require `projectRunning: false` and no hosted project link —
-   * the harness cannot pre-start a stack or link a hosted project without
-   * Docker.
+   * `'no-daemon'` leaves `docker --version` working but unreachable;
+   * `'absent'` removes the binary entirely. Both require
+   * `projectRunning: false` and no hosted project link, since the harness
+   * cannot pre-start a stack or link a hosted project without Docker.
    */
   docker?: DockerState;
 }
@@ -97,25 +90,19 @@ export interface LocalStackRuntimeOptions {
 export type DockerState = 'available' | 'no-daemon' | 'absent';
 
 /**
- * Path of the marker each local-stack session writes recording the
- * environment it staged, for scorers to *report* — never to decide
- * pass/fail, since branching on `docker` there would grade an eval against
- * its own environment. On the `'available'` path this is written through
- * the session's own `scoringContext.exec`, which has no root access inside
- * the sandbox, so the marker is agent-writable there — acceptable since
- * it's metrics-only. On the Docker-less paths it's written root-owned and
- * read-only (mode 0444), so the agent cannot rewrite it to fake the
- * environment it's being graded in.
+ * Path of the marker each session writes recording its staged environment,
+ * for scorers to report, never to gate pass/fail. Agent-writable on the
+ * `'available'` path (metrics-only); root-owned and read-only (0444) on the
+ * Docker-less paths, so the agent can't fake the environment it's graded in.
  */
 export const LOCAL_STACK_MARKER_PATH = '/tmp/supabase-eval-runtime.json';
 
 export type LocalStackEnvironmentMarker = {
   runtime: 'local-stack';
   /**
-   * The channel `cliVersion` was resolved from, when the runtime option
-   * named one (`'stable'` | `'beta'`) and no per-eval `cliVersion:`
-   * frontmatter pin overrode it. Undefined for an exact-version pin, whether
-   * from the runtime option or the per-eval override.
+   * The channel `cliVersion` resolved from, when the runtime option named
+   * one and no per-eval `cliVersion:` pin overrode it. Undefined for any
+   * exact-version pin.
    */
   channel?: CliChannel;
   cliVersion: string;
@@ -128,8 +115,8 @@ export type LocalStackEnvironmentMarker = {
 const SUPABASE_SHIM_PATH = '/usr/local/sbin/supabase';
 const DOCKER_SHIM_PATH = '/usr/local/sbin/docker';
 
-// Port 1 is never bound (the CLI's own e2e suite reserves it for exactly this
-// purpose); not 2375, which Docker Desktop can legitimately expose.
+// Port 1 is never bound (the CLI's own e2e suite reserves it for this too);
+// not 2375, which Docker Desktop can legitimately expose.
 const UNREACHABLE_DOCKER_HOST = 'tcp://127.0.0.1:1';
 
 /**
@@ -163,9 +150,7 @@ export function localStackRuntime(
       // Stamped before setup so it's comparable with the scorer's PID-1 fallback.
       const sessionStartedMs = Date.now();
       const docker = options.docker ?? 'available';
-      // An eval's own `cliVersion:` pin always wins over the runtime option
-      // (whether that option is an exact version or a channel), so only an
-      // unpinned eval can inherit a channel for the marker below.
+      // Only an unpinned eval inherits a channel; an eval's own pin always wins.
       const channel =
         cliVersion === undefined &&
         options.cliVersion !== undefined &&
@@ -221,14 +206,8 @@ export function localStackRuntime(
           },
         };
 
-        // The scoring context's exec has no root access inside the sandbox,
-        // so this marker is agent-writable on this path — fine here since
-        // it's metrics-only, unlike the Docker-less path's root-owned marker
-        // below. Best-effort for the same reason: this is the path every
-        // experiment takes, and nothing about a default session is worth
-        // failing a whole run over. The Docker-less path *does* fail hard,
-        // because there the marker is the evidence that the environment was
-        // staged as claimed.
+        // Metrics-only and best-effort here; the Docker-less path's marker
+        // is root-owned and fails hard instead.
         try {
           await writeLocalStackMarkerViaExec(
             (command) => session.scoringContext.exec(command),
@@ -244,8 +223,8 @@ export function localStackRuntime(
         return session;
       }
 
-      // Docker-less staging (docker === 'no-daemon' | 'absent'): the harness
-      // cannot pre-start a stack or link a hosted project without Docker.
+      // Docker-less staging: the harness cannot pre-start a stack or link a
+      // hosted project without Docker.
       if (projectRunning !== false) {
         throw new Error(
           'docker-less sandbox evals must set `projectRunning: false`; the harness cannot pre-start a stack without Docker'
@@ -270,13 +249,11 @@ export function localStackRuntime(
           await installSupabaseCli(sandbox, version);
         }
 
-        // Deliberately no socket-group grant here (unlike setupSupabaseSandbox):
-        // CI's sandbox already ends its Docker setup with `chmod 666
-        // /var/run/docker.sock`, so the grant would be a no-op there —
-        // DOCKER_HOST below is the real mechanism. For `absent`, a real
-        // Docker-less host wouldn't have DOCKER_HOST set at all — but leaving
-        // it set here costs nothing and blocks any future accidental socket
-        // exposure, so it stays for both states.
+        // No socket-group grant (unlike setupSupabaseSandbox): CI's sandbox
+        // setup ends with `chmod 666 /var/run/docker.sock`, which would make
+        // any permission-based restriction a no-op — DOCKER_HOST below is
+        // what actually blocks access. Left set for `absent` too since it's
+        // harmless and guards against future socket exposure.
         sandbox.extraEnv = {
           ...sandbox.extraEnv,
           DOCKER_HOST: UNREACHABLE_DOCKER_HOST,
@@ -310,9 +287,8 @@ export function localStackRuntime(
           );
         }
 
-        // The root shell above has a different PATH than the agent's
-        // SANDBOX_PATH, so also assert the binary is gone from the PATH the
-        // agent actually runs commands under.
+        // The root shell's PATH differs from the agent's SANDBOX_PATH, so
+        // also assert the binary is gone from the PATH the agent runs under.
         const pathCheck = await sandbox.runShell(
           '! command -v docker >/dev/null 2>&1'
         );
@@ -331,8 +307,8 @@ export function localStackRuntime(
         }
         const installedSkills = await installSkills(sandbox, skills ?? []);
 
-        // With no bind mount, the socket must not exist at all — a stronger
-        // guarantee than merely checking reachability from inside the container.
+        // No bind mount means the socket must not exist at all — stronger
+        // than checking reachability from inside the container.
         const socketAbsent = await sandbox.runShellAsRoot(
           'test ! -e /var/run/docker.sock'
         );
@@ -360,11 +336,8 @@ export function localStackRuntime(
         return {
           tools: buildLocalStackTools(sandbox),
           sandbox: toAgentSandbox(sandbox),
-          // Same wiring as the `available` path: an experiment's explicit
-          // `mcpServers`/`mcpFeatures` must not be silently dropped just
-          // because Docker is missing. `hosted` is always undefined here
-          // (guarded above), so this resolves to the platform-independent
-          // docs server unless the experiment asked for something else.
+          // Same wiring as the `available` path; `hosted` is always
+          // undefined here (guarded above), so this falls back to `docs`.
           mcpServers: dockerlessMcpServers,
           promptAddendum: [
             buildToolSurfaceAddendum(agent, { skipCliInstall }),
@@ -389,12 +362,9 @@ export function localStackRuntime(
   };
 }
 
-/**
- * The runtime's log-line id (see run-eval.ts's PLAN line): plain
- * `'local-stack'` for default options, otherwise the non-default bits
- * appended so e.g. a beta + absent runtime reads as
- * `local-stack-beta-absent` in the run log.
- */
+// Log-line id (see run-eval.ts's PLAN line): default options read as
+// 'local-stack', otherwise the non-default bits are appended, e.g.
+// 'local-stack-beta-absent'.
 function buildRuntimeId(options: LocalStackRuntimeOptions): string {
   const bits: string[] = [];
   if (options.cliVersion !== undefined) bits.push(options.cliVersion);
@@ -459,14 +429,9 @@ async function installSupabaseShim(
 }
 
 /**
- * Shim that shadows `supabase` on PATH in a Docker-less sandbox. On the
- * `'available'` path the *harness* runs `supabase start` itself and applies
- * `services:` exclusions via `buildSupabaseStartCommand`; without Docker the
- * harness cannot pre-start anything, so the *agent* runs `supabase start`
- * instead, and this shim is the only seam left through which the eval's
- * `includeServices` (`services:` frontmatter) still gets honored — it
- * injects the same `-x <excluded>` flag (`computeExcludedServices`) into
- * whatever `supabase start` the agent types.
+ * Shim that shadows `supabase` on PATH in a Docker-less sandbox. Here the
+ * agent, not the harness, runs `supabase start`, so this is the only route
+ * by which the eval's `includeServices` still gets applied (`-x <excluded>`).
  */
 export function buildSupabaseShimScript(
   realBin: string,
@@ -502,7 +467,7 @@ export function buildDockerDaemonShimScript(dockerVersion: string): string {
     '#!/bin/bash',
     'case "$1" in',
     // --version must keep working so the CLI's runtime probe
-    // (supabase/cli#6563) still *chooses* Docker as its runtime.
+    // (supabase/cli#6563) still chooses Docker as its runtime.
     `  --version|-v) echo ${shellQuote(dockerVersion)}; exit 0 ;;`,
     'esac',
     `echo "Cannot connect to the Docker daemon at ${UNREACHABLE_DOCKER_HOST}. Is the docker daemon running?" >&2`,
