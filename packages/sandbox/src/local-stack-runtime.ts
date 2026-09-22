@@ -15,7 +15,11 @@ import { DockerSandbox } from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
 import { ensureEdgeRuntime, teardownSupabaseProject } from './supabase.js';
 import { buildSkillsPrompt } from './skills.js';
-import { resolveCliVersionOption, type CliChannel } from './cli-channel.js';
+import {
+  isCliChannel,
+  resolveCliVersionOption,
+  type CliChannel,
+} from './cli-channel.js';
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
 const MAX_BASH_TIMEOUT_SEC = 600;
@@ -80,6 +84,10 @@ export function localStackRuntime(
 ): LocalStackRuntime {
   return {
     id: 'local-stack',
+    cliChannel:
+      options.cliVersion !== undefined && isCliChannel(options.cliVersion)
+        ? options.cliVersion
+        : undefined,
     async startSession({
       agent,
       cliVersion,

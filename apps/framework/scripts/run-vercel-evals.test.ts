@@ -1,5 +1,5 @@
 import { APIError } from '@vercel/sandbox';
-import { resolveCliVersion } from '@supabase-evals/sandbox';
+import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import {
   copyFileSync,
@@ -23,10 +23,12 @@ import {
   isTerminalSandboxCreateError,
   packWorkspaceScript,
   parsePairs,
+  requiredCliChannels,
   resolveChannelPins,
   runBounded,
   tagValue,
   expandJobs,
+  type EvalPair,
 } from './run-vercel-evals.js';
 
 vi.mock('@supabase-evals/sandbox', () => ({ resolveCliVersion: vi.fn() }));
@@ -97,6 +99,7 @@ describe('agentEnvironment', () => {
 describe('resolveChannelPins', () => {
   const STABLE_ENV = 'SUPABASE_CLI_STABLE_VERSION';
   const BETA_ENV = 'SUPABASE_CLI_BETA_VERSION';
+  const BOTH_CHANNELS = new Set<CliChannel>(['stable', 'beta']);
   const originalValues = new Map<string, string | undefined>();
 
   beforeEach(() => {
@@ -114,12 +117,12 @@ describe('resolveChannelPins', () => {
     }
   });
 
-  it('resolves each channel once and returns a pin every job can share', async () => {
+  it('resolves only the requested channels and returns a pin every job can share', async () => {
     vi.mocked(resolveCliVersion).mockImplementation(async (channel) =>
       channel === 'stable' ? '2.117.0' : '2.118.0-beta.5'
     );
 
-    const pins = await resolveChannelPins();
+    const pins = await resolveChannelPins(BOTH_CHANNELS);
 
     expect(resolveCliVersion).toHaveBeenCalledTimes(2);
     expect(resolveCliVersion).toHaveBeenCalledWith('stable');
@@ -134,13 +137,32 @@ describe('resolveChannelPins', () => {
     expect(jobOneEnv).toContain(`${BETA_ENV}=2.118.0-beta.5`);
   });
 
+  it('resolves only stable when that is the only requested channel, never calling resolveCliVersion with beta', async () => {
+    vi.mocked(resolveCliVersion).mockImplementation(async (channel) =>
+      channel === 'stable' ? '2.117.0' : '2.118.0-beta.5'
+    );
+
+    const pins = await resolveChannelPins(new Set<CliChannel>(['stable']));
+
+    expect(pins).toEqual({ [STABLE_ENV]: '2.117.0' });
+    expect(resolveCliVersion).toHaveBeenCalledTimes(1);
+    expect(resolveCliVersion).not.toHaveBeenCalledWith('beta');
+  });
+
+  it('does no network work for an empty channel set', async () => {
+    const pins = await resolveChannelPins(new Set());
+
+    expect(pins).toEqual({});
+    expect(resolveCliVersion).not.toHaveBeenCalled();
+  });
+
   it('uses an already-set env var verbatim without calling the resolver', async () => {
     process.env[STABLE_ENV] = '9.9.9';
     vi.mocked(resolveCliVersion).mockImplementation(
       async () => '2.118.0-beta.5'
     );
 
-    const pins = await resolveChannelPins();
+    const pins = await resolveChannelPins(BOTH_CHANNELS);
 
     expect(pins[STABLE_ENV]).toBe('9.9.9');
     expect(resolveCliVersion).toHaveBeenCalledTimes(1);
@@ -152,7 +174,88 @@ describe('resolveChannelPins', () => {
       new Error('npm unreachable')
     );
 
-    await expect(resolveChannelPins()).rejects.toThrow('npm unreachable');
+    await expect(
+      resolveChannelPins(new Set<CliChannel>(['stable']))
+    ).rejects.toThrow('npm unreachable');
+  });
+});
+
+describe('requiredCliChannels', () => {
+  const pair = (overrides: Partial<EvalPair> = {}): EvalPair => ({
+    eval_id: 'eval-1',
+    experiment: 'experiment-1',
+    experiment_suite: 'benchmark',
+    eval_suite: 'benchmark',
+    ...overrides,
+  });
+
+  it('resolves only the channel a stable-tagged experiment declares', async () => {
+    const loadExperimentConfig = vi.fn(async () => ({
+      localStack: { cliChannel: 'stable' as const },
+    }));
+
+    const channels = await requiredCliChannels([pair()], {
+      loadEvalMetadata: () => ({ cliVersion: undefined }),
+      loadExperimentConfig,
+    });
+
+    expect(channels).toEqual(new Set(['stable']));
+  });
+
+  it('resolves nothing when no experiment in the pair set declares a channel', async () => {
+    const loadExperimentConfig = vi.fn(async () => ({}));
+
+    const channels = await requiredCliChannels(
+      [pair(), pair({ eval_id: 'eval-2', experiment: 'experiment-2' })],
+      {
+        loadEvalMetadata: () => ({ cliVersion: undefined }),
+        loadExperimentConfig,
+      }
+    );
+
+    expect(channels.size).toBe(0);
+  });
+
+  it("an eval's pinned cliVersion contributes no channel, even when its experiment declares one", async () => {
+    const loadExperimentConfig = vi.fn(async () => ({
+      localStack: { cliChannel: 'beta' as const },
+    }));
+
+    const channels = await requiredCliChannels([pair()], {
+      loadEvalMetadata: () => ({ cliVersion: '2.109.1' }),
+      loadExperimentConfig,
+    });
+
+    expect(channels.size).toBe(0);
+    expect(loadExperimentConfig).not.toHaveBeenCalled();
+  });
+
+  it('unions channels across pairs without resolving an experiment config twice', async () => {
+    const loadExperimentConfig = vi.fn(async () => ({
+      localStack: { cliChannel: 'beta' as const },
+    }));
+
+    const channels = await requiredCliChannels(
+      [pair(), pair({ eval_id: 'eval-2' })],
+      {
+        loadEvalMetadata: () => ({ cliVersion: undefined }),
+        loadExperimentConfig,
+      }
+    );
+
+    expect(channels).toEqual(new Set(['beta']));
+    expect(loadExperimentConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws naming an experiment that cannot be resolved to a config', async () => {
+    await expect(
+      requiredCliChannels([pair({ experiment: 'ghost' })], {
+        loadEvalMetadata: () => ({ cliVersion: undefined }),
+        loadExperimentConfig: async () => {
+          throw new Error('no experiment config found for "ghost"');
+        },
+      })
+    ).rejects.toThrow('no experiment config found for "ghost"');
   });
 });
 
