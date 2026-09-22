@@ -61,7 +61,7 @@ Include refreshed results for PRs with new/changed evals so a reviewer can see r
 
 ## Docs evals
 
-The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-5.6-luna-no-skills`).
+The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-6-luna-no-skills`).
 
 Common workflows:
 

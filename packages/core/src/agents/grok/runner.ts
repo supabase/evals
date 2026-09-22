@@ -37,7 +37,7 @@ import {
 export type GrokModel = string;
 
 /** The model to use if the caller does not select one. */
-export const DEFAULT_GROK_MODEL: GrokModel = 'grok-4.6';
+export const DEFAULT_GROK_MODEL: GrokModel = 'grok-4.7';
 
 /** The configuration directory for one run. It is not in the workspace, thus
  * the scorers do not measure it. */
