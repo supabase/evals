@@ -6,6 +6,7 @@ import {
   sandboxUsageSchema,
   type SandboxUsage,
 } from '@supabase-evals/core/eval-metadata';
+import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -28,6 +29,10 @@ export const FORWARDED_ENV_NAMES = [
   'SUPABASE_CLI_STABLE_VERSION',
   'SUPABASE_CLI_BETA_VERSION',
 ];
+const CLI_CHANNEL_ENV: Record<CliChannel, string> = {
+  stable: 'SUPABASE_CLI_STABLE_VERSION',
+  beta: 'SUPABASE_CLI_BETA_VERSION',
+};
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
  * scoring, export). Cold image pulls alone can take ~10 min.
@@ -75,6 +80,29 @@ interface PairOptions extends RunnerOptions {
   pair: EvalPair;
   run: number;
   attempt: number;
+  pins: Record<string, string>;
+}
+
+/**
+ * Resolves each CLI channel's pin once, so every sandbox job in a fan-out
+ * runs against the same concrete version rather than each resolving
+ * independently and risking a mid-run release landing between them. An
+ * already-set env var is used verbatim, matching the workflow/manual
+ * override path in resolveCliVersion.
+ */
+export async function resolveChannelPins(): Promise<Record<string, string>> {
+  const resolved = await Promise.all(
+    (Object.entries(CLI_CHANNEL_ENV) as [CliChannel, string][]).map(
+      async ([channel, envVar]) => {
+        const override = process.env[envVar];
+        return [
+          envVar,
+          override ?? (await resolveCliVersion(channel)),
+        ] as const;
+      }
+    )
+  );
+  return Object.fromEntries(resolved);
 }
 
 interface SandboxCommandOptions {
@@ -113,6 +141,10 @@ async function runPairs(options: RunnerOptions): Promise<void> {
       `max ${options.concurrency} at a time`
   );
 
+  // Resolved once so every job below writes the same pin, rather than each
+  // sandbox resolving its own channel version independently.
+  const pins = await resolveChannelPins();
+
   const results = await runBounded(
     jobs,
     options.concurrency,
@@ -126,6 +158,7 @@ async function runPairs(options: RunnerOptions): Promise<void> {
                 pair,
                 run,
                 attempt,
+                pins,
               },
               credentials
             ),
@@ -269,7 +302,7 @@ async function runPairOnce(
     await sandbox.writeFiles([
       {
         path: '.env',
-        content: `${agentEnvironment()}\n`,
+        content: `${agentEnvironment(options.pins)}\n`,
       },
     ]);
     console.log(`${label} run eval`);
@@ -625,11 +658,11 @@ function vercelCredentialsFromEnv(): {
   };
 }
 
-/** Serializes configured provider keys and CLI channel pins into the sandbox's `.env` file. */
-export function agentEnvironment(): string {
+/** Serializes configured provider keys and CLI channel pins into the sandbox's `.env` file, preferring an explicit pin over the same-named process.env value. */
+export function agentEnvironment(pins: Record<string, string> = {}): string {
   const lines: string[] = [];
   for (const name of FORWARDED_ENV_NAMES) {
-    const value = process.env[name];
+    const value = pins[name] ?? process.env[name];
     if (value) lines.push(`${name}=${value}`);
   }
   return lines.join('\n');

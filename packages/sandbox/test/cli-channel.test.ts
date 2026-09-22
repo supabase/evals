@@ -19,8 +19,12 @@ function jsonResponse(
   };
 }
 
-function headResponse(ok: boolean) {
-  return { ok, status: ok ? 200 : 404, statusText: ok ? 'OK' : 'Not Found' };
+function headResponse(ok: boolean, status?: number, statusText?: string) {
+  return {
+    ok,
+    status: status ?? (ok ? 200 : 404),
+    statusText: statusText ?? (ok ? 'OK' : 'Not Found'),
+  };
 }
 
 /**
@@ -350,12 +354,13 @@ describe('resolveCliVersion', () => {
     await expect(resolveCliVersion('beta')).resolves.toBe('2.118.0-beta.49');
   });
 
-  it('treats a walk-back candidate whose asset check throws as unavailable and continues to the next', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('aborts the walk-back and propagates when a candidate probe throws, rather than continuing to the next candidate', async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === 'HEAD') {
         if (url.includes('2.118.0-beta.52')) return headResponse(false);
-        if (url.includes('2.118.0-beta.51')) throw new Error('network blip');
+        if (url.includes('2.118.0-beta.51')) {
+          return headResponse(false, 500, 'Internal Server Error');
+        }
         if (url.includes('2.118.0-beta.50')) return headResponse(true);
         return headResponse(false);
       }
@@ -376,15 +381,50 @@ describe('resolveCliVersion', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { resolveCliVersion } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).resolves.toBe('2.118.0-beta.50');
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('2.118.0-beta.51')
-    );
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('network blip')
+    await expect(resolveCliVersion('beta')).rejects.toThrow(
+      /2\.118\.0-beta\.51.*-> 500 Internal Server Error/
     );
 
-    warnSpy.mockRestore();
+    const headUrls = fetchMock.mock.calls
+      .filter(([, init]) => init?.method === 'HEAD')
+      .map(([url]) => url);
+    // beta.50 is never probed — the throw on beta.51 aborts the walk-back.
+    expect(headUrls).toEqual([
+      cliDebUrl('2.118.0-beta.52', 'amd64'),
+      cliDebUrl('2.118.0-beta.52', 'arm64'),
+      cliDebUrl('2.118.0-beta.51', 'amd64'),
+      cliDebUrl('2.118.0-beta.51', 'arm64'),
+    ]);
+  });
+
+  it('advances to the second walk-back candidate when the first is a 404', async () => {
+    const fetchMock = routedFetchMock({
+      distTags: { latest: '1.2.3', beta: '2.118.0-beta.52' },
+      assetOk: (version) => version === '2.118.0-beta.50',
+      packument: {
+        versions: {
+          '2.118.0-beta.52': {},
+          '2.118.0-beta.51': {},
+          '2.118.0-beta.50': {},
+        },
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliVersion } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliVersion('beta')).resolves.toBe('2.118.0-beta.50');
+
+    const headUrls = fetchMock.mock.calls
+      .filter(([, init]) => init?.method === 'HEAD')
+      .map(([url]) => url);
+    expect(headUrls).toEqual([
+      cliDebUrl('2.118.0-beta.52', 'amd64'),
+      cliDebUrl('2.118.0-beta.52', 'arm64'),
+      cliDebUrl('2.118.0-beta.51', 'amd64'),
+      cliDebUrl('2.118.0-beta.51', 'arm64'),
+      cliDebUrl('2.118.0-beta.50', 'amd64'),
+      cliDebUrl('2.118.0-beta.50', 'arm64'),
+    ]);
   });
 
   it('caps the beta walk-back at MAX_BETA_FALLBACK_CANDIDATES, probing newest-first', async () => {
@@ -450,6 +490,33 @@ describe('resolveCliVersion', () => {
     await expect(resolveCliVersion('stable')).rejects.toThrow(
       'checked amd64 and arm64 .deb assets at ' +
         'https://github.com/supabase/cli/releases/tag/v1.2.3'
+    );
+  });
+
+  it('throws naming the URL and status when the dist-tag asset HEAD is a GitHub error, without fetching the packument', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'HEAD') {
+        return url.includes('_amd64')
+          ? headResponse(false, 500, 'Internal Server Error')
+          : headResponse(true);
+      }
+      if (url === DIST_TAGS_URL) {
+        return jsonResponse({ latest: '1.2.3', beta: '2.118.0-beta.52' });
+      }
+      if (url === PACKUMENT_URL) {
+        throw new Error('packument must not be fetched');
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliVersion } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliVersion('beta')).rejects.toThrow(
+      `${cliDebUrl('2.118.0-beta.52', 'amd64')} -> 500 Internal Server Error`
+    );
+
+    expect(fetchMock.mock.calls.some(([url]) => url === PACKUMENT_URL)).toBe(
+      false
     );
   });
 

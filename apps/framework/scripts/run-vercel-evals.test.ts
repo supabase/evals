@@ -1,4 +1,5 @@
 import { APIError } from '@vercel/sandbox';
+import { resolveCliVersion } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import {
   copyFileSync,
@@ -11,7 +12,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   agentEnvironment,
   cleanupSandbox,
@@ -22,10 +23,13 @@ import {
   isTerminalSandboxCreateError,
   packWorkspaceScript,
   parsePairs,
+  resolveChannelPins,
   runBounded,
   tagValue,
   expandJobs,
 } from './run-vercel-evals.js';
+
+vi.mock('@supabase-evals/sandbox', () => ({ resolveCliVersion: vi.fn() }));
 
 describe('agentEnvironment', () => {
   const originalValues = new Map<string, string | undefined>();
@@ -62,6 +66,93 @@ describe('agentEnvironment', () => {
     expect(env).toBe('ANTHROPIC_API_KEY=anthropic-value');
     expect(env).not.toContain('SUPABASE_CLI_STABLE_VERSION');
     expect(env).not.toContain('SUPABASE_CLI_BETA_VERSION');
+  });
+
+  it('prefers an explicit pin over the same-named process.env value', () => {
+    process.env.SUPABASE_CLI_STABLE_VERSION = 'env-value';
+
+    const env = agentEnvironment({
+      SUPABASE_CLI_STABLE_VERSION: 'pinned-value',
+    });
+
+    expect(env).toContain('SUPABASE_CLI_STABLE_VERSION=pinned-value');
+    expect(env).not.toContain('env-value');
+  });
+
+  it('shares one pin value across multiple .env writes, simulating a two-job fan-out', () => {
+    const pins = {
+      SUPABASE_CLI_STABLE_VERSION: '2.117.0',
+      SUPABASE_CLI_BETA_VERSION: '2.118.0-beta.5',
+    };
+
+    const jobOneEnv = agentEnvironment(pins);
+    const jobTwoEnv = agentEnvironment(pins);
+
+    expect(jobOneEnv).toBe(jobTwoEnv);
+    expect(jobOneEnv).toContain('SUPABASE_CLI_STABLE_VERSION=2.117.0');
+    expect(jobOneEnv).toContain('SUPABASE_CLI_BETA_VERSION=2.118.0-beta.5');
+  });
+});
+
+describe('resolveChannelPins', () => {
+  const STABLE_ENV = 'SUPABASE_CLI_STABLE_VERSION';
+  const BETA_ENV = 'SUPABASE_CLI_BETA_VERSION';
+  const originalValues = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    for (const name of [STABLE_ENV, BETA_ENV]) {
+      originalValues.set(name, process.env[name]);
+      delete process.env[name];
+    }
+    vi.mocked(resolveCliVersion).mockReset();
+  });
+
+  afterEach(() => {
+    for (const [name, value] of originalValues) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  it('resolves each channel once and returns a pin every job can share', async () => {
+    vi.mocked(resolveCliVersion).mockImplementation(async (channel) =>
+      channel === 'stable' ? '2.117.0' : '2.118.0-beta.5'
+    );
+
+    const pins = await resolveChannelPins();
+
+    expect(resolveCliVersion).toHaveBeenCalledTimes(2);
+    expect(resolveCliVersion).toHaveBeenCalledWith('stable');
+    expect(resolveCliVersion).toHaveBeenCalledWith('beta');
+
+    // Two fanned-out jobs writing their own .env from the same pins object
+    // must get the identical value the resolver was called once for.
+    const jobOneEnv = agentEnvironment(pins);
+    const jobTwoEnv = agentEnvironment(pins);
+    expect(jobOneEnv).toBe(jobTwoEnv);
+    expect(jobOneEnv).toContain(`${STABLE_ENV}=2.117.0`);
+    expect(jobOneEnv).toContain(`${BETA_ENV}=2.118.0-beta.5`);
+  });
+
+  it('uses an already-set env var verbatim without calling the resolver', async () => {
+    process.env[STABLE_ENV] = '9.9.9';
+    vi.mocked(resolveCliVersion).mockImplementation(
+      async () => '2.118.0-beta.5'
+    );
+
+    const pins = await resolveChannelPins();
+
+    expect(pins[STABLE_ENV]).toBe('9.9.9');
+    expect(resolveCliVersion).toHaveBeenCalledTimes(1);
+    expect(resolveCliVersion).toHaveBeenCalledWith('beta');
+  });
+
+  it('propagates a resolution failure rather than swallowing it', async () => {
+    vi.mocked(resolveCliVersion).mockRejectedValue(
+      new Error('npm unreachable')
+    );
+
+    await expect(resolveChannelPins()).rejects.toThrow('npm unreachable');
   });
 });
 
