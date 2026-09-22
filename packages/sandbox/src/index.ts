@@ -1,3 +1,5 @@
+export { resolveCliVersion } from './cli-channel.js';
+export type { CliChannel } from './cli-channel.js';
 export { DockerSandbox, dockerCli } from './docker-sandbox.js';
 export type {
   DockerSandboxOptions,

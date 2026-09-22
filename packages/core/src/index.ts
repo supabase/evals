@@ -582,6 +582,8 @@ export type LocalStackSession = {
 export type LocalStackRuntime = {
   id: string;
   startSession(args: LocalStackSessionArgs): Promise<LocalStackSession>;
+  /** Channel (e.g. `beta`) this runtime resolves its CLI version against, unset when it's pinned to an exact version. */
+  cliChannel?: 'stable' | 'beta';
 };
 
 export type ExperimentConfig = {
