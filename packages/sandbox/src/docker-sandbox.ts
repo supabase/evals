@@ -341,7 +341,8 @@ export class DockerSandbox {
    * with an explicit mode — e.g. installing a small CLI shim onto PATH. Content
    * is staged on the host and `docker cp`'d in, so it arrives as data with no
    * shell quoting, and the copy runs as the engine, so it can write system dirs
-   * regardless of the container user. The chmod then sets the mode as root.
+   * regardless of the container user. `docker cp` preserves host ownership, so
+   * one checked root command then both chowns the file to root and sets its mode.
    */
   async writeRootFile(
     containerPath: string,
@@ -357,12 +358,35 @@ export class DockerSandbox {
     } finally {
       rmSync(staging, { recursive: true, force: true });
     }
-    const chmod = await this.runShellAsRoot(
-      `chmod ${mode} ${shellQuote(containerPath)}`
+    const secure = await this.runShellAsRoot(
+      `chown root:root ${shellQuote(containerPath)} && chmod ${mode} ${shellQuote(containerPath)}`
     );
-    if (!chmod.ok) {
-      throw new Error(`failed to chmod ${containerPath}: ${chmod.stderr}`);
+    if (!secure.ok) {
+      throw new Error(`failed to secure ${containerPath}: ${secure.stderr}`);
     }
+  }
+
+  /**
+   * Read an absolute container path as root, in exec form with an absolute
+   * binary rather than a shell, so nothing on the agent's `PATH` (including
+   * `SANDBOX_PATH`'s writable first entry) can shadow the read.
+   */
+  async readRootFile(containerPath: string): Promise<string> {
+    this.assertRunning();
+    const result = await dockerCli([
+      'exec',
+      '--user',
+      'root',
+      this.containerId!,
+      '/bin/cat',
+      containerPath,
+    ]);
+    if (!result.ok) {
+      throw new Error(
+        `failed to read ${containerPath} as root: ${result.stderr}`
+      );
+    }
+    return result.stdout;
   }
 
   private async execCommand(

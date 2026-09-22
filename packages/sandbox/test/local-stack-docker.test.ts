@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildDockerDaemonShimScript,
+  buildLocalStackScoringContext,
   buildSupabaseShimScript,
   localStackRuntime,
   resolveMcpServers,
 } from '../src/local-stack-runtime.js';
+import type { DockerSandbox } from '../src/docker-sandbox.js';
 import type { SupabaseService } from '../src/types.js';
 
 describe('localStackRuntime id', () => {
@@ -137,5 +139,108 @@ describe('resolveMcpServers', () => {
   it('falls back to a single docs-only supabase server', async () => {
     const servers = await resolveMcpServers({}, undefined);
     expect(Object.keys(servers)).toEqual(['supabase']);
+  });
+});
+
+describe('buildLocalStackScoringContext environmentMarker', () => {
+  /** A DockerSandbox stub whose readRootFile returns/throws as configured. */
+  function fakeSandbox(readRootFile: DockerSandbox['readRootFile']) {
+    return {
+      workdir: '/tmp/sandbox-x',
+      readRootFile,
+    } as unknown as DockerSandbox;
+  }
+
+  for (const docker of ['available', 'no-daemon', 'absent'] as const) {
+    it(`parses a well-formed marker for docker: ${docker}`, async () => {
+      const marker = {
+        runtime: 'local-stack',
+        cliVersion: '2.109.1',
+        docker,
+        sessionStartedMs: 1_700_000_000_000,
+      };
+      const readRootFile = vi.fn().mockResolvedValue(JSON.stringify(marker));
+      const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+      await expect(ctx.environmentMarker()).resolves.toEqual(marker);
+    });
+  }
+
+  it('includes an optional channel when present', async () => {
+    const marker = {
+      runtime: 'local-stack',
+      channel: 'beta',
+      cliVersion: '2.109.1',
+      docker: 'available',
+      sessionStartedMs: 1_700_000_000_000,
+    };
+    const readRootFile = vi.fn().mockResolvedValue(JSON.stringify(marker));
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await expect(ctx.environmentMarker()).resolves.toEqual(marker);
+  });
+
+  it('reads the marker as root, not through exec or resolveSandboxPath', async () => {
+    const readRootFile = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        runtime: 'local-stack',
+        cliVersion: '2.109.1',
+        docker: 'available',
+        sessionStartedMs: 0,
+      })
+    );
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await ctx.environmentMarker();
+    expect(readRootFile).toHaveBeenCalledWith(
+      '/tmp/supabase-eval-runtime.json'
+    );
+  });
+
+  it('is undefined when no marker was written', async () => {
+    const readRootFile = vi
+      .fn()
+      .mockRejectedValue(new Error('cat: No such file or directory'));
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await expect(ctx.environmentMarker()).resolves.toBeUndefined();
+  });
+
+  it('is undefined for malformed JSON rather than throwing', async () => {
+    const readRootFile = vi.fn().mockResolvedValue('not json');
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await expect(ctx.environmentMarker()).resolves.toBeUndefined();
+  });
+
+  it('is undefined for a well-formed but wrong-shaped payload', async () => {
+    const readRootFile = vi
+      .fn()
+      .mockResolvedValue(JSON.stringify({ runtime: 'not-local-stack' }));
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await expect(ctx.environmentMarker()).resolves.toBeUndefined();
+  });
+
+  it('rejects an invalid docker value instead of casting it through', async () => {
+    const readRootFile = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        runtime: 'local-stack',
+        cliVersion: '2.109.1',
+        docker: 'forged',
+        sessionStartedMs: 0,
+      })
+    );
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await expect(ctx.environmentMarker()).resolves.toBeUndefined();
+  });
+
+  it('caches the marker instead of re-reading on every call', async () => {
+    const readRootFile = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        runtime: 'local-stack',
+        cliVersion: '2.109.1',
+        docker: 'available',
+        sessionStartedMs: 0,
+      })
+    );
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await ctx.environmentMarker();
+    await ctx.environmentMarker();
+    expect(readRootFile).toHaveBeenCalledTimes(1);
   });
 });
