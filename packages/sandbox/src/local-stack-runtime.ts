@@ -15,6 +15,7 @@ import { DockerSandbox } from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
 import { ensureEdgeRuntime, teardownSupabaseProject } from './supabase.js';
 import { buildSkillsPrompt } from './skills.js';
+import { resolveCliVersionOption, type CliChannel } from './cli-channel.js';
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
 const MAX_BASH_TIMEOUT_SEC = 600;
@@ -36,8 +37,15 @@ const STACK_CONFIG_RETRY_MS = 2_000;
  * profile — out of scope for now.
  */
 export interface LocalStackRuntimeOptions {
-  /** Supabase CLI version baked into the sandbox image (pinned default). */
-  cliVersion?: string;
+  /**
+   * Supabase CLI version baked into the sandbox image (pinned default).
+   * Either an exact version (e.g. `2.109.1`) or a channel tag (`'stable'` |
+   * `'beta'`) that tracks npm's dist-tag for the `supabase` package —
+   * resolved to a concrete version once, at session start. An eval's own
+   * `cliVersion:` frontmatter pin always wins over this option, whether this
+   * is an exact version or a channel tag.
+   */
+  cliVersion?: CliChannel | (string & {});
   /**
    * Supabase MCP feature groups to expose to the agent when the eval links to
    * a hosted project (`hostedProject: true`). The MCP server runs host-side and
@@ -86,7 +94,8 @@ export function localStackRuntime(
       skipCliInstall,
     }) {
       const env = await createAgentEnvironment({
-        cliVersion: cliVersion ?? options.cliVersion,
+        cliVersion:
+          cliVersion ?? (await resolveCliVersionOption(options.cliVersion)),
         localDir,
         skills,
         mounts,

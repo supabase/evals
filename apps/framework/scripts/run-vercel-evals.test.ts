@@ -11,8 +11,9 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  agentEnvironment,
   cleanupSandbox,
   downloadResults,
   finalizeResult,
@@ -24,6 +25,52 @@ import {
   tagValue,
   expandJobs,
 } from './run-vercel-evals.js';
+
+const FORWARDED_ENV_NAMES = [
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'AI_GATEWAY_API_KEY',
+  'SUPABASE_CLI_STABLE_VERSION',
+  'SUPABASE_CLI_BETA_VERSION',
+];
+
+describe('agentEnvironment', () => {
+  const originalValues = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    for (const name of FORWARDED_ENV_NAMES) {
+      originalValues.set(name, process.env[name]);
+      delete process.env[name];
+    }
+  });
+
+  afterEach(() => {
+    for (const [name, value] of originalValues) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  it('forwards every configured name when set', () => {
+    for (const name of FORWARDED_ENV_NAMES) {
+      process.env[name] = `${name}-value`;
+    }
+
+    const lines = agentEnvironment().split('\n');
+    for (const name of FORWARDED_ENV_NAMES) {
+      expect(lines).toContain(`${name}=${name}-value`);
+    }
+  });
+
+  it('omits the CLI channel pins when unset', () => {
+    process.env.ANTHROPIC_API_KEY = 'anthropic-value';
+
+    const env = agentEnvironment();
+    expect(env).toBe('ANTHROPIC_API_KEY=anthropic-value');
+    expect(env).not.toContain('SUPABASE_CLI_STABLE_VERSION');
+    expect(env).not.toContain('SUPABASE_CLI_BETA_VERSION');
+  });
+});
 
 describe('Vercel eval controller', () => {
   it('bounds concurrent work and lets independent failures settle', async () => {

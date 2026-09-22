@@ -19,11 +19,16 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Base for sandbox URLs printed during runs */
 const SANDBOX_DASHBOARD_URL =
   'https://vercel.com/supabase/evals-runner/sandboxes';
-const AGENT_ENV_NAMES = [
+const FORWARDED_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
   'XAI_API_KEY',
+  // Pins the CLI channel versions the prepare job resolved for this run, so
+  // every sandbox job in the run scores against the same version instead of
+  // each independently re-resolving "latest" and drifting mid-run.
+  'SUPABASE_CLI_STABLE_VERSION',
+  'SUPABASE_CLI_BETA_VERSION',
 ];
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
@@ -622,10 +627,10 @@ function vercelCredentialsFromEnv(): {
   };
 }
 
-/** Serializes configured provider keys into the repo-root `.env` file. */
-function agentEnvironment(): string {
+/** Serializes configured provider keys and CLI channel pins into the sandbox's `.env` file. */
+export function agentEnvironment(): string {
   const lines: string[] = [];
-  for (const name of AGENT_ENV_NAMES) {
+  for (const name of FORWARDED_ENV_NAMES) {
     const value = process.env[name];
     if (value) lines.push(`${name}=${value}`);
   }
