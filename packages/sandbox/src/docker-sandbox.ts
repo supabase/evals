@@ -87,6 +87,13 @@ export interface DockerSandboxOptions {
    * tools must execute — e.g. a local MCP server build.
    */
   mounts?: readonly SandboxMount[];
+  /**
+   * Bind-mount the host Docker socket into the container. Defaults to true.
+   * Set false for sandboxes that must be provably Docker-less — the socket
+   * is never exposed to the container at all, rather than merely hidden or
+   * blocked from inside it.
+   */
+  mountDockerSocket?: boolean;
 }
 
 export interface RunCommandOptions {
@@ -100,6 +107,7 @@ export class DockerSandbox {
   private network: string | undefined;
   private image: string;
   private mounts: readonly SandboxMount[];
+  private mountDockerSocket: boolean;
   readonly workdir: string;
   /**
    * Env vars injected into every `runShell` (non-root) command — both the
@@ -113,6 +121,7 @@ export class DockerSandbox {
     this.network = options.network;
     this.image = options.image ?? DEFAULT_IMAGE;
     this.mounts = options.mounts ?? [];
+    this.mountDockerSocket = options.mountDockerSocket !== false;
     this.workdir = `${WORKSPACE_BASE}-${randomUUID().slice(0, 8)}`;
   }
 
@@ -141,8 +150,9 @@ export class DockerSandbox {
         '--rm',
         '--label',
         `${SANDBOX_CONTAINER_LABEL}=1`,
-        '--volume',
-        '/var/run/docker.sock:/var/run/docker.sock',
+        ...(this.mountDockerSocket
+          ? ['--volume', '/var/run/docker.sock:/var/run/docker.sock']
+          : []),
         '--volume',
         `${this.workdir}:${this.workdir}`,
         // Caller-requested host mounts (e.g. a local MCP server build the

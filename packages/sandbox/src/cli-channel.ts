@@ -50,7 +50,8 @@ const versionCache = new Map<CliChannel, Promise<string>>();
 
 const CLI_CHANNELS = new Set<CliChannel>(['stable', 'beta']);
 
-function isCliChannel(value: string): value is CliChannel {
+/** Whether `value` names a channel (`'stable'` | `'beta'`) rather than an exact version. */
+export function isCliChannel(value: string): value is CliChannel {
   return CLI_CHANNELS.has(value as CliChannel);
 }
 

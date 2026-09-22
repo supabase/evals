@@ -13,9 +13,21 @@ import {
 } from '@supabase-evals/core';
 import { DockerSandbox } from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
-import { ensureEdgeRuntime, teardownSupabaseProject } from './supabase.js';
-import { buildSkillsPrompt } from './skills.js';
-import { resolveCliVersionOption, type CliChannel } from './cli-channel.js';
+import {
+  computeExcludedServices,
+  ensureEdgeRuntime,
+  ensureSupabaseSandboxImage,
+  installSupabaseCli,
+  SUPABASE_CLI_VERSION,
+  teardownSupabaseProject,
+} from './supabase.js';
+import { buildSkillsPrompt, installSkills } from './skills.js';
+import {
+  isCliChannel,
+  resolveCliVersionOption,
+  type CliChannel,
+} from './cli-channel.js';
+import type { SupabaseService } from './types.js';
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
 const MAX_BASH_TIMEOUT_SEC = 600;
@@ -63,7 +75,64 @@ export interface LocalStackRuntimeOptions {
    * sandbox; pass `{}` to disable MCP altogether.
    */
   mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * Docker availability to stage in the sandbox (default `'available'`).
+   * `'no-daemon'` and `'absent'` stage a sandbox with no Docker at all — the
+   * socket is never bind-mounted and `DOCKER_HOST` points at an unreachable
+   * address — so an eval can exercise the Supabase CLI's behavior when
+   * Docker is missing, rather than merely simulated from inside a working
+   * Docker sandbox. `'no-daemon'` additionally shims the `docker` binary so
+   * `docker --version` keeps working (the CLI's runtime probe,
+   * supabase/cli#6563, must still *choose* Docker before discovering it
+   * can't reach it); `'absent'` removes the binary outright. Docker-less
+   * sessions require `projectRunning: false` and no hosted project link —
+   * the harness cannot pre-start a stack or link a hosted project without
+   * Docker.
+   */
+  docker?: DockerState;
 }
+
+/**
+ * Docker's availability inside a local-stack sandbox session. See
+ * {@link LocalStackRuntimeOptions.docker}.
+ */
+export type DockerState = 'available' | 'no-daemon' | 'absent';
+
+/**
+ * Path of the marker each local-stack session writes recording the
+ * environment it staged, for scorers to *report* — never to decide
+ * pass/fail, since branching on `docker` there would grade an eval against
+ * its own environment. On the `'available'` path this is written through
+ * the session's own `scoringContext.exec`, which has no root access inside
+ * the sandbox, so the marker is agent-writable there — acceptable since
+ * it's metrics-only. On the Docker-less paths it's written root-owned and
+ * read-only (mode 0444), so the agent cannot rewrite it to fake the
+ * environment it's being graded in.
+ */
+export const LOCAL_STACK_MARKER_PATH = '/tmp/supabase-eval-runtime.json';
+
+export type LocalStackEnvironmentMarker = {
+  runtime: 'local-stack';
+  /**
+   * The channel `cliVersion` was resolved from, when the runtime option
+   * named one (`'stable'` | `'beta'`) and no per-eval `cliVersion:`
+   * frontmatter pin overrode it. Undefined for an exact-version pin, whether
+   * from the runtime option or the per-eval override.
+   */
+  channel?: CliChannel;
+  cliVersion: string;
+  docker: DockerState;
+  sessionStartedMs: number;
+};
+
+// Shadow the real `docker`/`supabase` binaries from the first entry on the
+// sandbox PATH (see SANDBOX_PATH in docker-sandbox.ts).
+const SUPABASE_SHIM_PATH = '/usr/local/sbin/supabase';
+const DOCKER_SHIM_PATH = '/usr/local/sbin/docker';
+
+// Port 1 is never bound (the CLI's own e2e suite reserves it for exactly this
+// purpose); not 2375, which Docker Desktop can legitimately expose.
+const UNREACHABLE_DOCKER_HOST = 'tcp://127.0.0.1:1';
 
 /**
  * Supabase MCP feature groups exposed by default: `docs` only. The sandbox has
@@ -81,7 +150,7 @@ export function localStackRuntime(
   options: LocalStackRuntimeOptions = {}
 ): LocalStackRuntime {
   return {
-    id: 'local-stack',
+    id: buildRuntimeId(options),
     async startSession({
       agent,
       cliVersion,
@@ -93,51 +162,354 @@ export function localStackRuntime(
       mounts,
       skipCliInstall,
     }) {
-      const env = await createAgentEnvironment({
-        cliVersion:
-          cliVersion ?? (await resolveCliVersionOption(options.cliVersion)),
-        localDir,
-        skills,
+      // Stamped before setup so it's comparable with the scorer's PID-1 fallback.
+      const sessionStartedMs = Date.now();
+      const docker = options.docker ?? 'available';
+      // An eval's own `cliVersion:` pin always wins over the runtime option
+      // (whether that option is an exact version or a channel), so only an
+      // unpinned eval can inherit a channel for the marker below.
+      const channel =
+        cliVersion === undefined &&
+        options.cliVersion !== undefined &&
+        isCliChannel(options.cliVersion)
+          ? options.cliVersion
+          : undefined;
+      const version =
+        cliVersion ??
+        (await resolveCliVersionOption(options.cliVersion)) ??
+        SUPABASE_CLI_VERSION;
+
+      if (docker === 'available') {
+        const env = await createAgentEnvironment({
+          cliVersion: version,
+          localDir,
+          skills,
+          mounts,
+          localStack: {
+            includeServices,
+            projectRunning,
+            hosted: hosted
+              ? {
+                  port: hosted.port,
+                  pgPort: hosted.pgPort,
+                  ref: hosted.ref,
+                  accessToken: hosted.accessToken,
+                }
+              : undefined,
+            skipCliInstall,
+          },
+        });
+        const sandbox = env.sandbox;
+
+        const mcpServers = await resolveMcpServers(options, hosted);
+
+        const session = {
+          tools: buildLocalStackTools(sandbox),
+          sandbox: toAgentSandbox(sandbox),
+          mcpServers,
+          promptAddendum: [
+            buildToolSurfaceAddendum(agent, { skipCliInstall }),
+            buildSkillsPrompt(agent, env.skills),
+          ]
+            .filter(Boolean)
+            .join('\n\n'),
+          scoringContext: buildLocalStackScoringContext(sandbox, hosted),
+          ensureReady: () => ensureEdgeRuntime(sandbox, includeServices),
+          exportWorkspace: (hostDir: string) =>
+            sandbox.copyToHost(sandbox.workdir, hostDir),
+          close: async () => {
+            await teardownSupabaseProject(sandbox);
+            await env.close();
+          },
+        };
+
+        // The scoring context's exec has no root access inside the sandbox,
+        // so this marker is agent-writable on this path — fine here since
+        // it's metrics-only, unlike the Docker-less path's root-owned marker
+        // below. Best-effort for the same reason: this is the path every
+        // experiment takes, and nothing about a default session is worth
+        // failing a whole run over. The Docker-less path *does* fail hard,
+        // because there the marker is the evidence that the environment was
+        // staged as claimed.
+        try {
+          await writeLocalStackMarkerViaExec(
+            (command) => session.scoringContext.exec(command),
+            buildLocalStackMarker(docker, version, sessionStartedMs, channel)
+          );
+        } catch (err) {
+          console.warn(
+            `[local-stack] could not write ${LOCAL_STACK_MARKER_PATH}: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
+        return session;
+      }
+
+      // Docker-less staging (docker === 'no-daemon' | 'absent'): the harness
+      // cannot pre-start a stack or link a hosted project without Docker.
+      if (projectRunning !== false) {
+        throw new Error(
+          'docker-less sandbox evals must set `projectRunning: false`; the harness cannot pre-start a stack without Docker'
+        );
+      }
+      if (hosted) {
+        throw new Error(
+          'docker-less sandbox evals cannot link a hosted project — set hostedProject: false'
+        );
+      }
+
+      const image = await ensureSupabaseSandboxImage();
+      const sandbox = await DockerSandbox.create({
+        image,
+        network: 'host',
         mounts,
-        localStack: {
-          includeServices,
-          projectRunning,
-          hosted: hosted
-            ? {
-                port: hosted.port,
-                pgPort: hosted.pgPort,
-                ref: hosted.ref,
-                accessToken: hosted.accessToken,
-              }
-            : undefined,
-          skipCliInstall,
-        },
+        mountDockerSocket: false,
       });
-      const sandbox = env.sandbox;
 
-      const mcpServers = await resolveMcpServers(options, hosted);
+      try {
+        if (!skipCliInstall) {
+          await installSupabaseCli(sandbox, version);
+        }
 
-      return {
-        tools: buildLocalStackTools(sandbox),
-        sandbox: toAgentSandbox(sandbox),
-        mcpServers,
-        promptAddendum: [
-          buildToolSurfaceAddendum(agent, { skipCliInstall }),
-          buildSkillsPrompt(agent, env.skills),
-        ]
-          .filter(Boolean)
-          .join('\n\n'),
-        scoringContext: buildLocalStackScoringContext(sandbox, hosted),
-        ensureReady: () => ensureEdgeRuntime(sandbox, includeServices),
-        exportWorkspace: (hostDir: string) =>
-          sandbox.copyToHost(sandbox.workdir, hostDir),
-        close: async () => {
-          await teardownSupabaseProject(sandbox);
-          await env.close();
-        },
-      };
+        // Deliberately no socket-group grant here (unlike setupSupabaseSandbox):
+        // CI's sandbox already ends its Docker setup with `chmod 666
+        // /var/run/docker.sock`, so the grant would be a no-op there —
+        // DOCKER_HOST below is the real mechanism. For `absent`, a real
+        // Docker-less host wouldn't have DOCKER_HOST set at all — but leaving
+        // it set here costs nothing and blocks any future accidental socket
+        // exposure, so it stays for both states.
+        sandbox.extraEnv = {
+          ...sandbox.extraEnv,
+          DOCKER_HOST: UNREACHABLE_DOCKER_HOST,
+        };
+
+        if (!skipCliInstall) {
+          await installSupabaseShim(sandbox, includeServices);
+        }
+
+        // Captured before removal: no-daemon's shim echoes this for `docker
+        // --version` so the CLI's #6563 runtime probe still picks Docker.
+        let dockerVersion = '';
+        if (docker === 'no-daemon') {
+          dockerVersion = (
+            await sandbox.runShellAsRoot('docker --version')
+          ).stdout.trim();
+          if (!dockerVersion) {
+            throw new Error(
+              'failed to capture `docker --version` before removing the real binary'
+            );
+          }
+        }
+
+        // Assert the postcondition instead of trusting `rm -f`, which always exits 0.
+        const removal = await sandbox.runShellAsRoot(
+          'for b in docker dockerd docker-proxy; do p="$(command -v "$b" 2>/dev/null)" && rm -f "$p"; done; ! command -v docker >/dev/null 2>&1'
+        );
+        if (!removal.ok) {
+          throw new Error(
+            `docker is still on PATH after removal: ${removal.stderr || removal.stdout}`
+          );
+        }
+
+        // The root shell above has a different PATH than the agent's
+        // SANDBOX_PATH, so also assert the binary is gone from the PATH the
+        // agent actually runs commands under.
+        const pathCheck = await sandbox.runShell(
+          '! command -v docker >/dev/null 2>&1'
+        );
+        if (!pathCheck.ok) {
+          throw new Error(
+            `docker is still on the agent's PATH after removal: ${pathCheck.stderr || pathCheck.stdout}`
+          );
+        }
+
+        if (docker === 'no-daemon') {
+          await installDockerDaemonShim(sandbox, dockerVersion);
+        }
+
+        if (localDir) {
+          await sandbox.copyToContainer(localDir, sandbox.workdir);
+        }
+        const installedSkills = await installSkills(sandbox, skills ?? []);
+
+        // With no bind mount, the socket must not exist at all — a stronger
+        // guarantee than merely checking reachability from inside the container.
+        const socketAbsent = await sandbox.runShellAsRoot(
+          'test ! -e /var/run/docker.sock'
+        );
+        if (!socketAbsent.ok) {
+          throw new Error(
+            'the Docker socket unexpectedly exists in a Docker-less sandbox'
+          );
+        }
+
+        // Root-owned and read-only so the agent cannot rewrite it to fake
+        // the environment it's being evaluated in.
+        await sandbox.writeRootFile(
+          LOCAL_STACK_MARKER_PATH,
+          JSON.stringify(
+            buildLocalStackMarker(docker, version, sessionStartedMs, channel)
+          ),
+          '0444'
+        );
+
+        const dockerlessMcpServers = await resolveMcpServers(
+          options,
+          undefined
+        );
+
+        return {
+          tools: buildLocalStackTools(sandbox),
+          sandbox: toAgentSandbox(sandbox),
+          // Same wiring as the `available` path: an experiment's explicit
+          // `mcpServers`/`mcpFeatures` must not be silently dropped just
+          // because Docker is missing. `hosted` is always undefined here
+          // (guarded above), so this resolves to the platform-independent
+          // docs server unless the experiment asked for something else.
+          mcpServers: dockerlessMcpServers,
+          promptAddendum: [
+            buildToolSurfaceAddendum(agent, { skipCliInstall }),
+            buildSkillsPrompt(agent, installedSkills),
+          ]
+            .filter(Boolean)
+            .join('\n\n'),
+          scoringContext: buildLocalStackScoringContext(sandbox),
+          exportWorkspace: (hostDir: string) =>
+            sandbox.copyToHost(sandbox.workdir, hostDir),
+          // Nothing to restore without Docker; the `available` path above
+          // delegates to its own session's ensureReady.
+          ensureReady: async () => {},
+          // No teardownSupabaseProject: nothing can have started without Docker.
+          close: () => sandbox.stop(),
+        };
+      } catch (err) {
+        await sandbox.stop();
+        throw err;
+      }
     },
   };
+}
+
+/**
+ * The runtime's log-line id (see run-eval.ts's PLAN line): plain
+ * `'local-stack'` for default options, otherwise the non-default bits
+ * appended so e.g. a beta + absent runtime reads as
+ * `local-stack-beta-absent` in the run log.
+ */
+function buildRuntimeId(options: LocalStackRuntimeOptions): string {
+  const bits: string[] = [];
+  if (options.cliVersion !== undefined) bits.push(options.cliVersion);
+  const docker = options.docker ?? 'available';
+  if (docker !== 'available') bits.push(docker);
+  return bits.length > 0 ? `local-stack-${bits.join('-')}` : 'local-stack';
+}
+
+function buildLocalStackMarker(
+  docker: DockerState,
+  cliVersion: string,
+  sessionStartedMs: number,
+  channel?: CliChannel
+): LocalStackEnvironmentMarker {
+  return {
+    runtime: 'local-stack',
+    channel,
+    cliVersion,
+    docker,
+    sessionStartedMs,
+  };
+}
+
+async function writeLocalStackMarkerViaExec(
+  exec: (
+    command: string
+  ) => Promise<{ ok: boolean; stdout: string; stderr: string }>,
+  marker: LocalStackEnvironmentMarker
+): Promise<void> {
+  // base64 transport sidesteps quoting the JSON payload through the shell.
+  const encoded = Buffer.from(JSON.stringify(marker), 'utf-8').toString(
+    'base64'
+  );
+  const result = await exec(
+    `echo ${encoded} | base64 -d > ${LOCAL_STACK_MARKER_PATH}`
+  );
+  if (!result.ok) {
+    throw new Error(
+      `failed to write the local-stack environment marker: ${result.stderr || result.stdout}`
+    );
+  }
+}
+
+async function installSupabaseShim(
+  sandbox: DockerSandbox,
+  includeServices: readonly string[] | undefined
+): Promise<void> {
+  const real = (
+    await sandbox.runShellAsRoot('command -v supabase')
+  ).stdout.trim();
+  if (!real || real === SUPABASE_SHIM_PATH) {
+    throw new Error(
+      `could not resolve the real supabase binary before installing the CLI shim (got ${JSON.stringify(real)})`
+    );
+  }
+  const excluded = computeExcludedServices(includeServices);
+  await sandbox.writeRootFile(
+    SUPABASE_SHIM_PATH,
+    buildSupabaseShimScript(real, excluded),
+    '0755'
+  );
+}
+
+/**
+ * Shim that shadows `supabase` on PATH in a Docker-less sandbox. On the
+ * `'available'` path the *harness* runs `supabase start` itself and applies
+ * `services:` exclusions via `buildSupabaseStartCommand`; without Docker the
+ * harness cannot pre-start anything, so the *agent* runs `supabase start`
+ * instead, and this shim is the only seam left through which the eval's
+ * `includeServices` (`services:` frontmatter) still gets honored — it
+ * injects the same `-x <excluded>` flag (`computeExcludedServices`) into
+ * whatever `supabase start` the agent types.
+ */
+export function buildSupabaseShimScript(
+  realBin: string,
+  excluded: readonly SupabaseService[]
+): string {
+  const lines = [
+    '#!/bin/bash',
+    `export DOCKER_HOST=${UNREACHABLE_DOCKER_HOST}`,
+    `REAL=${shellQuote(realBin)}`,
+  ];
+  if (excluded.length > 0) {
+    lines.push(
+      `if [ "$1" = "start" ]; then shift; exec "$REAL" start "$@" -x ${excluded.join(',')}; fi`
+    );
+  }
+  lines.push('exec "$REAL" "$@"');
+  return lines.join('\n');
+}
+
+async function installDockerDaemonShim(
+  sandbox: DockerSandbox,
+  dockerVersion: string
+): Promise<void> {
+  await sandbox.writeRootFile(
+    DOCKER_SHIM_PATH,
+    buildDockerDaemonShimScript(dockerVersion),
+    '0755'
+  );
+}
+
+export function buildDockerDaemonShimScript(dockerVersion: string): string {
+  return [
+    '#!/bin/bash',
+    'case "$1" in',
+    // --version must keep working so the CLI's runtime probe
+    // (supabase/cli#6563) still *chooses* Docker as its runtime.
+    `  --version|-v) echo ${shellQuote(dockerVersion)}; exit 0 ;;`,
+    'esac',
+    `echo "Cannot connect to the Docker daemon at ${UNREACHABLE_DOCKER_HOST}. Is the docker daemon running?" >&2`,
+    'exit 1',
+  ].join('\n');
 }
 
 /**
@@ -175,7 +547,7 @@ export function buildToolSurfaceAddendum(
  * hosted project there's no platform to talk to, so fall back to the
  * platform-independent docs server (`search_docs`).
  */
-async function resolveMcpServers(
+export async function resolveMcpServers(
   options: LocalStackRuntimeOptions,
   hosted?: HostedLink
 ): Promise<Record<string, McpServerConfig>> {
