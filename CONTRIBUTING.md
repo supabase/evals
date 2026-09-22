@@ -41,7 +41,7 @@ Prefer building checks declaratively and returning the list in one place instead
 
 ## Adding an experiment
 
-Add a file under `experiments/` for the agent, model, and runtime setup you want to compare. Here you can configure which skills and MCP servers are available.
+Add a `*.experiment.ts` file under `experiments/<owner>/` for the agent, model, and runtime setup you want to compare. Experiment discovery only scans this owner directory depth, so supporting files can live beside experiments or in nested directories. Reuse the base configs exported from `experiments/presets.ts` where they fit.
 
 Select the experiment's `suite:` depending on your use case. If this experiment should be part of our published benchmark, assign `suite: ["benchmark"]` and include a corresponding `*-no-skills` variant to compare results with and without skills. You can also assign custom experiment suites for grouping related experiments for other head-to-head comparisons as desired.
 
