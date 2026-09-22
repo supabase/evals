@@ -17,6 +17,7 @@ import { z } from 'zod';
 import type { AgentUsage } from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
+  readFlag,
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
@@ -38,6 +39,12 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const DRY = rawArgs.includes('--dry');
+// Epoch ms. Only results written at or after this are uploaded, which is how
+// `eval:upload` restricts itself to the runs it just produced. Keying on the
+// file rather than mirroring run-eval's flags keeps this correct when a run is
+// skipped (`--skip-existing`, `--smoke`, a per-experiment `skipEval`) and an
+// older result is left sitting on disk.
+const SINCE = Number(readFlag(rawArgs, 'since') ?? 0);
 
 /** Transcript entries as the harness persists them (core's `TranscriptPart`). */
 const transcriptPartSchema = z.discriminatedUnion('type', [
@@ -90,6 +97,19 @@ function git(...args: string[]): string | undefined {
 }
 
 /**
+ * `git rev-parse --abbrev-ref HEAD` reports `HEAD` in the detached checkout
+ * Actions uses, so CI's own refs come first.
+ * https://docs.github.com/en/actions/reference/workflows-and-actions/variables
+ */
+function branchName(): string | undefined {
+  return (
+    process.env.GITHUB_HEAD_REF ||
+    process.env.GITHUB_REF_NAME ||
+    git('rev-parse', '--abbrev-ref', 'HEAD')
+  );
+}
+
+/**
  * Braintrust's first-class git metadata, which it prefers over custom fields so
  * commit and branch stay filterable:
  * https://braintrust.dev/docs/kb/running-evaluations-per-git-commit-sha
@@ -101,7 +121,7 @@ function repoInfo() {
   }
   return {
     commit,
-    branch: git('rev-parse', '--abbrev-ref', 'HEAD'),
+    branch: branchName(),
     tag: git('describe', '--tags', '--exact-match') ?? null,
     dirty: (git('status', '--porcelain') ?? '') !== '',
     author_name: git('log', '-1', '--format=%an'),
@@ -112,8 +132,10 @@ function repoInfo() {
 }
 
 /**
- * `prompt_tokens` counts every input token including cache reads and writes,
- * per Braintrust's convention: 10 cache reads + 5 writes + 3 uncached => 18.
+ * Braintrust's `prompt_tokens` counts cache reads and writes, and so does our
+ * [`inputTokens`](../../../packages/core/src/eval-metadata.ts), which records
+ * the cache buckets as subsets of it. The conventions line up, so the value
+ * passes through and the buckets are reported alongside it.
  * https://www.braintrust.dev/docs/instrument/advanced-tracing
  */
 export function tokenMetrics(
@@ -127,11 +149,9 @@ export function tokenMetrics(
   let cacheCreate = 0;
   let completion = 0;
   for (const u of usage) {
-    const read = u.cacheReadInputTokens ?? 0;
-    const write = u.cacheWriteInputTokens ?? 0;
-    prompt += (u.inputTokens ?? 0) + read + write;
-    cached += read;
-    cacheCreate += write;
+    prompt += u.inputTokens ?? 0;
+    cached += u.cacheReadInputTokens ?? 0;
+    cacheCreate += u.cacheWriteInputTokens ?? 0;
     completion += u.outputTokens ?? 0;
   }
   const metrics: Record<string, number> = {
@@ -227,9 +247,11 @@ async function collectRows(
       (typeof result.durationMs === 'number' ? result.durationMs : undefined);
     // The harness records how long a run took but not when it started, so the
     // span is anchored on the result file's mtime and worked backwards.
-    const endTime = durationMs
-      ? (await stat(absolutePath)).mtimeMs / 1000
-      : undefined;
+    const { mtimeMs } = await stat(absolutePath);
+    if (mtimeMs < SINCE) {
+      continue;
+    }
+    const endTime = durationMs ? mtimeMs / 1000 : undefined;
 
     const row: PendingRow = {
       evalId: result.eval,

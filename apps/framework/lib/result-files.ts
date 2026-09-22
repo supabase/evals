@@ -95,6 +95,8 @@ export interface ResultFile {
 export interface CollectOptions {
   includeExperiment?: (experiment: string) => boolean;
   includeEval?: (evalId: string) => boolean;
+  /** Called with the `n` from `run-<n>`. */
+  includeRun?: (run: number) => boolean;
   /** Called for a `result.json` that fails the schema, e.g. one written by an older harness. */
   onUnparseable?: (sourcePath: string, message: string) => void;
 }
@@ -103,6 +105,7 @@ export interface CollectOptions {
 export async function collectResultFiles({
   includeExperiment,
   includeEval,
+  includeRun,
   onUnparseable,
 }: CollectOptions = {}): Promise<ResultFile[]> {
   if (!existsSync(RESULTS_DIR)) {
@@ -132,7 +135,11 @@ export async function collectResultFiles({
       }
 
       for (const runEntry of (await readdir(evalDir)).sort()) {
-        if (!/^run-\d+$/.test(runEntry)) {
+        const run = /^run-(\d+)$/.exec(runEntry);
+        if (!run) {
+          continue;
+        }
+        if (includeRun && !includeRun(Number(run[1]))) {
           continue;
         }
         const absolutePath = join(evalDir, runEntry, 'result.json');

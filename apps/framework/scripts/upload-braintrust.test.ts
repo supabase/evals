@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { tokenMetrics } from './upload-braintrust.js';
 
 describe('tokenMetrics', () => {
-  it('counts cache reads and writes inside prompt_tokens', () => {
-    // Braintrust's convention: 10 cache reads + 5 writes + 3 uncached => 18.
+  it('reports the cache buckets without adding them to prompt_tokens', () => {
+    // The buckets are subsets of inputTokens, so 18 covers the 10 cache reads
+    // and 5 writes rather than sitting alongside them.
     expect(
       tokenMetrics([
         {
           model: 'claude-sonnet-5',
-          inputTokens: 3,
+          inputTokens: 18,
           cacheReadInputTokens: 10,
           cacheWriteInputTokens: 5,
           outputTokens: 7,
