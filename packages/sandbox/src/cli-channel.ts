@@ -56,13 +56,16 @@ function releaseTagUrl(version: string): string {
   return `https://github.com/supabase/cli/releases/tag/v${version}`;
 }
 
+/** Only a 404 means the asset is absent; any other non-2xx (e.g. a GitHub 429/5xx) is an error, not a missing-asset signal. */
 async function debAssetHeadOk(url: string): Promise<boolean> {
   const response = await fetch(url, {
     method: 'HEAD',
     redirect: 'follow',
     signal: AbortSignal.timeout(15_000),
   });
-  return response.ok;
+  if (response.ok) return true;
+  if (response.status === 404) return false;
+  throw new Error(`HEAD ${url} -> ${response.status} ${response.statusText}`);
 }
 
 /** HEAD-checks both the amd64 and arm64 `.deb` assets, since the resolver's host architecture need not match the sandbox's. */
@@ -153,8 +156,10 @@ async function resolveCliVersionUncached(channel: CliChannel): Promise<string> {
 /**
  * Walks back through published `X.Y.Z-beta.N` versions strictly older than
  * `unpublishedVersion`, newest first, for one with a downloadable `.deb`.
- * Newer candidates are skipped too (likelier to be drafts); a transient
- * probe error is logged and skipped rather than aborting the walk-back.
+ * Newer candidates are skipped too (likelier to be drafts). Only a 404
+ * advances to the next candidate; any other probe error aborts the
+ * walk-back, since it means GitHub is unhealthy rather than that the
+ * candidate is absent.
  */
 async function resolveFallbackBetaVersion(
   unpublishedVersion: string
@@ -195,14 +200,7 @@ async function resolveFallbackBetaVersion(
     .slice(0, MAX_BETA_FALLBACK_CANDIDATES);
 
   for (const candidate of candidates) {
-    try {
-      if (await debAssetExists(candidate)) return candidate;
-    } catch (error) {
-      console.warn(
-        `[cli-channel] beta fallback candidate ${candidate} could not be checked, skipping: ` +
-          (error instanceof Error ? error.message : String(error))
-      );
-    }
+    if (await debAssetExists(candidate)) return candidate;
   }
 
   throw new Error(

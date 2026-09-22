@@ -136,6 +136,10 @@ export function localStackRuntime(
 ): LocalStackRuntime {
   return {
     id: buildRuntimeId(options),
+    cliChannel:
+      options.cliVersion !== undefined && isCliChannel(options.cliVersion)
+        ? options.cliVersion
+        : undefined,
     async startSession({
       agent,
       cliVersion,
