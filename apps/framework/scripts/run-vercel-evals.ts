@@ -10,13 +10,14 @@ import {
 } from '@supabase-evals/core/eval-metadata';
 import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import pLimit from 'p-limit';
 import pRetry, { AbortError } from 'p-retry';
 import { z } from 'zod';
 import { positiveInteger, readFlag } from '../lib/cli-args.js';
+import { discoverExperimentFiles } from '../lib/experiment-files.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Base for sandbox URLs printed during runs */
@@ -154,20 +155,28 @@ function loadEvalMetadata(pair: EvalPair): EvalMetadata {
     .metadata;
 }
 
+const EXPERIMENTS_DIR = join(ROOT, 'experiments');
+
+let experimentPaths: Promise<Map<string, string>> | undefined;
+
+function experimentPathsByName(): Promise<Map<string, string>> {
+  experimentPaths ??= discoverExperimentFiles(EXPERIMENTS_DIR).then(
+    (files) => new Map(files.map((file) => [file.name, file.path]))
+  );
+  return experimentPaths;
+}
+
 /**
- * Mirrors run-eval.ts's loadExperiments(), which resolves an experiment name
- * to experiments/<name>.ts. Throws rather than treating a config it can't
- * find as needing no channel, so a future change to this layout (e.g. a
- * nested experiments/<owner>/*.experiment.ts convention) fails loudly instead
- * of silently resolving every channel per-sandbox again.
+ * Throws rather than treating a config it can't find as needing no channel,
+ * which would silently resolve every channel per-sandbox again.
  */
 async function loadExperimentConfig(
   experiment: string
 ): Promise<ExperimentConfig> {
-  const path = join(ROOT, 'experiments', `${experiment}.ts`);
-  if (!existsSync(path)) {
+  const path = (await experimentPathsByName()).get(experiment);
+  if (!path) {
     throw new Error(
-      `no experiment config found for "${experiment}" at ${relative(ROOT, path)}`
+      `no experiment config found for "${experiment}" under ${relative(ROOT, EXPERIMENTS_DIR)}`
     );
   }
   const mod = await import(pathToFileURL(path).href);
