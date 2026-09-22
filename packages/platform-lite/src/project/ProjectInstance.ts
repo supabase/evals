@@ -34,6 +34,7 @@ export type EdgeFunctionEntry = {
 };
 
 const JWT_SECRET = 'supabase-evals-dev-secret';
+export const DEFAULT_REGION = 'us-east-1';
 
 // Roles, schemas and grants a real Supabase project provisions but @supabase/lite
 // does not create on our direct-exec init path. The auth helper functions
@@ -60,6 +61,7 @@ export class ProjectInstance {
   ref: string;
   name: string;
   organizationId: string;
+  region: string;
   status: 'ACTIVE_HEALTHY' | 'INACTIVE';
   app!: App;
   pglite!: PGlite;
@@ -70,10 +72,16 @@ export class ProjectInstance {
   secrets: Map<string, string>;
   createdAt: string;
 
-  constructor(ref: string, name: string, organizationId: string) {
+  constructor(
+    ref: string,
+    name: string,
+    organizationId: string,
+    region = DEFAULT_REGION
+  ) {
     this.ref = ref;
     this.name = name;
     this.organizationId = organizationId;
+    this.region = region;
     this.status = 'ACTIVE_HEALTHY';
     this.logsDb = new PGlite();
     this.migrations = [];
@@ -161,7 +169,7 @@ export class ProjectInstance {
       name: this.name,
       status: this.status,
       created_at: this.createdAt,
-      region: 'us-east-1',
+      region: this.region,
     };
   }
 }

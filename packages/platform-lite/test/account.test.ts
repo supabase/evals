@@ -28,6 +28,54 @@ describe('account', () => {
     expect(fetched.name).toBe('test-project');
   });
 
+  it('creates the project in the requested region', async () => {
+    const app = await createTestApp();
+
+    const { data: created } = await request<{ region: string }>(
+      app,
+      'POST',
+      '/v1/projects',
+      { name: 'london', organization_slug: 'default-org', region: 'eu-west-2' }
+    );
+    expect(created.region).toBe('eu-west-2');
+  });
+
+  it('refuses to create a project in an unavailable region', async () => {
+    const app = await createTestApp([], { unavailableRegions: ['eu-west-2'] });
+
+    const { status, data } = await request<{ message: string }>(
+      app,
+      'POST',
+      '/v1/projects',
+      { name: 'london', region: 'eu-west-2' }
+    );
+    expect(status).toBe(503);
+    expect(data).toEqual({
+      message:
+        'The eu-west-2 region is unavailable at the moment. Visit https://status.supabase.com for further updates.',
+    });
+
+    const { data: projects } = await request<unknown[]>(
+      app,
+      'GET',
+      '/v1/projects'
+    );
+    expect(projects).toHaveLength(0);
+  });
+
+  it('still creates projects in regions that are not unavailable', async () => {
+    const app = await createTestApp([], { unavailableRegions: ['eu-west-2'] });
+
+    const { status, data } = await request<{ region: string }>(
+      app,
+      'POST',
+      '/v1/projects',
+      { name: 'frankfurt', region: 'eu-central-1' }
+    );
+    expect(status).toBe(201);
+    expect(data.region).toBe('eu-central-1');
+  });
+
   it('transitions status on pause and restore', async () => {
     const app = await createTestApp([{ ref: 'my-proj', name: 'My Project' }]);
 

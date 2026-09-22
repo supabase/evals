@@ -860,6 +860,7 @@ export type EvalSessionArgs = {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
+  unavailableRegions?: string[];
   pgvector?: boolean;
   /**
    * Host to bind the platform-lite server to. Defaults to 127.0.0.1 (host-side,
@@ -1320,6 +1321,8 @@ export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
+  /** Regions where platform-lite refuses project creation (see `unavailableRegions` frontmatter). */
+  unavailableRegions?: string[];
   pgvector?: boolean;
   /** Management API access token; defaults to the in-process eval token. */
   accessToken?: string;
@@ -1353,6 +1356,7 @@ export async function bootPlatformBackend(opts: {
     projects: [
       { ref: opts.ref, sql, logs, functions, pgvector: opts.pgvector },
     ],
+    unavailableRegions: opts.unavailableRegions,
   });
 
   let server: ServerHandle | undefined;

@@ -1,4 +1,4 @@
-import { ProjectInstance } from '../project/ProjectInstance.js';
+import { DEFAULT_REGION, ProjectInstance } from '../project/ProjectInstance.js';
 import type { ProjectStore } from '../project-store.js';
 import {
   createManagementApiRoutes,
@@ -14,7 +14,10 @@ const DEFAULT_ORG = {
   opt_in_tags: [],
 };
 
-export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
+export function createAccountRoutes(
+  store: ProjectStore,
+  unavailableRegions: string[] = []
+): ManagementApiRoutes {
   const routes = createManagementApiRoutes();
 
   routes.get('/v1/organizations', (c) => {
@@ -50,10 +53,19 @@ export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
       organization_slug?: string;
       db_pass?: string;
     }>();
+    const region = body.region ?? DEFAULT_REGION;
+    if (unavailableRegions.includes(region)) {
+      return c.json(
+        {
+          message: `The ${region} region is unavailable at the moment. Visit https://status.supabase.com for further updates.`,
+        },
+        503
+      );
+    }
     const ref = generateRef();
     const name = body.name ?? ref;
     const orgSlug = body.organization_slug ?? DEFAULT_ORG.slug;
-    const instance = new ProjectInstance(ref, name, orgSlug);
+    const instance = new ProjectInstance(ref, name, orgSlug, region);
     await instance.init();
     store.set(ref, instance);
     return c.json(instance.toProjectDetails(), 201);
