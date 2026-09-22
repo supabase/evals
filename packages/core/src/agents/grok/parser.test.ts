@@ -387,7 +387,7 @@ describe('grok runner: GROK_HOME', () => {
     const { sandbox, calls } = recordingSandbox();
     await grokRunner.exec({
       sandbox,
-      model: 'grok-4.6',
+      model: 'grok-4.7',
       apiKey: 'xai-test',
       userPromptPath: '"$HOME/.eval/user-prompt.txt"',
       mcpServers: {},

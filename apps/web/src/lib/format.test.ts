@@ -78,7 +78,7 @@ describe("formatExperimentLabel", () => {
     })
 
     it("keeps the variant on an already-dotted version", () => {
-      expect(openai("gpt-5.6-sol")).toBe("Codex / GPT-5.6 sol")
+      expect(openai("gpt-6-sol")).toBe("Codex / GPT-6 sol")
     })
 
     it("passes through an id that is not a gpt- model", () => {
@@ -94,11 +94,11 @@ describe("formatExperimentLabel", () => {
       )
 
     it("title-cases every hyphen-separated part", () => {
-      expect(grok("grok-4.6")).toBe("Grok Build / Grok 4.6")
+      expect(grok("grok-4.7")).toBe("Grok Build / Grok 4.7")
     })
 
     it("strips a gateway vendor prefix when one is present", () => {
-      expect(grok("spacexai/grok-4.6")).toBe("Grok Build / Grok 4.6")
+      expect(grok("spacexai/grok-4.7")).toBe("Grok Build / Grok 4.7")
     })
   })
 })
