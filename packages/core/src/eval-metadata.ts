@@ -44,6 +44,7 @@ export const evalSuiteSchema = z.enum([
   'benchmark',
   'regression',
   'docs',
+  'cli',
   'other',
 ]);
 export const EVAL_SUITES = evalSuiteSchema.options;
@@ -54,6 +55,7 @@ export const experimentSuiteSchema = z.enum([
   'no-skills',
   'regression',
   'docs',
+  'cli',
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;

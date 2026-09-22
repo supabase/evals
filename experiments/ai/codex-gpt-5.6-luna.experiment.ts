@@ -3,5 +3,6 @@ import { codexGpt56Luna } from '../presets.js';
 
 export default defineExperiment({
   ...codexGpt56Luna,
-  suite: ['benchmark', 'regression'],
+  // cli: the pinned-CLI baseline column for CLI-team evals.
+  suite: ['benchmark', 'regression', 'cli'],
 });
