@@ -52,8 +52,6 @@ export const codexGpt56Luna = {
   skills,
 } satisfies ExperimentPreset;
 
-export const baselineExperiment = codexGpt56Luna;
-
 export const codexGpt56Sol = {
   agent: codexAgent({
     model: 'gpt-5.6-sol',

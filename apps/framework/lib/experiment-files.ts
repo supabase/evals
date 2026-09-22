@@ -12,6 +12,7 @@ export async function discoverExperimentFiles(
   experimentsDir: string
 ): Promise<ExperimentFile[]> {
   const files: ExperimentFile[] = [];
+  const experimentPaths = new Map<string, string>();
 
   for (const owner of await readdir(experimentsDir, { withFileTypes: true })) {
     if (
@@ -26,10 +27,18 @@ export async function discoverExperimentFiles(
     for (const entry of await readdir(ownerDir, { withFileTypes: true })) {
       if (!entry.isFile() || !entry.name.endsWith(EXPERIMENT_SUFFIX)) continue;
 
-      files.push({
-        name: entry.name.slice(0, -EXPERIMENT_SUFFIX.length),
-        path: join(ownerDir, entry.name),
-      });
+      const name = entry.name.slice(0, -EXPERIMENT_SUFFIX.length);
+      const path = join(ownerDir, entry.name);
+      const duplicatePath = experimentPaths.get(name);
+
+      if (duplicatePath) {
+        throw new Error(
+          `Duplicate experiment ID "${name}": ${[duplicatePath, path].sort().join(', ')}`
+        );
+      }
+
+      experimentPaths.set(name, path);
+      files.push({ name, path });
     }
   }
 

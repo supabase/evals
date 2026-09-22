@@ -39,4 +39,22 @@ describe('discoverExperimentFiles', () => {
       },
     ]);
   });
+
+  it('rejects duplicate experiment IDs across owners', async () => {
+    root = await mkdtemp(join(tmpdir(), 'eval-experiments-'));
+    await mkdir(join(root, 'ai'));
+    await mkdir(join(root, 'docs'));
+    await writeFile(
+      join(root, 'ai', 'model.experiment.ts'),
+      'export default {};'
+    );
+    await writeFile(
+      join(root, 'docs', 'model.experiment.ts'),
+      'export default {};'
+    );
+
+    await expect(discoverExperimentFiles(root)).rejects.toThrow(
+      'Duplicate experiment ID "model"'
+    );
+  });
 });
