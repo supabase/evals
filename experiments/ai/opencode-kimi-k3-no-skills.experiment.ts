@@ -1,5 +1,5 @@
 import { defineExperiment } from '@supabase-evals/core';
-import { opencodeKimiK3 } from '../presets.ts';
+import { opencodeKimiK3 } from '../presets.js';
 
 export default defineExperiment({
   ...opencodeKimiK3,
