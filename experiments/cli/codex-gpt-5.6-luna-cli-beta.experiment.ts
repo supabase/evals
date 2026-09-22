@@ -1,10 +1,10 @@
 import { defineExperiment } from '@supabase-evals/core';
 import { localStackRuntime } from '@supabase-evals/sandbox';
-import { baselineExperiment } from '../presets.js';
+import { codexGpt56Luna } from '../presets.js';
 import { skipUnlessCli } from './lib/skip.js';
 
 export default defineExperiment({
-  ...baselineExperiment,
+  ...codexGpt56Luna,
   suite: ['cli'],
   localStack: localStackRuntime({ cliVersion: 'beta' }),
   skipEval: skipUnlessCli,
