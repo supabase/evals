@@ -19,7 +19,7 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Base for sandbox URLs printed during runs */
 const SANDBOX_DASHBOARD_URL =
   'https://vercel.com/supabase/evals-runner/sandboxes';
-const FORWARDED_ENV_NAMES = [
+export const FORWARDED_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',

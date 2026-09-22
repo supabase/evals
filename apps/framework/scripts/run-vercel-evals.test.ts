@@ -17,6 +17,7 @@ import {
   cleanupSandbox,
   downloadResults,
   finalizeResult,
+  FORWARDED_ENV_NAMES,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
   packWorkspaceScript,
@@ -25,14 +26,6 @@ import {
   tagValue,
   expandJobs,
 } from './run-vercel-evals.js';
-
-const FORWARDED_ENV_NAMES = [
-  'ANTHROPIC_API_KEY',
-  'OPENAI_API_KEY',
-  'AI_GATEWAY_API_KEY',
-  'SUPABASE_CLI_STABLE_VERSION',
-  'SUPABASE_CLI_BETA_VERSION',
-];
 
 describe('agentEnvironment', () => {
   const originalValues = new Map<string, string | undefined>();
