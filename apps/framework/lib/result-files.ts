@@ -20,6 +20,7 @@ import {
   type ExperimentDisplayMetadata,
 } from '@supabase-evals/core';
 import type { ExperimentSuite } from '@supabase-evals/core/eval-metadata';
+import { discoverExperimentFiles } from './experiment-files.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(__dirname, '..', '..', '..');
@@ -37,12 +38,10 @@ export async function loadExperimentMetadata(): Promise<
   Map<string, ExperimentMetadata>
 > {
   const map = new Map<string, ExperimentMetadata>();
-  for (const file of (await readdir(EXPERIMENTS_DIR)).filter((f) =>
-    f.endsWith('.ts')
-  )) {
-    const mod = await import(pathToFileURL(join(EXPERIMENTS_DIR, file)).href);
+  for (const experiment of await discoverExperimentFiles(EXPERIMENTS_DIR)) {
+    const mod = await import(pathToFileURL(experiment.path).href);
     const config: ExperimentConfig = mod.default;
-    map.set(file.replace(/\.ts$/, ''), {
+    map.set(experiment.name, {
       display: getExperimentDisplayMetadata(config),
       suites: config.suite ?? [],
     });

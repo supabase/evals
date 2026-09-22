@@ -1322,5 +1322,1322 @@
     "promptSourcePath": "evals/docs/build-docs-007-edge-function-secrets/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-007-edge-function-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-008-storage-access-control",
+    "stage": "build",
+    "product": [
+      "storage",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the project has a bucket for the profile pictures",
+        "passed": true,
+        "notes": "avatars"
+      },
+      {
+        "name": "every bucket in the project is private",
+        "passed": true,
+        "notes": "private: avatars"
+      },
+      {
+        "name": "row level security is enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "the owner can upload their own profile picture",
+        "passed": true,
+        "notes": "avatars/92f26696-c8f0-49a7-94b8-f67597a1e75e/portrait-4f7b9699.txt"
+      },
+      {
+        "name": "the owner can see their own profile picture listed",
+        "passed": true,
+        "notes": "saw in avatars/92f26696-c8f0-49a7-94b8-f67597a1e75e: portrait-4f7b9699.txt"
+      },
+      {
+        "name": "the owner can read their own profile picture back",
+        "passed": true
+      },
+      {
+        "name": "another signed-in person cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "another signed-in person cannot list the owner's profile pictures",
+        "passed": true,
+        "notes": "listed nothing"
+      },
+      {
+        "name": "a signed-out visitor cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "the owner's profile picture is not served over the bucket's public url",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321/storage/v1/object/public/avatars/92f26696-c8f0-49a7-94b8-f67597a1e75e/portrait-4f7b9699.txt answered 400"
+      },
+      {
+        "name": "another signed-in person cannot write into the owner's own area",
+        "passed": true,
+        "notes": "new row violates row-level security policy"
+      },
+      {
+        "name": "the agent read the Storage Access Control guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 258871,
+        "cacheReadInputTokens": 229942,
+        "cacheWriteInputTokens": 28881,
+        "outputTokens": 3030
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 57578,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm adding profile pictures to our app. Everyone picks their own, and nobody\nshould be able to get at anyone else's. That includes guessing the address of\nsomeone's file, and calling whatever the app calls to load one.\n\nThe app talks to Supabase straight from the browser. We have no server of our\nown in between, so people upload and load their own picture themselves.\n\nGet our project set up so the app can start putting them somewhere.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/storage/security/access-control.md",
+    "promptSourcePath": "evals/docs/build-docs-008-storage-access-control/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-008-storage-access-control/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-008-storage-access-control",
+    "stage": "build",
+    "product": [
+      "storage",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": false,
+        "notes": "pending: 20240102000000; the scorer applied them so the rest of the checks could run"
+      },
+      {
+        "name": "the project has a bucket for the profile pictures",
+        "passed": true,
+        "notes": "profile-pictures"
+      },
+      {
+        "name": "every bucket in the project is private",
+        "passed": true,
+        "notes": "private: profile-pictures"
+      },
+      {
+        "name": "row level security is enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "the owner can upload their own profile picture",
+        "passed": true,
+        "notes": "profile-pictures/8959a336-ca1c-4dc4-9612-d64772fff6ac/portrait-d6494a5a.txt"
+      },
+      {
+        "name": "the owner can see their own profile picture listed",
+        "passed": true,
+        "notes": "saw in profile-pictures/8959a336-ca1c-4dc4-9612-d64772fff6ac: portrait-d6494a5a.txt"
+      },
+      {
+        "name": "the owner can read their own profile picture back",
+        "passed": true
+      },
+      {
+        "name": "another signed-in person cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "another signed-in person cannot list the owner's profile pictures",
+        "passed": true,
+        "notes": "listed nothing"
+      },
+      {
+        "name": "a signed-out visitor cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "the owner's profile picture is not served over the bucket's public url",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321/storage/v1/object/public/profile-pictures/8959a336-ca1c-4dc4-9612-d64772fff6ac/portrait-d6494a5a.txt answered 400"
+      },
+      {
+        "name": "another signed-in person cannot write into the owner's own area",
+        "passed": true,
+        "notes": "new row violates row-level security policy"
+      },
+      {
+        "name": "the agent read the Storage Access Control guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 132600,
+        "cacheReadInputTokens": 104098,
+        "cacheWriteInputTokens": 28475,
+        "outputTokens": 3005
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 28291,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm adding profile pictures to our app. Everyone picks their own, and nobody\nshould be able to get at anyone else's. That includes guessing the address of\nsomeone's file, and calling whatever the app calls to load one.\n\nThe app talks to Supabase straight from the browser. We have no server of our\nown in between, so people upload and load their own picture themselves.\n\nGet our project set up so the app can start putting them somewhere.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/storage/security/access-control.md",
+    "promptSourcePath": "evals/docs/build-docs-008-storage-access-control/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-008-storage-access-control/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-008-storage-access-control",
+    "stage": "build",
+    "product": [
+      "storage",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the project has a bucket for the profile pictures",
+        "passed": true,
+        "notes": "profile-pictures"
+      },
+      {
+        "name": "every bucket in the project is private",
+        "passed": true,
+        "notes": "private: profile-pictures"
+      },
+      {
+        "name": "row level security is enabled on storage.objects",
+        "passed": true
+      },
+      {
+        "name": "the owner can upload their own profile picture",
+        "passed": true,
+        "notes": "profile-pictures/7c6bbe71-62ec-4505-907a-1d46529d78ac/portrait-1cf49073.txt"
+      },
+      {
+        "name": "the owner can see their own profile picture listed",
+        "passed": true,
+        "notes": "saw in profile-pictures/7c6bbe71-62ec-4505-907a-1d46529d78ac: portrait-1cf49073.txt"
+      },
+      {
+        "name": "the owner can read their own profile picture back",
+        "passed": true
+      },
+      {
+        "name": "another signed-in person cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "another signed-in person cannot list the owner's profile pictures",
+        "passed": true,
+        "notes": "listed nothing"
+      },
+      {
+        "name": "a signed-out visitor cannot read the owner's profile picture",
+        "passed": true,
+        "notes": "Object not found"
+      },
+      {
+        "name": "the owner's profile picture is not served over the bucket's public url",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321/storage/v1/object/public/profile-pictures/7c6bbe71-62ec-4505-907a-1d46529d78ac/portrait-1cf49073.txt answered 400"
+      },
+      {
+        "name": "another signed-in person cannot write into the owner's own area",
+        "passed": true,
+        "notes": "new row violates row-level security policy"
+      },
+      {
+        "name": "the agent read the Storage Access Control guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/storage/security/access-control",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 216629,
+        "cacheReadInputTokens": 198062,
+        "cacheWriteInputTokens": 18525,
+        "outputTokens": 2818
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 54175,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm adding profile pictures to our app. Everyone picks their own, and nobody\nshould be able to get at anyone else's. That includes guessing the address of\nsomeone's file, and calling whatever the app calls to load one.\n\nThe app talks to Supabase straight from the browser. We have no server of our\nown in between, so people upload and load their own picture themselves.\n\nGet our project set up so the app can start putting them somewhere.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/storage/security/access-control.md",
+    "promptSourcePath": "evals/docs/build-docs-008-storage-access-control/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-008-storage-access-control/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-010-edge-function-auth",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "sdk",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321"
+      },
+      {
+        "name": "the order-history endpoint answers",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":3,\"item\":\"thistle-teapot-c5af2806\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a signed-in customer gets their own orders back",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":3,\"item\":\"thistle-teapot-c5af2806\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a signed-in customer does not get another customer's orders",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":3,\"item\":\"thistle-teapot-c5af2806\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a customer asking for another customer's orders still gets only their own",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":3,\"item\":\"thistle-teapot-c5af2806\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a caller with no session gets no orders",
+        "passed": true,
+        "notes": "apikey only: 401, no headers: 401"
+      },
+      {
+        "name": "the agent read the Securing Edge Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/functions/auth Supabase Edge Functions auth",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 772689,
+        "cacheReadInputTokens": 709607,
+        "cacheWriteInputTokens": 63022,
+        "outputTokens": 5968
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 177712,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our shop's app needs an endpoint that hands a signed-in customer their own\norder history. Call it `order-history`, reachable at\n`/functions/v1/order-history`, and answer with that customer's orders as JSON.\n\nNobody should be able to pull up anybody else's orders through it, and someone\nwho is not signed in should get nothing back.\n\nThen get the local stack running so I can call it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/auth.md",
+    "promptSourcePath": "evals/docs/build-docs-010-edge-function-auth/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-010-edge-function-auth/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-010-edge-function-auth",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "sdk",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321"
+      },
+      {
+        "name": "the order-history endpoint answers",
+        "passed": true,
+        "notes": "status 200: [{\"id\":2,\"customer_id\":\"db42130e-9c8e-4b0e-9f0d-0a3c90706a04\",\"item\":\"thistle-teapot-2b117160\",\"placed_on\":\"2026-09-21\"}]"
+      },
+      {
+        "name": "a signed-in customer gets their own orders back",
+        "passed": true,
+        "notes": "status 200: [{\"id\":2,\"customer_id\":\"db42130e-9c8e-4b0e-9f0d-0a3c90706a04\",\"item\":\"thistle-teapot-2b117160\",\"placed_on\":\"2026-09-21\"}]"
+      },
+      {
+        "name": "a signed-in customer does not get another customer's orders",
+        "passed": true,
+        "notes": "status 200: [{\"id\":2,\"customer_id\":\"db42130e-9c8e-4b0e-9f0d-0a3c90706a04\",\"item\":\"thistle-teapot-2b117160\",\"placed_on\":\"2026-09-21\"}]"
+      },
+      {
+        "name": "a customer asking for another customer's orders still gets only their own",
+        "passed": true,
+        "notes": "status 200: [{\"id\":2,\"customer_id\":\"db42130e-9c8e-4b0e-9f0d-0a3c90706a04\",\"item\":\"thistle-teapot-2b117160\",\"placed_on\":\"2026-09-21\"}]"
+      },
+      {
+        "name": "a caller with no session gets no orders",
+        "passed": true,
+        "notes": "apikey only: 401, no headers: 401"
+      },
+      {
+        "name": "the agent read the Securing Edge Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:github.com/supabase/cli \"failed to determine entrypoint\" supabase functions serve",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1256460,
+        "cacheReadInputTokens": 1181700,
+        "cacheWriteInputTokens": 74676,
+        "outputTokens": 6226
+      }
+    ],
+    "stepCount": 28,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 146079,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our shop's app needs an endpoint that hands a signed-in customer their own\norder history. Call it `order-history`, reachable at\n`/functions/v1/order-history`, and answer with that customer's orders as JSON.\n\nNobody should be able to pull up anybody else's orders through it, and someone\nwho is not signed in should get nothing back.\n\nThen get the local stack running so I can call it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/auth.md",
+    "promptSourcePath": "evals/docs/build-docs-010-edge-function-auth/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-010-edge-function-auth/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-010-edge-function-auth",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "sdk",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.109.1",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true,
+        "notes": "http://127.0.0.1:54321"
+      },
+      {
+        "name": "the order-history endpoint answers",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":1,\"customer_id\":\"13d47998-cd7f-4289-b0d8-c12aac5e8b10\",\"item\":\"thistle-teapot-8ddb1d09\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a signed-in customer gets their own orders back",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":1,\"customer_id\":\"13d47998-cd7f-4289-b0d8-c12aac5e8b10\",\"item\":\"thistle-teapot-8ddb1d09\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a signed-in customer does not get another customer's orders",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":1,\"customer_id\":\"13d47998-cd7f-4289-b0d8-c12aac5e8b10\",\"item\":\"thistle-teapot-8ddb1d09\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a customer asking for another customer's orders still gets only their own",
+        "passed": true,
+        "notes": "status 200: {\"orders\":[{\"id\":1,\"customer_id\":\"13d47998-cd7f-4289-b0d8-c12aac5e8b10\",\"item\":\"thistle-teapot-8ddb1d09\",\"placed_on\":\"2026-09-21\"}]}"
+      },
+      {
+        "name": "a caller with no session gets no orders",
+        "passed": true,
+        "notes": "apikey only: 401, no headers: 401"
+      },
+      {
+        "name": "the agent read the Securing Edge Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, shell_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -L --fail --silent --show-error https://supabase.com/docs/guides/functions/auth.md'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth.md"
+            }
+          ],
+          "resultChars": 7820
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 1426460,
+        "cacheReadInputTokens": 1349364,
+        "cacheWriteInputTokens": 77009,
+        "outputTokens": 6345
+      }
+    ],
+    "stepCount": 29,
+    "toolCallCount": 26,
+    "agentRunDurationMs": 153203,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our shop's app needs an endpoint that hands a signed-in customer their own\norder history. Call it `order-history`, reachable at\n`/functions/v1/order-history`, and answer with that customer's orders as JSON.\n\nNobody should be able to pull up anybody else's orders through it, and someone\nwho is not signed in should get nothing back.\n\nThen get the local stack running so I can call it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/functions/auth.md",
+    "promptSourcePath": "evals/docs/build-docs-010-edge-function-auth/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-010-edge-function-auth/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "not applicable: order_total runs as its caller"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 633559,
+        "cacheReadInputTokens": 588170,
+        "cacheWriteInputTokens": 45320,
+        "outputTokens": 4545
+      }
+    ],
+    "stepCount": 23,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 101596,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-011-database-functions/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "not applicable: order_total runs as its caller"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/functions Supabase Database Functions",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 874512,
+        "cacheReadInputTokens": 825388,
+        "cacheWriteInputTokens": 49034,
+        "outputTokens": 5127
+      }
+    ],
+    "stepCount": 30,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 140519,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-011-database-functions/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "not applicable: order_total runs as its caller"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 594992,
+        "cacheReadInputTokens": 549902,
+        "cacheWriteInputTokens": 45024,
+        "outputTokens": 4066
+      }
+    ],
+    "stepCount": 22,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 96664,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-011-database-functions/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-012-cli-getting-started",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the repository has a Supabase project in it",
+        "passed": true
+      },
+      {
+        "name": "the CLI is pinned in the project rather than only on the machine",
+        "passed": true,
+        "notes": "devDependencies.supabase = 2.117.0"
+      },
+      {
+        "name": "the pinned CLI is installed in the repository",
+        "passed": true,
+        "notes": "node_modules/.bin/supabase"
+      },
+      {
+        "name": "the repository's own copy of the CLI runs",
+        "passed": true,
+        "notes": "2.117.0"
+      },
+      {
+        "name": "the agent read the Supabase CLI guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/local-development/cli/getting-started.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 579135,
+        "cacheReadInputTokens": 538480,
+        "cacheWriteInputTokens": 40577,
+        "outputTokens": 3987
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 98688,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I want to start using Supabase on Harbour, and I want to run it on my own\nmachine while I build.\n\nThere are two of us on this and we swap between laptops, so whoever picks the\nrepository up next should end up running exactly what I am running, without me\nhaving to talk them through it.\n\nSet that up. You do not need to build any features yet.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/local-development/cli/getting-started.md",
+    "promptSourcePath": "evals/docs/build-docs-012-cli-getting-started/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-012-cli-getting-started/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-012-cli-getting-started",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the repository has a Supabase project in it",
+        "passed": true
+      },
+      {
+        "name": "the CLI is pinned in the project rather than only on the machine",
+        "passed": true,
+        "notes": "devDependencies.supabase = 2.117.0"
+      },
+      {
+        "name": "the pinned CLI is installed in the repository",
+        "passed": true,
+        "notes": "node_modules/.bin/supabase"
+      },
+      {
+        "name": "the repository's own copy of the CLI runs",
+        "passed": true,
+        "notes": "2.117.0"
+      },
+      {
+        "name": "the agent read the Supabase CLI guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/local-development/cli/getting-started.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/local-development/cli/getting-started Supabase CLI getting started local development",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 698249,
+        "cacheReadInputTokens": 652670,
+        "cacheWriteInputTokens": 45501,
+        "outputTokens": 4405
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 137844,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I want to start using Supabase on Harbour, and I want to run it on my own\nmachine while I build.\n\nThere are two of us on this and we swap between laptops, so whoever picks the\nrepository up next should end up running exactly what I am running, without me\nhaving to talk them through it.\n\nSet that up. You do not need to build any features yet.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/local-development/cli/getting-started.md",
+    "promptSourcePath": "evals/docs/build-docs-012-cli-getting-started/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-012-cli-getting-started/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-5.6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-012-cli-getting-started",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the repository has a Supabase project in it",
+        "passed": true
+      },
+      {
+        "name": "the CLI is pinned in the project rather than only on the machine",
+        "passed": true,
+        "notes": "devDependencies.supabase = 2.117.0"
+      },
+      {
+        "name": "the pinned CLI is installed in the repository",
+        "passed": true,
+        "notes": "node_modules/.bin/supabase"
+      },
+      {
+        "name": "the repository's own copy of the CLI runs",
+        "passed": true,
+        "notes": "2.117.0"
+      },
+      {
+        "name": "the agent read the Supabase CLI guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/local-development/cli/getting-started.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-5.6-luna",
+        "inputTokens": 401603,
+        "cacheReadInputTokens": 358375,
+        "cacheWriteInputTokens": 43177,
+        "outputTokens": 4513
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 122285,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I want to start using Supabase on Harbour, and I want to run it on my own\nmachine while I build.\n\nThere are two of us on this and we swap between laptops, so whoever picks the\nrepository up next should end up running exactly what I am running, without me\nhaving to talk them through it.\n\nSet that up. You do not need to build any features yet.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/local-development/cli/getting-started.md",
+    "promptSourcePath": "evals/docs/build-docs-012-cli-getting-started/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-012-cli-getting-started/run-3/result.json"
   }
 ]
