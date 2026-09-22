@@ -1,13 +1,7 @@
 #!/usr/bin/env tsx
 /**
- * Uploads scored runs from `results/` to Braintrust as experiments.
- *
- * One experiment per model per refresh, one row per run. Runs of the same eval
- * share an `input` (the scenario prompt), which is how Braintrust buckets them
- * as trials. Each row carries the agent's messages and tool calls as child
- * spans so a run can be read step by step rather than downloaded as a blob.
- *
- * `eval-results.json` is untouched.
+ * Uploads scored runs with one Braintrust experiment per local experiment and
+ * one row per run. Agent messages and tool calls become child spans.
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -29,7 +23,6 @@ import {
   type ExperimentMetadata,
   type PromptData,
 } from '../lib/result-files.js';
-// Type-only, so `braintrust` stays a lazy import below.
 import type { Span } from 'braintrust';
 
 const rawArgs = process.argv.slice(2);
@@ -39,14 +32,9 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const DRY = rawArgs.includes('--dry');
-// Epoch ms. Only results written at or after this are uploaded, which is how
-// `eval:upload` restricts itself to the runs it just produced. Keying on the
-// file rather than mirroring run-eval's flags keeps this correct when a run is
-// skipped (`--skip-existing`, `--smoke`, a per-experiment `skipEval`) and an
-// older result is left sitting on disk.
+// `eval:upload` passes this cutoff to select files written by its run.
 const SINCE = Number(readFlag(rawArgs, 'since') ?? 0);
 
-/** Transcript entries as the harness persists them (core's `TranscriptPart`). */
 const transcriptPartSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('message'),
@@ -72,12 +60,11 @@ interface PendingRow {
   checks: unknown;
   modelId?: string;
   transcript: TranscriptPart[];
-  /** Normalized arg per tool call, in transcript order, for span labels. */
   toolLabels: (string | undefined)[];
   metadata: Record<string, unknown>;
   tags: string[];
   metrics: Record<string, number>;
-  /** Unix seconds. Absent when the run recorded no duration. */
+  /** Unix seconds. */
   startTime?: number;
   endTime?: number;
 }
@@ -87,8 +74,7 @@ function git(...args: string[]): string | undefined {
     return execFileSync('git', args, {
       cwd: ROOT,
       encoding: 'utf8',
-      // `describe --exact-match` fails on most commits. Its stderr would
-      // otherwise read like an upload error.
+      // Most commits have no exact tag, so suppress the expected error.
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
@@ -96,11 +82,8 @@ function git(...args: string[]): string | undefined {
   }
 }
 
-/**
- * `git rev-parse --abbrev-ref HEAD` reports `HEAD` in the detached checkout
- * Actions uses, so CI's own refs come first.
- * https://docs.github.com/en/actions/reference/workflows-and-actions/variables
- */
+// A detached Actions checkout reports `HEAD`, so prefer its branch variables.
+// https://docs.github.com/en/actions/reference/workflows-and-actions/variables
 function branchName(): string | undefined {
   return (
     process.env.GITHUB_HEAD_REF ||
@@ -109,11 +92,6 @@ function branchName(): string | undefined {
   );
 }
 
-/**
- * Braintrust's first-class git metadata, which it prefers over custom fields so
- * commit and branch stay filterable:
- * https://braintrust.dev/docs/kb/running-evaluations-per-git-commit-sha
- */
 function repoInfo() {
   const commit = git('rev-parse', 'HEAD');
   if (!commit) {
@@ -132,10 +110,8 @@ function repoInfo() {
 }
 
 /**
- * Braintrust's `prompt_tokens` counts cache reads and writes, and so does our
- * [`inputTokens`](../../../packages/core/src/eval-metadata.ts), which records
- * the cache buckets as subsets of it. The conventions line up, so the value
- * passes through and the buckets are reported alongside it.
+ * `inputTokens` already includes cache buckets, matching Braintrust's
+ * `prompt_tokens` convention.
  * https://www.braintrust.dev/docs/instrument/advanced-tracing
  */
 export function tokenMetrics(
@@ -168,11 +144,6 @@ export function tokenMetrics(
   return metrics;
 }
 
-/**
- * The most identifying argument per tool call, in transcript order, so a span
- * reads `Bash: find /tmp/…`. The parsers normalize these onto every
- * `ToolCallRecord`. Calls without one keep just their name.
- */
 function toolLabels(toolCalls: unknown): (string | undefined)[] {
   if (!Array.isArray(toolCalls)) {
     return [];
@@ -193,13 +164,11 @@ function toolLabels(toolCalls: unknown): (string | undefined)[] {
   });
 }
 
-/** A command flattened onto one line, short enough to read as a span name. */
 function summarize(command: string): string {
   const line = command.trim().replace(/\s+/g, ' ');
   return line.length > 60 ? `${line.slice(0, 59)}…` : line;
 }
 
-/** Links a row back to the PR that triggered the run, on PR runs only. */
 function prUrl(): Record<string, string> {
   const repo = process.env.GITHUB_REPOSITORY;
   const prNumber = process.env.GITHUB_REF?.match(/^refs\/pull\/(\d+)\//)?.[1];
@@ -208,12 +177,6 @@ function prUrl(): Record<string, string> {
     : {};
 }
 
-/**
- * Builds one row per run, grouped into the experiment it belongs to.
- *
- * Suite filtering happens here rather than during the scan because an eval's
- * suite is read from its PROMPT.md, which isn't loaded until this point.
- */
 async function collectRows(
   experimentMetadata: Map<string, ExperimentMetadata>
 ): Promise<Map<string, PendingRow[]>> {
@@ -245,8 +208,7 @@ async function collectRows(
     const durationMs =
       result.agentRunDurationMs ??
       (typeof result.durationMs === 'number' ? result.durationMs : undefined);
-    // The harness records how long a run took but not when it started, so the
-    // span is anchored on the result file's mtime and worked backwards.
+    // Results record duration but no start time, so derive it from file mtime.
     const { mtimeMs } = await stat(absolutePath);
     if (mtimeMs < SINCE) {
       continue;
@@ -285,9 +247,7 @@ async function collectRows(
       ].map(String),
       metrics: {
         ...tokenMetrics(result.usage),
-        // Braintrust derives an "LLM calls" column from the llm-typed spans,
-        // which counts assistant messages rather than model calls. These are
-        // the harness's own counts.
+        // Preserve the harness's own step and tool-call counts.
         ...(typeof result.stepCount === 'number'
           ? { step_count: result.stepCount }
           : {}),
@@ -307,25 +267,12 @@ async function collectRows(
   return byExperiment;
 }
 
-/**
- * One child span per transcript entry, in order. Assistant messages are typed
- * `llm` and named after the model so the tree reads like Braintrust's own
- * agent integrations. Tool calls are typed `tool` and carry their args.
- *
- * Child spans carry order but no duration: the CLI parsers leave each tool
- * call's `ts` timestamp at 0, so only the run's total duration is real. They
- * are pinned to `startTime` so the trace measures the run rather than the gap
- * between the run and the upload.
- */
 function logTranscript(parent: Span, row: PendingRow): void {
+  // Parsers lack per-entry timestamps, so keep child spans at the run start.
   const at = row.startTime ? { startTime: row.startTime } : {};
   const ended = row.startTime ? { endTime: row.startTime } : undefined;
   let toolIndex = 0;
-  // User turns become the next model call's input rather than spans of their
-  // own, which is what the Thread view reads to render the conversation. The
-  // scenario prompt starts it off: the harness doesn't put it in the
-  // transcript, so without this a thread would open on the agent replying to
-  // nothing.
+  // Seed the next assistant input with the prompt omitted from the transcript.
   let pendingInput = row.prompt ? [{ role: 'user', content: row.prompt }] : [];
 
   for (const part of row.transcript) {
@@ -368,15 +315,13 @@ function logTranscript(parent: Span, row: PendingRow): void {
     span.end(ended);
   }
 
-  // A user turn the agent never answered would otherwise be dropped.
+  // Preserve a trailing user message with no assistant response.
   if (pendingInput.length) {
     const span = parent.startSpan({ name: 'user', type: 'task', ...at });
     span.log({ output: pendingInput });
     span.end(ended);
   }
 
-  // The scorer, as its own span so the per-check breakdown has a home and
-  // renders in Braintrust's scorer block rather than inside row metadata.
   const scorer = parent.startSpan({ name: 'passed', type: 'score', ...at });
   scorer.log({
     output: row.checks,
@@ -402,8 +347,7 @@ async function main() {
   }
 
   const info = repoInfo();
-  // Separates repeated runs on the same branch, which grouping by branch
-  // alone would merge together.
+  // Distinguishes repeated runs on the same branch.
   const runId = randomUUID();
 
   if (DRY) {
@@ -453,7 +397,6 @@ async function main() {
       root.end(row.endTime ? { endTime: row.endTime } : undefined);
     }
 
-    // Braintrust suffixes a colliding name, so report the one it assigned.
     const summary = await bt.summarize({ summarizeScores: false });
     console.log(`✅ ${summary.experimentName} → ${summary.experimentUrl}`);
   }
@@ -461,7 +404,7 @@ async function main() {
   await flush();
 }
 
-// Runs only as the CLI entrypoint, so importing it in tests is inert.
+// Keep imports inert in tests.
 if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {
   await main();
 }

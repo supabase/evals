@@ -1,10 +1,3 @@
-/**
- * Shared access to the raw run files under `results/`.
- *
- * Both destinations read through here — `export-results.ts` (the committed
- * results JSON) and `upload-braintrust.ts` (Braintrust experiments) — so the
- * two can never disagree about which runs exist.
- */
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -30,7 +23,6 @@ const EXPERIMENTS_DIR = join(ROOT, 'experiments');
 
 export interface ExperimentMetadata {
   display: ExperimentDisplayMetadata;
-  /** An array because some experiments belong to more than one suite. */
   suites: ExperimentSuite[];
 }
 
@@ -51,10 +43,7 @@ export async function loadExperimentMetadata(): Promise<
 
 export type PromptData = Awaited<ReturnType<typeof readPrompt>>;
 
-/**
- * Results record only the eval id, so each suite folder is searched for it.
- * The startsWith guard stops an id like "../x" escaping `evals/`.
- */
+/** Finds an eval prompt within `evals/`. */
 export async function readPrompt(evalId: string) {
   const evalsDir = resolve(EVALS_DIR);
   if (!existsSync(evalsDir)) {
@@ -85,7 +74,7 @@ export async function readPrompt(evalId: string) {
 export interface ResultFile {
   experiment: string;
   evalId: string;
-  /** Path relative to `results/`, as recorded in the exported `sourcePath`. */
+  /** Path relative to `results/`. */
   sourcePath: string;
   absolutePath: string;
   result: ReturnType<typeof rawEvalResultSchema.parse>;
@@ -94,7 +83,7 @@ export interface ResultFile {
 export interface CollectOptions {
   includeExperiment?: (experiment: string) => boolean;
   includeEval?: (evalId: string) => boolean;
-  /** Called for a `result.json` that fails the schema, e.g. one written by an older harness. */
+  /** Called when a result file fails schema validation. */
   onUnparseable?: (sourcePath: string, message: string) => void;
 }
 

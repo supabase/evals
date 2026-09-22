@@ -1,20 +1,12 @@
 #!/usr/bin/env tsx
-/**
- * Runs the evals, then uploads the runs it just produced.
- *
- * Both steps take the same filter flags, so they are forwarded verbatim to
- * each. The uploader ignores flags it doesn't recognise (`--runs`,
- * `--concurrency`, …) and is additionally told to skip results written before
- * this process started. A failed eval skips the upload.
- */
+/** Runs evals, then uploads the result files written by this process. */
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
-// Anchors the upload to results written from here on, so runs left over from
-// an earlier pass are not swept up.
+// The uploader uses this cutoff to ignore result files left by earlier runs.
 const startedAt = Date.now();
 
 for (const [script, extra] of [

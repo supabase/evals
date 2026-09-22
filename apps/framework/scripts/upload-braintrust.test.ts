@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { tokenMetrics } from './upload-braintrust.js';
 
 describe('tokenMetrics', () => {
-  it('reports the cache buckets without adding them to prompt_tokens', () => {
-    // The buckets are subsets of inputTokens, so 18 covers the 10 cache reads
-    // and 5 writes rather than sitting alongside them.
+  it('reports cache buckets without double-counting', () => {
     expect(
       tokenMetrics([
         {
@@ -24,7 +22,7 @@ describe('tokenMetrics', () => {
     });
   });
 
-  it('sums across models and omits absent cache fields', () => {
+  it('sums models and omits zero cache metrics', () => {
     expect(
       tokenMetrics([
         {
@@ -45,7 +43,7 @@ describe('tokenMetrics', () => {
     ).toEqual({ prompt_tokens: 6, completion_tokens: 4, tokens: 10 });
   });
 
-  it('returns nothing when the run recorded no usage', () => {
+  it('returns no metrics without usage', () => {
     expect(tokenMetrics(undefined)).toEqual({});
   });
 });
