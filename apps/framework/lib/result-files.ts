@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { glob, readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
@@ -72,8 +72,6 @@ export async function readPrompt(evalId: string) {
 }
 
 export interface ResultFile {
-  experiment: string;
-  evalId: string;
   /** Path relative to `results/`. */
   sourcePath: string;
   absolutePath: string;
@@ -85,66 +83,50 @@ export interface CollectOptions {
   includeEval?: (evalId: string) => boolean;
   /** Called when a result file fails schema validation. */
   onUnparseable?: (sourcePath: string, message: string) => void;
+  resultsDir?: string;
 }
 
-/** Walks the canonical `results/<experiment>/<eval>/run-<n>/result.json` layout. */
+/** Reads the canonical `results/<experiment>/<eval>/run-<n>/result.json` layout. */
 export async function collectResultFiles({
   includeExperiment,
   includeEval,
   onUnparseable,
+  resultsDir = RESULTS_DIR,
 }: CollectOptions = {}): Promise<ResultFile[]> {
-  if (!existsSync(RESULTS_DIR)) {
+  if (!existsSync(resultsDir)) {
     return [];
   }
   const files: ResultFile[] = [];
-
-  for (const experiment of await readdir(RESULTS_DIR)) {
+  const paths: string[] = [];
+  // Two patterns because `*` alone skips dot-prefixed eval directories.
+  for await (const absolutePath of glob([
+    join(resultsDir, '*', '*', 'run-*', 'result.json'),
+    join(resultsDir, '*', '.*', 'run-*', 'result.json'),
+  ])) {
+    paths.push(absolutePath);
+  }
+  for (const absolutePath of paths.sort()) {
+    const sourcePath = relative(resultsDir, absolutePath).split(sep).join('/');
+    const [experiment, evalId, runEntry] = sourcePath.split('/');
     if (experiment.startsWith('.') || experiment.startsWith('_')) {
+      continue;
+    }
+    if (!/^run-\d+$/.test(runEntry)) {
       continue;
     }
     if (includeExperiment && !includeExperiment(experiment)) {
       continue;
     }
-    const experimentDir = join(RESULTS_DIR, experiment);
-    if (!(await stat(experimentDir)).isDirectory()) {
+    if (includeEval && !includeEval(evalId)) {
       continue;
     }
-
-    for (const evalId of await readdir(experimentDir)) {
-      const evalDir = join(experimentDir, evalId);
-      if (!(await stat(evalDir)).isDirectory()) {
-        continue;
-      }
-      if (includeEval && !includeEval(evalId)) {
-        continue;
-      }
-
-      for (const runEntry of (await readdir(evalDir)).sort()) {
-        if (!/^run-\d+$/.test(runEntry)) {
-          continue;
-        }
-        const absolutePath = join(evalDir, runEntry, 'result.json');
-        if (!existsSync(absolutePath)) {
-          continue;
-        }
-        const sourcePath = relative(RESULTS_DIR, absolutePath)
-          .split(sep)
-          .join('/');
-        const raw: unknown = JSON.parse(await readFile(absolutePath, 'utf8'));
-        const parsed = rawEvalResultSchema.safeParse(raw);
-        if (!parsed.success) {
-          onUnparseable?.(sourcePath, parsed.error.issues[0]?.message ?? '');
-          continue;
-        }
-        files.push({
-          experiment,
-          evalId,
-          sourcePath,
-          absolutePath,
-          result: parsed.data,
-        });
-      }
+    const raw: unknown = JSON.parse(await readFile(absolutePath, 'utf8'));
+    const parsed = rawEvalResultSchema.safeParse(raw);
+    if (!parsed.success) {
+      onUnparseable?.(sourcePath, parsed.error.issues[0]?.message ?? '');
+      continue;
     }
+    files.push({ sourcePath, absolutePath, result: parsed.data });
   }
   return files;
 }
