@@ -6,11 +6,13 @@ import {
   type AgentHarnessId,
   type AgentSandbox,
   type HostedLink,
+  type LocalStackEnvironmentMarker,
   type LocalStackRuntime,
   type LocalStackScoringContext,
   type LocalStackStatus,
   type McpServerConfig,
 } from '@supabase-evals/core';
+import { isRecord } from '@supabase-evals/core/json';
 import { DockerSandbox } from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
 import {
@@ -97,18 +99,10 @@ export type DockerState = 'available' | 'no-daemon' | 'absent';
  */
 export const LOCAL_STACK_MARKER_PATH = '/tmp/supabase-eval-runtime.json';
 
-export type LocalStackEnvironmentMarker = {
-  runtime: 'local-stack';
-  /**
-   * The channel `cliVersion` resolved from, when the runtime option named
-   * one and no per-eval `cliVersion:` pin overrode it. Undefined for any
-   * exact-version pin.
-   */
-  channel?: CliChannel;
-  cliVersion: string;
-  docker: DockerState;
-  sessionStartedMs: number;
-};
+// The shared scoring-context shape (LocalStackScoringContext.environmentMarker)
+// lives in core; re-exported here so existing imports of this type from
+// @supabase-evals/sandbox keep working.
+export type { LocalStackEnvironmentMarker } from '@supabase-evals/core';
 
 // Shadow the real `docker`/`supabase` binaries from the first entry on the
 // sandbox PATH (see SANDBOX_PATH in docker-sandbox.ts).
@@ -191,11 +185,11 @@ export function localStackRuntime(
         const mcpServers = await resolveMcpServers(options, hosted);
 
         const session = {
-          tools: buildLocalStackTools(sandbox),
+          tools: buildLocalStackTools(sandbox, docker),
           sandbox: toAgentSandbox(sandbox),
           mcpServers,
           promptAddendum: [
-            buildToolSurfaceAddendum(agent, { skipCliInstall }),
+            buildToolSurfaceAddendum(agent, { skipCliInstall, docker }),
             buildSkillsPrompt(agent, env.skills),
           ]
             .filter(Boolean)
@@ -338,13 +332,13 @@ export function localStackRuntime(
         );
 
         return {
-          tools: buildLocalStackTools(sandbox),
+          tools: buildLocalStackTools(sandbox, docker),
           sandbox: toAgentSandbox(sandbox),
           // Same wiring as the `available` path; `hosted` is always
           // undefined here (guarded above), so this falls back to `docs`.
           mcpServers: dockerlessMcpServers,
           promptAddendum: [
-            buildToolSurfaceAddendum(agent, { skipCliInstall }),
+            buildToolSurfaceAddendum(agent, { skipCliInstall, docker }),
             buildSkillsPrompt(agent, installedSkills),
           ]
             .filter(Boolean)
@@ -480,6 +474,25 @@ export function buildDockerDaemonShimScript(dockerVersion: string): string {
 }
 
 /**
+ * Names the workspace's binaries accurately for the resolved Docker state,
+ * so the Docker-less paths don't claim a binary or daemon the agent doesn't
+ * have.
+ */
+function describeDockerTools(docker: DockerState): string {
+  switch (docker) {
+    case 'available':
+      return 'docker, psql, git, and curl are installed in the workspace';
+    case 'no-daemon':
+      return (
+        'psql, git, and curl are installed in the workspace; docker is ' +
+        'installed but there is no daemon for it to connect to'
+      );
+    case 'absent':
+      return 'psql, git, and curl are installed in the workspace; docker is not installed';
+  }
+}
+
+/**
  * Describes the session's tool surface: the binaries installed in the workspace
  * and the in-process `bash`/`files_*` tools from `buildLocalStackTools`.
  *
@@ -489,18 +502,24 @@ export function buildDockerDaemonShimScript(dockerVersion: string): string {
  */
 export function buildToolSurfaceAddendum(
   agent: AgentHarnessId,
-  options: { skipCliInstall?: boolean } = {}
+  options: { skipCliInstall?: boolean; docker?: DockerState } = {}
 ): string {
   if (agent !== 'ai-sdk') return '';
+  const docker = options.docker ?? 'available';
   let addendum =
-    'docker, psql, git, and curl are installed in the workspace. ' +
+    `${describeDockerTools(docker)}. ` +
     'Use the bash tool to run commands (the working directory is always the workspace root) ' +
     'and the files tools to inspect and modify files.';
 
   if (!options.skipCliInstall) {
     addendum = 'The Supabase CLI (`supabase`), ' + addendum;
-    addendum +=
-      ' Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
+    // Without a reachable daemon, `supabase start` cannot bring services up
+    // at all, so the reachability claim would be false on both Docker-less
+    // states.
+    if (docker === 'available') {
+      addendum +=
+        ' Services started with `supabase start` are reachable on their default 127.0.0.1 ports.';
+    }
   }
   return addendum;
 }
@@ -550,13 +569,16 @@ export function toAgentSandbox(sandbox: DockerSandbox): AgentSandbox {
   };
 }
 
-export function buildLocalStackTools(sandbox: DockerSandbox): ToolSet {
+export function buildLocalStackTools(
+  sandbox: DockerSandbox,
+  docker: DockerState = 'available'
+): ToolSet {
   return {
     bash: tool({
       description:
         'Run a bash command in the eval workspace (Linux). The working directory ' +
         'is always the workspace root; `cd` does not persist between calls. The ' +
-        'Supabase CLI (`supabase`), docker, psql, git, and curl are installed.',
+        `Supabase CLI (\`supabase\`), ${describeDockerTools(docker)}.`,
       inputSchema: jsonSchema({
         type: 'object',
         properties: {
@@ -683,6 +705,26 @@ export function buildLocalStackScoringContext(
 ): LocalStackScoringContext {
   let stackConfig: LocalStackStatus | undefined;
   let dbUrl: string | undefined;
+  let environmentMarker: LocalStackEnvironmentMarker | undefined;
+  let environmentMarkerRead = false;
+
+  // Read as root, in exec form (docker-sandbox.ts's readRootFile), so
+  // neither `resolveSandboxPath` nor the agent's `PATH` is in the path of a
+  // scorer reading the environment it's being graded in.
+  const discoverEnvironmentMarker = async () => {
+    if (environmentMarkerRead) return environmentMarker;
+    environmentMarkerRead = true;
+    try {
+      const raw = await sandbox.readRootFile(LOCAL_STACK_MARKER_PATH);
+      const parsed = JSON.parse(raw);
+      environmentMarker = isLocalStackEnvironmentMarker(parsed)
+        ? parsed
+        : undefined;
+    } catch {
+      environmentMarker = undefined;
+    }
+    return environmentMarker;
+  };
 
   // Read the DB connection string from the running stack rather than assuming
   // the default 127.0.0.1:54322 — same derive-from-`supabase status` approach as
@@ -773,6 +815,7 @@ export function buildLocalStackScoringContext(
       return { rows: text ? JSON.parse(text) : [] };
     },
     stackStatus: () => discoverStackConfig(),
+    environmentMarker: () => discoverEnvironmentMarker(),
     getClient: async () => {
       const { apiUrl, publishableKey } = await discoverStackConfig();
       return createClient(apiUrl, publishableKey, {
@@ -784,6 +827,23 @@ export function buildLocalStackScoringContext(
     hostedQuery: hosted?.query,
     invokeHostedFunction: hosted?.invokeFunction,
   };
+}
+
+function isLocalStackEnvironmentMarker(
+  value: unknown
+): value is LocalStackEnvironmentMarker {
+  return (
+    isRecord(value) &&
+    value.runtime === 'local-stack' &&
+    typeof value.cliVersion === 'string' &&
+    (value.docker === 'available' ||
+      value.docker === 'no-daemon' ||
+      value.docker === 'absent') &&
+    typeof value.sessionStartedMs === 'number' &&
+    (value.channel === undefined ||
+      value.channel === 'stable' ||
+      value.channel === 'beta')
+  );
 }
 
 function readString(

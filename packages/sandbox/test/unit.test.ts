@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildLocalStackTools,
   buildToolSurfaceAddendum,
   resolveSandboxPath,
   truncateOutput,
@@ -243,6 +244,75 @@ describe('buildToolSurfaceAddendum', () => {
         ''
       );
     }
+  });
+
+  it('defaults to the docker-available text when docker is unspecified', () => {
+    expect(buildToolSurfaceAddendum('ai-sdk')).toBe(
+      buildToolSurfaceAddendum('ai-sdk', { docker: 'available' })
+    );
+  });
+
+  it('claims docker is installed and reachable only when docker is available', () => {
+    const addendum = buildToolSurfaceAddendum('ai-sdk', {
+      docker: 'available',
+    });
+    expect(addendum).toContain('docker, psql, git, and curl are installed');
+    expect(addendum).toContain(
+      'Services started with `supabase start` are reachable on their default 127.0.0.1 ports.'
+    );
+  });
+
+  it('describes docker as installed but daemon-less, with no reachability claim, for no-daemon', () => {
+    const addendum = buildToolSurfaceAddendum('ai-sdk', {
+      docker: 'no-daemon',
+    });
+    expect(addendum).toContain('psql, git, and curl are installed');
+    expect(addendum).toContain(
+      'docker is installed but there is no daemon for it to connect to'
+    );
+    expect(addendum).not.toContain('docker, psql, git, and curl');
+    expect(addendum).not.toContain(
+      'reachable on their default 127.0.0.1 ports'
+    );
+  });
+
+  it('describes docker as not installed, with no reachability claim, for absent', () => {
+    const addendum = buildToolSurfaceAddendum('ai-sdk', { docker: 'absent' });
+    expect(addendum).toContain('psql, git, and curl are installed');
+    expect(addendum).toContain('docker is not installed');
+    expect(addendum).not.toContain('docker, psql, git, and curl');
+    expect(addendum).not.toContain(
+      'reachable on their default 127.0.0.1 ports'
+    );
+  });
+});
+
+describe('buildLocalStackTools bash description', () => {
+  function bashDescription(docker: 'available' | 'no-daemon' | 'absent') {
+    const tools = buildLocalStackTools({} as DockerSandbox, docker);
+    return (tools.bash as { description?: string }).description ?? '';
+  }
+
+  it('names docker as installed for the default (available) state', () => {
+    expect(bashDescription('available')).toContain(
+      'docker, psql, git, and curl are installed'
+    );
+  });
+
+  it('names docker as installed but daemon-less for no-daemon', () => {
+    const description = bashDescription('no-daemon');
+    expect(description).toContain('psql, git, and curl are installed');
+    expect(description).toContain(
+      'docker is installed but there is no daemon for it to connect to'
+    );
+    expect(description).not.toContain('docker, psql, git, and curl');
+  });
+
+  it('names docker as not installed for absent', () => {
+    const description = bashDescription('absent');
+    expect(description).toContain('psql, git, and curl are installed');
+    expect(description).toContain('docker is not installed');
+    expect(description).not.toContain('docker, psql, git, and curl');
   });
 });
 

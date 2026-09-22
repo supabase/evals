@@ -9,7 +9,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { buildLocalStackScoringContext } from '../src/local-stack-runtime.js';
+import {
+  buildLocalStackScoringContext,
+  localStackRuntime,
+} from '../src/local-stack-runtime.js';
 import { DockerSandbox } from '../src/docker-sandbox.js';
 import {
   ensureSupabaseSandboxImage,
@@ -234,6 +237,38 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
         } finally {
           rmSync(src, { recursive: true, force: true });
           await sandbox.stop();
+        }
+      }
+    );
+
+    it(
+      'a no-daemon sandbox root-owns the marker and both shims, read-only to the agent',
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        // Docker-less staging guards both projectRunning: false and no hosted
+        // link, since the harness cannot pre-start a stack or link a hosted
+        // project without Docker.
+        const session = await localStackRuntime({
+          docker: 'no-daemon',
+        }).startSession({ agent: 'ai-sdk', projectRunning: false });
+        try {
+          const stat = await session.scoringContext.exec(
+            'stat -c "%u:%g %a" /tmp/supabase-eval-runtime.json /usr/local/sbin/supabase /usr/local/sbin/docker'
+          );
+          expect(stat.ok, stat.stderr).toBe(true);
+          expect(stat.stdout.trim().split('\n')).toEqual([
+            '0:0 444',
+            '0:0 755',
+            '0:0 755',
+          ]);
+
+          const write = await session.scoringContext.exec(
+            'echo forged > /tmp/supabase-eval-runtime.json'
+          );
+          expect(write.ok).toBe(false);
+          expect(write.stderr).toMatch(/permission denied/i);
+        } finally {
+          await session.close();
         }
       }
     );
