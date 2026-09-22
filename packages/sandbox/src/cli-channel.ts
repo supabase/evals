@@ -1,16 +1,7 @@
 /**
- * Resolves "latest stable" / "latest beta" Supabase CLI versions from npm's
- * dist-tags for the `supabase` package — no auth, no rate-limit exposure
- * (unlike the GitHub releases API), which matters because CI's sandbox only
- * forwards the model API keys, never a GITHUB_TOKEN.
- *
- * npm's dist-tag can point at a version whose GitHub release is still a
- * draft, so the resolved version's `.deb` release asset is HEAD-checked
- * before being trusted; for the beta channel only, a missing asset walks
- * back through older published `-beta.N` versions for one that downloads
- * (see resolveFallbackBetaVersion). A stable dist-tag with a missing asset
- * always throws instead — guessing at a "stable" release would defeat the
- * point of the channel.
+ * Resolves "latest stable"/"latest beta" Supabase CLI versions from npm's
+ * dist-tags. npm can point at a still-draft release with no downloadable
+ * asset, so the resolved version's `.deb` is verified first.
  */
 
 import { isRecord } from '@supabase-evals/core/json';
@@ -20,27 +11,20 @@ export type CliChannel = 'stable' | 'beta';
 const NPM_DIST_TAGS_URL =
   'https://registry.npmjs.org/-/package/supabase/dist-tags';
 
-// Abbreviated packument (versions + dist-tags only, no changelogs/READMEs) —
-// this header is what makes npm serve the small form instead of the full one.
+// Makes npm return the abbreviated packument instead of the full one.
 const NPM_PACKUMENT_URL = 'https://registry.npmjs.org/supabase';
 const NPM_INSTALL_V1_ACCEPT = 'application/vnd.npm.install-v1+json';
 
 // npm's beta dist-tag can carry a prerelease suffix like -rc.1, not just -beta.N.
 const VERSION_RE = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
 
-// Only the -beta.N shape is walkable for the "try an older published beta"
-// fallback below; a -rc.N or other prerelease suffix has no defined ordering
-// we can search.
+// Only the -beta.N shape has a defined ordering the walk-back below can search.
 const BETA_SUFFIX_RE = /^\d+\.\d+\.\d+-beta\.\d+$/;
 
-// Matches any published "X.Y.Z-beta.N" version (any major/minor/patch),
-// captured for the numeric tuple comparison in compareBetaVersionsDesc —
-// unlike BETA_SUFFIX_RE, it isn't anchored to one specific version's prefix.
+// Feeds compareBetaVersionsDesc's numeric comparison; matches any version, unlike BETA_SUFFIX_RE.
 const BETA_VERSION_RE = /^(\d+)\.(\d+)\.(\d+)-beta\.(\d+)$/;
 
-// The number of older published beta versions to probe for a downloadable
-// asset before giving up — keeps a broken release from turning one nightly
-// run into an unbounded chain of GitHub requests.
+// Caps the walk-back so a broken release can't chain into unbounded GitHub requests.
 const MAX_BETA_FALLBACK_CANDIDATES = 5;
 
 const ENV_OVERRIDE: Record<CliChannel, string> = {
@@ -61,12 +45,12 @@ function isCliChannel(value: string): value is CliChannel {
   return CLI_CHANNELS.has(value as CliChannel);
 }
 
-/** Mirrors installSupabaseCli's download URL template in packages/sandbox/src/supabase.ts. */
+/** Must match the download URL installSupabaseCli() uses in supabase.ts. */
 export function cliDebUrl(version: string, arch: 'amd64' | 'arm64'): string {
   return `https://github.com/supabase/cli/releases/download/v${version}/supabase_${version}_linux_${arch}.deb`;
 }
 
-/** The GitHub release page for a version, named in errors instead of a single arch's asset URL. */
+/** GitHub release page for a version, used in error messages. */
 function releaseTagUrl(version: string): string {
   return `https://github.com/supabase/cli/releases/tag/v${version}`;
 }
@@ -80,16 +64,7 @@ async function debAssetHeadOk(url: string): Promise<boolean> {
   return response.ok;
 }
 
-/**
- * HEAD-checks that a release's `.deb` assets are actually downloadable (not
- * behind a draft release) for both architectures the sandbox installs onto —
- * the host running this resolver and the sandbox container it targets can
- * differ (e.g. an Apple Silicon host building a linux/amd64 sandbox image),
- * so checking only one arch could pass while the other 404s. This also
- * catches a partially-uploaded release that a single-arch probe would miss.
- * Two HEAD requests per candidate, capped at MAX_BETA_FALLBACK_CANDIDATES
- * candidates in the walk-back below, is an acceptable request budget.
- */
+/** HEAD-checks both the amd64 and arm64 `.deb` assets, since the resolver's host architecture need not match the sandbox's. */
 async function debAssetExists(version: string): Promise<boolean> {
   const [amd64, arm64] = await Promise.all([
     debAssetHeadOk(cliDebUrl(version, 'amd64')),
@@ -99,13 +74,10 @@ async function debAssetExists(version: string): Promise<boolean> {
 }
 
 /**
- * Resolve a channel to a concrete Supabase CLI version. Memoised per channel
- * so a single nightly run only hits the registry once per channel; the cache
- * entry is cleared on rejection so a later retry can hit the network again —
- * guarded by an identity check so a stale rejection can never evict a
- * different (newer) promise that has since taken its place in the cache.
- * Never falls back to the pinned SUPABASE_CLI_VERSION on failure — that would
- * silently mislabel data — so callers must let the throw propagate.
+ * Resolves a channel to a concrete CLI version, memoised per channel for the
+ * process lifetime. A rejection clears the cache entry so the next call
+ * retries; never falls back to the pinned SUPABASE_CLI_VERSION, since that
+ * would silently mislabel data.
  */
 export async function resolveCliVersion(channel: CliChannel): Promise<string> {
   const cached = versionCache.get(channel);
@@ -119,12 +91,7 @@ export async function resolveCliVersion(channel: CliChannel): Promise<string> {
   return promise;
 }
 
-/**
- * Resolves `value` if it names a channel (`'stable'` | `'beta'`); an exact
- * version (or `undefined`) passes through unchanged. Split out from
- * localStackRuntime's startSession so the branching itself is unit-testable
- * without booting a sandbox.
- */
+/** Resolves `value`: a channel tag (`'stable'` | `'beta'`) resolves against npm; an exact version or `undefined` passes through unchanged. */
 export async function resolveCliVersionOption(
   value: string | CliChannel | undefined
 ): Promise<string | undefined> {
@@ -164,15 +131,13 @@ async function resolveCliVersionUncached(channel: CliChannel): Promise<string> {
     );
   }
 
-  // Deliberately not caught: a transient failure here (DNS blip, timeout)
-  // must throw loud rather than silently walk back to an older beta, or
-  // (for stable) never walk back at all.
+  // A transient failure here throws rather than silently walking back to an
+  // older beta (or never walking back, for stable).
   if (await debAssetExists(version)) return version;
 
-  // The dist-tag pointed at a version whose GitHub release has no
-  // downloadable .deb (e.g. still a draft) — this is exactly what broke the
-  // beta channel in CI run 35274970438. A stable release is never guessed at;
-  // only beta walks back to the newest published version that does have one.
+  // npm's dist-tag can point at a version whose GitHub release is still a
+  // draft with no downloadable .deb. Only beta walks back to an older
+  // published version; stable is never guessed at.
   if (channel === 'stable') {
     throw new Error(
       `npm's "latest" dist-tag for "supabase" points at ${version}, but its ` +
@@ -185,18 +150,10 @@ async function resolveCliVersionUncached(channel: CliChannel): Promise<string> {
 }
 
 /**
- * Walks back through every published npm version matching the `X.Y.Z-beta.N`
- * shape that is strictly older than `unpublishedVersion` — not just versions
- * sharing its exact minor — newest first, and returns the first one whose
- * release `.deb` assets actually download. This lets a brand-new minor's
- * first beta (e.g. `2.119.0-beta.1`, still a draft) fall back across the
- * minor boundary to the previous minor's newest published beta (e.g.
- * `2.118.0-beta.60`). A candidate newer than `unpublishedVersion` is never
- * considered — if npm's dist-tag skipped it, it's likelier to be a draft too.
- *
- * A transient error probing one candidate (network blip, timeout) is logged
- * and skipped rather than aborting the whole walk-back, so one bad candidate
- * doesn't waste the rest of the probe budget.
+ * Walks back through published `X.Y.Z-beta.N` versions strictly older than
+ * `unpublishedVersion`, newest first, for one with a downloadable `.deb`.
+ * Newer candidates are skipped too (likelier to be drafts); a transient
+ * probe error is logged and skipped rather than aborting the walk-back.
  */
 async function resolveFallbackBetaVersion(
   unpublishedVersion: string
@@ -268,11 +225,9 @@ function parseBetaVersion(
 }
 
 /**
- * Orders two "X.Y.Z-beta.N" version strings newest-first — usable directly as
- * an `Array#sort` comparator for descending order. Compares each component
- * numerically so e.g. `2.118.0-beta.10` correctly sorts ahead of
- * `2.118.0-beta.9`; a plain string compare would invert that. Throws if
- * either string isn't a parseable `X.Y.Z-beta.N` version.
+ * Orders two `X.Y.Z-beta.N` versions newest-first, usable as an
+ * `Array#sort` comparator; compares components numerically so `beta.10`
+ * sorts ahead of `beta.9`. Throws if either string isn't parseable.
  */
 export function compareBetaVersionsDesc(a: string, b: string): number {
   const tupleA = parseBetaVersion(a);

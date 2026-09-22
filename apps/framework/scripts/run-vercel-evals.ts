@@ -24,9 +24,7 @@ export const FORWARDED_ENV_NAMES = [
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
   'XAI_API_KEY',
-  // Pins the CLI channel versions the prepare job resolved for this run, so
-  // every sandbox job in the run scores against the same version instead of
-  // each independently re-resolving "latest" and drifting mid-run.
+  // Pins the CLI channel version resolved for this run across sandbox jobs.
   'SUPABASE_CLI_STABLE_VERSION',
   'SUPABASE_CLI_BETA_VERSION',
 ];
