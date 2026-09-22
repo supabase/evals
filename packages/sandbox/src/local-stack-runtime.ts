@@ -50,14 +50,10 @@ const STACK_CONFIG_RETRY_MS = 2_000;
  */
 export interface LocalStackRuntimeOptions {
   /**
-   * Supabase CLI version baked into the sandbox image (pinned default).
-   * Either an exact version (e.g. `2.109.1`) or a channel tag (`'stable'` |
-   * `'beta'`) that tracks npm's dist-tag for the `supabase` package — a
-   * channel tag's resolution is memoised for the lifetime of the process
-   * (see resolveCliVersion), not per session, so a later session in the same
-   * run will not pick up a newly published version. An eval's own
-   * `cliVersion:` frontmatter pin always wins over this option, whether this
-   * is an exact version or a channel tag.
+   * Supabase CLI version baked into the sandbox image: an exact version
+   * (e.g. `2.109.1`) or a channel tag (`'stable'` | `'beta'`) resolved
+   * against npm's dist-tag and memoised per process. An eval's own
+   * `cliVersion:` frontmatter pin always wins over this option.
    */
   cliVersion?: CliChannel | (string & {});
   /**
