@@ -1,4 +1,9 @@
-/** Shared JSON helpers used across the core package. */
+/**
+ * Shared JSON helpers, imported both from within the core package and, via
+ * the `@supabase-evals/core/json` subpath, by other packages (e.g.
+ * `@supabase-evals/sandbox`'s CLI channel resolution) that want them without
+ * pulling in core's much larger `index.ts`.
+ */
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
