@@ -1,0 +1,3192 @@
+[
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":5,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development supabase start Docker ports config.toml database seed migration\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 51278
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5007
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 847055,
+        "cacheReadInputTokens": 792342,
+        "cacheWriteInputTokens": 53081,
+        "outputTokens": 22359
+      }
+    ],
+    "stepCount": 24,
+    "toolCallCount": 29,
+    "agentRunDurationMs": 256754,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":5,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml db start ports seed migration\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 49723
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml all local ports api db shadow_port pooler studio inbucket analytics edge_runtime ports\", limit: 3) { nodes { ... on Guide { title href content subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#deploy-to-production",
+              "title": "Deploy to production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#authentication-considerations",
+              "title": "Authentication considerations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#whats-next",
+              "title": "What's next"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#resources",
+              "title": "Resources"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#security-best-practices",
+              "title": "Security best practices"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#what-is-mcp-lite",
+              "title": "What is mcp-lite?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#why-supabase-edge-functions--mcp-lite",
+              "title": "Why Supabase Edge Functions + mcp-lite?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#prerequisites",
+              "title": "Prerequisites"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#create-a-new-mcp-server",
+              "title": "Create a new MCP server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#understanding-the-project-structure",
+              "title": "Understanding the project structure"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#minimal-configtoml",
+              "title": "Minimal config.toml"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#two-hono-apps-pattern",
+              "title": "Two Hono apps pattern"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#deno-import-maps",
+              "title": "Deno import maps"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#local-development",
+              "title": "Local development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#start-supabase",
+              "title": "Start Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#serve-your-function",
+              "title": "Serve your function"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#testing-your-server",
+              "title": "Testing your server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#how-it-works",
+              "title": "How it works"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite#adding-more-tools",
+              "title": "Adding more tools"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#installing-the-supabase-cli",
+              "title": "Installing the Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#beta-channel",
+              "title": "Beta channel"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#updating-the-supabase-cli",
+              "title": "Updating the Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#running-supabase-locally",
+              "title": "Running Supabase locally"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#access-your-projects-services",
+              "title": "Access your project's services"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#stopping-local-services",
+              "title": "Stopping local services"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#telemetry",
+              "title": "Telemetry"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#how-to-opt-out",
+              "title": "How to opt out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#learn-more",
+              "title": "Learn more"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#branch-configuration-with-remotes",
+              "title": "Branch configuration with remotes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#basic-configuration",
+              "title": "Basic configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#remote-specific-configuration",
+              "title": "Remote-specific configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#configuration-merging",
+              "title": "Configuration merging"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#available-configuration-options",
+              "title": "Available configuration options"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#managing-secrets-for-branches",
+              "title": "Managing secrets for branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#using-dotenvx-for-git-based-workflow",
+              "title": "Using dotenvx for git-based workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#environment-file-structure",
+              "title": "Environment file structure"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#setting-up-encrypted-secrets",
+              "title": "Setting up encrypted secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#using-with-preview-branches",
+              "title": "Using with preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#configuration-examples",
+              "title": "Configuration examples"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#multi-environment-setup",
+              "title": "Multi-environment setup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#feature-branch-configuration",
+              "title": "Feature branch configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration#next-steps",
+              "title": "Next steps"
+            }
+          ],
+          "resultChars": 73945
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- CONTAINER DAEMONS ---'; id; ps -ef | rg 'dockerd|containerd|podman' | rg -v 'rg ' || true; command -v ctr && ctr version 2>&1 | head -12; printf '%s\\\\n' '--- CONFIG HISTORY ---'; curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -30\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1775
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 691634,
+        "cacheReadInputTokens": 630962,
+        "cacheWriteInputTokens": 58981,
+        "outputTokens": 19296
+      }
+    ],
+    "stepCount": 23,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 278595,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":11,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 19909
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start config.toml ports db seed migrations local stack Docker\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/vecs-python-client",
+              "title": "Python client"
+            }
+          ],
+          "resultChars": 53948
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml project_id ports db port seed.sql local development multiple projects\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed",
+              "title": "Seed a Supabase project from supabase/config.toml"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 43913
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 939845,
+        "cacheReadInputTokens": 861998,
+        "cacheWriteInputTokens": 76283,
+        "outputTokens": 28834
+      }
+    ],
+    "stepCount": 23,
+    "toolCallCount": 58,
+    "agentRunDurationMs": 316223,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-cli-004-worktree-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":3,\"fleetWallClockMs\":419730,\"supabaseStartInvocations\":6,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1790176363734},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1790176414194},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1790176455974}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init db reset seed migration local\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            }
+          ],
+          "resultChars": 51726
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development multiple projects ports config.toml db start\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 56003
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"supabase --version; docker ps --format '{{.Names}} {{.Ports}}'; docker info --format 'memory={{.MemTotal}} CPUs={{.NCPU}}'; curl -fsSL https://supabase.com/changelog.md | head -40\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2104
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml api port db port shadow_port studio port inbucket port analytics port project_id\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            }
+          ],
+          "resultChars": 58155
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/cli/config | rg -n -C 2 'port|shadow_port|project_id|studio|analytics|inbucket' | head -90\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cli/config"
+            }
+          ],
+          "resultChars": 358398
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1596192,
+        "cacheReadInputTokens": 1505478,
+        "cacheWriteInputTokens": 87843,
+        "outputTokens": 23786
+      }
+    ],
+    "stepCount": 31,
+    "toolCallCount": 43,
+    "agentRunDurationMs": 514998,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:55322 (legacy/docker), feature-c: 127.0.0.1:56322 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":3,\"fleetWallClockMs\":416328,\"supabaseStartInvocations\":3,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1790176373023},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:55322\",\"readyMs\":1790176415236},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:56322\",\"readyMs\":1790176455508}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11960
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI work with local development database migrations seed.sql\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/github-integration",
+              "title": "GitHub integration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 51140
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start ports config.toml db seed migrations\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 52869
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml api.port db.port shadow_port studio.port inbucket.port supabase local\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 30901
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1845288,
+        "cacheReadInputTokens": 1755197,
+        "cacheWriteInputTokens": 87575,
+        "outputTokens": 32007
+      }
+    ],
+    "stepCount": 37,
+    "toolCallCount": 40,
+    "agentRunDurationMs": 542075,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:55322 (legacy/docker), feature-c: 127.0.0.1:56322 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":3,\"fleetWallClockMs\":344639,\"supabaseStartInvocations\":8,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1790176304690},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:55322\",\"readyMs\":1790176345525},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:56322\",\"readyMs\":1790176379775}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5195
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml api.port db.port project_id start stop multiple projects ports seed migration\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed",
+              "title": "Seed a Supabase project from supabase/config.toml"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 73408
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml api port db port shadow_port studio port inbucket port analytics port local development\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 61716
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml [db] shadow_port local_smtp smtp_port pop3_port port configuration\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 41555
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 2325142,
+        "cacheReadInputTokens": 2242621,
+        "cacheWriteInputTokens": 79189,
+        "outputTokens": 20326
+      }
+    ],
+    "stepCount": 49,
+    "toolCallCount": 36,
+    "agentRunDurationMs": 449447,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-cli-004-worktree-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":8,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- docker/runtime paths ---'; ls -l /var/run/docker.sock /run/docker.sock 2>&1 || true; env | rg -i 'docker|podman|container' || true; printf '%s\\\\n' '--- tools ---'; command -v git; git --version; command -v curl; printf '%s\\\\n' '--- changelog ---'; curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -60\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3175
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml ports api db shadow_port project_id\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            }
+          ],
+          "resultChars": 48117
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development migration seed.sql config db.seed.enabled reset\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            }
+          ],
+          "resultChars": 36272
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 829432,
+        "cacheReadInputTokens": 760034,
+        "cacheWriteInputTokens": 67834,
+        "outputTokens": 23703
+      }
+    ],
+    "stepCount": 23,
+    "toolCallCount": 34,
+    "agentRunDurationMs": 283766,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":2,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,100p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5146
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start Docker requirements supabase start\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 53409
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 394538,
+        "cacheReadInputTokens": 354588,
+        "cacheWriteInputTokens": 38998,
+        "outputTokens": 14212
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 184197,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0-beta.69",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0-beta.69\",\"channel\":\"beta\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":4,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development supabase init start db reset ports config.toml\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 60104
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5195
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml api.port db.port studio.port inbucket.port local development ports config\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 33889
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 665110,
+        "cacheReadInputTokens": 609626,
+        "cacheWriteInputTokens": 54192,
+        "outputTokens": 21690
+      }
+    ],
+    "stepCount": 19,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 309035,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-cli-004-worktree-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"stacksRunning\":3,\"fleetWallClockMs\":501593,\"supabaseStartInvocations\":7,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1790176530706},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1790176534462},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1790176537632}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11960
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml ports supabase start\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            }
+          ],
+          "resultChars": 51946
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/docs/guides/local-development/cli/config.md | head -c 1000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/config.md"
+            }
+          ],
+          "resultChars": 49
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 3543317,
+        "cacheReadInputTokens": 3446600,
+        "cacheWriteInputTokens": 92297,
+        "outputTokens": 33271
+      }
+    ],
+    "stepCount": 65,
+    "toolCallCount": 65,
+    "agentRunDurationMs": 574514,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"stacksRunning\":3,\"fleetWallClockMs\":316381,\"supabaseStartInvocations\":7,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1790176270366},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1790176311707},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1790176353406}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml ports api db studio inbucket analytics pooler local development\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 61716
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI config reference port api db shadow_port studio_port inbucket port analytics port supavisor\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/ipv4-address",
+              "title": "Dedicated IPv4 Address for Ingress"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db",
+              "title": "Tools to inspect your Supabase database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/accessing-postgres",
+              "title": "Accessing Postgres"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config",
+              "title": "Manage Supabase project configurations"
+            }
+          ],
+          "resultChars": 47146
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80; tmpdir=$(mktemp -d); (cd \"$tmpdir\" && supabase init >/dev/null && cat supabase/config.toml)'",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15624
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"PostgreSQL row level security enable table ALTER TABLE ENABLE ROW LEVEL SECURITY migration policies Supabase\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            }
+          ],
+          "resultChars": 86702
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development migrations supabase start applies migrations db reset migrations seed RLS enable table local\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            }
+          ],
+          "resultChars": 62393
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and debugging guide local Supabase database migrations SQL query RLS unexpectedly\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            }
+          ],
+          "resultChars": 57213
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase RLS public schema newly created table Data API default grants auto expose public role security\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/using-custom-schemas",
+              "title": "Using Custom Schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 99381
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase guide troubleshoot database API errors local database logs\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-handling",
+              "title": "Error Handling"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 39991
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1518270,
+        "cacheReadInputTokens": 1419731,
+        "cacheWriteInputTokens": 96227,
+        "outputTokens": 21686
+      }
+    ],
+    "stepCount": 34,
+    "toolCallCount": 41,
+    "agentRunDurationMs": 458960,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54422 (legacy/docker), feature-b: 127.0.0.1:54522 (legacy/docker), feature-c: 127.0.0.1:55622 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"stacksRunning\":3,\"fleetWallClockMs\":714903,\"supabaseStartInvocations\":6,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1790176765054},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1790176451087},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:55622\",\"readyMs\":1790176653501}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5195
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI local development config.toml ports project_id db start\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 63595
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/local-development/cli/config port db shadow_port local_smtp analytics config.toml",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Monitoring and debugging local database migrations missing table supabase db reset local troubleshooting\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 63211
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/monitoring-and-debugging Supabase local database relation does not exist migrations troubleshooting",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/monitoring-and-debugging",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging"
+            }
+          ]
+        }
+      ]
+    },
+    "stepCount": 76,
+    "toolCallCount": 67,
+    "agentRunDurationMs": 720421,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-cli-004-worktree-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": false,
+        "notes": "feature-a: managed: {\"code\":\"ShowHelp\",\"message\":\"Unknown subcommand \\\"stack\\\" for \\\"supabase\\\"\\n\\n  Did you mean this?\\n    start\\n\\nUnrecognized flag: --env in command supabase\"}; legacy: exit 1\nfeature-b: managed: {\"code\":\"ShowHelp\",\"message\":\"Unknown subcommand \\\"stack\\\" for \\\"supabase\\\"\\n\\n  Did you mean this?\\n    start\\n\\nUnrecognized flag: --env in command supabase\"}; legacy: exit 1\nfeature-c: managed: {\"code\":\"ShowHelp\",\"message\":\"Unknown subcommand \\\"stack\\\" for \\\"supabase\\\"\\n\\n  Did you mean this?\\n    start\\n\\nUnrecognized flag: --env in command supabase\"}; legacy: exit 1"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": false,
+        "notes": "feature-a: no stack, feature-b: no stack, feature-c: no stack"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": false,
+        "notes": "feature-a: no stack"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": false,
+        "notes": "feature-b: no stack"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": false,
+        "notes": "feature-c: no stack"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": false,
+        "notes": "no migration files found under feature-a/supabase/migrations"
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": false,
+        "notes": "no migration files found under feature-b/supabase/migrations"
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": false,
+        "notes": "no migration files found under feature-c/supabase/migrations"
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"stable\",\"stacksRunning\":0,\"fleetWallClockMs\":null,\"supabaseStartInvocations\":3,\"worktrees\":{\"feature-a\":{\"backend\":null,\"runtime\":\"none\"},\"feature-b\":{\"backend\":null,\"runtime\":\"none\"},\"feature-c\":{\"backend\":null,\"runtime\":\"none\"}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI local development config.toml ports db start workdir multiple projects local stack\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            }
+          ],
+          "resultChars": 48302
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -100; printf '\\\\n--- CLI ---\\\\n'; supabase --version; supabase --help | head -100; printf '\\\\n--- Docker ---\\\\n'; docker info --format '{{.ServerVersion}}' 2>&1 | head -20\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4016
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"CLI config reference api.port db.port db.shadow_port studio.port inbucket.port analytics.port supabase config.toml\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed-buckets",
+              "title": "Seed buckets declared in [storage.buckets]"
+            }
+          ],
+          "resultChars": 39544
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI config reference [analytics] port [inbucket] ports config.toml local SMTP mailpit port\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            }
+          ],
+          "resultChars": 58850
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 271517,
+        "cacheReadInputTokens": 220305,
+        "cacheWriteInputTokens": 50532,
+        "outputTokens": 5590
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 84270,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-cli-004-worktree-stacks/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"stable\",\"stacksRunning\":3,\"fleetWallClockMs\":348848,\"supabaseStartInvocations\":6,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1790176306417},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1790176350733},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1790176383002}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml ports project_id db port api port studio port supabase start\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 57424
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"supabase --version; docker info --format '{{.ServerVersion}} {{.Name}}' 2>&1; git config --get user.name; git config --get user.email; curl -fsSL --max-time 10 https://supabase.com/changelog.md | head -c 6000\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6030
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml project_id ports api db studio kong inbucket local stack\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https",
+              "title": "Configure Reverse Proxy and HTTPS"
+            }
+          ],
+          "resultChars": 50798
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI config reference api port db port shadow_port studio port inbucket port analytics port ports\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-postgres-config",
+              "title": "Manage Postgres database config"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/privatelink",
+              "title": "PrivateLink"
+            }
+          ],
+          "resultChars": 34024
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1228650,
+        "cacheReadInputTokens": 1149958,
+        "cacheWriteInputTokens": 76788,
+        "outputTokens": 20675
+      }
+    ],
+    "stepCount": 28,
+    "toolCallCount": 32,
+    "agentRunDurationMs": 429599,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-cli-004-worktree-stacks/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-cli-004-worktree-stacks",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "git worktrees feature-a, feature-b, feature-c exist on distinct branches",
+        "passed": true,
+        "notes": "feature-a → refs/heads/feature-a, feature-b → refs/heads/feature-b, feature-c → refs/heads/feature-c"
+      },
+      {
+        "name": "each worktree has its own running stack (three distinct database endpoints)",
+        "passed": true,
+        "notes": "feature-a: 127.0.0.1:54322 (legacy/docker), feature-b: 127.0.0.1:54422 (legacy/docker), feature-c: 127.0.0.1:54522 (legacy/docker)"
+      },
+      {
+        "name": "widgets exists only in feature-a's stack",
+        "passed": true,
+        "notes": "feature-a: present, feature-b: absent, feature-c: absent"
+      },
+      {
+        "name": "gadgets exists only in feature-b's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: present, feature-c: absent"
+      },
+      {
+        "name": "gizmos exists only in feature-c's stack",
+        "passed": true,
+        "notes": "feature-a: absent, feature-b: absent, feature-c: present"
+      },
+      {
+        "name": "widgets has at least 1 row in feature-a's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gadgets has at least 1 row in feature-b's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "gizmos has at least 1 row in feature-c's stack",
+        "passed": true,
+        "notes": "found 1 rows"
+      },
+      {
+        "name": "widgets is created by a migration file in feature-a",
+        "passed": true
+      },
+      {
+        "name": "gadgets is created by a migration file in feature-b",
+        "passed": true
+      },
+      {
+        "name": "gizmos is created by a migration file in feature-c",
+        "passed": true
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"stable\",\"stacksRunning\":3,\"fleetWallClockMs\":669242,\"supabaseStartInvocations\":10,\"worktrees\":{\"feature-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54322\",\"readyMs\":1790176705023},\"feature-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54422\",\"readyMs\":1790176705006},\"feature-c\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"endpoint\":\"127.0.0.1:54522\",\"readyMs\":1790176704990}}}"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml local development ports api db studio supabase start\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 57424
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/local-development/cli/config",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/config"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -80; printf '\\\\n--- Docker runtime ---\\\\n'; docker ps --format 'table {{.Names}}\\\\t{{.Status}}'\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4223
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml api.port db.port db.shadow_port studio.port inbucket.port edge_runtime.inspector_port analytics.port pooler.port\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 52973
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"supabase init --help | sed -n '1,140p'; printf '\\\\n--- Supabase port settings in docs ---\\\\n'; curl -fsSL https://supabase.com/docs/guides/local-development/cli/config | rg -n -C 3 'port|shadow' | head -100; printf '\\\\n--- Git identity ---\\\\n'; git config --get user.name || true; git config --get user.email || true\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/config"
+            }
+          ],
+          "resultChars": 591686
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI supabase start status db query --local\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/nextjs-vector-search",
+              "title": "Vector search with Next.js and OpenAI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 54011
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Monitoring and Debugging REST API empty rows RLS Data API select table grants\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx",
+              "title": "Why is my select returning an empty data array and I have data in the table?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
+            }
+          ],
+          "resultChars": 74462
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Monitoring and Debugging guide troubleshoot PostgREST Data API errors\", limit: 4) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/handling-errors-in-supabase-js",
+              "title": "Handling errors in `supabase-js`"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/postgrest-error-codes",
+              "title": "Error Codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/discovering-and-interpreting-api-errors-in-the-logs-7xREI9",
+              "title": "Discovering and Interpreting API Errors in the Logs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            }
+          ],
+          "resultChars": 70695
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase troubleshoot an issue local self hosted logs PostgREST\", limit: 3) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 31077
+        }
+      ]
+    },
+    "stepCount": 61,
+    "toolCallCount": 75,
+    "agentRunDurationMs": 720343,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm kicking off a brand-new project in this sandbox. I'm about to have three\ncoding agents work on features in parallel, each in its own git worktree, so\nset up a repo here with worktrees `feature-a`, `feature-b`, and `feature-c`\nas folders in this directory, and get a local Supabase stack running in each\none. `feature-a` needs a `widgets` table, `feature-b` needs `gadgets`, and\n`feature-c` needs `gizmos`. Drop one sample row in each and tell me how to\nreach each stack.",
+    "promptSourcePath": "evals/cli/build-cli-004-worktree-stacks/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-cli-004-worktree-stacks/run-3/result.json"
+  }
+]
