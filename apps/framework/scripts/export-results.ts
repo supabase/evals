@@ -47,7 +47,7 @@ const OUTPUT_PATH = join(
   'eval-results.json'
 );
 
-type ExperimentExportMetadata = {
+export type ExperimentExportMetadata = {
   display: ExperimentDisplayMetadata;
   experimentSuite?: ExperimentSuite;
 };
@@ -122,7 +122,7 @@ async function readPrompt(evalId: string) {
   };
 }
 
-async function readResultFile(
+export async function readResultFile(
   filePath: string,
   sourcePath: string,
   experimentMetadata: Map<string, ExperimentExportMetadata>
@@ -152,7 +152,9 @@ async function readResultFile(
     topic: promptData?.topic ?? parsedResult.topic,
     suite: promptData?.suite ?? parsedResult.suite,
     interface: promptData?.interface ?? parsedResult.interface,
-    cliVersion: promptData?.cliVersion ?? parsedResult.cliVersion,
+    // The run's recorded version (the binary that actually ran) wins over the
+    // frontmatter pin, which only names what the eval requested.
+    cliVersion: parsedResult.cliVersion ?? promptData?.cliVersion,
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
     skills: parsedResult.skills,

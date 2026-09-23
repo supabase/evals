@@ -72,7 +72,7 @@ Common workflows:
 
 ## CLI evals
 
-The CLI team owns `evals/cli/` and its results. CLI evals run on the pinned-CLI baseline (`codex-gpt-6-luna`) plus `codex-gpt-6-luna-cli-{stable,beta,nodaemon,absent}` under `experiments/cli/`, which install the latest stable or beta CLI and force Docker-less sandboxes to compare the same scenario across CLI environments.
+The CLI team owns `evals/cli/` and its results. CLI evals run on `codex-gpt-6-luna-cli-{pinned,stable,beta,nodaemon,absent}` under `experiments/cli/`: `pinned` runs the repo's pinned CLI version, `stable`/`beta` install the latest stable or beta CLI, and `nodaemon`/`absent` additionally force Docker-less sandboxes — comparing the same scenario across CLI environments.
 
 Which evals each arm picks up:
 

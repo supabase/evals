@@ -111,7 +111,9 @@ export type ExperimentDisplayMetadata = z.infer<
 export const evalInterfaceSchema = z.enum(['mcp', 'cli']);
 export const EVAL_INTERFACES = evalInterfaceSchema.options;
 export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
-const cliVersionSchema = z.string().regex(/^\d+\.\d+\.\d+$/);
+// Matches VERSION_RE in packages/sandbox/src/cli-channel.ts, so a resolved
+// beta version (e.g. "2.118.0-beta.60") round-trips through this schema too.
+const cliVersionSchema = z.string().regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/);
 
 export type EvalMetadata = {
   stage: EvalStage;
