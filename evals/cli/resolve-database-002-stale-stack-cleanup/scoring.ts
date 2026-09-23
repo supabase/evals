@@ -2,6 +2,7 @@ import {
   judge,
   serializeTranscript,
   type CheckResult,
+  type LocalStackEnvironmentMarker,
   type LocalStackEvalContext,
   type LocalStackScorer,
   type ToolCallRecord,
@@ -9,23 +10,10 @@ import {
 import { stripIndent } from 'common-tags';
 import { parse as shellQuoteParse, type ParseEntry } from 'shell-quote';
 
-const RUNTIME_MARKER_PATH = '/tmp/supabase-eval-runtime.json';
-
-// Schema shared with experiments/_lib/docker-aware-local-stack.ts; duplicated
-// here so evals stay self-contained. Deliberately omits the experiment's
-// `docker` field so pass/fail can't branch on which Docker arm ran.
-type RuntimeMarker = {
-  runtime: string;
-  channel: string;
-  cliVersion: string;
-  sessionStartedMs: number;
-};
-
 // Case-insensitive, unanchored: matches a command segment (post unwrap+mask)
-// wherever the offending fragment sits in it. Context patterns only —
-// binaries like `dockerd`/`podman`/`sudo` are handled separately below via
-// DETOUR_LEADING_WORDS, since they're fine as arguments (`pgrep dockerd`) or
-// in the CLI's own advisory text, not just as commands.
+// anywhere the fragment sits. Binaries like dockerd/podman/sudo are handled
+// separately via DETOUR_LEADING_WORDS since they're fine as bare arguments
+// (`pgrep dockerd`) or in the CLI's own advisory text.
 export const DETOUR_PATTERNS: RegExp[] = [
   /\b(apt|apt-get)\s+(install|update)\b[^\n]*\bdocker/i,
   /\b(dnf|yum)\s+install\b[^\n]*docker/i,
@@ -44,12 +32,10 @@ export const DETOUR_PATTERNS: RegExp[] = [
   /\bopen\s+-a\s+Docker\b/i,
 ];
 
-// Read-only probes of the Docker socket are diagnostics, not workarounds; reported as a metric.
-// Deliberately left whole-command-string/regex-based (not per-segment,
-// shell-quote-argv-based) unlike `raw-docker-api-write` below: this is
-// observability only, never a pass/fail gate, so the looser, cheaper check
-// (e.g. matching a `DOCKER_HOST=unix://...` env value, not just an argv
-// flag) is an acceptable, deliberate tradeoff for a metric.
+// Read-only probes of the Docker socket are diagnostics, not workarounds —
+// reported as a metric only, never a pass/fail gate. Left whole-command
+// regex-based rather than per-segment/argv-based like `raw-docker-api-write`
+// below, since precision doesn't matter for a metric.
 export const RAW_SOCKET_PROBE_PATTERNS: RegExp[] = [
   /--unix-socket\s+\S*docker\.sock/i,
   /\bdocker\b[^\n]*\s-H\s*unix:\/\//i,
@@ -71,7 +57,7 @@ export const DETOUR_LEADING_WORDS = new Set([
 
 // HTTP-client binaries whose argv can mutate the Docker daemon over its raw
 // Unix socket. `raw-docker-api-write` below only evaluates a segment actually
-// LED by one of these — never text that merely mentions one inside an
+// led by one of these — never text that merely mentions one inside an
 // echoed message, a commit message, or a heredoc report body.
 const HTTP_CLIENT_LEADING_WORDS = new Set(['curl', 'wget', 'http', 'httpie']);
 const UNIX_SOCKET_FLAG_RE = /^--unix-socket(?:=(.*))?$/;
@@ -105,17 +91,12 @@ function hasMutatingHttpArg(argv: readonly string[]): boolean {
 
 /**
  * Whether a command segment is an HTTP client actually mutating the Docker
- * daemon over its raw Unix socket — the socket target and mutating verb must
- * be real argv tokens of the executed client, not text that merely sits
- * inside some OTHER argument's quoted/echoed string. Takes the segment's
- * real (unmasked) text — quoting a filesystem path like `--unix-socket
- * "/var/run/docker.sock"` is ordinary and must still be detected; masking
- * quoted literals would erase that value. It's still safe from an
- * echoed/heredoc false positive because `findDetours` never calls this for a
- * segment led by a passive word (`echo`, `printf`, …) in the first place —
- * that gate, not masking, is what excludes descriptive text. Falls back to
- * the pre-refactor whole-segment regex check if shell-quote can't tokenize
- * this segment, so a scorer never crashes on a weird agent command.
+ * daemon over its raw Unix socket, checked against the segment's real
+ * (unmasked) argv so a quoted `--unix-socket "/var/run/docker.sock"` still
+ * counts. Safe from an echoed/heredoc false positive because `findDetours`
+ * never calls this for a segment led by a passive word in the first place.
+ * Falls back to the pre-refactor whole-segment regex when shell-quote can't
+ * tokenize the segment.
  */
 function hasRawDockerApiWrite(rawSegment: string): boolean {
   const tokens = tryShellQuoteParse(rawSegment);
@@ -157,10 +138,9 @@ const SUDO_PROBE_ARGS = new Set([
 // their content is excluded from context-pattern matching entirely.
 const PASSIVE_LEADING_WORDS = new Set(['echo', 'printf', 'cat', 'tee', 'git']);
 
-// Fallback only — mirrors the pre-refactor regex, used solely when
-// shell-quote itself throws on malformed input (see `tryShellQuoteParse`).
-// Still carries the absolute-path/flag-cluster fix so the fallback path
-// isn't silently reintroducing the bug it's covering for.
+// Fallback only, used when shell-quote itself throws on malformed input (see
+// `tryShellQuoteParse`). Keeps the absolute-path/flag-cluster fix so the
+// fallback doesn't reintroduce the bug it's covering for.
 const SHELL_WRAPPER_RE = /^\s*(?:\S*\/)?(?:bash|sh|zsh)\s+-\S*c\S*\s+/;
 const MAX_UNWRAP_DEPTH = 3;
 
@@ -178,13 +158,12 @@ function tryShellQuoteParse(text: string): ParseEntry[] | undefined {
 
 /**
  * Detects a `[/path/to/]bash|sh|zsh -<flags>c<flags> '<script>'`-style
- * wrapper via shell-quote's own tokenizer/operator handling — resolving
- * quoting itself, so a single-quoted script comes back as ONE token rather
- * than being re-split as if it were the outer command. This covers the
- * absolute-path and flag-cluster spellings (`-lic`, `-ic`, …) the previous
- * regex-only approach missed. Only unwraps when shell-quote resolves the
- * command to exactly [binary, flags, body] — i.e. the body parsed as a
- * single argument (typically because it was quoted).
+ * wrapper via shell-quote's own tokenizer, which resolves quoting itself so
+ * a single-quoted script comes back as one token instead of being re-split
+ * as if it were the outer command. Covers absolute-path and flag-cluster
+ * spellings (`-lic`, `-ic`, …) a regex-only approach would miss. Only
+ * unwraps when shell-quote resolves the command to
+ * [binary, flags, body] — i.e. the body parsed as a single argument.
  */
 function shellWrapperBodyFromTokens(tokens: ParseEntry[]): string | undefined {
   if (tokens.length !== 3) return undefined;
@@ -235,9 +214,9 @@ function unwrapShell(command: string): string {
   return body;
 }
 
-// Marker `<<-?['"]?WORD['"]?` through the line matching WORD exactly,
-// inclusive — masked out entirely so a heredoc body describing a blocker
-// can't be mistaken for the command executing it.
+// Matches `<<-?['"]?WORD['"]?` through the closing line for WORD, inclusive
+// — masked out so a heredoc body describing a blocker can't be mistaken for
+// the command executing it.
 const HEREDOC_RE =
   /<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n[ \t]*\1[ \t]*(?=\n|$)/g;
 
@@ -255,11 +234,11 @@ function maskLiterals(text: string): string {
 }
 
 /**
- * Same quoted spans as `maskQuotedLiterals`, but LENGTH- and POSITION-
- * preserving (placeholder fill instead of deletion) — used only to locate
- * segment-delimiter matches that are safe to reuse as offsets into the real,
- * unmasked text (see `unmaskedCommandSegments`). The placeholder (`#`) can't
- * itself match `SEGMENT_DELIMITER_RE`.
+ * Same quoted spans as `maskQuotedLiterals`, but length- and
+ * position-preserving (placeholder fill instead of deletion) — used only to
+ * locate segment-delimiter matches that are safe to reuse as offsets into
+ * the real, unmasked text (see `unmaskedCommandSegments`). The placeholder
+ * (`#`) can't itself match `SEGMENT_DELIMITER_RE`.
  */
 function maskQuotedLiteralsPreservingOffsets(text: string): string {
   const fill = (match: string) =>
@@ -279,14 +258,12 @@ export function commandSegments(command: string): string[] {
 }
 
 /**
- * `commandSegments`' unmasked, index-aligned counterpart: same unwrap and
+ * `commandSegments`' unmasked, index-aligned counterpart — same unwrap and
  * heredoc masking, and split at the same delimiter positions, but quoted
- * literals keep their real content instead of being emptied. Needed where a
- * check must inspect a real argv VALUE that happens to be quoted (e.g. a
- * quoted `--unix-socket` path) — `commandSegments`' own output can't be used
- * there because its quote-emptying would erase exactly that value. Never use
- * this for context-pattern matching; that's what the masking in
- * `commandSegments` exists to protect against.
+ * literals keep their real content. Needed where a check must inspect a
+ * real quoted argv value (e.g. a quoted `--unix-socket` path); never use
+ * this for context-pattern matching — that's what `commandSegments`'
+ * masking protects against.
  */
 function unmaskedCommandSegments(command: string): string[] {
   const heredocMasked = maskHeredocs(unwrapShell(command));
@@ -357,17 +334,13 @@ function isSudoProbe(remainingTokens: readonly string[]): boolean {
 }
 
 /**
- * Labels of every detour the command matches. Evaluated per executable
+ * Labels of every detour the command matches, evaluated per executable
  * segment (post unwrap+mask) so descriptive text — an echoed message, a
  * commit message, a heredoc report body — can't false-positive just because
- * it names a blocker; `raw-docker-api-write` is likewise per-segment, gated
- * on the segment actually being led by an HTTP client. `raw-docker-api-write`
- * specifically is checked against the UNMASKED segment (`rawSegments`, index-
- * aligned with `commandSegments`' masked ones) — a real `--unix-socket
- * "/var/run/docker.sock"` argument must still be caught even though it's
- * quoted; only the leading-word gate above (computed from the masked
- * segment, but unaffected by masking since the leading word itself is never
- * inside quotes here) protects against the echoed/heredoc false positive.
+ * it names a blocker. `raw-docker-api-write` is checked against the
+ * unmasked segment (`rawSegments`, index-aligned with the masked ones) so a
+ * real, quoted `--unix-socket` argument is still caught; the leading-word
+ * gate above is what protects it from the echoed/heredoc false positive.
  */
 export function findDetours(command: string): string[] {
   const labels: string[] = [];
@@ -410,18 +383,6 @@ export function countRawDockerSocketProbes(
   return commands.filter((command) =>
     RAW_SOCKET_PROBE_PATTERNS.some((pattern) => pattern.test(command))
   ).length;
-}
-
-async function readRuntimeMarker(
-  ctx: LocalStackEvalContext
-): Promise<RuntimeMarker | undefined> {
-  const result = await ctx.exec(`cat ${RUNTIME_MARKER_PATH}`);
-  if (!result.ok || !result.stdout.trim()) return undefined;
-  try {
-    return JSON.parse(result.stdout) as RuntimeMarker;
-  } catch {
-    return undefined;
-  }
 }
 
 function extractCommands(toolCalls: readonly ToolCallRecord[]): string[] {
@@ -804,10 +765,9 @@ export type StackListProbe =
  *
  * `--output-format json` is passed explicitly rather than relying on the
  * default: beta.57's default rendering for this subcommand happens to be the
- * same JSON envelope, but that's the *text* format coinciding with it, not a
- * contract. The legacy `-o json` flag is rejected outright here ("The legacy
- * -o/--output flag is not supported here; use --output-format json"), same
- * as on the managed `stack status`.
+ * same JSON envelope, but that's the text format coinciding with it, not a
+ * contract. The legacy `-o json` flag is rejected outright here, same as on
+ * the managed `stack status`.
  */
 export async function readStackList(
   ctx: LocalStackEvalContext
@@ -881,7 +841,7 @@ const LEGACY_NAME_RE = /legacy-import/i;
  * Whether any executed command actually tore `legacy-import` down, as
  * opposed to it never having existed.
  *
- * A teardown segment counts when it carries a teardown verb AND either names
+ * A teardown segment counts when it carries a teardown verb and either names
  * legacy-import itself (`stack destroy --stack legacy-import`) or runs while
  * an earlier `cd` in the same command has entered legacy-import's directory
  * (`cd legacy-import && supabase stop`, the legacy path on a CLI with no
@@ -911,20 +871,17 @@ export function hasLegacyTeardownCommand(commands: readonly string[]): boolean {
 }
 
 /**
- * Passes only when the fleet listing, reachability AND the transcript agree
- * `legacy-import` is gone. When `supabase stack list` itself is unavailable
- * (an older CLI with no `stack` command at all, or any other failure), the
- * listing half of the check is skipped and the other two decide — always
- * with a note that says plainly which half was skipped and why, so a failure
- * here is never mistaken for a real "still listed" positive.
+ * Passes only when the fleet listing, reachability, and the transcript all
+ * agree `legacy-import` is gone. When `supabase stack list` itself is
+ * unavailable (an older CLI with no `stack` command at all, or any other
+ * failure), the listing half of the check is skipped and the other two
+ * decide — always with a note saying plainly which half was skipped and why.
  *
  * The teardown-evidence gate exists because "gone" and "never existed" are
  * indistinguishable after the fact: an agent that creates the legacy-import
  * directory but never starts its stack would otherwise pass this check for a
- * teardown it never performed — the same shape of vacuous pass review caught
- * in build-database-002's migration-applied check. Outcome checks are the
- * rule in this family; this is the one place an outcome genuinely cannot
- * distinguish success from inaction, so the transcript has to.
+ * teardown it never performed. An outcome alone can't distinguish success
+ * from inaction here, so the transcript has to.
  */
 export function checkLegacyImportGone(
   stackList: StackListProbe,
@@ -1013,7 +970,7 @@ export async function readServiceMarkers(
 
 /**
  * Both directions matter for each surviving service: checkout-service's
- * database must contain the checkout-service marker and must NOT contain
+ * database must contain the checkout-service marker and must not contain
  * payments-api's, and vice versa — proving the restart preserved data and
  * that nothing collateral was wiped or merged into a single database.
  */
@@ -1085,9 +1042,9 @@ function checkNoCliDetours(offending: readonly string[]): CheckResult {
   }
 }
 
-async function checkMetrics(
+export async function checkMetrics(
   ctx: LocalStackEvalContext,
-  marker: RuntimeMarker | undefined,
+  marker: LocalStackEnvironmentMarker | undefined,
   cliDetourCommands: readonly string[],
   commands: readonly string[],
   stackList: StackListProbe,
@@ -1234,7 +1191,7 @@ async function checkReportIsTruthful(
  */
 export const staleStackCleanupScorer: LocalStackScorer = async (ctx) => {
   try {
-    const marker = await readRuntimeMarker(ctx);
+    const marker = await ctx.environmentMarker();
     const commands = extractCommands(ctx.toolCalls);
     const cliDetourCommands = commands.filter(
       (command) => findDetours(command).length > 0

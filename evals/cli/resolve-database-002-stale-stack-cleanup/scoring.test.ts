@@ -6,6 +6,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 import {
   checkLegacyImportGone,
+  checkMetrics,
   hasLegacyTeardownCommand,
   checkMarkerIsolation,
   collectStringValues,
@@ -838,6 +839,23 @@ describe('checkMarkerIsolation', () => {
     );
     expect(result.passed).toBe(false);
     expect(result.notes).toContain('public.service_marker');
+  });
+});
+
+describe('checkMetrics', () => {
+  it('reports channel "pinned" when the environment marker is missing', async () => {
+    const ctx = fakeExecCtx(async () => commandResult('', false));
+    const result = await checkMetrics(
+      ctx,
+      undefined,
+      [],
+      [],
+      STACK_LIST_EMPTY,
+      LEGACY_UNREACHABLE,
+      LEGACY_UNREACHABLE
+    );
+    expect(result.passed).toBe(true);
+    expect(JSON.parse(result.notes as string).channel).toBe('pinned');
   });
 });
 
