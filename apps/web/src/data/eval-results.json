@@ -17628,7 +17628,7 @@
       {
         "name": "diagnosed missing publication membership",
         "passed": true,
-        "judgeNotes": "Correctly identified the missing orders table in supabase_realtime, added only public.orders, verified publication membership, and left RLS, policies, and courier_locations unchanged."
+        "judgeNotes": "Correctly identified missing publication membership, added public.orders to the existing supabase_realtime publication, and left courier_locations and RLS unchanged."
       }
     ],
     "skills": {
@@ -17646,175 +17646,22 @@
     "usage": [
       {
         "model": "claude-sonnet-5",
-        "inputTokens": 310794,
-        "cacheReadInputTokens": 290449,
-        "cacheWriteInputTokens": 20327,
-        "outputTokens": 2418
+        "inputTokens": 283749,
+        "cacheReadInputTokens": 263208,
+        "cacheWriteInputTokens": 20525,
+        "outputTokens": 2048
       }
     ],
-    "stepCount": 12,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 34362,
+    "stepCount": 11,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 32856,
+    "sandboxUsage": {
+      "memory": 8192
+    },
     "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
     "promptSourcePath": "evals/benchmark/investigate-realtime-001-subscribed-no-events/PROMPT.md",
     "run": 1,
     "sourcePath": "claude-code-sonnet-5/investigate-realtime-001-subscribed-no-events/run-1/result.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "investigate-realtime-001-subscribed-no-events",
-    "stage": "investigate",
-    "product": [
-      "realtime",
-      "database"
-    ],
-    "topic": [
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "mcp",
-    "passed": true,
-    "checks": [
-      {
-        "name": "orders table added to supabase_realtime publication",
-        "passed": true
-      },
-      {
-        "name": "courier_locations still in supabase_realtime publication",
-        "passed": true
-      },
-      {
-        "name": "publication still publishes INSERT events",
-        "passed": true
-      },
-      {
-        "name": "RLS still enabled on orders",
-        "passed": true
-      },
-      {
-        "name": "staff can still read orders through RLS",
-        "passed": true,
-        "notes": "authenticated sees 2 of 2 orders"
-      },
-      {
-        "name": "diagnosed missing publication membership",
-        "passed": true,
-        "judgeNotes": "Correctly identified the missing orders table in supabase_realtime, added only public.orders, verified it alongside courier_locations, and preserved RLS and policies."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "usage": [
-      {
-        "model": "claude-sonnet-5",
-        "inputTokens": 244032,
-        "cacheReadInputTokens": 223777,
-        "cacheWriteInputTokens": 20241,
-        "outputTokens": 2119
-      }
-    ],
-    "stepCount": 12,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 31482,
-    "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
-    "promptSourcePath": "evals/benchmark/investigate-realtime-001-subscribed-no-events/PROMPT.md",
-    "run": 2,
-    "sourcePath": "claude-code-sonnet-5/investigate-realtime-001-subscribed-no-events/run-2/result.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "investigate-realtime-001-subscribed-no-events",
-    "stage": "investigate",
-    "product": [
-      "realtime",
-      "database"
-    ],
-    "topic": [
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "mcp",
-    "passed": true,
-    "checks": [
-      {
-        "name": "orders table added to supabase_realtime publication",
-        "passed": true
-      },
-      {
-        "name": "courier_locations still in supabase_realtime publication",
-        "passed": true
-      },
-      {
-        "name": "publication still publishes INSERT events",
-        "passed": true
-      },
-      {
-        "name": "RLS still enabled on orders",
-        "passed": true
-      },
-      {
-        "name": "staff can still read orders through RLS",
-        "passed": true,
-        "notes": "authenticated sees 2 of 2 orders"
-      },
-      {
-        "name": "diagnosed missing publication membership",
-        "passed": true,
-        "judgeNotes": "Correctly identified missing publication membership, added only public.orders to supabase_realtime, verified both feeds remain included, and preserved RLS/policies."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "usage": [
-      {
-        "model": "claude-sonnet-5",
-        "inputTokens": 395770,
-        "cacheReadInputTokens": 374725,
-        "cacheWriteInputTokens": 21023,
-        "outputTokens": 2756
-      }
-    ],
-    "stepCount": 15,
-    "toolCallCount": 13,
-    "agentRunDurationMs": 45789,
-    "prompt": "Our dispatch dashboard shows incoming orders as they happen. The courier\nlocation feed on the same page updates live without problems, but new orders\nonly show up after a page refresh.\n\nThe dashboard uses supabase-js to subscribe to INSERT events on the `orders`\ntable through postgres_changes, the same way it subscribes to courier\nlocations. The channel's status callback logs SUBSCRIBED and there are no\nerrors in the browser console.\n\nFigure out why no order events ever arrive and fix it.",
-    "promptSourcePath": "evals/benchmark/investigate-realtime-001-subscribed-no-events/PROMPT.md",
-    "run": 3,
-    "sourcePath": "claude-code-sonnet-5/investigate-realtime-001-subscribed-no-events/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
