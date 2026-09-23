@@ -25,11 +25,17 @@ const GUIDE_PATH = 'custom-claims-and-role-based-access-control-rbac';
 const scorer: LocalStackScorer = async (ctx) => {
   try {
     const stack = await readStackState(ctx);
-    const hook = await checkHookIsEnabled(ctx);
+    const down = 'the agent left the local stack down';
 
-    const setup = stack.running
-      ? await setupProbes(ctx)
-      : { failure: 'the agent left the local stack down' };
+    const hook = stack.running
+      ? await checkHookIsEnabled(ctx, stack)
+      : {
+          name: 'the access token hook is switched on for the local project',
+          passed: false,
+          notes: `not run: ${down}`,
+        };
+
+    const setup = stack.running ? await setupProbes(ctx) : { failure: down };
     const probes = 'probes' in setup ? setup.probes : undefined;
     const blocked = 'failure' in setup ? setup.failure : undefined;
 

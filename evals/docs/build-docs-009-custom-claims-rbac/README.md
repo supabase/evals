@@ -53,9 +53,11 @@ lifecycle is what makes the claim measurable without the scorer restarting anyth
 `the local stack is running` gates everything. Without it there is no Auth to sign into and no database to read, so
 every probe reds with that note rather than throwing.
 
-`the access token hook is switched on for the local project` parses `config.toml` rather than matching lines in it.
-A trailing comment, a single-quoted uri, an inline table and a dotted key are all TOML-legal spellings of a working
-hook, and a line matcher reds every one of them.
+`the access token hook is switched on for the local project` reads `GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED` and
+`_URI` out of the running Auth container, found by the project label on whatever container publishes the api port
+`supabase status` reports. The container is what Auth obeys, so the CLI does the TOML reading and no spelling of the
+hook in `config.toml` can red a working one. It also separates a hook that was switched on from one that was
+switched on too late, which the file cannot: the note says which.
 
 The moderator's role is written to `member_roles` **after** sign-up and the moderator then signs in again. Sign-up
 issues a token before the role exists, so a scorer that reused it would read a stale token and red a correct
@@ -77,9 +79,9 @@ touches the role, so the forum looks like it works while moderators quietly have
 moderator's token for the role value at any claim name and any depth, minus the standard claims, and requires the
 member's token not to carry it. Asserting on `user_role` by name would constrain the page to one spelling.
 
-`the access token hook is switched on for the local project` is a source-level claim, and named as one. Its
-behavioral counterparts are the two checks above. It accepts any `uri`, because the function's name and schema are
-the agent's to choose.
+`the access token hook is switched on for the local project` isolates the hook from the SQL, which is why it is
+here alongside its two behavioral counterparts above. It accepts any `uri`, because the function's name and schema
+are the agent's to choose.
 
 The refusal checks read the outcome, not the error. `a member cannot make themselves a moderator` counts rows as the
 superuser rather than trusting the API's message, so a request the probe itself malformed cannot be scored as a
