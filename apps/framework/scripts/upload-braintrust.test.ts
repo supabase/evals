@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tokenMetrics } from './upload-braintrust.js';
+import { experimentName, tokenMetrics, utcStamp } from './upload-braintrust.js';
 
 describe('tokenMetrics', () => {
   it('reports cache buckets without double-counting', () => {
@@ -45,5 +45,27 @@ describe('tokenMetrics', () => {
 
   it('returns no metrics without usage', () => {
     expect(tokenMetrics(undefined)).toEqual({});
+  });
+});
+
+describe('experimentName', () => {
+  it('appends the short sha and stamp', () => {
+    expect(experimentName('grok-4.6', 'aefa8348abc', '20260923T1339Z')).toBe(
+      'grok-4.6@aefa834-20260923T1339Z'
+    );
+  });
+
+  it('omits the sha outside a git checkout', () => {
+    expect(experimentName('grok-4.6', undefined, '20260923T1339Z')).toBe(
+      'grok-4.6-20260923T1339Z'
+    );
+  });
+});
+
+describe('utcStamp', () => {
+  it('formats to minute precision', () => {
+    expect(utcStamp(new Date('2026-09-23T13:39:07.123Z'))).toBe(
+      '20260923T1339Z'
+    );
   });
 });

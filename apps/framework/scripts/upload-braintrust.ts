@@ -110,6 +110,24 @@ function repoInfo() {
 }
 
 /**
+ * Source and Updated are hidden in some views, so we include them in the
+ * experiment name for convenience.
+ */
+export function experimentName(
+  experiment: string,
+  commit: string | undefined,
+  stamp: string
+) {
+  const sha = commit ? `@${commit.slice(0, 7)}` : '';
+  return `${experiment}${sha}-${stamp}`;
+}
+
+// 20260923T1339Z. UTC so runs from different zones sort against each other.
+export function utcStamp(date: Date) {
+  return `${date.toISOString().replace(/[:-]/g, '').slice(0, 13)}Z`;
+}
+
+/**
  * `inputTokens` already includes cache buckets, matching Braintrust's
  * `prompt_tokens` convention.
  * https://www.braintrust.dev/docs/instrument/advanced-tracing
@@ -349,6 +367,8 @@ async function main() {
   const info = repoInfo();
   // Distinguishes repeated runs on the same branch.
   const runId = randomUUID();
+  // Shared so every experiment in one upload carries the same time.
+  const stamp = utcStamp(new Date());
 
   if (DRY) {
     for (const [experiment, rows] of byExperiment) {
@@ -364,7 +384,7 @@ async function main() {
     const meta = experimentMetadata.get(experiment);
     const bt = init({
       projectId,
-      experiment,
+      experiment: experimentName(experiment, info?.commit, stamp),
       repoInfo: info,
       metadata: {
         agent: meta?.display.agent,
