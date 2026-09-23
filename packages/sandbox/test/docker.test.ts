@@ -9,7 +9,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { buildLocalStackScoringContext } from '../src/local-stack-runtime.js';
+import {
+  buildLocalStackScoringContext,
+  localStackRuntime,
+} from '../src/local-stack-runtime.js';
 import { DockerSandbox } from '../src/docker-sandbox.js';
 import {
   ensureSupabaseSandboxImage,
@@ -234,6 +237,73 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
         } finally {
           rmSync(src, { recursive: true, force: true });
           await sandbox.stop();
+        }
+      }
+    );
+
+    it(
+      'a no-daemon sandbox root-owns the marker and both shims, read-only to the agent',
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        // Docker-less staging guards both projectRunning: false and no hosted
+        // link, since the harness cannot pre-start a stack or link a hosted
+        // project without Docker.
+        const session = await localStackRuntime({
+          docker: 'no-daemon',
+        }).startSession({ agent: 'ai-sdk', projectRunning: false });
+        try {
+          const stat = await session.scoringContext.exec(
+            'stat -c "%u:%g %a" /tmp/supabase-eval-runtime.json /usr/local/sbin/supabase /usr/local/sbin/docker'
+          );
+          expect(stat.ok, stat.stderr).toBe(true);
+          expect(stat.stdout.trim().split('\n')).toEqual([
+            '0:0 444',
+            '0:0 755',
+            '0:0 755',
+          ]);
+
+          const write = await session.scoringContext.exec(
+            'echo forged > /tmp/supabase-eval-runtime.json'
+          );
+          expect(write.ok).toBe(false);
+          expect(write.stderr).toMatch(/permission denied/i);
+        } finally {
+          await session.close();
+        }
+      }
+    );
+
+    it(
+      'environmentMarker ignores a cat shadowed onto the front of the agent PATH',
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        const session = await localStackRuntime({
+          docker: 'no-daemon',
+        }).startSession({ agent: 'ai-sdk', projectRunning: false });
+        try {
+          // /home/node/.npm-global/bin is first on SANDBOX_PATH and writable
+          // by the agent, so a shell-based read could be fed forged JSON.
+          const forged =
+            '{"runtime":"local-stack","cliVersion":"0.0.0",' +
+            '"docker":"available","sessionStartedMs":0}';
+          const shim = ['#!/bin/sh', `echo '${forged}'`, ''].join('\n');
+          const encoded = Buffer.from(shim, 'utf-8').toString('base64');
+
+          const shadow = await session.scoringContext.exec(
+            'mkdir -p /home/node/.npm-global/bin && ' +
+              `echo ${encoded} | base64 -d > /home/node/.npm-global/bin/cat && ` +
+              'chmod 755 /home/node/.npm-global/bin/cat'
+          );
+          expect(shadow.ok, shadow.stderr).toBe(true);
+
+          const shadowed = await session.scoringContext.exec('cat /dev/null');
+          expect(shadowed.stdout).toContain('"docker":"available"');
+
+          const marker = await session.scoringContext.environmentMarker();
+          expect(marker?.docker).toBe('no-daemon');
+          expect(marker?.cliVersion).not.toBe('0.0.0');
+        } finally {
+          await session.close();
         }
       }
     );

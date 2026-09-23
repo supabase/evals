@@ -154,6 +154,14 @@ export type EvalMetadata = {
    * with `projectRunning: false`.
    */
   skipCliInstall?: boolean;
+  /**
+   * Whether this scenario needs a working Docker daemon (sandbox evals
+   * only). Defaults to true. Set false when the scenario can run, and is
+   * meaningful, in a sandbox without Docker (e.g. starting the stack is the
+   * agent's own job) — Docker-less experiments filter on this to decide
+   * which evals they can run.
+   */
+  needsDocker?: boolean;
 };
 
 export type ParsedEvalMarkdown = {
@@ -175,6 +183,7 @@ export const evalMetadataSchema = z.object({
   hostedProject: z.union([z.boolean(), z.stringbool()]).optional(),
   skills: z.array(z.string().min(1)).optional(),
   skipCliInstall: z.union([z.boolean(), z.stringbool()]).optional(),
+  needsDocker: z.union([z.boolean(), z.stringbool()]).optional(),
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
@@ -253,6 +262,7 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
       ? toIdentifierList(data.skills)
       : undefined,
     skipCliInstall: data.skipCliInstall,
+    needsDocker: data.needsDocker,
   };
 }, evalMetadataSchema);
 
