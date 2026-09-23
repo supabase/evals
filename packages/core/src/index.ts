@@ -304,6 +304,20 @@ export interface LocalStackStatus {
 }
 
 /**
+ * Parsed contents of the environment marker a local-stack session writes,
+ * recording its staged CLI version and Docker availability — for scorers to
+ * report, never to gate pass/fail.
+ */
+export interface LocalStackEnvironmentMarker {
+  runtime: 'local-stack';
+  /** The channel (`stable`/`beta`) the session's CLI version resolved from, when the runtime named one. */
+  channel?: 'stable' | 'beta';
+  cliVersion: string;
+  docker: 'available' | 'no-daemon' | 'absent';
+  sessionStartedMs: number;
+}
+
+/**
  * Scoring surface for local-stack evals. Everything runs inside the Docker
  * sandbox the agent worked in, against the local Supabase stack it (or the
  * harness) started.
@@ -342,6 +356,13 @@ export interface LocalStackScoringContext {
    * doesn't cover, or to assert on where a key ended up.
    */
   stackStatus: () => Promise<LocalStackStatus>;
+  /**
+   * The session's environment marker, read directly from the sandbox as
+   * root so nothing on the agent's `PATH` can forge it, and never through
+   * `resolveSandboxPath`/`exec`. Undefined when the session recorded none.
+   * For scorers to report, never to gate pass/fail.
+   */
+  environmentMarker: () => Promise<LocalStackEnvironmentMarker | undefined>;
   /**
    * The mocked hosted project's ref, when the eval links to platform-lite
    * (`hostedProject: true`). Undefined for purely-local evals.
@@ -582,6 +603,8 @@ export type LocalStackSession = {
 export type LocalStackRuntime = {
   id: string;
   startSession(args: LocalStackSessionArgs): Promise<LocalStackSession>;
+  /** Channel (e.g. `beta`) this runtime resolves its CLI version against, unset when it's pinned to an exact version. */
+  cliChannel?: 'stable' | 'beta';
 };
 
 export type ExperimentConfig = {
@@ -645,7 +668,7 @@ const judgeOutputSchema = z.object({
   notes: z.string(),
 });
 
-const DEFAULT_JUDGE_MODEL = openai('gpt-5.6-sol');
+const DEFAULT_JUDGE_MODEL = openai('gpt-6-sol');
 const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   openai: {
     reasoningEffort: 'medium',

@@ -53,7 +53,7 @@ const EXPECTED_RUNS_FLAG = readFlag(rawArgs, 'runs');
 const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
 
-function toEvalResult(
+export function toEvalResult(
   parsedResult: ReturnType<typeof rawEvalResultSchema.parse>,
   sourcePath: string,
   promptData: PromptData,
@@ -75,7 +75,9 @@ function toEvalResult(
     topic: promptData?.topic ?? parsedResult.topic,
     suite: promptData?.suite ?? parsedResult.suite,
     interface: promptData?.interface ?? parsedResult.interface,
-    cliVersion: promptData?.cliVersion ?? parsedResult.cliVersion,
+    // The run's recorded version (the binary that actually ran) wins over the
+    // frontmatter pin, which only names what the eval requested.
+    cliVersion: parsedResult.cliVersion ?? promptData?.cliVersion,
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
     skills: parsedResult.skills,

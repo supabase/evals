@@ -1,30 +1,41 @@
 #!/usr/bin/env tsx
 
 import { APIError, Sandbox } from '@vercel/sandbox';
+import type { EvalMetadata, ExperimentConfig } from '@supabase-evals/core';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import {
   rawEvalResultSchema,
   sandboxUsageSchema,
   type SandboxUsage,
 } from '@supabase-evals/core/eval-metadata';
+import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import pLimit from 'p-limit';
 import pRetry, { AbortError } from 'p-retry';
 import { z } from 'zod';
 import { positiveInteger, readFlag } from '../lib/cli-args.js';
+import { discoverExperimentFiles } from '../lib/experiment-files.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Base for sandbox URLs printed during runs */
 const SANDBOX_DASHBOARD_URL =
   'https://vercel.com/supabase/evals-runner/sandboxes';
-const AGENT_ENV_NAMES = [
+export const FORWARDED_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'AI_GATEWAY_API_KEY',
   'XAI_API_KEY',
+  // Pins the CLI channel version resolved for this run across sandbox jobs.
+  'SUPABASE_CLI_STABLE_VERSION',
+  'SUPABASE_CLI_BETA_VERSION',
 ];
+const CLI_CHANNEL_ENV: Record<CliChannel, string> = {
+  stable: 'SUPABASE_CLI_STABLE_VERSION',
+  beta: 'SUPABASE_CLI_BETA_VERSION',
+};
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
  * scoring, export). Cold image pulls alone can take ~10 min.
@@ -72,6 +83,106 @@ interface PairOptions extends RunnerOptions {
   pair: EvalPair;
   run: number;
   attempt: number;
+  pins: Record<string, string>;
+}
+
+/**
+ * Resolves each requested CLI channel's pin once, so every sandbox job in a
+ * fan-out runs against the same concrete version rather than each resolving
+ * independently and risking a mid-run release landing between them. An
+ * already-set env var is used verbatim, matching the workflow/manual
+ * override path in resolveCliVersion. An empty set does no network work.
+ */
+export async function resolveChannelPins(
+  channels: ReadonlySet<CliChannel>
+): Promise<Record<string, string>> {
+  const resolved = await Promise.all(
+    [...channels].map(async (channel) => {
+      const envVar = CLI_CHANNEL_ENV[channel];
+      // A workflow that exports a blank input still sets the env var, so
+      // blank/whitespace must be treated as unset rather than as a pin of ''.
+      const override = process.env[envVar]?.trim();
+      return [envVar, override || (await resolveCliVersion(channel))] as const;
+    })
+  );
+  return Object.fromEntries(resolved);
+}
+
+export interface RequiredCliChannelsDeps {
+  loadEvalMetadata: (pair: EvalPair) => Pick<EvalMetadata, 'cliVersion'>;
+  loadExperimentConfig: (
+    experiment: string
+  ) => Promise<{ localStack?: { cliChannel?: CliChannel } }>;
+}
+
+/**
+ * Maps a pair set to the CLI channels at least one pair needs, so
+ * resolveChannelPins only resolves those. An eval's own `cliVersion`
+ * frontmatter is an exact pin that wins over its experiment's channel and
+ * needs no resolution; a pair whose experiment has no `localStack.cliChannel`
+ * needs none either.
+ */
+export async function requiredCliChannels(
+  pairs: readonly EvalPair[],
+  { loadEvalMetadata, loadExperimentConfig }: RequiredCliChannelsDeps
+): Promise<Set<CliChannel>> {
+  const channels = new Set<CliChannel>();
+  const configs = new Map<string, ReturnType<typeof loadExperimentConfig>>();
+
+  for (const pair of pairs) {
+    if (loadEvalMetadata(pair).cliVersion !== undefined) continue;
+
+    let config = configs.get(pair.experiment);
+    if (!config) {
+      config = loadExperimentConfig(pair.experiment);
+      configs.set(pair.experiment, config);
+    }
+    const channel = (await config).localStack?.cliChannel;
+    if (channel) channels.add(channel);
+  }
+
+  return channels;
+}
+
+/** Mirrors run-eval.ts's evals/<suite>/<id>/PROMPT.md convention. */
+function loadEvalMetadata(pair: EvalPair): EvalMetadata {
+  const promptPath = join(
+    ROOT,
+    'evals',
+    pair.eval_suite,
+    pair.eval_id,
+    'PROMPT.md'
+  );
+  return parseEvalMarkdown(readFileSync(promptPath, 'utf8'), promptPath)
+    .metadata;
+}
+
+const EXPERIMENTS_DIR = join(ROOT, 'experiments');
+
+let experimentPaths: Promise<Map<string, string>> | undefined;
+
+function experimentPathsByName(): Promise<Map<string, string>> {
+  experimentPaths ??= discoverExperimentFiles(EXPERIMENTS_DIR).then(
+    (files) => new Map(files.map((file) => [file.name, file.path]))
+  );
+  return experimentPaths;
+}
+
+/**
+ * Throws rather than treating a config it can't find as needing no channel,
+ * which would silently resolve every channel per-sandbox again.
+ */
+async function loadExperimentConfig(
+  experiment: string
+): Promise<ExperimentConfig> {
+  const path = (await experimentPathsByName()).get(experiment);
+  if (!path) {
+    throw new Error(
+      `no experiment config found for "${experiment}" under ${relative(ROOT, EXPERIMENTS_DIR)}`
+    );
+  }
+  const mod = await import(pathToFileURL(path).href);
+  return mod.default as ExperimentConfig;
 }
 
 interface SandboxCommandOptions {
@@ -110,6 +221,15 @@ async function runPairs(options: RunnerOptions): Promise<void> {
       `max ${options.concurrency} at a time`
   );
 
+  // Resolved once, for only the channels this run's pairs actually need, so
+  // every job below writes the same pin rather than each sandbox resolving
+  // its own channel version independently.
+  const channels = await requiredCliChannels(options.pairs, {
+    loadEvalMetadata,
+    loadExperimentConfig,
+  });
+  const pins = await resolveChannelPins(channels);
+
   const results = await runBounded(
     jobs,
     options.concurrency,
@@ -123,6 +243,7 @@ async function runPairs(options: RunnerOptions): Promise<void> {
                 pair,
                 run,
                 attempt,
+                pins,
               },
               credentials
             ),
@@ -266,7 +387,7 @@ async function runPairOnce(
     await sandbox.writeFiles([
       {
         path: '.env',
-        content: `${agentEnvironment()}\n`,
+        content: `${agentEnvironment(options.pins)}\n`,
       },
     ]);
     console.log(`${label} run eval`);
@@ -622,11 +743,11 @@ function vercelCredentialsFromEnv(): {
   };
 }
 
-/** Serializes configured provider keys into the repo-root `.env` file. */
-function agentEnvironment(): string {
+/** Serializes configured provider keys and CLI channel pins into the sandbox's `.env` file, preferring an explicit pin over the same-named process.env value. */
+export function agentEnvironment(pins: Record<string, string> = {}): string {
   const lines: string[] = [];
-  for (const name of AGENT_ENV_NAMES) {
-    const value = process.env[name];
+  for (const name of FORWARDED_ENV_NAMES) {
+    const value = pins[name] ?? process.env[name];
     if (value) lines.push(`${name}=${value}`);
   }
   return lines.join('\n');

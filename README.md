@@ -29,7 +29,7 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 
 - An **eval** is one scenario under `evals/<suite>/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
 - An **experiment** is one agent/runtime/model setup under `experiments/<owner>/<name>.experiment.ts`. Its ID remains `<name>`.
-- An **eval suite** is a named set of evals to run together. An eval's suite is its parent folder under `evals/` (`benchmark`, `regression`, `docs`, or `other`).
+- An **eval suite** is a named set of evals to run together. An eval's suite is its parent folder under `evals/` (`benchmark`, `regression`, `docs`, `cli`, or `other`).
 - An **experiment suite** is a named set of experiments with related configurations, for head to head comparisons.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
 - A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
@@ -51,7 +51,7 @@ Run selected evals across multiple experiments:
 ```bash
 pnpm eval -- \
   --experiment claude-code-sonnet-5 \
-  --experiment claude-code-opus-5 \
+  --experiment claude-code-opus-5.5 \
   --eval resolve-dataapi-001-empty-results \
   --eval investigate-auth-001-deleted-user-access
 ```
@@ -144,6 +144,10 @@ Local-stack evals require a running Docker daemon. Each attempt boots a fresh sa
 An eval's optional `local/` directory is copied into the sandbox workspace before the agent starts. A `services:` frontmatter list declares which local-stack services the scenario needs (e.g. `gotrue`, `kong`, `postgrest`); every other service is excluded from `supabase start` — including when the agent runs it itself — to keep stack boots fast. An empty list (`services: []`) starts only the database; omit the key entirely to start the full stack.
 
 Set `cliVersion: 2.109.1` in an eval's frontmatter when it requires a specific Supabase CLI release. This overrides an experiment's `localStackRuntime({ cliVersion })` setting; otherwise the runtime setting or repository-wide default applies.
+
+An experiment can instead pass `localStackRuntime({ cliVersion: 'stable' })` or `'beta'` to track npm's dist-tag for the `supabase` package rather than an exact version, resolved once at session start. An eval's own `cliVersion:` pin still wins over either form.
+
+An experiment can pass `localStackRuntime({ docker: 'no-daemon' })` or `'absent'` to stage a sandbox where the Docker daemon is unreachable or the `docker` binary is missing entirely, instead of the default `'available'`. `needsDocker` defaults to `true`; set it `false` in an eval's frontmatter when the scenario can run, and is meaningful, without a Docker daemon (e.g. starting the stack is the agent's own job) — that's what lets a Docker-less experiment pick the eval up.
 
 Scorers check what the agent produced, never what the harness provisioned: with `projectRunning: true` (the default) the running stack and the seeded `local/` workspace are setup, so score only the deltas the agent made on top; with `projectRunning: false` the agent creates that state itself, so depending on it is fair game.
 

@@ -369,6 +369,7 @@ async function runOne(
     stepCount?: number;
     toolCallCount: number;
     agentRunDurationMs: number;
+    cliVersion?: string;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -479,6 +480,10 @@ async function runOne(
     // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
     await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
 
+    // The marker names the CLI binary the sandbox actually staged; falls back to
+    // the frontmatter pin only when there's no marker to read (e.g. skipCliInstall).
+    const marker = await session.scoringContext.environmentMarker();
+
     return {
       ...last,
       run: runIndex,
@@ -493,6 +498,7 @@ async function runOne(
       stepCount: run.stepCount,
       toolCallCount: run.toolCalls.length,
       agentRunDurationMs: run.durationMs,
+      cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
     };
   }
 
@@ -556,6 +562,8 @@ async function runOne(
     stepCount: run.stepCount,
     toolCallCount: run.toolCalls.length,
     agentRunDurationMs: run.durationMs,
+    // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.
+    cliVersion: ev.metadata.cliVersion,
   };
 }
 

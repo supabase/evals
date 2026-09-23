@@ -1,3 +1,5 @@
+export { resolveCliVersion } from './cli-channel.js';
+export type { CliChannel } from './cli-channel.js';
 export { DockerSandbox, dockerCli } from './docker-sandbox.js';
 export type {
   DockerSandboxOptions,
@@ -17,13 +19,20 @@ export {
 } from './supabase.js';
 export type { SetupSupabaseSandboxOptions } from './supabase.js';
 export {
+  buildDockerDaemonShimScript,
   buildLocalStackScoringContext,
   buildLocalStackTools,
+  buildSupabaseShimScript,
   buildToolSurfaceAddendum,
+  LOCAL_STACK_MARKER_PATH,
   localStackRuntime,
   toAgentSandbox,
 } from './local-stack-runtime.js';
-export type { LocalStackRuntimeOptions } from './local-stack-runtime.js';
+export type {
+  DockerState,
+  LocalStackEnvironmentMarker,
+  LocalStackRuntimeOptions,
+} from './local-stack-runtime.js';
 export {
   SKILLS_CLI_VERSION,
   SKILLS_INSTALL_AGENTS,

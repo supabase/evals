@@ -22,9 +22,9 @@ function defaultRuntime() {
   });
 }
 
-export const claudeCodeOpus5 = {
+export const claudeCodeOpus55 = {
   agent: claudeCodeAgent({
-    model: 'claude-opus-5',
+    model: 'claude-opus-5-5',
     reasoningEffort: 'high',
   }),
   runtime: defaultRuntime(),
@@ -42,9 +42,9 @@ export const claudeCodeSonnet5 = {
   skills,
 } satisfies ExperimentPreset;
 
-export const codexGpt56Luna = {
+export const codexGpt6Luna = {
   agent: codexAgent({
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
@@ -52,9 +52,9 @@ export const codexGpt56Luna = {
   skills,
 } satisfies ExperimentPreset;
 
-export const codexGpt56Sol = {
+export const codexGpt6Sol = {
   agent: codexAgent({
-    model: 'gpt-5.6-sol',
+    model: 'gpt-6-sol',
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
@@ -62,9 +62,9 @@ export const codexGpt56Sol = {
   skills,
 } satisfies ExperimentPreset;
 
-export const grok46 = {
+export const grok47 = {
   agent: grokAgent({
-    model: 'grok-4.6',
+    model: 'grok-4.7',
     reasoningEffort: 'high',
   }),
   runtime: defaultRuntime(),
