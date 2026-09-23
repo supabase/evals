@@ -2961,5 +2961,651 @@
     "promptSourcePath": "evals/docs/build-docs-012-cli-getting-started/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-5.6-luna-no-skills/build-docs-012-cli-getting-started/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-009-custom-claims-rbac",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true
+      },
+      {
+        "name": "the access token hook is switched on for the local project",
+        "passed": true,
+        "notes": "enabled, pointing at pg-functions://postgres/public/custom_access_token_hook"
+      },
+      {
+        "name": "the moderator's role travels in their token and a member's does not",
+        "passed": true,
+        "notes": "the moderator's token carries it at forum_role"
+      },
+      {
+        "name": "a member can delete their own post",
+        "passed": true
+      },
+      {
+        "name": "a member cannot delete another member's post",
+        "passed": true,
+        "notes": "the post is still there"
+      },
+      {
+        "name": "a moderator can delete another member's post",
+        "passed": true
+      },
+      {
+        "name": "a member cannot make themselves a moderator",
+        "passed": true,
+        "notes": "member_roles rejected the moderator write"
+      },
+      {
+        "name": "the agent read the Custom Claims and RBAC guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search, search_docs, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac custom claims RBAC Supabase",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development configure custom access token auth hook config.toml pg-functions uri seeding auth users\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
+              "title": "Configure Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            }
+          ],
+          "resultChars": 60766
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Auth hooks local development config.toml [auth.hook.custom_access_token] pg-functions://postgres\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
+              "title": "Configure Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            }
+          ],
+          "resultChars": 60766
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-hooks",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1723091,
+        "cacheReadInputTokens": 1625825,
+        "cacheWriteInputTokens": 72400,
+        "outputTokens": 11895
+      }
+    ],
+    "stepCount": 38,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 296082,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "My forum has regular members and moderators. Moderators can delete any post,\nand members can only delete their own. Set that up.\n\nThen get the local stack running so I can sign in as each of them and see it\nwork.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
+    "promptSourcePath": "evals/docs/build-docs-009-custom-claims-rbac/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-009-custom-claims-rbac/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-009-custom-claims-rbac",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true
+      },
+      {
+        "name": "the access token hook is switched on for the local project",
+        "passed": true,
+        "notes": "enabled, pointing at pg-functions://postgres/public/custom_access_token_hook"
+      },
+      {
+        "name": "the moderator's role travels in their token and a member's does not",
+        "passed": true,
+        "notes": "the moderator's token carries it at user_role"
+      },
+      {
+        "name": "a member can delete their own post",
+        "passed": true
+      },
+      {
+        "name": "a member cannot delete another member's post",
+        "passed": true,
+        "notes": "the post is still there"
+      },
+      {
+        "name": "a moderator can delete another member's post",
+        "passed": true
+      },
+      {
+        "name": "a member cannot make themselves a moderator",
+        "passed": true,
+        "notes": "member_roles rejected the moderator write"
+      },
+      {
+        "name": "the agent read the Custom Claims and RBAC guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs, search_docs, search_docs, search_docs, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac custom claims role based access control Supabase",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"custom claims role based access control auth hook app_metadata row level security policy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook",
+              "title": "Custom Access Token Hook"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0015_rls_references_user_metadata",
+              "title": "Database Advisor: Lint 0015_rls_references_user_metadata"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            }
+          ],
+          "resultChars": 59371
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth Hooks local development custom access token hook config.toml pg-functions URI supabase_auth_admin grants\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
+              "title": "Configure Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook",
+              "title": "Custom Access Token Hook"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 77012
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"[auth.hook.custom_access_token] enabled uri pg-functions://postgres function local development config.toml\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
+              "title": "Configure Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            }
+          ],
+          "resultChars": 56370
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config auth hook custom_access_token enable pg-functions uri local config.toml [auth.hook.custom_access_token]\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
+              "title": "Configure Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook",
+              "title": "Custom Access Token Hook"
+            }
+          ],
+          "resultChars": 63577
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development seed.sql db.seed enabled seed.sql auth.users password crypt gen_salt\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/github-integration",
+              "title": "GitHub integration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 51222
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Custom Claims Role-based Access Control custom_access_token_hook user_role member_roles custom access token event return RLS policy authorize\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
+              "title": "Getting Started with OAuth 2.1 Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            }
+          ],
+          "resultChars": 53884
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Custom Access Token hook config.toml auth.hook custom_access_token enabled uri local development\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
+              "title": "Getting Started with OAuth 2.1 Server"
+            }
+          ],
+          "resultChars": 91286
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1294840,
+        "cacheReadInputTokens": 1208870,
+        "cacheWriteInputTokens": 75396,
+        "outputTokens": 15668
+      }
+    ],
+    "stepCount": 30,
+    "toolCallCount": 32,
+    "agentRunDurationMs": 307945,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "My forum has regular members and moderators. Moderators can delete any post,\nand members can only delete their own. Set that up.\n\nThen get the local stack running so I can sign in as each of them and see it\nwork.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
+    "promptSourcePath": "evals/docs/build-docs-009-custom-claims-rbac/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-009-custom-claims-rbac/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-009-custom-claims-rbac",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack is running",
+        "passed": true
+      },
+      {
+        "name": "the access token hook is switched on for the local project",
+        "passed": true,
+        "notes": "enabled, pointing at pg-functions://postgres/public/custom_access_token_hook"
+      },
+      {
+        "name": "the moderator's role travels in their token and a member's does not",
+        "passed": true,
+        "notes": "the moderator's token carries it at user_role"
+      },
+      {
+        "name": "a member can delete their own post",
+        "passed": true
+      },
+      {
+        "name": "a member cannot delete another member's post",
+        "passed": true,
+        "notes": "the post is still there"
+      },
+      {
+        "name": "a moderator can delete another member's post",
+        "passed": true
+      },
+      {
+        "name": "a member cannot make themselves a moderator",
+        "passed": true,
+        "notes": "member_roles rejected the moderator write"
+      },
+      {
+        "name": "the agent read the Custom Claims and RBAC guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, shell_fetch, search_docs, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error 'https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md"
+            }
+          ],
+          "resultChars": 7977
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Custom Access Token Auth Hook local development config.toml auth hook\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 65074
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml auth hook custom_access_token_hook enabled hook postgres function local development\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
+              "title": "Configure Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook",
+              "title": "Custom Access Token Hook"
+            }
+          ],
+          "resultChars": 63577
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Local development auth hook config.toml pg-functions custom_access_token_hook uri\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac",
+              "title": "Custom Claims & Role-based Access Control (RBAC)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
+              "title": "Configure Auth Hooks"
+            }
+          ],
+          "resultChars": 44194
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 2178230,
+        "cacheReadInputTokens": 2095069,
+        "cacheWriteInputTokens": 79836,
+        "outputTokens": 26967
+      }
+    ],
+    "stepCount": 45,
+    "toolCallCount": 36,
+    "agentRunDurationMs": 543546,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "My forum has regular members and moderators. Moderators can delete any post,\nand members can only delete their own. Set that up.\n\nThen get the local stack running so I can sign in as each of them and see it\nwork.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac.md",
+    "promptSourcePath": "evals/docs/build-docs-009-custom-claims-rbac/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-009-custom-claims-rbac/run-3/result.json"
   }
 ]
