@@ -99,8 +99,10 @@ export async function resolveChannelPins(
   const resolved = await Promise.all(
     [...channels].map(async (channel) => {
       const envVar = CLI_CHANNEL_ENV[channel];
-      const override = process.env[envVar];
-      return [envVar, override ?? (await resolveCliVersion(channel))] as const;
+      // A workflow that exports a blank input still sets the env var, so
+      // blank/whitespace must be treated as unset rather than as a pin of ''.
+      const override = process.env[envVar]?.trim();
+      return [envVar, override || (await resolveCliVersion(channel))] as const;
     })
   );
   return Object.fromEntries(resolved);

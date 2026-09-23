@@ -178,6 +178,16 @@ describe('resolveChannelPins', () => {
       resolveChannelPins(new Set<CliChannel>(['stable']))
     ).rejects.toThrow('npm unreachable');
   });
+
+  it('treats a blank or whitespace-only env var as unset, resolving it instead', async () => {
+    process.env[STABLE_ENV] = '   ';
+    vi.mocked(resolveCliVersion).mockImplementation(async () => '2.117.0');
+
+    const pins = await resolveChannelPins(new Set<CliChannel>(['stable']));
+
+    expect(pins[STABLE_ENV]).toBe('2.117.0');
+    expect(resolveCliVersion).toHaveBeenCalledWith('stable');
+  });
 });
 
 describe('requiredCliChannels', () => {
