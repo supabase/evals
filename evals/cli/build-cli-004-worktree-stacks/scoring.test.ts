@@ -1,6 +1,11 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/cli/build-cli-004-worktree-stacks
+import type {
+  CommandResult,
+  LocalStackEvalContext,
+} from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import {
+  checkMetrics,
   countSupabaseStarts,
   endpointKey,
   matchWorktrees,
@@ -196,6 +201,28 @@ describe('countSupabaseStarts', () => {
     expect(
       countSupabaseStarts(['echo "run supabase start later"', 'git status'])
     ).toBe(1);
+  });
+});
+
+describe('checkMetrics', () => {
+  it('reports channel "pinned" when the session recorded no environment marker', async () => {
+    const notExecuted: CommandResult = {
+      ok: false,
+      exitCode: 1,
+      stdout: '',
+      stderr: '',
+    };
+    const ctx = {
+      exec: async () => notExecuted,
+      toolCalls: [],
+      environmentMarker: async () => undefined,
+    } as unknown as LocalStackEvalContext;
+
+    const result = await checkMetrics(ctx, {});
+    expect(result.passed).toBe(true);
+    expect(JSON.parse(result.notes ?? '{}')).toMatchObject({
+      channel: 'pinned',
+    });
   });
 });
 

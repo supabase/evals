@@ -1,6 +1,7 @@
 import type {
   CheckResult,
   CommandResult,
+  LocalStackEnvironmentMarker,
   LocalStackEvalContext,
   LocalStackScorer,
   ToolCallRecord,
@@ -8,7 +9,7 @@ import type {
 
 /**
  * The worktree → table mapping the prompt asks for. Each table must exist in
- * exactly one stack: its home worktree's.
+ * only one stack: its home worktree's.
  */
 export const WORKTREE_TABLES: ReadonlyArray<{
   worktree: string;
@@ -20,15 +21,6 @@ export const WORKTREE_TABLES: ReadonlyArray<{
 ];
 
 const MIN_SEEDED_ROWS = 1;
-
-// Written by experiments/_lib/docker-aware-local-stack.ts; absent on the
-// stock pinned runtime. Only the fields this scorer reads are typed here.
-const RUNTIME_MARKER_PATH = '/tmp/supabase-eval-runtime.json';
-type RuntimeMarker = {
-  channel?: string;
-  cliVersion?: string;
-  sessionStartedMs?: number;
-};
 
 // ---------------------------------------------------------------------------
 // Pure helpers (unit-tested in scoring.test.ts)
@@ -639,13 +631,13 @@ async function checkMigration(
  * all three stacks together (latest Postgres start minus session start), as
  * the ticket asks: parallel startup time is part of what's being validated.
  */
-async function checkMetrics(
+export async function checkMetrics(
   ctx: LocalStackEvalContext,
   stacks: Record<string, StackResolution>
 ): Promise<CheckResult> {
   const name = 'metrics';
   try {
-    const marker = await readRuntimeMarker(ctx);
+    const marker = await ctx.environmentMarker();
     const commands = extractCommands(ctx.toolCalls);
     const cliVersionResult = await ctx.exec('supabase --version');
     const cliVersion = cliVersionResult.ok
@@ -696,14 +688,6 @@ async function checkMetrics(
   }
 }
 
-async function readRuntimeMarker(
-  ctx: LocalStackEvalContext
-): Promise<RuntimeMarker | undefined> {
-  const result = await ctx.exec(`cat ${RUNTIME_MARKER_PATH} 2>/dev/null`);
-  if (!result.ok || !result.stdout.trim()) return undefined;
-  return parseJsonObject(result.stdout) as RuntimeMarker | undefined;
-}
-
 async function readReadyMs(
   ctx: LocalStackEvalContext,
   stack: StackHandle
@@ -723,13 +707,13 @@ async function readReadyMs(
 
 async function readStartMs(
   ctx: LocalStackEvalContext,
-  marker: RuntimeMarker | undefined
+  marker: LocalStackEnvironmentMarker | undefined
 ): Promise<number | null> {
   if (marker?.sessionStartedMs !== undefined) return marker.sessionStartedMs;
   try {
-    // No marker means a stock pinned run: fall back to the sandbox's PID 1
-    // start time (/proc/1/stat starttime in clock ticks since boot, plus
-    // /proc/stat btime), converted to epoch milliseconds.
+    // No marker: fall back to the sandbox's PID 1 start time (/proc/1/stat
+    // starttime in clock ticks since boot, plus /proc/stat btime), converted
+    // to epoch milliseconds.
     const result = await ctx.exec(
       "echo $(( ($(awk '{print $22}' /proc/1/stat) / $(getconf CLK_TCK) + $(awk '/^btime/ {print $2}' /proc/stat)) * 1000 ))"
     );

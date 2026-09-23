@@ -9,9 +9,8 @@ distinct database endpoints, and each table present in exactly one of them.
 
 Tracks [CLI-2400](https://linear.app/supabase/issue/CLI-2400) under the
 [Slim CLI evals RFC](https://linear.app/supabase/issue/CLI-2393). Lives in the
-`cli` suite, so it runs on the pinned-CLI baseline plus the
-`codex-gpt-5.6-luna-cli-{stable,beta,nodaemon,absent}` arms; `needsDocker:
-false` lets the Docker-less arms pick it up.
+`cli` suite, so it runs on all five `codex-gpt-6-luna-cli-{pinned,stable,beta,nodaemon,absent}`
+environments; `needsDocker: false` lets the Docker-less environments pick it up.
 
 ## What the scorer checks
 
@@ -64,8 +63,9 @@ knows nothing about managed stacks, so neither alone is enough.
   become automatic. On the legacy backend the same collision is solved only by
   editing `project_id` and every port per worktree.
 - **Environment-agnostic**, like `build-database-002-stack-lifecycle`: the
-  same eval runs under the pinned experiment and every `-cli-*` arm, and the
-  scorer never branches on which one it is in.
+  same eval runs unmodified under all five `codex-gpt-6-luna-cli-*`
+  environments, pinned included, and the scorer never branches on which one
+  it is in.
 
 ## What the first CI run taught us
 
