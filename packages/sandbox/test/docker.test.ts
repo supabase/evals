@@ -272,5 +272,40 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
         }
       }
     );
+
+    it(
+      'environmentMarker ignores a cat shadowed onto the front of the agent PATH',
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        const session = await localStackRuntime({
+          docker: 'no-daemon',
+        }).startSession({ agent: 'ai-sdk', projectRunning: false });
+        try {
+          // /home/node/.npm-global/bin is first on SANDBOX_PATH and writable
+          // by the agent, so a shell-based read could be fed forged JSON.
+          const forged =
+            '{"runtime":"local-stack","cliVersion":"0.0.0",' +
+            '"docker":"available","sessionStartedMs":0}';
+          const shim = ['#!/bin/sh', `echo '${forged}'`, ''].join('\n');
+          const encoded = Buffer.from(shim, 'utf-8').toString('base64');
+
+          const shadow = await session.scoringContext.exec(
+            'mkdir -p /home/node/.npm-global/bin && ' +
+              `echo ${encoded} | base64 -d > /home/node/.npm-global/bin/cat && ` +
+              'chmod 755 /home/node/.npm-global/bin/cat'
+          );
+          expect(shadow.ok, shadow.stderr).toBe(true);
+
+          const shadowed = await session.scoringContext.exec('cat /dev/null');
+          expect(shadowed.stdout).toContain('"docker":"available"');
+
+          const marker = await session.scoringContext.environmentMarker();
+          expect(marker?.docker).toBe('no-daemon');
+          expect(marker?.cliVersion).not.toBe('0.0.0');
+        } finally {
+          await session.close();
+        }
+      }
+    );
   }
 );

@@ -62,7 +62,7 @@ Include refreshed results for PRs with new/changed evals so a reviewer can see r
 
 ## Docs evals
 
-The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-5.6-luna-no-skills`).
+The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-6-luna-no-skills`).
 
 Common workflows:
 
@@ -72,7 +72,7 @@ Common workflows:
 
 ## CLI evals
 
-The CLI team owns `evals/cli/` and its results. CLI evals run on the pinned-CLI baseline (`codex-gpt-5.6-luna`) plus `codex-gpt-5.6-luna-cli-{stable,beta,nodaemon,absent}` under `experiments/cli/`, which install the latest stable or beta CLI and force Docker-less sandboxes to compare the same scenario across CLI environments.
+The CLI team owns `evals/cli/` and its results. CLI evals run on the pinned-CLI baseline (`codex-gpt-6-luna`) plus `codex-gpt-6-luna-cli-{stable,beta,nodaemon,absent}` under `experiments/cli/`, which install the latest stable or beta CLI and force Docker-less sandboxes to compare the same scenario across CLI environments.
 
 Which evals each arm picks up:
 
