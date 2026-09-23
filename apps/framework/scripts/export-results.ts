@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
 import type {
   EvalResult,
@@ -225,7 +225,10 @@ async function main() {
   );
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exit(1);
-});
+// Keep imports inert in tests.
+if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
