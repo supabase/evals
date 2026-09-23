@@ -5,6 +5,7 @@ import type {
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import {
+  checkMetrics,
   checkMigrationApplied,
   commandSegments,
   countRawDockerSocketProbes,
@@ -533,5 +534,37 @@ describe('checkMigrationApplied', () => {
       notesMigration
     );
     expect(result.passed).toBe(false);
+  });
+});
+
+describe('checkMetrics', () => {
+  const fakeMetricsCtx = {
+    exec: async () => commandResult('', false),
+  } as unknown as LocalStackEvalContext;
+
+  it('reports channel "pinned" when the environment marker is missing', async () => {
+    const result = await checkMetrics(fakeMetricsCtx, undefined, [], [], {
+      ok: false,
+      notes: 'no stack',
+    });
+    expect(result.passed).toBe(true);
+    expect(JSON.parse(result.notes as string).channel).toBe('pinned');
+  });
+
+  it('reports the marker channel when present', async () => {
+    const result = await checkMetrics(
+      fakeMetricsCtx,
+      {
+        runtime: 'local-stack',
+        channel: 'beta',
+        cliVersion: '2.0.0',
+        docker: 'available',
+        sessionStartedMs: 0,
+      },
+      [],
+      [],
+      { ok: false, notes: 'no stack' }
+    );
+    expect(JSON.parse(result.notes as string).channel).toBe('beta');
   });
 });

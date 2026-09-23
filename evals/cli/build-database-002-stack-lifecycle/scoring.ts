@@ -2,6 +2,7 @@ import {
   judge,
   serializeTranscript,
   type CheckResult,
+  type LocalStackEnvironmentMarker,
   type LocalStackEvalContext,
   type LocalStackScorer,
   type ToolCallRecord,
@@ -10,17 +11,6 @@ import { stripIndent } from 'common-tags';
 import { parse as shellQuoteParse, type ParseEntry } from 'shell-quote';
 
 const MIN_SEEDED_NOTES = 2;
-const RUNTIME_MARKER_PATH = '/tmp/supabase-eval-runtime.json';
-
-// Schema shared with experiments/_lib/docker-aware-local-stack.ts; duplicated
-// here so evals stay self-contained. Deliberately omits the experiment's
-// `docker` field so pass/fail can't branch on which Docker arm ran.
-type RuntimeMarker = {
-  runtime: string;
-  channel: string;
-  cliVersion: string;
-  sessionStartedMs: number;
-};
 
 // Case-insensitive, unanchored: matches a command segment (post unwrap+mask)
 // wherever the offending fragment sits in it. Context patterns only —
@@ -45,12 +35,9 @@ export const DETOUR_PATTERNS: RegExp[] = [
   /\bopen\s+-a\s+Docker\b/i,
 ];
 
-// Read-only probes of the Docker socket are diagnostics, not workarounds; reported as a metric.
-// Deliberately left whole-command-string/regex-based (not per-segment,
-// shell-quote-argv-based) unlike `raw-docker-api-write` below: this is
-// observability only, never a pass/fail gate, so the looser, cheaper check
-// (e.g. matching a `DOCKER_HOST=unix://...` env value, not just an argv
-// flag) is an acceptable, deliberate tradeoff for a metric.
+// Read-only Docker-socket probes are a metric, never a pass/fail gate, so a
+// whole-string regex check (e.g. a `DOCKER_HOST=unix://...` env value) is
+// an acceptable looser check than raw-docker-api-write's argv-based one.
 export const RAW_SOCKET_PROBE_PATTERNS: RegExp[] = [
   /--unix-socket\s+\S*docker\.sock/i,
   /\bdocker\b[^\n]*\s-H\s*unix:\/\//i,
@@ -71,9 +58,9 @@ export const DETOUR_LEADING_WORDS = new Set([
 ]);
 
 // HTTP-client binaries whose argv can mutate the Docker daemon over its raw
-// Unix socket. `raw-docker-api-write` below only evaluates a segment actually
-// LED by one of these — never text that merely mentions one inside an
-// echoed message, a commit message, or a heredoc report body.
+// Unix socket. `raw-docker-api-write` below only evaluates a segment led by
+// one of these — never text that merely mentions one inside an echoed
+// message, a commit message, or a heredoc report body.
 const HTTP_CLIENT_LEADING_WORDS = new Set(['curl', 'wget', 'http', 'httpie']);
 const UNIX_SOCKET_FLAG_RE = /^--unix-socket(?:=(.*))?$/;
 const MUTATING_METHOD_ARG_RE = /^(?:POST|PUT|DELETE)$/i;
@@ -105,18 +92,11 @@ function hasMutatingHttpArg(argv: readonly string[]): boolean {
 }
 
 /**
- * Whether a command segment is an HTTP client actually mutating the Docker
- * daemon over its raw Unix socket — the socket target and mutating verb must
- * be real argv tokens of the executed client, not text that merely sits
- * inside some OTHER argument's quoted/echoed string. Takes the segment's
- * real (unmasked) text — quoting a filesystem path like `--unix-socket
- * "/var/run/docker.sock"` is ordinary and must still be detected; masking
- * quoted literals would erase that value. It's still safe from an
- * echoed/heredoc false positive because `findDetours` never calls this for a
- * segment led by a passive word (`echo`, `printf`, …) in the first place —
- * that gate, not masking, is what excludes descriptive text. Falls back to
- * the pre-refactor whole-segment regex check if shell-quote can't tokenize
- * this segment, so a scorer never crashes on a weird agent command.
+ * True only when `rawSegment`'s executed argv actually carries a Docker
+ * socket target and a mutating verb — not text that merely appears inside
+ * another argument's quoted/echoed string. Takes the unmasked segment so a
+ * quoted `--unix-socket "/var/run/docker.sock"` path is still caught. Falls
+ * back to a whole-segment regex check if shell-quote can't tokenize it.
  */
 function hasRawDockerApiWrite(rawSegment: string): boolean {
   const tokens = tryShellQuoteParse(rawSegment);
@@ -158,10 +138,9 @@ const SUDO_PROBE_ARGS = new Set([
 // their content is excluded from context-pattern matching entirely.
 const PASSIVE_LEADING_WORDS = new Set(['echo', 'printf', 'cat', 'tee', 'git']);
 
-// Fallback only — mirrors the pre-refactor regex, used solely when
-// shell-quote itself throws on malformed input (see `tryShellQuoteParse`).
-// Still carries the absolute-path/flag-cluster fix so the fallback path
-// isn't silently reintroducing the bug it's covering for.
+// Fallback only, used when shell-quote itself throws on malformed input (see
+// `tryShellQuoteParse`). Still handles absolute-path binaries and combined
+// flag spellings so this path doesn't miss what the primary one catches.
 const SHELL_WRAPPER_RE = /^\s*(?:\S*\/)?(?:bash|sh|zsh)\s+-\S*c\S*\s+/;
 const MAX_UNWRAP_DEPTH = 3;
 
@@ -178,14 +157,11 @@ function tryShellQuoteParse(text: string): ParseEntry[] | undefined {
 }
 
 /**
- * Detects a `[/path/to/]bash|sh|zsh -<flags>c<flags> '<script>'`-style
- * wrapper via shell-quote's own tokenizer/operator handling — resolving
- * quoting itself, so a single-quoted script comes back as ONE token rather
- * than being re-split as if it were the outer command. This covers the
- * absolute-path and flag-cluster spellings (`-lic`, `-ic`, …) the previous
- * regex-only approach missed. Only unwraps when shell-quote resolves the
- * command to exactly [binary, flags, body] — i.e. the body parsed as a
- * single argument (typically because it was quoted).
+ * Detects a `[/path/to/]bash|sh|zsh -<flags>c<flags> '<script>'` wrapper via
+ * shell-quote's own tokenizer, so a single-quoted script parses as one token
+ * rather than being re-split as the outer command. Handles absolute-path
+ * binaries and combined flag spellings (`-lic`, `-ic`, …). Only unwraps when
+ * shell-quote resolves the command to exactly [binary, flags, body].
  */
 function shellWrapperBodyFromTokens(tokens: ParseEntry[]): string | undefined {
   if (tokens.length !== 3) return undefined;
@@ -256,11 +232,11 @@ function maskLiterals(text: string): string {
 }
 
 /**
- * Same quoted spans as `maskQuotedLiterals`, but LENGTH- and POSITION-
- * preserving (placeholder fill instead of deletion) — used only to locate
- * segment-delimiter matches that are safe to reuse as offsets into the real,
- * unmasked text (see `unmaskedCommandSegments`). The placeholder (`#`) can't
- * itself match `SEGMENT_DELIMITER_RE`.
+ * Same quoted spans as `maskQuotedLiterals`, but length- and position-
+ * preserving (placeholder fill instead of deletion), so the resulting
+ * delimiter offsets stay valid indexes into the real, unmasked text (see
+ * `unmaskedCommandSegments`). The placeholder (`#`) can't itself match
+ * `SEGMENT_DELIMITER_RE`.
  */
 function maskQuotedLiteralsPreservingOffsets(text: string): string {
   const fill = (match: string) =>
@@ -280,14 +256,10 @@ export function commandSegments(command: string): string[] {
 }
 
 /**
- * `commandSegments`' unmasked, index-aligned counterpart: same unwrap and
- * heredoc masking, and split at the same delimiter positions, but quoted
- * literals keep their real content instead of being emptied. Needed where a
- * check must inspect a real argv VALUE that happens to be quoted (e.g. a
- * quoted `--unix-socket` path) — `commandSegments`' own output can't be used
- * there because its quote-emptying would erase exactly that value. Never use
- * this for context-pattern matching; that's what the masking in
- * `commandSegments` exists to protect against.
+ * `commandSegments`' unmasked, index-aligned counterpart — same unwrap,
+ * heredoc masking, and split points, but quoted literals keep their real
+ * content. Needed when a check must read a real quoted argv value (e.g. a
+ * quoted `--unix-socket` path); never use this for context-pattern matching.
  */
 function unmaskedCommandSegments(command: string): string[] {
   const heredocMasked = maskHeredocs(unwrapShell(command));
@@ -358,17 +330,12 @@ function isSudoProbe(remainingTokens: readonly string[]): boolean {
 }
 
 /**
- * Labels of every detour the command matches. Evaluated per executable
+ * Labels of every detour the command matches, evaluated per executable
  * segment (post unwrap+mask) so descriptive text — an echoed message, a
- * commit message, a heredoc report body — can't false-positive just because
- * it names a blocker; `raw-docker-api-write` is likewise per-segment, gated
- * on the segment actually being led by an HTTP client. `raw-docker-api-write`
- * specifically is checked against the UNMASKED segment (`rawSegments`, index-
- * aligned with `commandSegments`' masked ones) — a real `--unix-socket
- * "/var/run/docker.sock"` argument must still be caught even though it's
- * quoted; only the leading-word gate above (computed from the masked
- * segment, but unaffected by masking since the leading word itself is never
- * inside quotes here) protects against the echoed/heredoc false positive.
+ * commit message, a heredoc body — can't false-positive just by naming a
+ * blocker. `raw-docker-api-write` is checked against the unmasked segment
+ * (`rawSegments`) so a quoted `--unix-socket` path is still caught, gated on
+ * the segment's leading word rather than masking to exclude echoed text.
  */
 export function findDetours(command: string): string[] {
   const labels: string[] = [];
@@ -421,7 +388,7 @@ export function countRawDockerSocketProbes(
  */
 export const stackLifecycleScorer: LocalStackScorer = async (ctx) => {
   try {
-    const marker = await readRuntimeMarker(ctx);
+    const marker = await ctx.environmentMarker();
     const commands = extractCommands(ctx.toolCalls);
     const cliDetourCommands = commands.filter(
       (command) => findDetours(command).length > 0
@@ -467,18 +434,6 @@ export const stackLifecycleScorer: LocalStackScorer = async (ctx) => {
     };
   }
 };
-
-async function readRuntimeMarker(
-  ctx: LocalStackEvalContext
-): Promise<RuntimeMarker | undefined> {
-  const result = await ctx.exec(`cat ${RUNTIME_MARKER_PATH}`);
-  if (!result.ok || !result.stdout.trim()) return undefined;
-  try {
-    return JSON.parse(result.stdout) as RuntimeMarker;
-  } catch {
-    return undefined;
-  }
-}
 
 function extractCommands(toolCalls: readonly ToolCallRecord[]): string[] {
   return toolCalls
@@ -528,14 +483,11 @@ export type NotesMigrationProbe =
   | { ok: false; notes: string };
 
 /**
- * Finds the migration file that actually creates `notes` and its version, by
- * reading `supabase/migrations/*.sql` files individually (not concatenated)
- * so the specific file — and therefore its version — is known. Shared by
- * `checkMigrationCreatesNotes` and `checkMigrationApplied` so the directory is
- * scanned once and both checks agree on which migration is "the" one: an
- * agent can't pass by leaving a migration file that creates `notes`, applying
- * some unrelated migration, then hand-creating the table outside the
- * migration flow.
+ * Finds the migration file that creates `notes` and its version, reading
+ * each `supabase/migrations/*.sql` file individually so the specific file is
+ * known. Shared by `checkMigrationCreatesNotes` and `checkMigrationApplied`
+ * so both agree on which migration is "the" one — an agent can't pass by
+ * leaving a notes-creating file unapplied while hand-creating the table.
  */
 export async function findNotesMigration(
   ctx: LocalStackEvalContext
@@ -763,10 +715,9 @@ async function checkStackReady(
 }
 
 /**
- * Asserts the EXACT migration that creates `notes` was applied through the
- * migration flow — not merely that some migration ran (which a hand-created
- * `notes` table, applied alongside an unrelated migration, would also
- * satisfy).
+ * Asserts the exact migration that creates `notes` was applied through the
+ * migration flow — not merely that some migration ran, which a hand-created
+ * `notes` table applied alongside an unrelated migration would also satisfy.
  */
 export async function checkMigrationApplied(
   ctx: LocalStackEvalContext,
@@ -854,9 +805,9 @@ async function safely<T>(fn: () => Promise<T> | T): Promise<T | null> {
   }
 }
 
-async function checkMetrics(
+export async function checkMetrics(
   ctx: LocalStackEvalContext,
-  marker: RuntimeMarker | undefined,
+  marker: LocalStackEnvironmentMarker | undefined,
   cliDetourCommands: readonly string[],
   commands: readonly string[],
   stack: StackProbe
@@ -919,7 +870,7 @@ async function readReadyMs(
 
 async function readStartMs(
   ctx: LocalStackEvalContext,
-  marker: RuntimeMarker | undefined
+  marker: LocalStackEnvironmentMarker | undefined
 ): Promise<number | null> {
   if (marker?.sessionStartedMs !== undefined) return marker.sessionStartedMs;
   try {
