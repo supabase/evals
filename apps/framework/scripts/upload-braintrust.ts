@@ -6,7 +6,8 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import type { AgentUsage } from '@supabase-evals/core/eval-metadata';
 import {
@@ -424,7 +425,11 @@ async function main() {
   await flush();
 }
 
-// Keep imports inert in tests.
-if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {
+// Keep imports inert in tests. Compares full paths, since matching only the
+// basename fires for any entry point whose name ends the same way.
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1])
+) {
   await main();
 }

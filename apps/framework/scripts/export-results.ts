@@ -1,7 +1,8 @@
 #!/usr/bin/env tsx
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
 import type {
   EvalResult,
@@ -225,8 +226,12 @@ async function main() {
   );
 }
 
-// Keep imports inert in tests.
-if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {
+// Keep imports inert in tests. Compares full paths, since matching only the
+// basename fires for any entry point whose name ends the same way.
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1])
+) {
   main().catch((error: unknown) => {
     console.error(error);
     process.exit(1);
