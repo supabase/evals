@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkDistinctPorts,
   checkMarkerIsolation,
+  checkMetrics,
   checkReportedPorts,
   commandSegments,
   countRawDockerSocketProbes,
@@ -580,5 +581,15 @@ describe('checkReportedPorts', () => {
     const result = checkReportedPorts(STACK_A, noApiUrl, 'anything');
     expect(result.passed).toBe(false);
     expect(result.notes).toContain('unavailable');
+  });
+});
+
+describe('checkMetrics', () => {
+  it('reports the pinned channel when no environment marker is present', async () => {
+    const ctx = fakeExecCtx(async () => commandResult('', false));
+    const result = await checkMetrics(ctx, undefined, [], [], STACK_A, STACK_B);
+    expect(result.passed).toBe(true);
+    const metrics = JSON.parse(result.notes ?? '{}');
+    expect(metrics.channel).toBe('pinned');
   });
 });
