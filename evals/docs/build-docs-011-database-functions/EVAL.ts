@@ -25,8 +25,7 @@ const GUIDE_PATH = 'guides/database/functions';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
-    // Both catalog reads run before any probe, so nothing the probes insert can
-    // change what the static checks see.
+    // Catalog reads run first, so probe inserts cannot change what they see.
     const functions = await loadFunctions(ctx);
     const identityHelpers = await loadIdentityHelpers(ctx);
     const setup = await setupProbes(ctx, pickArgumentName(functions));

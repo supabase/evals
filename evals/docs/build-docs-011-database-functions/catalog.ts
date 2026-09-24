@@ -23,10 +23,9 @@ export async function loadFunctions(
            pg_catalog.pg_get_function_identity_arguments(p.oid) AS args,
            p.pronargs AS arg_count,
            COALESCE(p.proargnames[1], '') AS first_arg_name,
-           -- pg_get_functiondef renders a standard-body function too, where
-           -- prosrc is null. to_regrole yields null rather than erroring when
-           -- anon is absent, and has_function_privilege is strict, so a stack
-           -- without the role reads as no execute rather than a failed scorer.
+           -- pg_get_functiondef covers a standard-body function, where prosrc
+           -- is null. to_regrole yields null rather than raising on a stack
+           -- with no anon role, and has_function_privilege is strict.
            COALESCE(pg_catalog.pg_get_functiondef(p.oid), p.prosrc, '') AS body,
            COALESCE(
              pg_catalog.has_function_privilege(
@@ -68,17 +67,13 @@ export function checkFunctionExists(functions: FunctionRow[]): CheckResult {
   };
 }
 
-// The caller's identity, however a body reaches for it. auth.uid() and
-// auth.jwt() are themselves defined in terms of request.jwt.claim, so the third
-// alternative resolves them and anything else built the same way.
+// auth.uid() and auth.jwt() are themselves defined over request.jwt.claim, so
+// the third alternative catches anything built the same way.
 const CALLER_IDENTITY = /auth\s*\.\s*(uid|jwt)\s*\(|request\.jwt\.claim/i;
 
-// Every function the stack did not install, so a body that delegates its
-// ownership check can be followed one hop. The skills guidance tells agents to
-// put that check in a helper in a non-exposed schema, so the delegating shape
-// is the recommended one rather than an edge case, and a scan of order_total's
-// own text reds it. Extension-owned functions are anti-joined out: pg_depend
-// deptype 'e' is what marks them, and pg_get_functiondef raises on some.
+// Follows a delegated ownership check one hop. The skills guidance puts that
+// check in a helper in a non-exposed schema, so scanning order_total's own text
+// reds it. Extension functions are anti-joined out; functiondef raises on some.
 export async function loadIdentityHelpers(
   ctx: LocalStackEvalContext
 ): Promise<string[]> {
