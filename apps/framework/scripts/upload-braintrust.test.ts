@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { experimentName, tokenMetrics, utcStamp } from './upload-braintrust.js';
+import {
+  experimentName,
+  runViewUrl,
+  tokenMetrics,
+  utcStamp,
+} from './upload-braintrust.js';
 
 describe('tokenMetrics', () => {
   it('reports cache buckets without double-counting', () => {
@@ -66,6 +71,21 @@ describe('utcStamp', () => {
   it('formats to minute precision', () => {
     expect(utcStamp(new Date('2026-09-23T13:39:07.123Z'))).toBe(
       '20260923T1339Z'
+    );
+  });
+});
+
+describe('runViewUrl', () => {
+  it('filters the experiments list by run id', () => {
+    const url = runViewUrl(
+      'https://www.braintrust.dev/app/my-org/p/MyProject/experiments/my-experiment',
+      'my-run-id'
+    );
+    const { pathname, searchParams } = new URL(url);
+    expect(pathname).toBe('/app/my-org/p/MyProject/experiments');
+    const [filter] = JSON.parse(searchParams.get('search') ?? '').filter;
+    expect(decodeURIComponent(filter.text)).toBe(
+      'metadata.run_id = "my-run-id"'
     );
   });
 });

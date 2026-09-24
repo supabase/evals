@@ -5,7 +5,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { stat } from 'node:fs/promises';
+import { appendFile, stat } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -126,6 +126,22 @@ export function experimentName(
 // 20260923T1339Z. UTC so runs from different zones sort against each other.
 export function utcStamp(date: Date) {
   return `${date.toISOString().replace(/[:-]/g, '').slice(0, 13)}Z`;
+}
+
+// The app double-encodes filter text, so `text` is encoded here and again
+// with the whole param.
+export function runViewUrl(experimentUrl: string, runId: string) {
+  const base = experimentUrl.slice(0, experimentUrl.lastIndexOf('/'));
+  const search = JSON.stringify({
+    filter: [
+      {
+        text: encodeURIComponent(`metadata.run_id = "${runId}"`),
+        label: encodeURIComponent(`metadata.run_id equals ${runId}`),
+        originType: 'form',
+      },
+    ],
+  });
+  return `${base}?search=${encodeURIComponent(search)}`;
 }
 
 /**
@@ -380,6 +396,7 @@ async function main() {
   }
 
   const { init, flush } = await import('braintrust');
+  const uploaded: { name: string; url: string }[] = [];
 
   for (const [experiment, rows] of byExperiment) {
     const meta = experimentMetadata.get(experiment);
@@ -420,9 +437,33 @@ async function main() {
 
     const summary = await bt.summarize({ summarizeScores: false });
     console.log(`✅ ${summary.experimentName} → ${summary.experimentUrl}`);
+    if (summary.experimentUrl) {
+      uploaded.push({
+        name: summary.experimentName,
+        url: summary.experimentUrl,
+      });
+    }
   }
 
   await flush();
+  const [first] = uploaded;
+  if (!first) {
+    return;
+  }
+  const runUrl = runViewUrl(first.url, runId);
+  console.log(`🔗 All experiments in this run → ${runUrl}`);
+  // https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    const lines = [
+      '## Braintrust',
+      '',
+      `[All experiments in this run](${runUrl})`,
+      '',
+      ...uploaded.map(({ name, url }) => `- [${name}](${url})`),
+      '',
+    ];
+    await appendFile(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+  }
 }
 
 // Keep imports inert in tests. Compares full paths, since matching only the
