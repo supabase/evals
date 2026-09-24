@@ -483,6 +483,16 @@ describe('Vercel eval controller', () => {
     expect(stop).toHaveBeenCalledTimes(2);
   });
 
+  it('does not poll a failed session', async () => {
+    const stop = vi.fn().mockResolvedValue({ status: 'failed', memory: 8_192 });
+
+    await cleanupSandbox(
+      { name: 'sandbox-1', stop, delete: async () => undefined },
+      '[experiment-1 x eval-1 run 1]'
+    );
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
   it('accepts stopped usage without optional SDK metrics', async () => {
     await expect(
       cleanupSandbox(

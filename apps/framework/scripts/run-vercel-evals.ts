@@ -699,7 +699,10 @@ export async function cleanupSandbox(
     // Repeat calls are safe https://vercel.com/docs/sandbox/sdk-reference#sandbox.stop
     const deadline = Date.now() + 60_000;
     stopped = await sandbox.stop();
-    while (stopped.status !== 'stopped' && Date.now() < deadline) {
+    while (
+      (stopped.status === 'stopping' || stopped.status === 'snapshotting') &&
+      Date.now() < deadline
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       stopped = await sandbox.stop();
     }
