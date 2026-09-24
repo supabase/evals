@@ -694,8 +694,8 @@ export async function cleanupSandbox(
 ): Promise<SandboxUsage | undefined> {
   let stopped: StoppedSession | undefined;
   try {
-    // When shutdown is slow, stop() returns `stopping` after ~15s with no
-    // duration, CPU, or network https://github.com/supabase/evals/actions/runs/35886971672
+    // When shutdown is slow, stop() resolves after ~15s with `status: "stopping"`
+    // and no duration, CPU, or network https://github.com/supabase/evals/actions/runs/35886971672
     // Repeat calls are safe https://vercel.com/docs/sandbox/sdk-reference#sandbox.stop
     const deadline = Date.now() + 60_000;
     stopped = await sandbox.stop();
