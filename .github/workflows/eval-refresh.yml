@@ -533,7 +533,9 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore: refresh eval results"
+          # [skip ci] stops the bot push from re-triggering PR workflows (they'd need maintainer approval and loop the refresh):
+          # https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-workflow-runs/skipping-workflow-runs
+          git commit -m "chore: refresh eval results [skip ci]"
           git push
 
       - name: Create results pull request
