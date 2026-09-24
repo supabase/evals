@@ -78,14 +78,14 @@ describe('utcStamp', () => {
 describe('runViewUrl', () => {
   it('filters the experiments list by run id', () => {
     const url = runViewUrl(
-      'https://www.braintrust.dev/app/supabase.io/p/Evals/experiments/grok-4.6%40aefa834-20260923T1339Z',
-      'adf27a6e-c0e7-4012-bc59-83445df248d5'
+      'https://www.braintrust.dev/app/my-org/p/MyProject/experiments/my-experiment',
+      'my-run-id'
     );
     const { pathname, searchParams } = new URL(url);
-    expect(pathname).toBe('/app/supabase.io/p/Evals/experiments');
+    expect(pathname).toBe('/app/my-org/p/MyProject/experiments');
     const [filter] = JSON.parse(searchParams.get('search') ?? '').filter;
     expect(decodeURIComponent(filter.text)).toBe(
-      'metadata.run_id = "adf27a6e-c0e7-4012-bc59-83445df248d5"'
+      'metadata.run_id = "my-run-id"'
     );
   });
 });
