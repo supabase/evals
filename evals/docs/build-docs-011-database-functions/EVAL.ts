@@ -7,6 +7,7 @@ import {
 
 import {
   checkDefinerPinsSearchPath,
+  checkDesignAccountsForCaller,
   checkFunctionExists,
   loadFunctions,
   pickArgumentName,
@@ -31,6 +32,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const checks: CheckResult[] = [
       checkFunctionExists(functions),
       checkDefinerPinsSearchPath(functions),
+      checkDesignAccountsForCaller(functions),
       await gated(
         probes,
         blocked,

@@ -64,6 +64,29 @@ statements about that sit in different subsections and are never connected.
 function runs as its caller, which is both the default and what the page recommends, so it carries signal only on
 the solutions that took the other branch.
 
+## The design check takes three answers, not two
+
+`the function's design accounts for who is calling` is the static counterpart to the two leak probes. It reds one
+shape: a function that runs as its creator, never reads the caller's identity, and is still executable by `anon`.
+That is the compound case the page's two statements never connect, and the one a solution can reach while doing
+everything the `search_path` rule asks.
+
+It accepts three mechanisms, not two. Running as the caller is the first, and it has to be, because the seeded
+policies are the safeguard on that branch: a solution that inherits them has no ownership predicate in its body and
+no revoke, and requiring either would red the design the page recommends. The other two are an ownership check in
+the body, read as any reference to the caller's identity, and execute taken away from `anon`.
+
+The check is deliberately permissive about what it accepts, because its job is to name the mechanism, not to grade
+it. A function that runs as its creator, revokes execute from `anon`, and still skips the ownership check passes
+this check and reds `a customer cannot get another customer's total`. That split is the point: this check reports
+whether the design considered the caller at all, and the probes report who actually got an answer.
+
+It evaluates on both branches rather than reporting itself not applicable, so its notes say which mechanism each
+solution used. What it cannot do is move the score on the branch the sampled agent actually takes. Running as the
+caller satisfies it by construction, so a run that never reaches the creator's privileges scores it the same way it
+scores everything else. Measuring the creator's-privileges guidance on a meaningful share of runs needs a scenario
+where the caller's privileges are not the easy answer, which is a second eval rather than a check here.
+
 ## The guide has to actually be read
 
 The last check resolves the guide through the harness's own docs result, because a `search_docs` hit carries the url
