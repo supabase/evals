@@ -81,6 +81,18 @@ it. A function that runs as its creator, revokes execute from `anon`, and still 
 this check and reds `a customer cannot get another customer's total`. That split is the point: this check reports
 whether the design considered the caller at all, and the probes report who actually got an answer.
 
+**The ownership arm is a source-level claim, and it follows one hop.** It reads the function's definition out of
+`pg_get_functiondef` and looks for the caller's identity. A body that delegates the check to a helper does not
+mention it, and `supabase-postgres-best-practices` tells agents to put exactly that helper in a non-exposed
+schema, so the delegating shape is the recommended one rather than an edge case. `loadIdentityHelpers` is what
+stops it reading as a red: every function the stack did not install is scanned for the same identity reference,
+and a definer `order_total` that calls one of them counts as reading the caller. Extension-owned functions are
+anti-joined out on `pg_depend.deptype = 'e'`, because `pg_get_functiondef` raises on some of them.
+
+Two hops is not followed. A helper that calls a second helper that reads the identity reds this check, and that is
+the known limit of the arm rather than a finding about the solution. The leak probes are what settle the question
+behaviourally, and they do not care how the body is structured.
+
 It evaluates on both branches rather than reporting itself not applicable, so its notes say which mechanism each
 solution used. What it cannot do is move the score on the branch the sampled agent actually takes. Running as the
 caller satisfies it by construction, so a run that never reaches the creator's privileges scores it the same way it

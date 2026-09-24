@@ -68,13 +68,42 @@ export function checkFunctionExists(functions: FunctionRow[]): CheckResult {
   };
 }
 
-// The caller's identity, however the body reaches for it. A definer function
-// that mentions any of these is deciding something on who is calling, which is
-// the ownership check on that branch; the guide's own example uses auth.uid().
+// The caller's identity, however a body reaches for it. auth.uid() and
+// auth.jwt() are themselves defined in terms of request.jwt.claim, so the third
+// alternative resolves them and anything else built the same way.
 const CALLER_IDENTITY = /auth\s*\.\s*(uid|jwt)\s*\(|request\.jwt\.claim/i;
 
+// Every function the stack did not install, so a body that delegates its
+// ownership check can be followed one hop. The skills guidance tells agents to
+// put that check in a helper in a non-exposed schema, so the delegating shape
+// is the recommended one rather than an edge case, and a scan of order_total's
+// own text reds it. Extension-owned functions are anti-joined out: pg_depend
+// deptype 'e' is what marks them, and pg_get_functiondef raises on some.
+export async function loadIdentityHelpers(
+  ctx: LocalStackEvalContext
+): Promise<string[]> {
+  const { rows } = await ctx.query(`
+    SELECT p.proname AS name,
+           COALESCE(pg_catalog.pg_get_functiondef(p.oid), p.prosrc, '') AS body
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+      AND p.prokind = 'f'
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_depend d
+        WHERE d.objid = p.oid AND d.deptype = 'e'
+      );
+  `);
+
+  return rows
+    .filter((row) => CALLER_IDENTITY.test(String(row.body ?? '')))
+    .map((row) => String(row.name))
+    .filter((name) => name !== '' && name !== FUNCTION);
+}
+
 export function checkDesignAccountsForCaller(
-  functions: FunctionRow[]
+  functions: FunctionRow[],
+  identityHelpers: string[]
 ): CheckResult {
   const name = "the function's design accounts for who is calling";
 
@@ -87,7 +116,8 @@ export function checkDesignAccountsForCaller(
   }
 
   const open = functions.filter(
-    (fn) => fn.isDefiner && !CALLER_IDENTITY.test(fn.body) && fn.anonCanExecute
+    (fn) =>
+      fn.isDefiner && !readsCaller(fn, identityHelpers) && fn.anonCanExecute
   );
 
   return {
@@ -96,13 +126,24 @@ export function checkDesignAccountsForCaller(
     notes:
       open.length > 0
         ? `runs as its creator, never reads the caller's identity, and is still executable by anon: ${open.map((fn) => fn.name).join(', ')}`
-        : functions.map(mechanism).join(', '),
+        : functions.map((fn) => mechanism(fn, identityHelpers)).join(', '),
   };
 }
 
-function mechanism(fn: FunctionRow): string {
+function readsCaller(fn: FunctionRow, identityHelpers: string[]): boolean {
+  if (CALLER_IDENTITY.test(fn.body)) return true;
+  return identityHelpers.some((helper) =>
+    new RegExp(`\\b${escapeRegExp(helper)}\\s*\\(`, 'i').test(fn.body)
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mechanism(fn: FunctionRow, identityHelpers: string[]): string {
   if (!fn.isDefiner) return `${fn.name} runs as its caller`;
-  if (CALLER_IDENTITY.test(fn.body)) {
+  if (readsCaller(fn, identityHelpers)) {
     return `${fn.name} runs as its creator and reads the caller's identity`;
   }
   return `${fn.name} runs as its creator and is not executable by anon`;

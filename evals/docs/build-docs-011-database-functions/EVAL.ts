@@ -10,6 +10,7 @@ import {
   checkDesignAccountsForCaller,
   checkFunctionExists,
   loadFunctions,
+  loadIdentityHelpers,
   pickArgumentName,
 } from './catalog.js';
 import {
@@ -24,7 +25,10 @@ const GUIDE_PATH = 'guides/database/functions';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
+    // Both catalog reads run before any probe, so nothing the probes insert can
+    // change what the static checks see.
     const functions = await loadFunctions(ctx);
+    const identityHelpers = await loadIdentityHelpers(ctx);
     const setup = await setupProbes(ctx, pickArgumentName(functions));
     const probes = 'probes' in setup ? setup.probes : undefined;
     const blocked = 'failure' in setup ? setup.failure : undefined;
@@ -32,7 +36,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const checks: CheckResult[] = [
       checkFunctionExists(functions),
       checkDefinerPinsSearchPath(functions),
-      checkDesignAccountsForCaller(functions),
+      checkDesignAccountsForCaller(functions, identityHelpers),
       await gated(
         probes,
         blocked,
