@@ -6,6 +6,7 @@ import {
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 
+// Judge-only scorer: the transcript is graded against the rubric below.
 const scorer: ToolScorer = async (ctx) => {
   const verdict = await judge({
     input: serializeTranscript(ctx.transcript),
