@@ -449,7 +449,7 @@ describe('Vercel eval controller', () => {
   });
 
   it('returns stopped sandbox usage', async () => {
-    const stopped = {
+    const usage = {
       activeCpuDurationMs: 12_345,
       duration: 23_456,
       memory: 8_192,
@@ -460,27 +460,40 @@ describe('Vercel eval controller', () => {
       cleanupSandbox(
         {
           name: 'sandbox-1',
-          stop: async () => stopped,
+          stop: async () => ({ status: 'stopped', ...usage }),
           delete: async () => undefined,
         },
         '[experiment-1 x eval-1 run 1]'
       )
-    ).resolves.toEqual(stopped);
+    ).resolves.toEqual(usage);
+  });
+
+  it('polls stop until the session is stopped', async () => {
+    const stop = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'stopping', memory: 8_192 })
+      .mockResolvedValueOnce({ status: 'stopped', memory: 8_192, duration: 1 });
+
+    await expect(
+      cleanupSandbox(
+        { name: 'sandbox-1', stop, delete: async () => undefined },
+        '[experiment-1 x eval-1 run 1]'
+      )
+    ).resolves.toMatchObject({ duration: 1 });
+    expect(stop).toHaveBeenCalledTimes(2);
   });
 
   it('accepts stopped usage without optional SDK metrics', async () => {
-    const stopped = { memory: 8_192 };
-
     await expect(
       cleanupSandbox(
         {
           name: 'sandbox-1',
-          stop: async () => stopped,
+          stop: async () => ({ status: 'stopped', memory: 8_192 }),
           delete: async () => undefined,
         },
         '[experiment-1 x eval-1 run 1]'
       )
-    ).resolves.toEqual(stopped);
+    ).resolves.toEqual({ memory: 8_192 });
   });
 
   it('returns no usage when the sandbox cannot stop', async () => {

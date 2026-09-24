@@ -678,9 +678,12 @@ export function finalizeResult(
   renameSync(pendingResult.partialPath, pendingResult.finalPath);
 }
 
+type StoppedSession = SandboxUsage &
+  Pick<Awaited<ReturnType<Sandbox['stop']>>, 'status'>;
+
 interface CleanupSandbox {
   name: string;
-  stop: () => Promise<unknown>;
+  stop: () => Promise<StoppedSession>;
   delete: () => Promise<unknown>;
 }
 
@@ -689,9 +692,17 @@ export async function cleanupSandbox(
   sandbox: CleanupSandbox,
   label: string
 ): Promise<SandboxUsage | undefined> {
-  let stopped: unknown;
+  let stopped: StoppedSession | undefined;
   try {
+    // When shutdown is slow, stop() returns `stopping` after ~15s with no
+    // duration, CPU, or network https://github.com/supabase/evals/actions/runs/35886971672
+    // Repeat calls are safe https://vercel.com/docs/sandbox/sdk-reference#sandbox.stop
+    const deadline = Date.now() + 60_000;
     stopped = await sandbox.stop();
+    while (stopped.status !== 'stopped' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      stopped = await sandbox.stop();
+    }
     console.log(`${label} sandbox ${sandbox.name} stopped`);
   } catch (error) {
     console.warn(`${label} sandbox stop failed: ${errorMessage(error)}`);
@@ -703,7 +714,13 @@ export async function cleanupSandbox(
     console.warn(`${label} sandbox delete failed: ${errorMessage(error)}`);
   }
   if (stopped === undefined) return undefined;
-  return sandboxUsageSchema.parse(stopped);
+  const usage = sandboxUsageSchema.parse(stopped);
+  if (usage.activeCpuDurationMs === undefined) {
+    console.warn(
+      `${label} sandbox ${sandbox.name} (${stopped.status}) usage has no CPU, duration, or network`
+    );
+  }
+  return usage;
 }
 
 /** Parses and validates the pair list supplied by GitHub Actions. */
