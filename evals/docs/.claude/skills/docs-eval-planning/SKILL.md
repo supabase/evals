@@ -15,7 +15,7 @@ That framing is the whole difficulty. The failure modes are collected in
 ## What this skill produces
 
 A plan. It does not write `PROMPT.md`, `EVAL.ts`, or a seed. Implementation and local scoring are a
-separate job.
+separate job, and so is reviewing the eval once it exists, which `docs-eval-review` carries.
 
 ## The shape it takes
 
