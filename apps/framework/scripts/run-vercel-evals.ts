@@ -21,8 +21,7 @@ import { discoverExperimentFiles } from '../lib/experiment-files.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Base for sandbox URLs printed during runs */
-const SANDBOX_DASHBOARD_URL =
-  'https://vercel.com/supabase/evals-runner/sandboxes';
+const SANDBOX_DASHBOARD_URL = 'https://vercel.com/supabase/evals/sandboxes';
 export const FORWARDED_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
