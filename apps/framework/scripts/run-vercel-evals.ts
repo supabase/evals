@@ -695,7 +695,7 @@ export async function cleanupSandbox(
   let stopped: StoppedSession | undefined;
   try {
     // When shutdown is slow, stop() resolves after ~15s with `status: "stopping"`
-    // and no duration, CPU, or network.
+    // and no duration, CPU, or network https://github.com/vercel/sandbox/issues/350
     // Repeat calls are safe https://vercel.com/docs/sandbox/sdk-reference#sandbox.stop
     const deadline = Date.now() + 60_000;
     stopped = await sandbox.stop();
