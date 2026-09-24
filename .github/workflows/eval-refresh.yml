@@ -533,7 +533,13 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore: refresh eval results"
+          # A GITHUB_TOKEN push skips `push` workflows but still fires
+          # `pull_request: synchronize` on the branch's PR, re-running this
+          # workflow and Code Quality as github-actions[bot]. Those runs need a
+          # maintainer's approval and re-running here would loop the refresh.
+          # [skip ci] on the HEAD commit stops GitHub creating the runs at all:
+          # https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-workflow-runs/skipping-workflow-runs
+          git commit -m "chore: refresh eval results [skip ci]"
           git push
 
       - name: Create results pull request

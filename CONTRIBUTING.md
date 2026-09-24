@@ -54,7 +54,7 @@ When you create a PR, use GitHub Actions to refresh the results in CI so we can 
 
 You have a few options to run evals in CI:
 
-- Add the `run-evals-changed` label to your PR to refresh only the `evals/` changed in that PR and commit merged results directly to your branch.
+- Add the `run-evals-changed` label to your PR to refresh only the `evals/` changed in that PR and commit merged results directly to your branch. The results commit carries `[skip ci]` so it doesn't re-trigger CI on your PR.
 - Add the `run-evals` label to run every benchmark eval across the `benchmark` and `no-skills` experiment suites. Use this when a change can affect results broadly, such as framework changes.
 - Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow manually to target any branch and choose specific evals, experiments, or other options. It can commit results directly to the selected branch or open a separate results PR.
 
