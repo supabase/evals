@@ -4,8 +4,8 @@ A check is accurate when it reds exactly the solutions it claims to red. Two que
 both have to be answered with a solution you could write out, not with a judgement about the code.
 
 The known defects are catalogued in
-[`../../docs-eval-planning/references/flakiness.md`](../../docs-eval-planning/references/flakiness.md),
-each with the PR that recorded it. This file is how to look for them in an eval that already exists.
+`evals/docs/.claude/skills/docs-eval-planning/references/flakiness.md`, each with the PR that recorded
+it. This file is how to look for them in an eval that already exists.
 
 ## Start from the end state, not the name
 

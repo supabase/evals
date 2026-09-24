@@ -14,6 +14,10 @@ behave, so this review asks two questions of the artifact that already exists:
 Whether the claim was the right one to pick, and whether the sourcing behind it was thorough, belong to
 the plan. A review that reopens them produces a second plan instead of findings.
 
+Every path below is relative to a `supabase/evals` checkout, which is the only place this skill
+applies. In any other working directory, say so and stop rather than reviewing something that is not a
+documentation eval.
+
 ## Take only the context the eval carries
 
 Read these, in this order, and stop there:
@@ -27,8 +31,10 @@ Read these, in this order, and stop there:
    `apps/web/src/data/docs-eval-results.json`; local runs are in
    `results/<experiment>/<eval>/run-<n>/result.json`, which keeps the per-run detail the merged file
    drops.
-6. [`../docs-eval-planning/references/flakiness.md`](../docs-eval-planning/references/flakiness.md),
-   the catalog of what has gone wrong before. Every entry there is a defect somebody already shipped.
+6. `evals/docs/.claude/skills/docs-eval-planning/references/flakiness.md`, from the repo root: the
+   catalog of what has gone wrong before. Every entry there is a defect somebody already shipped. A
+   checkout too old to carry it is a thinner review, not a blocked one: say so in the report rather
+   than reconstructing the history from memory.
 
 **The guide under test is read once, late, and for two questions only:** whether the prompt leaks the
 vocabulary the page teaches, and what a solution written straight from the page produces. Read it
@@ -162,7 +168,7 @@ Each finding gets a severity:
   explicitly, so the next reviewer does not raise it again.
 
 **Then append what the review found to
-[`../docs-eval-planning/references/flakiness.md`](../docs-eval-planning/references/flakiness.md)**,
-with the PR number, in the section the defect belongs to. A finding left in a review thread is a
+`evals/docs/.claude/skills/docs-eval-planning/references/flakiness.md`**, with the PR number, in the
+section the defect belongs to. A finding left in a review thread is a
 finding the next author will rediscover. This is the step that makes the catalog grow, and the catalog
 is what makes the next review cheaper than this one.
