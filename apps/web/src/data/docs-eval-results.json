@@ -3607,5 +3607,415 @@
     "promptSourcePath": "evals/docs/build-docs-009-custom-claims-rbac/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-009-custom-claims-rbac/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "not applicable: order_total runs as its caller"
+      },
+      {
+        "name": "the function's design accounts for who is calling",
+        "passed": true,
+        "notes": "order_total runs as its caller"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --max-time 40 -sS 'https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md' | head -c 25000\"",
+          "pages": [
+            {
+              "url": "https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md"
+            }
+          ],
+          "resultChars": 10735
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database functions security definer privileges function auth.uid postgres supabase\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/architecture",
+              "title": "Auth architecture"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/sessions",
+              "title": "User sessions"
+            }
+          ],
+          "resultChars": 68610
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 756430,
+        "cacheReadInputTokens": 705928,
+        "cacheWriteInputTokens": 48490,
+        "outputTokens": 7637
+      }
+    ],
+    "stepCount": 27,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 166229,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-011-database-functions/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "pinned: search_path=\"\""
+      },
+      {
+        "name": "the function's design accounts for who is calling",
+        "passed": true,
+        "notes": "order_total runs as its creator and reads the caller's identity"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, shell_fetch, shell_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database functions security invoker definer privileges RPC create function\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0028_anon_security_definer_function_executable",
+              "title": "Database Advisor: Lint 0028_anon_security_definer_function_executable"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/tables",
+              "title": "Tables and data"
+            }
+          ],
+          "resultChars": 80591
+        },
+        {
+          "source": "web_search",
+          "query": "https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --max-time 30 -fsS 'https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md' | sed -n '1,260p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md"
+            }
+          ],
+          "resultChars": 6175
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --max-time 30 -fsS 'https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md' | rg -n -A110 -B8 'Secure a database function|SECURITY DEFINER|EXECUTE|search_path|privilege'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md"
+            }
+          ],
+          "resultChars": 8132
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 507784,
+        "cacheReadInputTokens": 466959,
+        "cacheWriteInputTokens": 39483,
+        "outputTokens": 7000
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 141066,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-011-database-functions/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(order_id bigint)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "pinned: search_path=\"\""
+      },
+      {
+        "name": "the function's design accounts for who is calling",
+        "passed": true,
+        "notes": "order_total runs as its creator and reads the caller's identity"
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": false,
+        "notes": "reached the guide via shell_fetch but retrieved no page content"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md",
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -L --max-time 20 -sS 'https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md' | head -c 12000\"",
+          "pages": [
+            {
+              "url": "https://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md"
+            }
+          ],
+          "resultChars": 10735
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Database Functions security definer search_path function privileges revoke execute authenticated\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0029_authenticated_security_definer_function_executable",
+              "title": "Database Advisor: Lint 0029_authenticated_security_definer_function_executable"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 75492
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 416246,
+        "cacheReadInputTokens": 352524,
+        "cacheWriteInputTokens": 54225,
+        "outputTokens": 6356
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 137870,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nA customer must only ever be able to get the total for one of their own orders.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-011-database-functions/run-3/result.json"
   }
 ]
