@@ -21,7 +21,8 @@ import {
   setupProbes,
 } from './probes.js';
 
-const GUIDE_PATH = 'guides/database/functions';
+const GUIDE_PATH =
+  'docs-git-docs-definer-function-privileges-supabase.vercel.app/docs/guides/database/functions';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
