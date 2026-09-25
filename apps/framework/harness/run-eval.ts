@@ -370,6 +370,7 @@ async function runOne(
     toolCallCount: number;
     agentRunDurationMs: number;
     cliVersion?: string;
+    sessionArchive?: Buffer;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -498,6 +499,7 @@ async function runOne(
       stepCount: run.stepCount,
       toolCallCount: run.toolCalls.length,
       agentRunDurationMs: run.durationMs,
+      sessionArchive: run.sessionArchive,
       cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
     };
   }
@@ -562,6 +564,7 @@ async function runOne(
     stepCount: run.stepCount,
     toolCallCount: run.toolCalls.length,
     agentRunDurationMs: run.durationMs,
+    sessionArchive: run.sessionArchive,
     // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.
     cliVersion: ev.metadata.cliVersion,
   };
@@ -760,8 +763,19 @@ async function main() {
     console.log(`⏳ RUN  ${label}`);
     const run = async () => {
       try {
-        const res = await runOne(name, config, ev, runIndex);
+        const { sessionArchive, ...res } = await runOne(
+          name,
+          config,
+          ev,
+          runIndex
+        );
         mkdirSync(dirname(out), { recursive: true });
+        if (sessionArchive) {
+          writeFileSync(
+            join(dirname(out), 'transcript.tar.gz'),
+            sessionArchive
+          );
+        }
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
           out,

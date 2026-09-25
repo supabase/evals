@@ -120,6 +120,8 @@ export interface AgentRunner<M extends string = string> {
   extractUsage?(raw: string | undefined, model: M): AgentUsage | undefined;
   /** Model responses in the run. See `stepCount` in eval-metadata.ts for what counts as one. */
   extractStepCount?(raw: string | undefined): number | undefined;
+  /** Sandbox dir (shell expression) where the CLI writes its own session files. */
+  sessionDir?: string;
 }
 
 /**

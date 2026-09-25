@@ -655,6 +655,14 @@ export async function downloadResults(
   );
   if (!workspaceDownloaded) throw new Error('workspace archive was missing');
   renameSync(workspacePartial, workspace);
+  // Missing for agents without a `sessionDir` (e.g. ai-sdk).
+  await sandbox.downloadFile(
+    {
+      path: `results/${pair.experiment}/${pair.eval_id}/run-${run}/transcript.tar.gz`,
+    },
+    { path: join(destination, 'transcript.tar.gz') },
+    { mkdirRecursive: true }
+  );
   console.log(`${jobLabel(pair, run)} results downloaded to ${destination}`);
   return { partialPath: resultPartial, finalPath: result };
 }

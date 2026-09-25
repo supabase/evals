@@ -33,6 +33,7 @@ export const codexRunner: AgentRunner<CodexModel> = {
   // the parser. See ./parser.ts.
   defaultCliVersion: '0.154.0',
   defaultModel: 'gpt-5.4',
+  sessionDir: '"$HOME/.codex/sessions"',
 
   async install(sandbox, version, apiKey) {
     await npmInstallGlobal(

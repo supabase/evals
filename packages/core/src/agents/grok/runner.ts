@@ -53,6 +53,7 @@ export const grokRunner: AgentRunner<GrokModel> = {
   // against a real transcript before bumping. See ./parser.ts.
   defaultCliVersion: '1.0.34',
   defaultModel: DEFAULT_GROK_MODEL,
+  sessionDir: `${GROK_HOME}/sessions`,
 
   async install(sandbox, version, apiKey) {
     await npmInstallGlobal(

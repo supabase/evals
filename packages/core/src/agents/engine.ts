@@ -116,6 +116,7 @@ export function createCliAgent<M extends string = string>(
         reasoningEffort: options.reasoningEffort,
         timeoutSec: args.timeoutSec,
       });
+      const durationMs = Date.now() - start;
 
       const { events } = raw
         ? parser.parseTranscript(raw, {
@@ -127,6 +128,13 @@ export function createCliAgent<M extends string = string>(
       // Surface run failures that would otherwise be invisible in results
       // (visible under --debug): the CLI's own error events, or a run that
       // died before streaming any events at all.
+      // base64 because sandbox exec returns stdout as text.
+      const archive = runner.sessionDir
+        ? await sandbox.exec(
+            `set -o pipefail; tar -czf - -C ${runner.sessionDir} . | base64 -w0`
+          )
+        : undefined;
+
       const errorEvents = events.filter((e) => e.type === 'error');
       for (const e of errorEvents) {
         console.error(`[${runner.displayName}] ${e.content}`);
@@ -147,7 +155,11 @@ export function createCliAgent<M extends string = string>(
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
         usage: runner.extractUsage?.(raw, options.model),
         stepCount: stepCount ?? runner.extractStepCount?.(raw),
-        durationMs: Date.now() - start,
+        durationMs,
+        sessionArchive:
+          archive?.exitCode === 0
+            ? Buffer.from(archive.stdout, 'base64')
+            : undefined,
       };
     },
   };
