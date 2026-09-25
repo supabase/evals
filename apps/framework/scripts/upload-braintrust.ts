@@ -5,8 +5,9 @@
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { appendFile, stat } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import type { AgentUsage } from '@supabase-evals/core/eval-metadata';
@@ -65,6 +66,8 @@ interface PendingRow {
   metadata: Record<string, unknown>;
   tags: string[];
   metrics: Record<string, number>;
+  /** The run's `transcript.tar.gz`, when the harness wrote one. */
+  sessionArchivePath?: string;
   /** Unix seconds. */
   startTime?: number;
   endTime?: number;
@@ -249,6 +252,7 @@ async function collectRows(
       continue;
     }
     const endTime = durationMs ? mtimeMs / 1000 : undefined;
+    const sessionArchivePath = join(dirname(absolutePath), 'transcript.tar.gz');
 
     const row: PendingRow = {
       evalId: result.eval,
@@ -260,6 +264,9 @@ async function collectRows(
       modelId: display?.modelId,
       transcript: transcriptSchema.parse(result.transcript),
       toolLabels: toolLabels(result.toolCalls),
+      sessionArchivePath: existsSync(sessionArchivePath)
+        ? sessionArchivePath
+        : undefined,
       metadata: {
         eval: result.eval,
         run: result.run ?? 1,
@@ -395,7 +402,7 @@ async function main() {
     return;
   }
 
-  const { init, flush } = await import('braintrust');
+  const { Attachment, init, flush } = await import('braintrust');
   const uploaded: { name: string; url: string }[] = [];
 
   for (const [experiment, rows] of byExperiment) {
@@ -427,7 +434,18 @@ async function main() {
         input: row.prompt,
         output: row.agentReport,
         scores: { passed: row.passed ? 1 : 0 },
-        metadata: row.metadata,
+        metadata: {
+          ...row.metadata,
+          ...(row.sessionArchivePath
+            ? {
+                raw_transcript: new Attachment({
+                  data: row.sessionArchivePath,
+                  filename: 'transcript.tar.gz',
+                  contentType: 'application/gzip',
+                }),
+              }
+            : {}),
+        },
         ...(Object.keys(row.metrics).length ? { metrics: row.metrics } : {}),
         ...(row.tags.length ? { tags: row.tags } : {}),
       });

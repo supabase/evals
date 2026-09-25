@@ -100,6 +100,7 @@ export function createOpencodeRunner(
     // exit 0 mid-step, ending runs with no final report.
     defaultCliVersion: '1.18.31',
     defaultModel: DEFAULT_OPENCODE_MODEL,
+    sessionDir: '"$HOME/.local/share/opencode"',
 
     async install(sandbox, version) {
       await npmInstallGlobal(
