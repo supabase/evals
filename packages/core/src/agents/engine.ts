@@ -19,6 +19,7 @@
  * specific agent, so adding one never touches this file.
  */
 
+import { rmSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import type { AgentHarness, AgentRunResult } from '../index.js';
 import type { ModelProvider, ReasoningEffortLevel } from '../eval-metadata.js';
@@ -130,9 +131,11 @@ export function createCliAgent<M extends string = string>(
       const adapted = adaptTranscript(events);
 
       if (runner.sessionDir && args.sessionArchivePath) {
+        // Keeps a failed archive from leaving a --force rerun's old one behind.
+        rmSync(args.sessionArchivePath, { force: true });
         const staged = `${SESSION_ARCHIVE_STAGING_DIR}/${basename(args.sessionArchivePath)}`;
         const tar = await sandbox.exec(
-          `mkdir -p ${SESSION_ARCHIVE_STAGING_DIR} && tar -czf ${staged} -C ${runner.sessionDir} .`
+          `mkdir -p ${SESSION_ARCHIVE_STAGING_DIR} && tar -czf ${staged} --exclude=auth.json -C ${runner.sessionDir} .`
         );
         if (tar.ok) {
           await sandbox.copyToHost(

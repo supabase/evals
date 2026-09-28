@@ -1,8 +1,15 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CommandResult } from '../index.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
 import { createCliAgent } from './engine.js';
@@ -85,14 +92,19 @@ describe('createCliAgent prompt staging', () => {
 });
 
 describe('createCliAgent session archive', () => {
+  let home: string;
+
   beforeEach(() => {
     process.env[API_KEY_ENV_VAR] = 'k';
+    home = mkdtempSync(join(tmpdir(), 'engine-session-'));
   });
 
-  it('archives sessionDir to sessionArchivePath', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'engine-session-'));
-    mkdirSync(join(home, 'sessions/subagents'), { recursive: true });
-    writeFileSync(join(home, 'sessions/subagents/agent-1.jsonl'), '{}\n');
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  /** Runs a fake CLI whose sandbox is local bash with HOME set to `home`. */
+  async function runWithSessionDir(sessionDir: string): Promise<string> {
     const runner: AgentRunner = {
       id: 'claude-code',
       displayName: 'Fake CLI',
@@ -100,11 +112,10 @@ describe('createCliAgent session archive', () => {
       cliPackage: 'fake-cli',
       defaultCliVersion: '1.0.0',
       defaultModel: 'fake-model',
-      sessionDir: `${home}/sessions`,
+      sessionDir,
       install: async () => {},
       exec: async () => ({ command: ok, raw: '' }),
     };
-
     const sessionArchivePath = join(home, 'run-1/session-archive.tar.gz');
     await createCliAgent(runner, parser, { model: 'fake-model' }).run({
       systemPrompt: '',
@@ -114,7 +125,10 @@ describe('createCliAgent session archive', () => {
       sandbox: {
         workspace: home,
         exec: async (command) => {
-          const r = spawnSync('bash', ['-c', command], { encoding: 'utf8' });
+          const r = spawnSync('bash', ['-c', command], {
+            encoding: 'utf8',
+            env: { ...process.env, HOME: home },
+          });
           return {
             ok: r.status === 0,
             exitCode: r.status ?? 1,
@@ -128,9 +142,29 @@ describe('createCliAgent session archive', () => {
         },
       },
     });
+    return sessionArchivePath;
+  }
 
-    expect(
-      execFileSync('tar', ['-tzf', sessionArchivePath], { encoding: 'utf8' })
-    ).toContain('./subagents/agent-1.jsonl');
+  it('archives sessionDir to sessionArchivePath', async () => {
+    mkdirSync(join(home, 'sessions/subagents'), { recursive: true });
+    writeFileSync(join(home, 'sessions/subagents/agent-1.jsonl'), '{}\n');
+    writeFileSync(join(home, 'sessions/auth.json'), '{}\n');
+
+    const listing = execFileSync(
+      'tar',
+      ['-tzf', await runWithSessionDir(`${home}/sessions`)],
+      { encoding: 'utf8' }
+    );
+    expect(listing).toContain('./subagents/agent-1.jsonl');
+    // OpenCode keeps API keys in auth.json. https://opencode.ai/docs/troubleshooting/
+    expect(listing).not.toContain('auth.json');
+  });
+
+  it('drops a stale archive when archiving fails', async () => {
+    mkdirSync(join(home, 'run-1'), { recursive: true });
+    writeFileSync(join(home, 'run-1/session-archive.tar.gz'), 'stale');
+
+    const sessionArchivePath = await runWithSessionDir(`${home}/missing`);
+    expect(existsSync(sessionArchivePath)).toBe(false);
   });
 });
