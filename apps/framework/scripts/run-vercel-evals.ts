@@ -60,7 +60,10 @@ export const BROKERED_KEYS: {
   },
 ];
 export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
-/** Pins the CLI channel version resolved for this run across sandbox jobs. */
+/**
+ * Pins the CLI channel version resolved for this run across sandbox jobs.
+ * Provider keys belong in `BROKERED_KEYS` so the sandbox never sees them.
+ */
 export const FORWARDED_ENV_NAMES = [
   'SUPABASE_CLI_STABLE_VERSION',
   'SUPABASE_CLI_BETA_VERSION',

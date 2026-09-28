@@ -106,6 +106,15 @@ describe('agentEnvironment', () => {
   });
 });
 
+describe('FORWARDED_ENV_NAMES', () => {
+  // Extra guard against forwarding a raw provider key. Not a complete check.
+  it('forwards no API keys', () => {
+    expect(
+      FORWARDED_ENV_NAMES.filter((name) => name.endsWith('_API_KEY'))
+    ).toEqual([]);
+  });
+});
+
 describe('brokeredNetworkPolicy', () => {
   const originalValues = new Map<string, string | undefined>();
 
