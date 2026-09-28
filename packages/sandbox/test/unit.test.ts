@@ -16,7 +16,7 @@ import {
   computeExcludedServices,
   startSupabaseProject,
 } from '../src/supabase.js';
-import type { DockerSandbox } from '../src/docker-sandbox.js';
+import { type DockerSandbox, proxyCaArgs } from '../src/docker-sandbox.js';
 import {
   SKILLS_CLI_VERSION,
   SKILLS_INSTALL_AGENTS,
@@ -792,5 +792,32 @@ describe('wrapSelectAsJson', () => {
     expect(wrapSelectAsJson('select 1 as one; ')).toBe(
       "select coalesce(json_agg(t), '[]'::json) from (select 1 as one) t;"
     );
+  });
+});
+
+describe('proxyCaArgs', () => {
+  it('forwards CA vars and mounts each bundle once', () => {
+    // Any existing file stands in for the CA bundle.
+    const bundle = new URL(import.meta.url).pathname;
+    expect(
+      proxyCaArgs({
+        NODE_EXTRA_CA_CERTS: bundle,
+        NODE_USE_SYSTEM_CA: '1',
+        SSL_CERT_FILE: bundle,
+      })
+    ).toEqual([
+      '--env',
+      `NODE_EXTRA_CA_CERTS=${bundle}`,
+      '--env',
+      'NODE_USE_SYSTEM_CA=1',
+      '--env',
+      `SSL_CERT_FILE=${bundle}`,
+      '--volume',
+      `${bundle}:${bundle}:ro`,
+    ]);
+  });
+
+  it('adds nothing when CA vars are unset', () => {
+    expect(proxyCaArgs({})).toEqual([]);
   });
 });

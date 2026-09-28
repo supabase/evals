@@ -12,7 +12,13 @@
 
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -44,6 +50,39 @@ const WORKSPACE_BASE = '/tmp/sandbox';
  */
 const SANDBOX_UID = 1000;
 const SANDBOX_GID = 1000;
+
+/**
+ * CA bundle variables Vercel Sandbox sets on the host so tools trust its
+ * firewall proxy. Containers don't inherit them.
+ * @see https://vercel.com/docs/sandbox/concepts#proxy-ca-certificates
+ */
+const PROXY_CA_ENV_NAMES = [
+  'AWS_CA_BUNDLE',
+  'CARGO_HTTP_CAINFO',
+  'CURL_CA_BUNDLE',
+  'GIT_SSL_CAINFO',
+  'GRPC_DEFAULT_SSL_ROOTS_FILE_PATH',
+  'NODE_EXTRA_CA_CERTS',
+  'NODE_USE_SYSTEM_CA',
+  'NPM_CONFIG_CAFILE',
+  'PIP_CERT',
+  'REQUESTS_CA_BUNDLE',
+  'SSL_CERT_FILE',
+];
+
+/** `docker run` args that pass the host's proxy CA bundle into the container. */
+export function proxyCaArgs(env: NodeJS.ProcessEnv = process.env): string[] {
+  const args: string[] = [];
+  const bundles = new Set<string>();
+  for (const name of PROXY_CA_ENV_NAMES) {
+    const value = env[name];
+    if (!value) continue;
+    args.push('--env', `${name}=${value}`);
+    if (value.startsWith('/') && existsSync(value)) bundles.add(value);
+  }
+  for (const bundle of bundles) args.push('--volume', `${bundle}:${bundle}:ro`);
+  return args;
+}
 
 /**
  * Sandbox containers carry this label so crashed runs' leftovers can be
@@ -163,6 +202,7 @@ export class DockerSandbox {
             mount.readonly === false ? '' : ':ro'
           }`,
         ]),
+        ...proxyCaArgs(),
         '--workdir',
         this.workdir,
         // Reach host-side servers (e.g. the linked platform-lite) at
