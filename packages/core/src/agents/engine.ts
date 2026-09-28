@@ -19,6 +19,7 @@
  * specific agent, so adding one never touches this file.
  */
 
+import { basename, dirname } from 'node:path';
 import type { AgentHarness, AgentRunResult } from '../index.js';
 import type { ModelProvider, ReasoningEffortLevel } from '../eval-metadata.js';
 import { adaptTranscript } from '../parsers/adapt.js';
@@ -34,7 +35,7 @@ import {
 } from './shared.js';
 
 // Absolute because `copyToHost` can't expand `$HOME`.
-const TRANSCRIPT_STAGING_DIR = '/tmp/eval-transcript';
+const SESSION_ARCHIVE_STAGING_DIR = '/tmp/eval-session-archive';
 
 function modelProviderForAgent(id: AgentRunner['id']): ModelProvider {
   switch (id) {
@@ -128,12 +129,16 @@ export function createCliAgent<M extends string = string>(
         : { events: [] };
       const adapted = adaptTranscript(events);
 
-      if (runner.sessionDir && args.transcriptDir) {
+      if (runner.sessionDir && args.sessionArchivePath) {
+        const staged = `${SESSION_ARCHIVE_STAGING_DIR}/${basename(args.sessionArchivePath)}`;
         const tar = await sandbox.exec(
-          `mkdir -p ${TRANSCRIPT_STAGING_DIR} && tar -czf ${TRANSCRIPT_STAGING_DIR}/transcript.tar.gz -C ${runner.sessionDir} .`
+          `mkdir -p ${SESSION_ARCHIVE_STAGING_DIR} && tar -czf ${staged} -C ${runner.sessionDir} .`
         );
         if (tar.ok) {
-          await sandbox.copyToHost(TRANSCRIPT_STAGING_DIR, args.transcriptDir);
+          await sandbox.copyToHost(
+            SESSION_ARCHIVE_STAGING_DIR,
+            dirname(args.sessionArchivePath)
+          );
         }
       }
 

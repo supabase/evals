@@ -89,7 +89,7 @@ describe('createCliAgent session archive', () => {
     process.env[API_KEY_ENV_VAR] = 'k';
   });
 
-  it('archives sessionDir into transcriptDir', async () => {
+  it('archives sessionDir to sessionArchivePath', async () => {
     const home = mkdtempSync(join(tmpdir(), 'engine-session-'));
     mkdirSync(join(home, 'sessions/subagents'), { recursive: true });
     writeFileSync(join(home, 'sessions/subagents/agent-1.jsonl'), '{}\n');
@@ -105,12 +105,12 @@ describe('createCliAgent session archive', () => {
       exec: async () => ({ command: ok, raw: '' }),
     };
 
-    const transcriptDir = join(home, 'run-1');
+    const sessionArchivePath = join(home, 'run-1/session-archive.tar.gz');
     await createCliAgent(runner, parser, { model: 'fake-model' }).run({
       systemPrompt: '',
       userPrompt: 'the task',
       timeoutSec: 1,
-      transcriptDir,
+      sessionArchivePath,
       sandbox: {
         workspace: home,
         exec: async (command) => {
@@ -129,9 +129,8 @@ describe('createCliAgent session archive', () => {
       },
     });
 
-    const archivePath = join(transcriptDir, 'transcript.tar.gz');
     expect(
-      execFileSync('tar', ['-tzf', archivePath], { encoding: 'utf8' })
+      execFileSync('tar', ['-tzf', sessionArchivePath], { encoding: 'utf8' })
     ).toContain('./subagents/agent-1.jsonl');
   });
 });

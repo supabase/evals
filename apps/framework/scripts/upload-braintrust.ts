@@ -66,7 +66,7 @@ interface PendingRow {
   metadata: Record<string, unknown>;
   tags: string[];
   metrics: Record<string, number>;
-  /** The run's `transcript.tar.gz`, when the harness wrote one. */
+  /** The run's `session-archive.tar.gz`, when the harness wrote one. */
   sessionArchivePath?: string;
   /** Unix seconds. */
   startTime?: number;
@@ -252,7 +252,10 @@ async function collectRows(
       continue;
     }
     const endTime = durationMs ? mtimeMs / 1000 : undefined;
-    const sessionArchivePath = join(dirname(absolutePath), 'transcript.tar.gz');
+    const sessionArchivePath = join(
+      dirname(absolutePath),
+      'session-archive.tar.gz'
+    );
 
     const row: PendingRow = {
       evalId: result.eval,
@@ -438,9 +441,9 @@ async function main() {
           ...row.metadata,
           ...(row.sessionArchivePath
             ? {
-                raw_transcript: new Attachment({
+                session_archive: new Attachment({
                   data: row.sessionArchivePath,
-                  filename: 'transcript.tar.gz',
+                  filename: 'session-archive.tar.gz',
                   contentType: 'application/gzip',
                 }),
               }
