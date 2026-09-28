@@ -805,7 +805,12 @@ export function brokeredNetworkPolicy(): NetworkPolicy {
   const allow: Record<string, NetworkPolicyRule[]> = { '*': [] };
   for (const { name, domain, headers } of BROKERED_KEYS) {
     const key = process.env[name];
-    if (key) allow[domain] = [{ transform: [{ headers: headers(key) }] }];
+    if (!key) continue;
+    // Pins Host so domain fronting can't send the key to another virtual host.
+    // https://vercel.com/docs/sandbox/concepts/firewall#http-and-https
+    allow[domain] = [
+      { transform: [{ headers: { host: domain, ...headers(key) } }] },
+    ];
   }
   return { allow };
 }

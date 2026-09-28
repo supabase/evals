@@ -132,7 +132,7 @@ describe('brokeredNetworkPolicy', () => {
     }
   });
 
-  it('injects configured keys and allows other traffic', () => {
+  it('injects configured keys, pins Host, and allows other traffic', () => {
     process.env.ANTHROPIC_API_KEY = 'sk-ant';
     process.env.OPENAI_API_KEY = 'sk-openai';
 
@@ -140,10 +140,23 @@ describe('brokeredNetworkPolicy', () => {
       allow: {
         '*': [],
         'api.anthropic.com': [
-          { transform: [{ headers: { 'x-api-key': 'sk-ant' } }] },
+          {
+            transform: [
+              { headers: { host: 'api.anthropic.com', 'x-api-key': 'sk-ant' } },
+            ],
+          },
         ],
         'api.openai.com': [
-          { transform: [{ headers: { authorization: 'Bearer sk-openai' } }] },
+          {
+            transform: [
+              {
+                headers: {
+                  host: 'api.openai.com',
+                  authorization: 'Bearer sk-openai',
+                },
+              },
+            ],
+          },
         ],
       },
     });
