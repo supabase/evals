@@ -430,7 +430,7 @@ export type AgentRunArgs = {
    */
   sandbox?: AgentSandbox;
   timeoutSec: number;
-  /** Host path to write a `.tar.gz` of the CLI's `sessionDir` to, as a backup of what the parser drops. */
+  /** Host path to archive the CLI's `sessionDir` to. */
   sessionArchivePath?: string;
 };
 
