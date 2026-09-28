@@ -1,6 +1,11 @@
 #!/usr/bin/env tsx
 
-import { APIError, Sandbox } from '@vercel/sandbox';
+import {
+  APIError,
+  Sandbox,
+  type NetworkPolicy,
+  type NetworkPolicyRule,
+} from '@vercel/sandbox';
 import type { EvalMetadata, ExperimentConfig } from '@supabase-evals/core';
 import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import {
@@ -22,12 +27,41 @@ import { discoverExperimentFiles } from '../lib/experiment-files.js';
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Base for sandbox URLs printed during runs */
 const SANDBOX_DASHBOARD_URL = 'https://vercel.com/supabase/evals/sandboxes';
+/**
+ * Provider keys the sandbox firewall injects into outbound requests, so the
+ * agent only sees a placeholder. A CLI calling a domain missing here sends the
+ * placeholder and gets a 401.
+ * @see https://vercel.com/docs/sandbox/concepts/firewall#credentials-brokering
+ */
+export const BROKERED_KEYS: {
+  name: string;
+  domain: string;
+  headers: (key: string) => Record<string, string>;
+}[] = [
+  {
+    name: 'ANTHROPIC_API_KEY',
+    domain: 'api.anthropic.com',
+    headers: (key) => ({ 'x-api-key': key }),
+  },
+  {
+    name: 'OPENAI_API_KEY',
+    domain: 'api.openai.com',
+    headers: (key) => ({ authorization: `Bearer ${key}` }),
+  },
+  {
+    name: 'XAI_API_KEY',
+    domain: 'api.x.ai',
+    headers: (key) => ({ authorization: `Bearer ${key}` }),
+  },
+  {
+    name: 'AI_GATEWAY_API_KEY',
+    domain: 'ai-gateway.vercel.sh',
+    headers: (key) => ({ authorization: `Bearer ${key}` }),
+  },
+];
+export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
+/** Pins the CLI channel version resolved for this run across sandbox jobs. */
 export const FORWARDED_ENV_NAMES = [
-  'ANTHROPIC_API_KEY',
-  'OPENAI_API_KEY',
-  'AI_GATEWAY_API_KEY',
-  'XAI_API_KEY',
-  // Pins the CLI channel version resolved for this run across sandbox jobs.
   'SUPABASE_CLI_STABLE_VERSION',
   'SUPABASE_CLI_BETA_VERSION',
 ];
@@ -319,6 +353,7 @@ async function runPairOnce(
         EVAL_TIMEOUT_BUFFER_MS +
         SANDBOX_TIMEOUT_BUFFER_MS,
       persistent: false,
+      networkPolicy: brokeredNetworkPolicy(),
       // Sandboxes cap out at five tags.
       tags: {
         workflow_run: process.env.GITHUB_RUN_ID ?? 'local',
@@ -762,9 +797,22 @@ function vercelCredentialsFromEnv(): {
   };
 }
 
-/** Serializes configured provider keys and CLI channel pins into the sandbox's `.env` file, preferring an explicit pin over the same-named process.env value. */
+/** Allows all traffic and injects each configured provider key on its domain. */
+export function brokeredNetworkPolicy(): NetworkPolicy {
+  const allow: Record<string, NetworkPolicyRule[]> = { '*': [] };
+  for (const { name, domain, headers } of BROKERED_KEYS) {
+    const key = process.env[name];
+    if (key) allow[domain] = [{ transform: [{ headers: headers(key) }] }];
+  }
+  return { allow };
+}
+
+/** Builds the sandbox `.env` from key placeholders and CLI channel pins. An explicit pin wins over process.env. */
 export function agentEnvironment(pins: Record<string, string> = {}): string {
   const lines: string[] = [];
+  for (const { name } of BROKERED_KEYS) {
+    if (process.env[name]) lines.push(`${name}=${BROKERED_KEY_PLACEHOLDER}`);
+  }
   for (const name of FORWARDED_ENV_NAMES) {
     const value = pins[name] ?? process.env[name];
     if (value) lines.push(`${name}=${value}`);
