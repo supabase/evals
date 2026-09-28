@@ -62,17 +62,15 @@ Include refreshed results for PRs with new/changed evals so a reviewer can see r
 
 ## Reviewing an eval
 
-Start with [Eval criteria](#eval-criteria) and [Writing prompts](#writing-prompts): confirm the `motivation:` cites a real user problem and the prompt has one clear, observable goal without leaking commands, schema details, or rubric language.
+Use this checklist after the author has followed [Submitting evals for review](#submitting-evals-for-review). A failing run can be useful signal, so all-green results are not required.
 
-Then review [Writing scorers](#writing-scorers) assertion by assertion. Each check should map to a user requirement, avoid known false passes and false fails, measure behavior instead of one implementation path, and keep diagnostics as metrics rather than pass/fail gates. Ask for a deterministic or fixture-based check whenever it can replace `judge()`.
+- Read [Eval criteria](#eval-criteria) and [Writing prompts](#writing-prompts). The `motivation:` should cite a real user problem, with the respective external link or Linear issue ID, and the prompt should have one clear, observable goal without leaking commands, schema details, or rubric language.
+- Review [Writing scorers](#writing-scorers) assertion by assertion. Each check should map to a user requirement, avoid known false passes and false fails, and measure behavior instead of one implementation path. Don't turn incidental diagnostics into pass/fail checks.
+- Ask for a deterministic or fixture-based check whenever it can replace `judge()`. Reserve judges for semantic or free-form outcomes where exact checks would be brittle.
+- Require refreshed CI results, inspect at least one success run and each distinct failure shape, and confirm the experiment matches the intended suite, skills, runtime, hosted or local state, and any CLI or Docker assumptions.
+- Classify each failure before requesting changes: agent gap, product gap, scorer bug, or harness/runtime failure. Ideally, show that the scorer rejects at least one known-bad solution or counterexample with a scorer unit test or a failing run linked in the PR.
 
-Use the [Submitting evals for review](#submitting-evals-for-review) workflow to require refreshed CI results before approval. The refreshed eval CI job should be green, which means the requested evals ran and results were recorded; it does not mean every agent passed the eval. After CI completes, inspect at least one passing result and each distinct failure shape, and confirm the experiment matches the intended suite, skills, runtime, hosted or local state, and any CLI or Docker assumptions.
-
-Classify failing eval results before requesting changes: agent gap, product gap, scorer bug, or harness/runtime failure. A failing eval can be valid signal, but at least one known-bad solution or counterexample should fail to prove the scorer catches the intended failure mode.
-
-Approve when the evidence, prompt, scorer, CI setup, and inspected results support the same outcome, and no known false pass or false fail remains. Findings should cite the exact file and line, name the concrete issue, and propose the smallest correction.
-
-Tag the AI team only for framework, runtime, experiment, result schema, or contract changes; scenario wording and scorer tuning should stay with the owning team.
+Tag #team-ai on Slack only for framework, runtime, experiment, result schema, or contract changes; scenario wording and scorer tuning should stay with the owning team.
 
 ## Docs evals
 
