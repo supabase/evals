@@ -566,6 +566,7 @@ export function toAgentSandbox(sandbox: DockerSandbox): AgentSandbox {
     workspace: sandbox.workdir,
     exec: (command, options) => sandbox.runShell(command, options),
     readFile: (path) => sandbox.readFile(path),
+    copyToHost: (path, hostDir) => sandbox.copyToHost(path, hostDir),
   };
 }
 

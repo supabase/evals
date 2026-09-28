@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -54,6 +54,7 @@ async function runWithSystemPrompt(
         return ok;
       },
       readFile: async () => '',
+      copyToHost: async () => {},
     },
   });
   return effects;
@@ -88,7 +89,7 @@ describe('createCliAgent session archive', () => {
     process.env[API_KEY_ENV_VAR] = 'k';
   });
 
-  it("returns a gzipped tar of the runner's sessionDir", async () => {
+  it('archives sessionDir into transcriptDir', async () => {
     const home = mkdtempSync(join(tmpdir(), 'engine-session-'));
     mkdirSync(join(home, 'sessions/subagents'), { recursive: true });
     writeFileSync(join(home, 'sessions/subagents/agent-1.jsonl'), '{}\n');
@@ -104,12 +105,12 @@ describe('createCliAgent session archive', () => {
       exec: async () => ({ command: ok, raw: '' }),
     };
 
-    const { sessionArchive } = await createCliAgent(runner, parser, {
-      model: 'fake-model',
-    }).run({
+    const transcriptDir = join(home, 'run-1');
+    await createCliAgent(runner, parser, { model: 'fake-model' }).run({
       systemPrompt: '',
       userPrompt: 'the task',
       timeoutSec: 1,
+      transcriptDir,
       sandbox: {
         workspace: home,
         exec: async (command) => {
@@ -122,11 +123,13 @@ describe('createCliAgent session archive', () => {
           };
         },
         readFile: async () => '',
+        copyToHost: async (path, hostDir) => {
+          cpSync(path, hostDir, { recursive: true });
+        },
       },
     });
 
-    const archivePath = join(home, 'out.tar.gz');
-    writeFileSync(archivePath, sessionArchive ?? '');
+    const archivePath = join(transcriptDir, 'transcript.tar.gz');
     expect(
       execFileSync('tar', ['-tzf', archivePath], { encoding: 'utf8' })
     ).toContain('./subagents/agent-1.jsonl');

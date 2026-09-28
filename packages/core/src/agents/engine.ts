@@ -33,6 +33,9 @@ import {
   writeSandboxFile,
 } from './shared.js';
 
+// Absolute because `copyToHost` can't expand `$HOME`.
+const TRANSCRIPT_STAGING_DIR = '/tmp/eval-transcript';
+
 function modelProviderForAgent(id: AgentRunner['id']): ModelProvider {
   switch (id) {
     case 'claude-code':
@@ -125,16 +128,18 @@ export function createCliAgent<M extends string = string>(
         : { events: [] };
       const adapted = adaptTranscript(events);
 
+      if (runner.sessionDir && args.transcriptDir) {
+        const tar = await sandbox.exec(
+          `mkdir -p ${TRANSCRIPT_STAGING_DIR} && tar -czf ${TRANSCRIPT_STAGING_DIR}/transcript.tar.gz -C ${runner.sessionDir} .`
+        );
+        if (tar.ok) {
+          await sandbox.copyToHost(TRANSCRIPT_STAGING_DIR, args.transcriptDir);
+        }
+      }
+
       // Surface run failures that would otherwise be invisible in results
       // (visible under --debug): the CLI's own error events, or a run that
       // died before streaming any events at all.
-      // base64 because sandbox exec returns stdout as text.
-      const archive = runner.sessionDir
-        ? await sandbox.exec(
-            `set -o pipefail; tar -czf - -C ${runner.sessionDir} . | base64 -w0`
-          )
-        : undefined;
-
       const errorEvents = events.filter((e) => e.type === 'error');
       for (const e of errorEvents) {
         console.error(`[${runner.displayName}] ${e.content}`);
@@ -156,10 +161,6 @@ export function createCliAgent<M extends string = string>(
         usage: runner.extractUsage?.(raw, options.model),
         stepCount: stepCount ?? runner.extractStepCount?.(raw),
         durationMs,
-        sessionArchive:
-          archive?.exitCode === 0
-            ? Buffer.from(archive.stdout, 'base64')
-            : undefined,
       };
     },
   };

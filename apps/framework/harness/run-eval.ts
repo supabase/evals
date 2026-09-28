@@ -370,7 +370,6 @@ async function runOne(
     toolCallCount: number;
     agentRunDurationMs: number;
     cliVersion?: string;
-    sessionArchive?: Buffer;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -451,6 +450,7 @@ async function runOne(
       sandbox: session.sandbox,
       mcpServers: session.mcpServers,
       timeoutSec: TIMEOUT_SEC,
+      transcriptDir: runDir(expName, ev.id, runIndex),
     });
     await session.ensureReady?.();
     // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
@@ -499,7 +499,6 @@ async function runOne(
       stepCount: run.stepCount,
       toolCallCount: run.toolCalls.length,
       agentRunDurationMs: run.durationMs,
-      sessionArchive: run.sessionArchive,
       cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
     };
   }
@@ -538,6 +537,7 @@ async function runOne(
     mcpServers: session.mcpServers,
     sandbox: cliSandbox?.sandbox,
     timeoutSec: TIMEOUT_SEC,
+    transcriptDir: runDir(expName, ev.id, runIndex),
   });
   const last = await (scorer as ToolScorer)({
     ...session.scoringContext,
@@ -564,7 +564,6 @@ async function runOne(
     stepCount: run.stepCount,
     toolCallCount: run.toolCalls.length,
     agentRunDurationMs: run.durationMs,
-    sessionArchive: run.sessionArchive,
     // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.
     cliVersion: ev.metadata.cliVersion,
   };
@@ -763,19 +762,8 @@ async function main() {
     console.log(`⏳ RUN  ${label}`);
     const run = async () => {
       try {
-        const { sessionArchive, ...res } = await runOne(
-          name,
-          config,
-          ev,
-          runIndex
-        );
+        const res = await runOne(name, config, ev, runIndex);
         mkdirSync(dirname(out), { recursive: true });
-        if (sessionArchive) {
-          writeFileSync(
-            join(dirname(out), 'transcript.tar.gz'),
-            sessionArchive
-          );
-        }
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
           out,

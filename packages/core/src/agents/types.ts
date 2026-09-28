@@ -43,6 +43,8 @@ export interface AgentSandbox {
   ): Promise<CommandResult>;
   /** Read a UTF-8 file (absolute path, or relative to the workspace). */
   readFile(path: string): Promise<string>;
+  /** Copy a sandbox dir's contents (absolute path) into a host dir. Binary-safe. */
+  copyToHost(path: string, hostDir: string): Promise<void>;
 }
 
 /**
