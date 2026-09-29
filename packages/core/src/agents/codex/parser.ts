@@ -10,9 +10,12 @@
  *
  * Observed `item.type`s: `agent_message` {text}, `reasoning` {text},
  * `command_execution` {command, aggregated_output, exit_code, status},
- * `file_change` {changes:[{path,kind}], status}. MCP / web-search items are
- * handled best-effort. Each tool item yields a paired tool_call + tool_result
- * (correlated by the item id) so the adapter can attach the output.
+ * `file_change` {changes:[{path,kind}], status},
+ * `mcp_tool_call` {server, tool, arguments, result, error, status}. Web-search
+ * items are handled best-effort. Each tool item yields a paired tool_call +
+ * tool_result (correlated by the item id) so the adapter can attach the output.
+ * A tool_call carries only the call's arguments; its output rides on the
+ * tool_result, the same split every other agent's parser makes.
  *
  * NB: this is the `--json` event schema, NOT the `~/.codex/sessions` rollout
  * format (event_msg/response_item) that older parsers targeted.
@@ -178,13 +181,18 @@ function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
       // bare tool name; `item.server` names the MCP server when present.
       const bare = str(item.tool) ?? str(item.name) ?? 'mcp_tool_call';
       const server = str(item.server);
+      const args = isRecord(item.arguments) ? item.arguments : {};
       return toolCallPair(
         id,
         bare,
-        item,
-        item.result ?? item.output,
+        args,
+        // A failure Codex raised itself has no result, only `error: {message}`;
+        // carry that message as the output so the failure stays visible.
+        item.result ??
+          item.output ??
+          (isRecord(item.error) ? str(item.error.message) : undefined),
         statusSuccess(item.status),
-        {},
+        extractArgs(args, CODEX_ARG_FIELDS),
         server
           ? { kind: 'mcp', server, toolName: bare }
           : { kind: 'other', toolName: bare }
