@@ -79,7 +79,7 @@ jobs:
         (github.event.action != 'labeled' ||
          github.event.label.name == 'run-evals' ||
          github.event.label.name == 'run-evals-changed'))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       pairs: ${{ steps.discover.outputs.pairs }}
       runs: ${{ steps.inputs.outputs.runs }}
@@ -280,7 +280,7 @@ jobs:
   run-evals:
     needs: prepare
     if: needs.prepare.outputs.pairs != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # 60 min gives ~2x margin over the slowest observed run:
     # https://github.com/supabase/evals/actions/runs/31802584549
     timeout-minutes: 60
@@ -356,7 +356,7 @@ jobs:
     # Runs even after run-evals times out or partially fails, since results
     # are written per pair and export-results skips any pair that never finished.
     if: "always() && needs.run-evals.result != 'skipped' && needs.prepare.outputs.pairs != '[]'"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Generate GitHub App token
         id: generate-token
