@@ -430,6 +430,8 @@ export type AgentRunArgs = {
    */
   sandbox?: AgentSandbox;
   timeoutSec: number;
+  /** Host path to archive the CLI's `sessionDir` to. */
+  sessionArchivePath?: string;
 };
 
 export type AgentRunResult = {

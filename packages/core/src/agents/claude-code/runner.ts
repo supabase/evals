@@ -27,6 +27,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
   // re-check the parser. See ./parser.ts.
   defaultCliVersion: '2.1.280',
   defaultModel: 'claude-sonnet-4-6',
+  sessionDir: '"$HOME/.claude/projects"',
 
   async install(sandbox, version) {
     await npmInstallGlobal(

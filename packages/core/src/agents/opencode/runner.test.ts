@@ -170,6 +170,7 @@ async function captureExec(
         return ok;
       },
       readFile: async () => '',
+      copyToHost: async () => {},
     },
     model,
     apiKey: 'gw-key',
