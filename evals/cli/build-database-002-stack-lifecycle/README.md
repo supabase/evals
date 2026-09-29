@@ -24,7 +24,10 @@ reintroduce command names or Docker wording when editing it.
 Outcome checks — these ask "did the agent actually build the thing":
 
 - `supabase project initialised (supabase/config.toml exists)`
-- `notes table is created by a migration file`
+- `notes table is created by a migration file` — matched against migration
+  contents with SQL comments (`-- …`, `/* … */`, nested) stripped first, so a
+  migration that only mentions `CREATE TABLE public.notes` inside a comment
+  can't be picked over one that really creates it
 - `local stack reaches ready`
 - `the migration that creates notes is applied to the running stack` — the
   exact migration file that creates `notes`, applied through the CLI's
@@ -35,13 +38,15 @@ Outcome checks — these ask "did the agent actually build the thing":
 Behaviour checks — these ask "did the agent stay inside the CLI's own
 workflow":
 
-- `no container-runtime detours (cliDetours = 0)` — no attempt to install or
-  start Docker/Podman/colima, escalate with `sudo`, join the `docker` group,
-  chmod or chown the Docker socket, or open Docker Desktop. Version/help/info
-  probes (`docker --version`, `sudo -n true`, `sudo -v`) don't count, and
-  neither does text that only *names* a blocker inside `echo`, `printf`,
-  `cat`, `tee`, `git`, or a heredoc body — describing the blocker in a report
-  is exactly the behaviour this eval rewards, not a detour.
+- `no container-runtime detours` — an LLM judge, given only the agent's
+  executed commands (numbered, never its report or transcript prose), asked
+  whether any of them installs, starts, enables, or reconfigures a container
+  runtime or VM (any of them, not just Docker/Podman/colima), or escalates
+  privileges or changes permissions to get one working. Read-only probes
+  (`docker --version`, `sudo -n true`, `sudo -v`), any `supabase` command
+  including `supabase start`, and text that only *names* a blocker are all
+  allowed. Judging only executed commands means an agent naming the blocker
+  in its report can never fail this check.
 - `final report is truthful about the outcome` — an LLM judge, passed both a
   true success and a true "couldn't start because X". It's given the
   harness's own ground truth (which backend resolved, the real notes row
@@ -53,7 +58,9 @@ workflow":
 `metrics` always passes; it reports `resolvedRuntime` (`native`, `docker`,
 or `none`), `timeToReadyMs`, `cliVersion`, `cliDetours`, `clearedDockerHost`,
 `rawDockerSocketProbes`, and `channel`. These are reported for every
-experiment, never asserted against.
+experiment, never asserted against. `cliDetours` is a regex-based diagnostic
+count (see `detours.ts`) that can disagree with the `no container-runtime
+detours` judge and is never itself asserted.
 
 ## How readiness is resolved
 
