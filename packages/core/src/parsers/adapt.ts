@@ -23,6 +23,7 @@ export interface AdaptedTranscript {
 interface ResolvedResult {
   result?: unknown;
   error?: string;
+  ts?: number;
 }
 
 export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
@@ -31,10 +32,10 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
   const resultsById = new Map<string, ResolvedResult>();
   for (const event of events) {
     if (event.type !== 'tool_result' || !event.tool?.id) continue;
-    resultsById.set(
-      event.tool.id,
-      toResolved(event.tool.result, event.tool.success)
-    );
+    resultsById.set(event.tool.id, {
+      ...toResolved(event.tool.result, event.tool.success),
+      ...timed(event.timestamp),
+    });
   }
 
   const transcript: TranscriptPart[] = [];
@@ -46,7 +47,14 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
     if (event.type === 'message' && event.role && event.content) {
       const content = event.content.trim();
       if (!content) continue;
-      transcript.push({ type: 'message', role: event.role, content });
+      transcript.push({
+        type: 'message',
+        role: event.role,
+        content,
+        ...timed(event.timestamp),
+        ...(event.requestId ? { requestId: event.requestId } : {}),
+        ...(event.usage ? { usage: event.usage } : {}),
+      });
       if (event.role === 'assistant') {
         agentReport = content;
         steps += 1;
@@ -67,6 +75,11 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         input: body,
         output: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
+        ...timed(event.timestamp),
+        ...(resolved?.ts ? { resultTs: resolved.ts } : {}),
+        ...(event.tool.id ? { id: event.tool.id } : {}),
+        ...(event.requestId ? { requestId: event.requestId } : {}),
+        ...(event.usage ? { usage: event.usage } : {}),
       });
       toolCalls.push({
         tool: call,
@@ -97,6 +110,11 @@ function toResolved(
     };
   }
   return { result };
+}
+
+function timed(timestamp: string | undefined): { ts?: number } {
+  const ts = parseTs(timestamp);
+  return ts ? { ts } : {};
 }
 
 function parseTs(timestamp: string | undefined): number {

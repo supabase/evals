@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { codexParser } from './parser.js';
+import { codexParser, enrichFromRollout } from './parser.js';
 import { codexRunner } from './runner.js';
 import { adaptTranscript } from '../../parsers/adapt.js';
+import type { TranscriptEvent } from '../../transcript/types.js';
 
 /** A representative `codex exec --json` stream (shapes captured from CLI 0.138). */
 const SESSION = [
@@ -280,5 +281,94 @@ describe('codexRunner.deriveStopReason', () => {
       stderr: 'timed out',
     };
     expect(codexRunner.deriveStopReason!('', timedOut)).toBe('timeout');
+  });
+});
+
+describe('enrichFromRollout', () => {
+  it('pairs stdout events with rollout records by position', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      line('t2', 'response_item', { type: 'function_call', call_id: 'c1' }),
+      line('t3', 'token_usage_record', {
+        response_id: 'r1',
+        usage: { input_tokens: 10, cached_input_tokens: 4, output_tokens: 2 },
+      }),
+      line('t4', 'event_msg', {
+        type: 'item_completed',
+        item: {
+          type: 'CommandExecution',
+          id: 'c1',
+          command: ['/bin/bash', '-lc', 'ls'],
+        },
+      }),
+      line('t5', 'response_item', {
+        type: 'function_call_output',
+        call_id: 'c1',
+      }),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'hi' },
+      {
+        type: 'tool_call',
+        tool: {
+          name: 'shell',
+          originalName: 'x',
+          id: 'item_1',
+          command: '/bin/bash -lc ls',
+        },
+      },
+      {
+        type: 'tool_result',
+        tool: { name: 'shell', originalName: 'x', id: 'item_1' },
+      },
+    ];
+    enrichFromRollout(events, rollout);
+    const usage = {
+      inputTokens: 10,
+      cacheReadInputTokens: 4,
+      cacheWriteInputTokens: 0,
+      outputTokens: 2,
+    };
+    expect(events.map((e) => [e.timestamp, e.requestId, e.usage])).toEqual([
+      ['t1', 'r1', usage],
+      ['t2', 'r1', usage],
+      ['t5', undefined, undefined],
+    ]);
+  });
+});
+
+describe('enrichFromRollout pairing guard', () => {
+  it('leaves tool events untouched when a pair disagrees on the command', () => {
+    const rollout = [
+      JSON.stringify({
+        timestamp: 't1',
+        type: 'response_item',
+        payload: { type: 'function_call', call_id: 'c1' },
+      }),
+      JSON.stringify({
+        type: 'event_msg',
+        payload: {
+          type: 'item_completed',
+          item: {
+            type: 'CommandExecution',
+            id: 'c1',
+            command: ['/bin/bash', '-lc', 'pwd'],
+          },
+        },
+      }),
+    ].join('\n');
+    const call: TranscriptEvent = {
+      type: 'tool_call',
+      tool: {
+        name: 'shell',
+        originalName: 'x',
+        id: 'item_1',
+        command: '/bin/bash -lc ls',
+      },
+    };
+    enrichFromRollout([call], rollout);
+    expect(call.timestamp).toBeUndefined();
   });
 });

@@ -21,6 +21,7 @@
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  RequestUsage,
   ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
@@ -238,3 +239,132 @@ export const codexParser: AgentTranscriptParser = {
     return { events, errors };
   },
 };
+
+/**
+ * Fills in event times, model requests, and per-request usage from the session
+ * rollout, which the `--json` stream lacks. The two streams list tool items and
+ * assistant messages in the same order but under different ids, so they're
+ * paired by position. Tool pairs must also agree on the command or MCP tool,
+ * and any count or content mismatch leaves that kind of event untouched.
+ *
+ *   rollout: reasoning → message → function_call(c1) → token_usage_record(r1)
+ *            → function_call_output(c1)
+ *   events:  message → tool_call → tool_result, each tagged requestId r1
+ */
+export function enrichFromRollout(
+  events: TranscriptEvent[],
+  rollout: string
+): void {
+  interface Request {
+    id?: string;
+    usage?: RequestUsage;
+  }
+  const callStarts = new Map<string, { at?: string; request: Request }>();
+  const callEnds = new Map<string, string | undefined>();
+  const messages: { at?: string; request: Request }[] = [];
+  const toolItems: Record<string, unknown>[] = [];
+  let open: Request | undefined;
+
+  for (const record of parseJsonlRecords(rollout).records) {
+    const at = str(record.timestamp);
+    const payload = isRecord(record.payload) ? record.payload : {};
+    if (record.type === 'token_usage_record') {
+      if (open) {
+        open.id = str(payload.response_id);
+        open.usage = rolloutUsage(payload.usage);
+      }
+      open = undefined;
+    } else if (record.type === 'response_item') {
+      const callId = str(payload.call_id);
+      if (
+        payload.type === 'function_call_output' ||
+        payload.type === 'custom_tool_call_output'
+      ) {
+        if (callId) callEnds.set(callId, at);
+        continue;
+      }
+      if (payload.type === 'message' && payload.role !== 'assistant') continue;
+      open ??= {};
+      if (payload.type === 'message') messages.push({ at, request: open });
+      if (callId) callStarts.set(callId, { at, request: open });
+    } else if (
+      record.type === 'event_msg' &&
+      payload.type === 'item_completed' &&
+      isRecord(payload.item)
+    ) {
+      const { type, id } = payload.item;
+      if (
+        typeof id === 'string' &&
+        !['UserMessage', 'Reasoning', 'AgentMessage'].includes(String(type))
+      ) {
+        toolItems.push(payload.item);
+      }
+    }
+  }
+
+  const tag = (event: TranscriptEvent, request: Request) => {
+    if (request.id) event.requestId = request.id;
+    if (request.usage) event.usage = request.usage;
+  };
+  const assistant = events.filter(
+    (e) => e.type === 'message' && e.role === 'assistant'
+  );
+  if (assistant.length === messages.length) {
+    assistant.forEach((event, i) => {
+      event.timestamp = messages[i].at ?? event.timestamp;
+      tag(event, messages[i].request);
+    });
+  }
+  const calls = events.filter((e) => e.type === 'tool_call');
+  if (
+    calls.length !== toolItems.length ||
+    calls.some((event, i) => !sameCall(event, toolItems[i]))
+  ) {
+    return;
+  }
+  const callIdByItem = new Map<string, string>();
+  calls.forEach((event, i) => {
+    const itemId = String(toolItems[i].id);
+    const start = callStarts.get(itemId);
+    if (event.tool?.id) callIdByItem.set(event.tool.id, itemId);
+    if (!start) return;
+    event.timestamp = start.at ?? event.timestamp;
+    tag(event, start.request);
+  });
+  for (const event of events) {
+    if (event.type !== 'tool_result' || !event.tool?.id) continue;
+    const callId = callIdByItem.get(event.tool.id);
+    const end = callId ? callEnds.get(callId) : undefined;
+    if (end) event.timestamp = end;
+  }
+}
+
+/**
+ * Whether a `--json` tool call and a rollout item are the same call. Commands
+ * compare on letters and digits only, since stdout shell-quotes the argv the
+ * rollout keeps raw.
+ */
+function sameCall(event: TranscriptEvent, item: Record<string, unknown>) {
+  const alnum = (text: string) => text.replace(/[^a-z0-9]/gi, '');
+  if (item.type === 'CommandExecution' && Array.isArray(item.command)) {
+    const command = event.tool?.command;
+    return (
+      !!command && alnum(command).includes(alnum(String(item.command.at(-1))))
+    );
+  }
+  if (item.type === 'McpToolCall') {
+    return event.tool?.call?.toolName === item.tool;
+  }
+  return true;
+}
+
+/** Codex's `input_tokens` already includes both cache buckets. */
+function rolloutUsage(usage: unknown): RequestUsage | undefined {
+  if (!isRecord(usage)) return undefined;
+  return {
+    inputTokens: Number(usage.input_tokens) || 0,
+    cacheReadInputTokens: Number(usage.cached_input_tokens) || 0,
+    cacheWriteInputTokens: Number(usage.cache_write_input_tokens) || 0,
+    outputTokens: Number(usage.output_tokens) || 0,
+  };
+}

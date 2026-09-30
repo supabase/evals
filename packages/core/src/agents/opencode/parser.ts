@@ -23,6 +23,7 @@
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  RequestUsage,
   ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
@@ -113,6 +114,29 @@ const OPENCODE_ARG_FIELDS: ArgFieldMap = {
   url: ['url'],
 };
 
+/**
+ * A `step_finish` record's tokens as `ModelUsage` fields. opencode keeps cache
+ * out of `input` and reasoning out of `output`.
+ * https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/acp/usage.ts
+ */
+export function stepUsage(
+  record: Record<string, unknown>
+): RequestUsage | undefined {
+  if (record.type !== 'step_finish' || !isRecord(record.part)) return undefined;
+  const tokens = record.part.tokens;
+  if (!isRecord(tokens)) return undefined;
+  const cache = isRecord(tokens.cache) ? tokens.cache : undefined;
+  const cacheRead = Number(cache?.read) || 0;
+  const cacheWrite = Number(cache?.write) || 0;
+  return {
+    inputTokens: (Number(tokens.input) || 0) + cacheRead + cacheWrite,
+    cacheReadInputTokens: cacheRead,
+    cacheWriteInputTokens: cacheWrite,
+    outputTokens:
+      (Number(tokens.output) || 0) + (Number(tokens.reasoning) || 0),
+  };
+}
+
 /** Epoch-ms (or pass-through ISO) → ISO string. */
 function toISO(value: unknown): string | undefined {
   if (typeof value === 'number') return new Date(value).toISOString();
@@ -153,6 +177,7 @@ function partToEvents(
         ? [
             {
               timestamp,
+              requestId: str(part.messageID),
               type: 'message',
               role: 'assistant',
               content: text,
@@ -172,6 +197,8 @@ function partToEvents(
       const args = isRecord(state.input) ? state.input : {};
       const status = str(state.status);
       const metadata = isRecord(state.metadata) ? state.metadata : undefined;
+      // The record lands when the call settles, so its own time is the end.
+      const time = isRecord(state.time) ? state.time : undefined;
       // The builtin tool set is fully enumerated in OPENCODE_TOOLS, so any
       // unmapped name is an MCP/custom tool (`<server>_<tool>`). Builtins are
       // `other`; unmapped names are attributed to a configured MCP server by
@@ -198,12 +225,18 @@ function partToEvents(
       if (loadedSkills.length > 0) tool.loadedSkills = loadedSkills;
 
       const events: TranscriptEvent[] = [
-        { timestamp, type: 'tool_call', tool, raw },
+        {
+          timestamp: toISO(time?.start) ?? timestamp,
+          requestId: str(part.messageID),
+          type: 'tool_call',
+          tool,
+          raw,
+        },
       ];
       // The result is in the same record; emit it only once the call completed.
       if (status && status !== 'running' && status !== 'pending') {
         events.push({
-          timestamp,
+          timestamp: toISO(time?.end) ?? timestamp,
           type: 'tool_result',
           tool: {
             name,
@@ -275,12 +308,21 @@ export const opencodeParser: AgentTranscriptParser = {
     const { records, errors } = parseJsonlRecords(raw);
     const mcpServerNames = ctx?.mcpServerNames ?? [];
     const events: TranscriptEvent[] = [];
+    const usageByMessage = new Map<string, RequestUsage>();
     for (const record of records) {
+      const part = isRecord(record.part) ? record.part : undefined;
+      const messageId = str(part?.messageID);
+      const usage = stepUsage(record);
+      if (messageId && usage) usageByMessage.set(messageId, usage);
       try {
         events.push(...recordToEvents(record, mcpServerNames));
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
       }
+    }
+    for (const event of events) {
+      const usage = event.requestId && usageByMessage.get(event.requestId);
+      if (usage) event.usage = usage;
     }
     return { events, errors };
   },

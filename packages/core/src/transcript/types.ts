@@ -43,10 +43,21 @@ export type ToolCall =
   | { kind: 'mcp'; server: string; toolName: string }
   | { kind: 'other'; toolName: string };
 
+import type { ModelUsage } from '../eval-metadata.js';
+
+/** Token usage of the model request that emitted an event. */
+export type RequestUsage = Omit<ModelUsage, 'model'>;
+
 /** A single normalized event in an agent transcript. */
 export interface TranscriptEvent {
   /** ISO timestamp of the event, when the agent records one. */
   timestamp?: string;
+  /**
+   * Model request that emitted this event (Claude Code `message.id`, OpenCode
+   * `part.messageID`). One request can emit text plus several tool calls.
+   */
+  requestId?: string;
+  usage?: RequestUsage;
   /** Event kind. */
   type: 'message' | 'tool_call' | 'tool_result' | 'thinking' | 'error';
   /** For `message` events: the speaker. */

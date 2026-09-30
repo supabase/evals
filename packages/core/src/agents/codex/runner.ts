@@ -11,6 +11,7 @@ import type { ChatModel } from 'openai/resources/shared';
 import type { McpServerConfig } from '../../index.js';
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
+import { enrichFromRollout } from './parser.js';
 import {
   npmGlobalBin,
   npmInstallGlobal,
@@ -99,16 +100,18 @@ export const codexRunner: AgentRunner<CodexModel> = {
       `cat ${userPromptPath} | ${codex} ${flags}`,
       { timeoutMs: timeoutSec * 1000, env: { OPENAI_API_KEY: apiKey } }
     );
-    // The --json stream has no per-response boundary, but the session rollout
-    // Codex writes to disk logs one token_count event per model response.
+    return { command, raw: command.stdout };
+  },
+
+  async enrichEvents(sandbox, events) {
     const rollout = await sandbox.exec(
       `cat "$(ls -t "$HOME"/.codex/sessions/*/*/*/rollout-*.jsonl 2>/dev/null | head -1)"`
     );
-    return {
-      command,
-      raw: command.stdout,
-      stepCount: countModelResponses(rollout.stdout),
-    };
+    if (!rollout.ok) return;
+    enrichFromRollout(events, rollout.stdout);
+    // The --json stream has no per-response boundary, but the rollout logs one
+    // token_count event per model response.
+    return { stepCount: countModelResponses(rollout.stdout) };
   },
 
   deriveStopReason(raw, command) {

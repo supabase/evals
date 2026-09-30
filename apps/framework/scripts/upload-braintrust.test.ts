@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   experimentName,
+  logTranscript,
   runViewUrl,
+  unwrapShell,
+  type SpanSink,
   tokenMetrics,
   utcStamp,
 } from './upload-braintrust.js';
@@ -87,5 +90,159 @@ describe('runViewUrl', () => {
     expect(decodeURIComponent(filter.text)).toBe(
       'metadata.run_id = "my-run-id"'
     );
+  });
+});
+
+interface RecordedSpan {
+  name?: string;
+  start?: number;
+  end?: number;
+  metrics?: unknown;
+  input?: unknown;
+  children: RecordedSpan[];
+}
+
+function recorder(node: RecordedSpan): SpanSink {
+  return {
+    startSpan(args) {
+      const child: RecordedSpan = {
+        name: args?.name,
+        start: args?.startTime,
+        children: [],
+      };
+      node.children.push(child);
+      return recorder(child);
+    },
+    log(event) {
+      if (event.metrics) {
+        node.metrics = event.metrics;
+      }
+      if (event.input !== undefined && node.name === 'm') {
+        node.input = event.input;
+      }
+    },
+    end(args) {
+      node.end = args?.endTime;
+    },
+  };
+}
+
+describe('logTranscript', () => {
+  it('logs back-to-back LLM spans per request, with tool calls as siblings under task', () => {
+    const root: RecordedSpan = { children: [] };
+    const ms = (s: number) => (100 + s) * 1000;
+    logTranscript(recorder(root), {
+      prompt: 'go',
+      agentReport: 'done',
+      checks: [],
+      passed: true,
+      modelId: 'm',
+      startTime: 100,
+      endTime: 170,
+      toolLabels: [],
+      transcript: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: 'a',
+          ts: ms(4),
+          requestId: 'r1',
+          usage: {
+            inputTokens: 10,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            outputTokens: 2,
+          },
+        },
+        {
+          type: 'tool_call',
+          name: 'Skill',
+          input: {},
+          output: 'loaded',
+          id: 't1',
+          ts: ms(4),
+          resultTs: ms(5),
+          requestId: 'r1',
+        },
+        {
+          type: 'tool_call',
+          name: 'Bash',
+          input: {},
+          output: 'ok',
+          id: 't2',
+          ts: ms(8),
+          resultTs: ms(31),
+          requestId: 'r2',
+        },
+        {
+          type: 'message',
+          role: 'assistant',
+          content: 'b',
+          ts: ms(38),
+          requestId: 'r3',
+        },
+      ],
+    });
+    const span = (
+      name: string,
+      start: number,
+      end: number,
+      ...children: RecordedSpan[]
+    ) => ({
+      name,
+      start: 100 + start,
+      end: 100 + end,
+      children,
+    });
+    const call = (id: string, name: string) => ({
+      id,
+      type: 'function',
+      function: { name, arguments: '{}' },
+    });
+    const prompt = { role: 'user', content: 'go' };
+    const first = {
+      role: 'assistant',
+      content: 'a',
+      tool_calls: [call('t1', 'Skill')],
+    };
+    const skillResult = { role: 'tool', tool_call_id: 't1', content: 'loaded' };
+    const second = {
+      role: 'assistant',
+      content: '',
+      tool_calls: [call('t2', 'Bash')],
+    };
+    const bashResult = { role: 'tool', tool_call_id: 't2', content: 'ok' };
+    expect(root.children).toEqual([
+      span(
+        'task',
+        0,
+        38,
+        {
+          ...span('m', 0, 4),
+          input: [prompt],
+          metrics: { prompt_tokens: 10, completion_tokens: 2, tokens: 12 },
+        },
+        span('Skill', 4, 5),
+        { ...span('m', 5, 8), input: [prompt, first, skillResult] },
+        span('Bash', 8, 31),
+        {
+          ...span('m', 31, 38),
+          input: [prompt, first, skillResult, second, bashResult],
+        }
+      ),
+      span('passed', 70, 70),
+    ]);
+  });
+});
+
+describe('unwrapShell', () => {
+  it("drops Codex's bash -lc wrapper and leaves other commands alone", () => {
+    expect(unwrapShell(`/bin/bash -lc "ls -la && cat 'a b'"`)).toBe(
+      "ls -la && cat 'a b'"
+    );
+    expect(unwrapShell(`/bin/bash -lc "apply_patch <<'PATCH' x PATCH'`)).toBe(
+      "apply_patch <<'PATCH' x PATCH"
+    );
+    expect(unwrapShell('supabase status')).toBe('supabase status');
   });
 });

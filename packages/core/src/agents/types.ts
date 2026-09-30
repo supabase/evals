@@ -19,6 +19,7 @@ import type {
   ReasoningEffortLevel,
 } from '../eval-metadata.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
+import type { TranscriptEvent } from '../transcript/types.js';
 
 export type AgentMetadata = {
   agent: AgentHarnessId;
@@ -75,12 +76,6 @@ export interface RunnerExecResult {
   command: CommandResult;
   /** Raw transcript (JSONL) — stdout for streaming CLIs, or read from disk. */
   raw?: string;
-  /**
-   * Model responses in the run, for runners that read them from somewhere
-   * other than `raw` (Codex uses its session rollout). See `stepCount` in
-   * eval-metadata.ts for what counts as one.
-   */
-  stepCount?: number;
 }
 
 /** A CLI coding agent's execution strategy. `M` is its SDK model-id type. */
@@ -124,6 +119,17 @@ export interface AgentRunner<M extends string = string> {
   extractStepCount?(raw: string | undefined): number | undefined;
   /** Sandbox dir (shell expression) where the CLI writes its own session files. */
   sessionDir?: string;
+  /**
+   * Fills in what stdout lacks from the CLI's own session files: event
+   * `timestamp`s, the `requestId` each event came from, and that request's
+   * `usage`. Runs after parsing, before the adapter. Returns the run's model
+   * response count when the session files have one (Codex's rollout). See
+   * `stepCount` in eval-metadata.ts for what counts as one.
+   */
+  enrichEvents?(
+    sandbox: AgentSandbox,
+    events: TranscriptEvent[]
+  ): Promise<{ stepCount?: number } | void>;
 }
 
 /**

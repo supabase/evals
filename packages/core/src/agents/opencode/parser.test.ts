@@ -245,3 +245,50 @@ describe('opencodeParser', () => {
     expect(events[0].content).toBe('MessageOutputLengthError');
   });
 });
+
+describe('opencode request timing and usage', () => {
+  it('times tools from state.time and tags events with their step usage', () => {
+    const stream = [
+      JSON.stringify({
+        type: 'tool_use',
+        timestamp: 1000,
+        part: {
+          type: 'tool',
+          tool: 'bash',
+          callID: 't1',
+          messageID: 'm1',
+          state: {
+            status: 'completed',
+            input: { command: 'ls' },
+            output: '',
+            time: { start: 400, end: 900 },
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'step_finish',
+        part: {
+          type: 'step-finish',
+          messageID: 'm1',
+          tokens: {
+            input: 5,
+            output: 2,
+            reasoning: 1,
+            cache: { read: 10, write: 0 },
+          },
+        },
+      }),
+    ].join('\n');
+    const [call, result] = opencodeParser.parseTranscript(stream).events;
+    expect([call.timestamp, result.timestamp]).toEqual([
+      new Date(400).toISOString(),
+      new Date(900).toISOString(),
+    ]);
+    expect(call.usage).toEqual({
+      inputTokens: 15,
+      cacheReadInputTokens: 10,
+      cacheWriteInputTokens: 0,
+      outputTokens: 3,
+    });
+  });
+});
