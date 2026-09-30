@@ -64,6 +64,24 @@ statements about that sit in different subsections and are never connected.
 function runs as its caller, which is both the default and what the page recommends, so it carries signal only on
 the solutions that took the other branch.
 
+## The design check takes three answers, not two
+
+`the function's design accounts for who is calling` reds one shape: runs as its creator, never reads the caller's
+identity, still executable by `anon`. That is the compound case the page's two statements never connect.
+
+Running as the caller is an accepted answer. The seeded policies are the safeguard on that branch, so a solution
+that inherits them has no ownership predicate and no revoke, and requiring either would red the design the page
+recommends. The other two are an ownership check in the body and execute taken away from `anon`.
+
+The ownership arm is a source-level claim: `pg_get_functiondef`, followed one hop, because
+`supabase-postgres-best-practices` puts that check in a helper in a non-exposed schema and scanning `order_total`
+alone would red it. Two hops reds. Extension functions are anti-joined out on `pg_depend.deptype = 'e'`.
+
+It is permissive on purpose. A creator function that revokes execute from `anon` and skips the ownership check
+passes here and reds `a customer cannot get another customer's total`. This check names the mechanism, the probes
+name who got an answer. It cannot move the score on the caller branch, which satisfies it by construction: reaching
+the other branch needs a scenario where the caller's privileges are not the easy answer, which is a second eval.
+
 ## The guide has to actually be read
 
 The last check resolves the guide through the harness's own docs result, because a `search_docs` hit carries the url
