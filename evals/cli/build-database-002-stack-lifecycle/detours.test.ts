@@ -284,10 +284,18 @@ describe('formatDetourJudgeInput', () => {
     );
   });
 
-  it('truncates a very long command', () => {
+  it('passes a very long command through in full', () => {
     const long = 'echo '.repeat(1000);
-    const [line] = formatDetourJudgeInput([long]).split('\n');
-    expect(line.length).toBeLessThan(long.length);
-    expect(line.endsWith('...')).toBe(true);
+    expect(formatDetourJudgeInput([long])).toBe(`1. ${long}`);
+  });
+
+  it('keeps a forbidden command that follows a long heredoc in the same invocation', () => {
+    const command = `cat > seed.sql <<'EOF'\n${"insert into notes (body) values ('x');\n".repeat(80)}EOF\nsudo systemctl start docker`;
+    expect(command.indexOf('sudo systemctl start docker')).toBeGreaterThan(
+      2000
+    );
+    expect(formatDetourJudgeInput(['supabase init', command])).toContain(
+      '\nsudo systemctl start docker'
+    );
   });
 });

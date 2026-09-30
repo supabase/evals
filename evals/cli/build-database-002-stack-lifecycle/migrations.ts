@@ -17,6 +17,19 @@ const DOLLAR_TAG_RE = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
  * (`$$…$$`/`$tag$…$tag$`) — those spans are copied through verbatim.
  */
 export function stripSqlComments(sql: string): string {
+  return scanSql(sql, false);
+}
+
+/**
+ * Like `stripSqlComments`, but also empties single-quoted literals and
+ * dollar-quoted bodies so SQL text inside them can't match a DDL pattern.
+ * Double-quoted identifiers are kept.
+ */
+export function maskSqlLiteralsAndComments(sql: string): string {
+  return scanSql(sql, true);
+}
+
+function scanSql(sql: string, maskLiterals: boolean): string {
   let result = '';
   let i = 0;
   while (i < sql.length) {
@@ -52,8 +65,13 @@ export function stripSqlComments(sql: string): string {
 
     const ch = sql[i];
     if (ch === "'" || ch === '"') {
-      const [span, next] = consumeQuoted(sql, i, ch);
-      result += span;
+      const next = consumeQuoted(
+        sql,
+        i,
+        ch,
+        ch === "'" && isEscapeString(sql, i)
+      );
+      result += maskLiterals && ch === "'" ? "''" : sql.slice(i, next);
       i = next;
       continue;
     }
@@ -63,7 +81,7 @@ export function stripSqlComments(sql: string): string {
         const tag = tagMatch[0];
         const close = sql.indexOf(tag, i + tag.length);
         const end = close === -1 ? sql.length : close + tag.length;
-        result += sql.slice(i, end);
+        result += maskLiterals ? tag + tag : sql.slice(i, end);
         i = end;
         continue;
       }
@@ -75,29 +93,37 @@ export function stripSqlComments(sql: string): string {
   return result;
 }
 
-/** Consumes a `quote`-delimited literal starting at `start` (its opening quote), doubled-quote escapes included. Returns the literal (with quotes) and the index just past it. */
+/** Whether the `'` at `quoteIndex` opens an `E'…'` escape string, where backslash escapes the next character. */
+function isEscapeString(sql: string, quoteIndex: number): boolean {
+  return (
+    /[Ee]/.test(sql[quoteIndex - 1] ?? '') &&
+    !/[\w$]/.test(sql[quoteIndex - 2] ?? '')
+  );
+}
+
+/** Returns the index just past the `quote`-delimited literal opening at `start`, honouring doubled-quote escapes. */
 function consumeQuoted(
   sql: string,
   start: number,
-  quote: string
-): [span: string, next: number] {
-  let span = quote;
+  quote: string,
+  backslashEscapes: boolean
+): number {
   let i = start + 1;
   while (i < sql.length) {
+    if (backslashEscapes && sql[i] === '\\') {
+      i += 2;
+      continue;
+    }
     if (sql[i] === quote) {
       if (sql[i + 1] === quote) {
-        span += quote + quote;
         i += 2;
         continue;
       }
-      span += quote;
-      i++;
-      break;
+      return i + 1;
     }
-    span += sql[i];
     i++;
   }
-  return [span, i];
+  return i;
 }
 
 export type NotesMigrationProbe =
@@ -139,7 +165,10 @@ export async function findNotesMigration(
       const result = await ctx.exec(
         `cat ${shellQuote(`supabase/migrations/${file}`)}`
       );
-      if (result.ok && CREATES_NOTES_RE.test(stripSqlComments(result.stdout))) {
+      if (
+        result.ok &&
+        CREATES_NOTES_RE.test(maskSqlLiteralsAndComments(result.stdout))
+      ) {
         return { ok: true, version: match[1], file };
       }
     }

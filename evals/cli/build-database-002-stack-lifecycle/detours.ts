@@ -389,17 +389,7 @@ export function extractCommands(
     .filter((command) => command.length > 0);
 }
 
-const MAX_JUDGE_COMMAND_LENGTH = 2000;
-
-function truncate(value: string, maxLength: number): string {
-  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
-}
-
-/** Numbers `commands` one per line for the detour judge's input, truncating any single very long command. */
+/** Numbers `commands` in order for the detour judge's input, each passed through in full. */
 export function formatDetourJudgeInput(commands: readonly string[]): string {
-  return commands
-    .map(
-      (command, i) => `${i + 1}. ${truncate(command, MAX_JUDGE_COMMAND_LENGTH)}`
-    )
-    .join('\n');
+  return commands.map((command, i) => `${i + 1}. ${command}`).join('\n');
 }

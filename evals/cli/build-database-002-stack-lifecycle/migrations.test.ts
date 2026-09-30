@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkMigrationApplied,
   findNotesMigration,
+  maskSqlLiteralsAndComments,
   stripSqlComments,
   type NotesMigrationProbe,
 } from './migrations.js';
@@ -217,6 +218,70 @@ describe('findNotesMigration', () => {
       ok: false,
       notes: expect.stringContaining('no migration contains CREATE TABLE'),
     });
+  });
+
+  it.each([
+    ['a single-quoted string', `select 'CREATE TABLE public.notes (id int)';`],
+    ['an E-string', `select E'it\\'s CREATE TABLE notes (id int)';`],
+    ['a dollar-quoted body', 'select $$CREATE TABLE notes (id int)$$;'],
+    [
+      'a tagged dollar-quoted body',
+      'select $body$CREATE TABLE notes (id int)$body$;',
+    ],
+  ])(
+    'fails when the only CREATE TABLE for notes is inside %s',
+    async (_, sql) => {
+      const ctx = fakeMigrationCtx({
+        files: ['20240101000000_quoted.sql'],
+        fileContents: { '20240101000000_quoted.sql': sql },
+      });
+      expect(await findNotesMigration(ctx)).toEqual({
+        ok: false,
+        notes: expect.stringContaining('no migration contains CREATE TABLE'),
+      });
+    }
+  );
+
+  it('ignores a quoted CREATE TABLE and picks the later migration that really creates notes', async () => {
+    const ctx = fakeMigrationCtx({
+      files: ['20240101000000_quoted.sql', '20240102000000_create_notes.sql'],
+      fileContents: {
+        '20240101000000_quoted.sql': `select 'CREATE TABLE public.notes (id int)';`,
+        '20240102000000_create_notes.sql':
+          'create table public.notes (id uuid);',
+      },
+    });
+    expect(await findNotesMigration(ctx)).toEqual({
+      ok: true,
+      version: '20240102000000',
+      file: '20240102000000_create_notes.sql',
+    });
+  });
+
+  it.each([
+    'create table "notes" (id uuid);',
+    'create table "public"."notes" (id uuid);',
+    `create table public.notes (body text default 'create table x');`,
+  ])('still matches %s', async (sql) => {
+    const ctx = fakeMigrationCtx({
+      files: ['20240101000000_create_notes.sql'],
+      fileContents: { '20240101000000_create_notes.sql': sql },
+    });
+    expect((await findNotesMigration(ctx)).ok).toBe(true);
+  });
+});
+
+describe('maskSqlLiteralsAndComments', () => {
+  it('empties single-quoted literals, including doubled-quote escapes', () => {
+    expect(maskSqlLiteralsAndComments(`select 'it''s', 'x'; -- c`)).toBe(
+      `select '', ''; `
+    );
+  });
+
+  it('empties dollar-quoted bodies but keeps double-quoted identifiers', () => {
+    expect(
+      maskSqlLiteralsAndComments('select $t$body$t$ from "public"."notes";')
+    ).toBe('select $t$$t$ from "public"."notes";');
   });
 });
 
