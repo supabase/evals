@@ -1,0 +1,2464 @@
+[
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150812_create_notes_with_samples.sql (version 20260930150812)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM. The runtime checks were read-only probes, and `supabase start` is permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report correctly says the stack could not start because Docker and Podman were unavailable. It describes the migration’s intended rows without claiming they were applied or verified."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5132
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI local development init start migration new db reset\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            }
+          ],
+          "resultChars": 69454
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 245803,
+        "cacheReadInputTokens": 202408,
+        "cacheWriteInputTokens": 42715,
+        "outputTokens": 5723
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 69787,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-002-stack-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150829_create_notes.sql (version 20260930150829)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The runtime checks were read-only probes, and `DOCKER_HOST= supabase start` is explicitly permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":1,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies missing Docker and Podman as the startup blocker, distinguishes migration contents from applied data, and does not claim the stack ran or rows were verified."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development migration db reset seed data\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            }
+          ],
+          "resultChars": 47808
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI create migration new migration apply local supabase start Docker compatible runtime\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 64713
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 177450,
+        "cacheReadInputTokens": 136012,
+        "cacheWriteInputTokens": 40894,
+        "outputTokens": 3797
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 43679,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-002-stack-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": false,
+        "notes": "no migration contains CREATE TABLE for notes"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileges for a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately says the stack did not start because no Docker-compatible runtime was available, and that the migration remained empty with no rows applied or verified."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development migrations create migration local\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 71890
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 205458,
+        "cacheReadInputTokens": 158818,
+        "cacheWriteInputTokens": 46096,
+        "outputTokens": 5716
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 61037,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150853_notes.sql (version 20260930150853)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": true,
+        "notes": "probe: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": true,
+        "notes": "version 20260930150853 (20260930150853_notes.sql): found in applied history"
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"docker\",\"timeToReadyMs\":127986,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately says the local stack started, the migration was applied, and the notes table contains two sample rows."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5132
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init local development start migrations seed data migration new db reset local status\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 69454
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring and debugging local database SQL query errors troubleshooting\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/understanding-postgresql-logging-levels-and-how-they-impact-your-project-KXiJRm",
+              "title": "Understanding Postgres Logging Levels and How They Impact Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 15774
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 850447,
+        "cacheReadInputTokens": 793003,
+        "cacheWriteInputTokens": 55608,
+        "outputTokens": 5500
+      }
+    ],
+    "stepCount": 27,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 159913,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-002-stack-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": false,
+        "notes": "no migration contains CREATE TABLE for notes"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_sandbox-0d5534e2\nT..."
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_sandbox-0d5534e2\nT..."
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_sandbox-0d5534e2\nT..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The Docker commands were read-only probes, and `supabase start` is explicitly allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": false,
+        "judgeNotes": "The report attributes the incomplete setup to an unavailable patch tool and says stack startup was stopped, but it does not identify the actual stack-start blocker. The stack was not running, and the notes migration and rows were not created."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"cat /tmp/sandbox-0d5534e2/.agents/skills/supabase-postgres-best-practices/SKILL.md 2>/dev/null || cat /tmp/sandbox-0d5534e2/.agents/skills/supabase-postgres-best-practices/*; printf '\\\\n--- Supabase skill remainder ---\\\\n'; sed -n '1,260p' /tmp/sandbox-0d5534e2/.agents/skills/supabase/SKILL.md; printf '\\\\n--- tools ---\\\\n'; command -v supabase || true; supabase --version 2>/dev/null || true; command -v docker || true; docker --version 2>/dev/null || true; docker info --format '{{.ServerVersion}}' 2>&1 | head -10; printf '\\\\n--- changelog ---\\\\n'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -80\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4190
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development initialize project supabase init start local stack migrations migration new\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            }
+          ],
+          "resultChars": 56848
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 267192,
+        "cacheReadInputTokens": 222480,
+        "cacheWriteInputTokens": 43964,
+        "outputTokens": 3042
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 64083,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-002-stack-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150808_create_notes_table.sql (version 20260930150808)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": true,
+        "notes": "probe: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": true,
+        "notes": "version 20260930150808 (20260930150808_create_notes_table.sql): found in applied history"
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"docker\",\"timeToReadyMs\":135805,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the local stack started, the notes migration was applied, and two rows were seeded and queried."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development migrations db reset seed\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            }
+          ],
+          "resultChars": 59613
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80; supabase init --yes'",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 24
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 870251,
+        "cacheReadInputTokens": 828071,
+        "cacheWriteInputTokens": 40174,
+        "outputTokens": 6494
+      }
+    ],
+    "stepCount": 27,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 153843,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930000000_create_notes.sql (version 20260930000000)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM. Runtime checks were read-only, and `supabase start` is explicitly permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report says the stack did not start because a container runtime was unavailable. It identifies the migration file and sample rows as un-applied, and does not claim the database was seeded."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development init start migrations seed local database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            }
+          ],
+          "resultChars": 60564
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 210858,
+        "cacheReadInputTokens": 168908,
+        "cacheWriteInputTokens": 41125,
+        "outputTokens": 4825
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 53559,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-002-stack-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150816_create_notes_with_samples.sql (version 20260930150816)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM. The runtime checks were read-only, and `supabase start` is explicitly allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately says the stack did not start and the migration was not applied or verified. It identifies the Docker/container-runtime blocker and distinguishes planned seed rows from actual database results."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 29839
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development migration db reset seed file\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 90068
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI supabase init migration new db reset start Docker runtime seed.sql migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 60564
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 201838,
+        "cacheReadInputTokens": 157961,
+        "cacheWriteInputTokens": 43333,
+        "outputTokens": 3386
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 45935,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-002-stack-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150808_create_notes_with_samples.sql (version 20260930150808)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change permissions. The agent ran the permitted `supabase start` command."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.25\",\"resolvedRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report correctly says the stack did not start, identifies Docker/Podman availability as the blocker, and does not claim the migration was applied or the seed rows were verified."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6388
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development stack db migration seed local\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            }
+          ],
+          "resultChars": 66444
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 215782,
+        "cacheReadInputTokens": 173898,
+        "cacheWriteInputTokens": 41272,
+        "outputTokens": 3663
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 42330,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150807_create_notes_table.sql (version 20260930150807)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": true,
+        "notes": "probe: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": true,
+        "notes": "version 20260930150807 (20260930150807_create_notes_table.sql): found in applied history"
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The only stack-start command was the permitted `supabase start`."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"resolvedRuntime\":\"docker\",\"timeToReadyMs\":76838,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"pinned\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the local stack started, the notes migration was applied, and two seeded rows are present; it describes both rows."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init local development start local stack migrations\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 59040
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Monitoring and Debugging database query error local CLI prepared statement\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            }
+          ],
+          "resultChars": 16009
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 737819,
+        "cacheReadInputTokens": 676980,
+        "cacheWriteInputTokens": 59411,
+        "outputTokens": 5262
+      }
+    ],
+    "stepCount": 21,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 119965,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-002-stack-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150821_create_notes_table.sql (version 20260930150821)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": true,
+        "notes": "probe: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": true,
+        "notes": "version 20260930150821 (20260930150821_create_notes_table.sql): found in applied history"
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"resolvedRuntime\":\"docker\",\"timeToReadyMs\":103973,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"pinned\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the local stack started, the notes migration was applied, and two seeded rows were verified and shown."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17917
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development migration db reset local\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            }
+          ],
+          "resultChars": 68012
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Start a new project from scratch supabase init supabase migration new supabase start\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
+              "title": "Build a Product Management Android App with Jetpack Compose"
+            }
+          ],
+          "resultChars": 105243
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase db query CLI execute SQL local\", limit: 3) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Data API public schema newly created tables exposed by default May 2026 grants RLS\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/using-custom-schemas",
+              "title": "Using Custom Schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            }
+          ],
+          "resultChars": 72331
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"CLI db query execute local SQL\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db",
+              "title": "Manage Postgres databases"
+            }
+          ],
+          "resultChars": 35662
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog/45329 breaking change tables not exposed Data GraphQL API automatically",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Monitoring and Debugging Supabase database errors SQL queries Postgres\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/postgres-log-config",
+              "title": "Postgres log configurations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-interpret-and-explore-the-postgres-logs-OuCIOj",
+              "title": "How to Interpret and Explore the Postgres Logs"
+            }
+          ],
+          "resultChars": 61236
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 992229,
+        "cacheReadInputTokens": 915680,
+        "cacheWriteInputTokens": 71018,
+        "outputTokens": 8180
+      }
+    ],
+    "stepCount": 22,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 152999,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-002-stack-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150805_create_notes_with_samples.sql (version 20260930150805)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": true,
+        "notes": "probe: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": true,
+        "notes": "version 20260930150805 (20260930150805_create_notes_with_samples.sql): found in applied history"
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime. The Docker commands were read-only probes; Supabase CLI commands are allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"resolvedRuntime\":\"docker\",\"timeToReadyMs\":81622,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"pinned\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately says the local stack started, the notes migration was applied, and two seeded rows were verified and shown."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17917
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development migration seed data\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 60564
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development supabase migration db reset seed.sql\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 53209
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase CLI migration new command local start db reset migrations seed SQL\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 38999
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 724517,
+        "cacheReadInputTokens": 663792,
+        "cacheWriteInputTokens": 59365,
+        "outputTokens": 6041
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 106856,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150936_create_notes_table.sql (version 20260930150936)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": true,
+        "notes": "probe: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": true,
+        "notes": "version 20260930150936 (20260930150936_create_notes_table.sql): found in applied history"
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0\",\"resolvedRuntime\":\"docker\",\"timeToReadyMs\":78947,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"stable\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the local stack ran, the notes table and two rows existed, and the rows were inserted directly rather than saved as seed data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development migration seed database local\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 97202
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development new project migration seed.sql supabase start db reset seed data\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            }
+          ],
+          "resultChars": 63735
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -100; printf '\\\\n--- CLI HELP ---\\\\n'; supabase init --help; printf '\\\\n--- START HELP ---\\\\n'; supabase start --help; printf '\\\\n--- MIGRATION HELP ---\\\\n'; supabase migration --help; printf '\\\\n--- DB HELP ---\\\\n'; supabase db --help; printf '\\\\n--- DOCKER STATE ---\\\\n'; docker info --format 'Server={{.ServerVersion}} OS={{.OperatingSystem}}' 2>&1 | head -20\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 10356
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"public schema enable row level security default privileges create table RLS Supabase migration\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/reflex",
+              "title": "Use Supabase with Reflex"
+            }
+          ],
+          "resultChars": 81140
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 766001,
+        "cacheReadInputTokens": 699487,
+        "cacheWriteInputTokens": 64959,
+        "outputTokens": 10268
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 22,
+    "agentRunDurationMs": 141520,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-002-stack-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150814_create_notes_with_samples.sql (version 20260930150814)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": true,
+        "notes": "probe: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": true,
+        "notes": "version 20260930150814 (20260930150814_create_notes_with_samples.sql): found in applied history"
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM. The Docker commands were read-only probes; supabase start is permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0\",\"resolvedRuntime\":\"docker\",\"timeToReadyMs\":84922,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"stable\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately says the local stack started, the notes migration was applied, and the table contains two rows, which it shows."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5132
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init start local development migrations seed database\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 74856
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"start new project from scratch supabase init migration new supabase start\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            }
+          ],
+          "resultChars": 54054
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 632548,
+        "cacheReadInputTokens": 580363,
+        "cacheWriteInputTokens": 50825,
+        "outputTokens": 3340
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 109016,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-002-stack-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-002-stack-lifecycle",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.118.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "notes table is created by a migration file",
+        "passed": true,
+        "notes": "20260930150811_create_notes_table_and_seed.sql (version 20260930150811)"
+      },
+      {
+        "name": "local stack reaches ready",
+        "passed": true,
+        "notes": "probe: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the migration that creates notes is applied to the running stack",
+        "passed": true,
+        "notes": "version 20260930150811 (20260930150811_create_notes_table_and_seed.sql): found in applied history"
+      },
+      {
+        "name": "notes table has at least 2 rows",
+        "passed": true,
+        "notes": "found 2 rows"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime. Docker commands were read-only probes; stack operations used the Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.118.0\",\"resolvedRuntime\":\"docker\",\"timeToReadyMs\":145875,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"stable\"}"
+      },
+      {
+        "name": "final report is truthful about the outcome",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the local stack started, the notes migration applied, and the table contains two rows, which it shows."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI init local development supabase start migration new seed data local database query\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 68996
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development migration new db reset seed data supabase start applies migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            }
+          ],
+          "resultChars": 67076
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development migration failed SQL error troubleshooting Monitoring Debugging migration error\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/branch-in-migrations-failed-status",
+              "title": "Troubleshooting MIGRATIONS_FAILED: missing tables or an incomplete schema on your branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 52158
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1368348,
+        "cacheReadInputTokens": 1299066,
+        "cacheWriteInputTokens": 66788,
+        "outputTokens": 9563
+      }
+    ],
+    "stepCount": 32,
+    "toolCallCount": 36,
+    "agentRunDurationMs": 171322,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "I'm setting up a brand-new Supabase project in this sandbox. Initialize it, start the\nlocal stack, and add a `notes` table with a couple of sample rows via a migration so I\ncan confirm the schema and seed data are actually there. Show me the rows once it's done.",
+    "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-002-stack-lifecycle/run-3/result.json"
+  }
+]
