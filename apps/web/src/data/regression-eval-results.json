@@ -1590,16 +1590,293 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "messages table added to supabase_realtime publication",
-        "passed": false
+        "passed": true
       },
       {
         "name": "did not recommend read replicas for Realtime",
         "passed": true,
-        "judgeNotes": "The assistant recommends the supabase_realtime publication and a room-filtered Postgres Changes subscription, without recommending read replicas."
+        "judgeNotes": "The assistant enabled and verified Supabase Realtime Postgres Changes for public.messages without recommending read replicas or confusing them with the supabase_realtime publication."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Realtime Postgres changes RLS SELECT policy messages table security\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started",
+              "title": "Getting Started with Realtime"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/broadcast",
+              "title": "Broadcast"
+            }
+          ],
+          "resultChars": 90221
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres Changes Realtime enable table publication supabase_realtime\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/subscribing-to-database-changes",
+              "title": "Subscribing to Database Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/benchmarks",
+              "title": "Benchmarks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            }
+          ],
+          "resultChars": 66980
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres Changes RLS subscribers SELECT policy publication messages realtime postgres_changes\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            }
+          ],
+          "resultChars": 62602
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 186412,
+        "cacheReadInputTokens": 142303,
+        "cacheWriteInputTokens": 43000,
+        "outputTokens": 3410
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 47005,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 127638,
+      "duration": 140371,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 763451024,
+        "egress": 5073013
+      }
+    },
+    "prompt": "I'm building a simple chat app on Supabase.\n\nUsers can send messages, and I want everyone in the same room to see new\nmessages appear automatically without refreshing the page.\n\nCan you inspect the project and set up whatever Supabase needs for live updates?",
+    "promptSourcePath": "evals/regression/build-realtime-001-live-chat-updates/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna/build-realtime-001-live-chat-updates/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-realtime-001-live-chat-updates",
+    "stage": "build",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "messages table added to supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "did not recommend read replicas for Realtime",
+        "passed": true,
+        "judgeNotes": "The assistant enabled and verified public.messages in the supabase_realtime publication and provided a room-filtered Postgres Changes subscription. It did not recommend read replicas or confuse them with the publication."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Realtime Postgres Changes RLS authorization Postgres changes\", limit: 5) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Realtime Postgres Changes add table to supabase_realtime publication\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/subscribing-to-database-changes",
+              "title": "Subscribing to Database Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/realtime-postgres-changes-troubleshooting",
+              "title": "Realtime: Postgres Changes Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/concepts",
+              "title": "Realtime Concepts"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/benchmarks",
+              "title": "Benchmarks"
+            }
+          ],
+          "resultChars": 84619
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres Changes RLS authorization\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            }
+          ],
+          "resultChars": 89649
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 196267,
+        "cacheReadInputTokens": 155860,
+        "cacheWriteInputTokens": 39655,
+        "outputTokens": 3435
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 51989,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 120634,
+      "duration": 140976,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 763402988,
+        "egress": 4838897
+      }
+    },
+    "prompt": "I'm building a simple chat app on Supabase.\n\nUsers can send messages, and I want everyone in the same room to see new\nmessages appear automatically without refreshing the page.\n\nCan you inspect the project and set up whatever Supabase needs for live updates?",
+    "promptSourcePath": "evals/regression/build-realtime-001-live-chat-updates/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna/build-realtime-001-live-chat-updates/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-realtime-001-live-chat-updates",
+    "stage": "build",
+    "product": [
+      "realtime",
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "messages table added to supabase_realtime publication",
+        "passed": true
+      },
+      {
+        "name": "did not recommend read replicas for Realtime",
+        "passed": true,
+        "judgeNotes": "Enabled Postgres Changes for public.messages via the supabase_realtime publication and verified it. Did not recommend read replicas."
       }
     ],
     "skills": {
@@ -1616,18 +1893,18 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 11956
+          "resultChars": 19905
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Enable Postgres table for Realtime Postgres Changes publication supabase_realtime migration\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase Realtime Postgres Changes publication add table config\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -1635,51 +1912,63 @@
               "title": "Subscribing to Database Changes"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
-              "title": "Backup and Restore using the CLI"
+              "url": "https://supabase.com/docs/guides/database/replication/pipelines-faq",
+              "title": "Pipelines FAQ"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
-              "title": "Migrate from Postgres to Supabase"
+              "url": "https://supabase.com/docs/guides/realtime/protocol",
+              "title": "Realtime Protocol"
             },
             {
-              "url": "https://supabase.com/docs/guides/realtime/benchmarks",
-              "title": "Benchmarks"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
-              "title": "Postgres Changes"
+              "url": "https://supabase.com/docs/guides/database/replication/pipelines",
+              "title": "Set up Pipelines"
             }
           ],
-          "resultChars": 125117
+          "resultChars": 82156
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"postgres_changes publication add existing table realtime supabase_realtime\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/subscribing-to-database-changes",
+              "title": "Subscribing to Database Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/concepts",
+              "title": "Realtime Concepts"
+            }
+          ],
+          "resultChars": 13679
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 55161,
-        "cacheReadInputTokens": 17069,
-        "cacheWriteInputTokens": 37888,
-        "outputTokens": 2062
+        "inputTokens": 193418,
+        "cacheReadInputTokens": 150418,
+        "cacheWriteInputTokens": 42456,
+        "outputTokens": 3474
       }
     ],
-    "stepCount": 3,
-    "toolCallCount": 5,
-    "agentRunDurationMs": 31579,
+    "stepCount": 8,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 47175,
     "sandboxUsage": {
-      "activeCpuDurationMs": 123177,
-      "duration": 124339,
+      "activeCpuDurationMs": 118326,
+      "duration": 135907,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 762786820,
-        "egress": 4541317
+        "ingress": 764441798,
+        "egress": 5212448
       }
     },
     "prompt": "I'm building a simple chat app on Supabase.\n\nUsers can send messages, and I want everyone in the same room to see new\nmessages appear automatically without refreshing the page.\n\nCan you inspect the project and set up whatever Supabase needs for live updates?",
     "promptSourcePath": "evals/regression/build-realtime-001-live-chat-updates/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna/build-realtime-001-live-chat-updates/run-1/result.json"
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna/build-realtime-001-live-chat-updates/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna",
@@ -4844,107 +5133,394 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 25000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 24872
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"publishable key secret key supabase-js createClient API keys local development status CLI\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "query": "query { searchDocs(query: \"publishable keys secret keys supabase-js createClient apikey authorization\", limit: 6) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
-              "title": "Build a User Management App with Ionic React"
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-angular",
-              "title": "Build a User Management App with Ionic Angular"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
-              "title": "Build a User Management App with RedwoodJS"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/realtime/presence",
-              "title": "Presence"
-            }
-          ],
-          "resultChars": 110384
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase publishable keys secret keys anon service_role migration client API key authorization RLS\", limit: 3) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
             },
             {
               "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
               "title": "Build a User Management App with Next.js"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-refine",
-              "title": "Build a User Management App with Refine"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
+              "title": "Build a User Management App with Ionic React"
             }
           ],
-          "resultChars": 80518
+          "resultChars": 107562
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"API keys publishable secret key service_role bypass RLS secret key supabase\", limit: 2) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Migrating to publishable and secret API keys replacing anon service_role environment variables supabase-js secret key bypass RLS\", limit: 4) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
             },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
             }
           ],
-          "resultChars": 30611
+          "resultChars": 43582
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 1 'breaking-change|api keys|publishable|secret key' | head -80\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3336
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 564424,
-        "cacheReadInputTokens": 507864,
-        "cacheWriteInputTokens": 55404,
-        "outputTokens": 11258
+        "inputTokens": 309861,
+        "cacheReadInputTokens": 263940,
+        "cacheWriteInputTokens": 44961,
+        "outputTokens": 6301
       }
     ],
-    "stepCount": 17,
-    "toolCallCount": 28,
-    "agentRunDurationMs": 144421,
+    "stepCount": 12,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 77868,
     "sandboxUsage": {
-      "activeCpuDurationMs": 289695,
-      "duration": 315385,
+      "activeCpuDurationMs": 292344,
+      "duration": 251608,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1653493743,
-        "egress": 11844759
+        "ingress": 1652591901,
+        "egress": 8616526
       }
     },
     "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
     "promptSourcePath": "evals/regression/resolve-sdk-001-legacy-key-migration/PROMPT.md",
     "run": 1,
     "sourcePath": "codex-gpt-6-luna/resolve-sdk-001-legacy-key-migration/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-sdk-001-legacy-key-migration",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "posts script still lists published posts",
+        "passed": true,
+        "notes": "got [\"Announcing vector buckets\",\"Realtime broadcast tips\",\"Row level security explained\"]"
+      },
+      {
+        "name": "stats script still counts drafts (secret key bypasses RLS)",
+        "passed": true,
+        "notes": "got {\"drafts\":2}, expected 2 drafts"
+      },
+      {
+        "name": "legacy anon/service_role JWTs removed from the app",
+        "passed": true,
+        "notes": "no legacy JWTs found"
+      },
+      {
+        "name": "public script does not hold the secret key",
+        "passed": true,
+        "notes": "posts.mjs holds no secret-key reference"
+      },
+      {
+        "name": "posts script actually calls the project (not a stub)",
+        "passed": true,
+        "notes": "broke as expected against an unreachable project URL"
+      },
+      {
+        "name": "stats script actually calls the project (not a stub)",
+        "passed": true,
+        "notes": "broke as expected against an unreachable project URL"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"publishable secret API keys supabase-js createClient server side bypass RLS\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/api/api-keys publishable secret keys supabase-js local development",
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"publishable key\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/creating-a-client",
+              "title": "Creating a Supabase client for SSR"
+            }
+          ],
+          "resultChars": 73840
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 165441,
+        "cacheReadInputTokens": 122321,
+        "cacheWriteInputTokens": 38434,
+        "outputTokens": 2853
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 46410,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 281792,
+      "duration": 216416,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1651274379,
+        "egress": 7604249
+      }
+    },
+    "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
+    "promptSourcePath": "evals/regression/resolve-sdk-001-legacy-key-migration/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna/resolve-sdk-001-legacy-key-migration/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-sdk-001-legacy-key-migration",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "auth"
+    ],
+    "topic": [
+      "sdk",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "posts script still lists published posts",
+        "passed": true,
+        "notes": "got [\"Announcing vector buckets\",\"Realtime broadcast tips\",\"Row level security explained\"]"
+      },
+      {
+        "name": "stats script still counts drafts (secret key bypasses RLS)",
+        "passed": true,
+        "notes": "got {\"drafts\":2}, expected 2 drafts"
+      },
+      {
+        "name": "legacy anon/service_role JWTs removed from the app",
+        "passed": true,
+        "notes": "no legacy JWTs found"
+      },
+      {
+        "name": "public script does not hold the secret key",
+        "passed": true,
+        "notes": "posts.mjs holds no secret-key reference"
+      },
+      {
+        "name": "posts script actually calls the project (not a stub)",
+        "passed": true,
+        "notes": "broke as expected against an unreachable project URL"
+      },
+      {
+        "name": "stats script actually calls the project (not a stub)",
+        "passed": true,
+        "notes": "broke as expected against an unreachable project URL"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"publishable key secret key supabase-js createClient API keys\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-svelte",
+              "title": "Build a User Management App with Svelte"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
+              "title": "Build a User Management App with Ionic React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            }
+          ],
+          "resultChars": 125381
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase publishable keys secret keys API keys replacing anon service_role supabase-js\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
+              "title": "Build a User Management App with Ionic React"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/sveltekit",
+              "title": "Use Supabase with SvelteKit"
+            }
+          ],
+          "resultChars": 114295
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 440337,
+        "cacheReadInputTokens": 389204,
+        "cacheWriteInputTokens": 50113,
+        "outputTokens": 9604
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 108103,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 280640,
+      "duration": 275833,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1652053616,
+        "egress": 9020429
+      }
+    },
+    "prompt": "Heads-up from the platform team: the legacy JWT-based API keys (`anon` /\n`service_role`) are going away for our projects soon, in favor of the new\npublishable/secret keys. The little blog tooling app in `app/` still uses the\nlegacy keys.\n\nMigrate it over. Both scripts need to keep working — `npm run posts` and\n`npm run stats` (run them from `app/`). The local Supabase project in\n`supabase/` is already running.",
+    "promptSourcePath": "evals/regression/resolve-sdk-001-legacy-key-migration/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna/resolve-sdk-001-legacy-key-migration/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna",
