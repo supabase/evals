@@ -156,6 +156,34 @@ describe('findStartAttempts', () => {
     });
   });
 
+  it('attributes bare starts by the per-call working directory', () => {
+    expect(
+      findStartAttempts([
+        { command: 'supabase start', cwd: '/tmp/sandbox-x/client-a' },
+        { command: 'supabase start', cwd: '/tmp/sandbox-x/client-b' },
+      ])
+    ).toEqual({
+      projects: { 'client-a': true, 'client-b': true },
+      any: true,
+    });
+  });
+
+  it('attributes a bare start outside both projects to neither', () => {
+    expect(
+      findStartAttempts([{ command: 'supabase start', cwd: '/tmp/sandbox-x' }])
+    ).toEqual({
+      projects: { 'client-a': false, 'client-b': false },
+      any: true,
+    });
+  });
+
+  it('ignores a start --help invocation', () => {
+    expect(findStartAttempts(['supabase start --help'])).toEqual({
+      projects: { 'client-a': false, 'client-b': false },
+      any: false,
+    });
+  });
+
   it('ignores an echoed start command', () => {
     expect(findStartAttempts(['echo "supabase start"'])).toEqual({
       projects: { 'client-a': false, 'client-b': false },

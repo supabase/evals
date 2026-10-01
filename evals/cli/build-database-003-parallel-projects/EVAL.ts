@@ -8,6 +8,7 @@ import { stripIndent } from 'common-tags';
 import {
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
+  extractCommandEntries,
   extractCommands,
   findCliDetourCommands,
   formatDetourJudgeInput,
@@ -52,7 +53,13 @@ const scorer: LocalStackScorer = async (ctx) => {
       ),
       checkReportedPorts(stacks, ctx.agentReport ?? ''),
       await checkNoContainerRuntimeDetours(commands),
-      await checkMetrics(ctx, marker, cliDetourCommands, commands, stacks),
+      await checkMetrics(
+        ctx,
+        marker,
+        cliDetourCommands,
+        extractCommandEntries(ctx.toolCalls),
+        stacks
+      ),
       await checkReportIsTruthful(ctx, stacks, rows),
     ];
 

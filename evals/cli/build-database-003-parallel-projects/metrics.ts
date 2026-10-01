@@ -6,6 +6,7 @@ import type {
 import {
   findSupabaseInvocations,
   invocationTargets,
+  type CommandEntry,
   invocationTargetUnresolved,
   invocationVerb,
 } from '../lib/cli-invocations.js';
@@ -39,9 +40,11 @@ const START_VERBS = new Set(['start', 'stack start']);
 /**
  * Which projects the agent ran a stack start against. A start whose target is
  * a shell expansion (e.g. a `for d in …; do (cd "$d" && …)` loop) counts for
- * every project.
+ * every project. A bare start counts for the project its call's `cwd` is in.
  */
-export function findStartAttempts(commands: readonly string[]): StartAttempts {
+export function findStartAttempts(
+  commands: readonly (string | CommandEntry)[]
+): StartAttempts {
   const starts = findSupabaseInvocations(commands).filter((inv) =>
     START_VERBS.has(invocationVerb(inv) ?? '')
   );
@@ -58,13 +61,16 @@ export async function checkMetrics(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   marker: LocalStackEnvironmentMarker | undefined,
   cliDetourCommands: readonly string[],
-  commands: readonly string[],
+  commandEntries: readonly (string | CommandEntry)[],
   stacks: ClientStacks
 ): Promise<CheckResult> {
   const name = 'metrics';
+  const commands = commandEntries.map((entry) =>
+    typeof entry === 'string' ? entry : entry.command
+  );
 
   const cliVersion = await readCliVersion(ctx);
-  const startAttempts = findStartAttempts(commands);
+  const startAttempts = findStartAttempts(commandEntries);
 
   const projects = {} as Record<Client, ProjectMetrics>;
   for (const client of CLIENTS) {
