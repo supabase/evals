@@ -120,11 +120,8 @@ export interface AgentRunner<M extends string = string> {
   /** Sandbox dir (shell expression) where the CLI writes its own session files. */
   sessionDir?: string;
   /**
-   * Fills in what stdout lacks from the CLI's own session files: event
-   * `timestamp`s, the `requestId` each event came from, and that request's
-   * `usage`. Runs after parsing, before the adapter. Returns the run's model
-   * response count when the session files have one (Codex's rollout). See
-   * `stepCount` in eval-metadata.ts for what counts as one.
+   * Fills in event `timestamp`, `requestId`, and `usage` from the CLI's session
+   * files, since stdout lacks them. Returns `stepCount` if the files have it.
    */
   enrichEvents?(
     sandbox: AgentSandbox,
