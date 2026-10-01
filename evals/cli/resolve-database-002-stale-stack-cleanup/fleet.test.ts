@@ -4,7 +4,10 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import {
+  findSupabaseInvocations,
+  type CommandEntry,
+} from '../lib/cli-invocations.js';
 import type { RowStringsProbe } from '../lib/markers.js';
 import type { StackProbe } from '../lib/stack.js';
 import type { StackListProbe } from '../lib/stack-list.js';
@@ -344,6 +347,38 @@ describe('dir removed after a proper teardown', () => {
     ).toBe(true);
     expect(restarted(commands).passed).toBe(true);
     expect(untouched(commands).passed).toBe(true);
+  });
+});
+
+describe('commands attributed by per-call working directory', () => {
+  const at = (service: string, command: string): CommandEntry => ({
+    command,
+    cwd: `/tmp/sandbox-x/${service}`,
+  });
+  const invocations = findSupabaseInvocations([
+    at('checkout-service', 'supabase start'),
+    at('payments-api', 'supabase start'),
+    at('legacy-import', 'supabase start > /tmp/legacy-import-start.log 2>&1'),
+    at('legacy-import', 'supabase stop --no-backup'),
+    at(
+      'checkout-service',
+      'supabase stop && supabase start > /tmp/checkout-service-restart.log 2>&1'
+    ),
+  ]);
+
+  it('passes legacy teardown, checkout restart and payments untouched', () => {
+    expect(
+      checkLegacyImportGone({
+        stackList: EMPTY_LIST,
+        stack: UNREACHABLE,
+        invocations,
+        portProbe: QUIET_PORT,
+      }).passed
+    ).toBe(true);
+    expect(checkCheckoutRestarted(invocations).passed).toBe(true);
+    expect(
+      checkPaymentsUntouched(invocations, REACHABLE, PAYMENTS_ROWS).passed
+    ).toBe(true);
   });
 });
 

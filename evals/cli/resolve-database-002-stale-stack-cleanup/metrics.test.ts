@@ -4,7 +4,10 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import {
+  findSupabaseInvocations,
+  type CommandEntry,
+} from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
 import { checkMetrics } from './metrics.js';
 
@@ -121,12 +124,14 @@ describe('checkMetrics', () => {
     expect(metrics.stackCount).toBe(null);
   });
 
-  async function attemptedStarts(commands: string[]) {
+  async function attemptedStarts(entries: (string | CommandEntry)[]) {
     const result = await checkMetrics(
       fakeCtx({}),
       undefined,
-      commands,
-      findSupabaseInvocations(commands),
+      entries.map((entry) =>
+        typeof entry === 'string' ? entry : entry.command
+      ),
+      findSupabaseInvocations(entries),
       [],
       { ok: false, notes: 'unknown command' },
       { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE }
@@ -174,6 +179,32 @@ describe('checkMetrics', () => {
       },
       attemptedAnyStart: true,
     });
+  });
+
+  it('attributes bare starts to each service by per-call cwd', async () => {
+    expect(
+      await attemptedStarts(
+        ['checkout-service', 'payments-api', 'legacy-import'].map(
+          (service) => ({
+            command: 'supabase start',
+            cwd: `/tmp/sandbox-x/${service}`,
+          })
+        )
+      )
+    ).toEqual({
+      attemptedStart: {
+        'checkout-service': true,
+        'payments-api': true,
+        'legacy-import': true,
+      },
+      attemptedAnyStart: true,
+    });
+  });
+
+  it('does not count supabase start --help as a start', async () => {
+    expect(
+      (await attemptedStarts(['supabase start --help'])).attemptedAnyStart
+    ).toBe(false);
   });
 
   it('does not count an echoed start', async () => {

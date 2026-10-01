@@ -46,7 +46,9 @@ agent executed, parsed from argv per executable segment: an echoed plan, a
 commit message, a heredoc, or a `psql` statement that merely mentions a
 command never counts. An invocation targets a service by `--stack <name>` or
 `--project-id <name>`, else by `--workdir`'s basename, else by the directory
-an earlier `cd` in the same command entered; `--all` targets every service.
+an earlier `cd` in the same command entered, else by the tool call's own
+working directory when the harness records one; `--all` targets every service.
+`--help`/`-h` invocations never count.
 A start whose target is a shell expansion (`cd "$s"` in a loop) counts as
 starting every service, since start evidence only rules out tearing down a
 stack that never ran. Order is execution order across all commands.
@@ -131,9 +133,11 @@ only counts as a pass if every check in it passes.
 
 ## Known limitations
 
-- `cd` is tracked per executed command. A persistent-shell agent that runs
-  `cd legacy-import` and `supabase stop` as separate tool calls has the stop
-  attributed to no service.
+- A tool call's own working directory (e.g. Codex's per-call `workdir`) is
+  used once the harness records it, but `cd` is tracked per executed command
+  only. A persistent-shell agent that runs `cd legacy-import` and
+  `supabase stop` as separate tool calls has the stop attributed to no
+  service.
 - A teardown or restart whose target is a shell expansion (`for s in …; do
   (cd "$s" && supabase stop); done`) is attributed to no service: it never
   counts as tearing down legacy-import, restarting checkout-service, or

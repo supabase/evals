@@ -12,6 +12,7 @@ import {
 import {
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
+  extractCommandEntries,
   extractCommands,
   findCliDetourCommands,
   formatDetourJudgeInput,
@@ -55,7 +56,9 @@ const scorer: LocalStackScorer = async (ctx) => {
     const marker = await ctx.environmentMarker();
     const commands = extractCommands(ctx.toolCalls);
     const cliDetourCommands = findCliDetourCommands(commands);
-    const invocations = findSupabaseInvocations(commands);
+    const invocations = findSupabaseInvocations(
+      extractCommandEntries(ctx.toolCalls)
+    );
     const dirs = await findServiceDirs(ctx);
     const stacks = await resolveServiceStacks(ctx, dirs);
     const stackList = await readStackList(ctx);
