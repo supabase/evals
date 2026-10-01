@@ -185,29 +185,9 @@ jobs:
           name: ai-review-evidence
           path: /tmp/ai-review
 
-      - name: Read Agent OS instructions
-        id: agent-os-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: supabase
-          repositories: agent-os
-          permission-contents: read
-
-      - name: Checkout pinned Agent OS instructions
-        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
-        with:
-          repository: supabase/agent-os
-          ref: 060ae5faca5c410eb7dc441413c0281904ceb8c1
-          token: ${{ steps.agent-os-token.outputs.token }}
-          path: .ai-review-agent-os
-          persist-credentials: false
-
       - name: Run Claude review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AI_REVIEW_AGENT_OS_DIR: ${{ github.workspace }}/.ai-review-agent-os
           AI_REVIEW_CONTROLLER_REF: ${{ needs.resolve.outputs.controller_ref }}
           AI_REVIEW_APPROVED_CONTROLLER_SHA: ${{ vars.AI_REVIEW_APPROVED_CONTROLLER_SHA }}
           AI_REVIEW_APPROVED_INSTRUCTION_SHA: ${{ vars.AI_REVIEW_APPROVED_INSTRUCTION_SHA }}
@@ -262,25 +242,6 @@ jobs:
           name: ai-review-evidence
           path: /tmp/ai-review
 
-      - name: Read Agent OS instructions
-        id: agent-os-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: supabase
-          repositories: agent-os
-          permission-contents: read
-
-      - name: Checkout pinned Agent OS instructions
-        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
-        with:
-          repository: supabase/agent-os
-          ref: 060ae5faca5c410eb7dc441413c0281904ceb8c1
-          token: ${{ steps.agent-os-token.outputs.token }}
-          path: .ai-review-agent-os
-          persist-credentials: false
-
       - name: Isolate provider-direct Codex credentials
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         with:
@@ -293,7 +254,6 @@ jobs:
       - name: Run Codex review
         env:
           AI_REVIEW_CODEX_PROXY_HOME: /tmp/ai-review/codex-home
-          AI_REVIEW_AGENT_OS_DIR: ${{ github.workspace }}/.ai-review-agent-os
           AI_REVIEW_CONTROLLER_REF: ${{ needs.resolve.outputs.controller_ref }}
           AI_REVIEW_APPROVED_CONTROLLER_SHA: ${{ vars.AI_REVIEW_APPROVED_CONTROLLER_SHA }}
           AI_REVIEW_APPROVED_INSTRUCTION_SHA: ${{ vars.AI_REVIEW_APPROVED_INSTRUCTION_SHA }}
@@ -355,25 +315,6 @@ jobs:
           name: ai-review-evidence
           path: /tmp/ai-review
 
-      - name: Read Agent OS instructions
-        id: agent-os-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: supabase
-          repositories: agent-os
-          permission-contents: read
-
-      - name: Checkout pinned Agent OS instructions
-        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
-        with:
-          repository: supabase/agent-os
-          ref: 060ae5faca5c410eb7dc441413c0281904ceb8c1
-          token: ${{ steps.agent-os-token.outputs.token }}
-          path: .ai-review-agent-os
-          persist-credentials: false
-
       - name: Isolate provider-direct Codex credentials
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         with:
@@ -386,7 +327,6 @@ jobs:
       - name: Consolidate reviews
         env:
           AI_REVIEW_CODEX_PROXY_HOME: /tmp/ai-review/codex-home
-          AI_REVIEW_AGENT_OS_DIR: ${{ github.workspace }}/.ai-review-agent-os
           AI_REVIEW_CONTROLLER_REF: ${{ needs.resolve.outputs.controller_ref }}
           AI_REVIEW_APPROVED_CONTROLLER_SHA: ${{ vars.AI_REVIEW_APPROVED_CONTROLLER_SHA }}
           AI_REVIEW_APPROVED_INSTRUCTION_SHA: ${{ vars.AI_REVIEW_APPROVED_INSTRUCTION_SHA }}

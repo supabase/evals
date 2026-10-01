@@ -174,6 +174,6 @@ Claude is confined to a temporary input directory with restricted read/grep/glob
 tools. CI initializes Codex's direct OpenAI credential proxy through the pinned
 `openai/codex-action` and drops sudo before invoking the CLI. Codex uses that
 isolated configuration, no daemon, ephemeral state, a read-only sandbox, and no
-inherited shell environment. Agent OS instructions are checked out at the
-pinned commit before model execution; model controller steps receive no
-cross-repository token.
+inherited shell environment. This POC loads repository-local review instructions
+only; it does not install plugins or read Agent OS. Candidate instructions must
+still match the exact approved PR head, with no fallback to `main`.

@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -16,12 +15,7 @@ afterEach(async () => {
 async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), 'review-instructions-'));
   dirs.push(dir);
-  const skill = 'plugins/engineering/engineering-ai/ai-pr-review/SKILL.md';
-  const standards =
-    'plugins/engineering/engineering-standards/code-standards/SKILL.md';
   const files = {
-    [skill]: 'Advisory review. Require human approval.',
-    [standards]: 'Read CI evidence. Do not run checks.',
     'CONTRIBUTING.md': 'Trusted rubric.',
     '.github/ai-review/review-contract.md': 'Trusted contract.',
     '.github/ai-review/prompts/claude-review.md': 'Trusted review prompt.',
@@ -30,72 +24,37 @@ async function fixture() {
     await mkdir(dirname(join(dir, path)), { recursive: true });
     await writeFile(join(dir, path), text);
   }
-  function git(...args) {
-    const result = spawnSync('git', args, {
-      cwd: dir,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        GIT_CONFIG_NOSYSTEM: '1',
-        GIT_CONFIG_GLOBAL: join(dir, 'empty.config'),
-      },
-    });
-    if (result.status !== 0) throw new Error(result.stderr);
-    return result.stdout.trim();
-  }
-  git('init', '--quiet');
-  git('add', '.');
-  git(
-    '-c',
-    'user.name=Test',
-    '-c',
-    'user.email=test@example.com',
-    '-c',
-    'commit.gpgsign=false',
-    'commit',
-    '--quiet',
-    '-m',
-    'Pinned instructions'
-  );
-  const commit = git('rev-parse', 'HEAD');
-  await writeFile(join(dir, skill), 'Uncommitted unsafe skill.');
   const head = 'a'.repeat(40);
   return {
     reviewer: 'claude',
     cwd: dir,
-    config: {
-      sharedSkill: { repository: 'supabase/agent-os', path: skill, commit },
-    },
     env: {
       ...process.env,
-      AI_REVIEW_AGENT_OS_DIR: dir,
       AI_REVIEW_APPROVED_CONTROLLER_SHA: head,
     },
     evidence: {
       invocation: { repo: 'supabase/evals' },
       pullRequest: { head: { sha: head } },
       candidateInstructions: {
-        files: Object.entries(files)
-          .filter(([path]) => !path.startsWith('plugins/'))
-          .map(([path]) => {
-            const text = path.endsWith('claude-review.md')
-              ? 'Candidate-only review prompt.'
-              : `Candidate ${path}`;
-            return {
-              path,
-              text,
-              sha256: hashText(text),
-              status: 'found',
-              source: { ref: head },
-              truncated: false,
-            };
-          }),
+        files: Object.entries(files).map(([path]) => {
+          const text = path.endsWith('claude-review.md')
+            ? 'Candidate-only review prompt.'
+            : `Candidate ${path}`;
+          return {
+            path,
+            text,
+            sha256: hashText(text),
+            status: 'found',
+            source: { ref: head },
+            truncated: false,
+          };
+        }),
       },
     },
   };
 }
 
-test('selects approved branch instructions with immutable shared skill', async () => {
+test('selects exact approved branch instructions over trusted checkout contents', async () => {
   const options = await fixture();
   options.env.AI_REVIEW_APPROVED_INSTRUCTION_SHA = 'b'.repeat(40);
   const candidate = await loadReviewInstructions({
@@ -104,8 +63,6 @@ test('selects approved branch instructions with immutable shared skill', async (
   });
   expect(candidate.text).toContain('Candidate-only review prompt.');
   expect(candidate.text).not.toContain('Trusted review prompt.');
-  expect(candidate.text).toContain('Require human approval.');
-  expect(candidate.text).not.toContain('Uncommitted unsafe skill.');
   const trusted = await loadReviewInstructions({
     ...options,
     instructionMode: 'trusted',

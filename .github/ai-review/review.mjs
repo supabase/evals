@@ -970,7 +970,6 @@ async function runCommand(
 async function loadInstructionBundle({
   reviewer,
   evidence,
-  config,
   instructionMode,
   env = process.env,
 }) {
@@ -986,13 +985,12 @@ async function loadInstructionBundle({
   }
   if (typeof module.loadReviewInstructions !== 'function') {
     throw new Error(
-      `${DEFAULT_INSTRUCTION_LOADER_PATH} must export async loadReviewInstructions({ reviewer, evidence, config, instructionMode, cwd, env }).`
+      `${DEFAULT_INSTRUCTION_LOADER_PATH} must export async loadReviewInstructions({ reviewer, evidence, instructionMode, cwd, env }).`
     );
   }
   const loaded = await module.loadReviewInstructions({
     reviewer,
     evidence,
-    config,
     instructionMode,
     cwd: process.cwd(),
     env,
@@ -1178,7 +1176,6 @@ async function buildRuntimePrompt({
     },
     config: {
       referenceImplementation: config.referenceImplementation,
-      sharedSkill: config.sharedSkill,
       candidateInstructionPaths: config.candidateInstructionPaths,
     },
   };
@@ -1244,7 +1241,6 @@ async function runClaudeModel({
   const instructionBundle = await loadInstructionBundle({
     reviewer: 'claude',
     evidence,
-    config,
     instructionMode,
   });
   requireApproved(config.approval.requirePaidRunApprovalEnv);
@@ -1308,7 +1304,6 @@ async function runCodexModel({
   const instructionBundle = await loadInstructionBundle({
     reviewer,
     evidence,
-    config,
     instructionMode,
   });
   requireApproved(config.approval.requirePaidRunApprovalEnv);

@@ -50,16 +50,12 @@ this workflow through Vercel Gateway.
 
 Paid model execution and posting both fail closed unless explicitly approved via
 the environment variables named in `config.yml`. Model execution also fails
-closed before spend when trusted instructions cannot be loaded, including the
-pinned `supabase/agent-os` shared skill. CI uses the existing GitHub App to
-check out that exact revision with `contents: read` scoped to `agent-os`.
-The app must be installed on that repository. Local smoke runs can set
-`AI_REVIEW_AGENT_OS_DIR` to a checkout containing the pinned commit, or use
-`AGENT_OS_READ_TOKEN` for read-only content access.
-
-The production Agent OS pin should advance only after Agent OS CODEOWNER review
-and a merged revision. The premerge pilot may intentionally use an explicit
-human-approved unmerged skill pin; this workflow does not change the pin itself.
+closed before spend when mandatory repository instructions cannot be loaded.
+This POC uses only `CONTRIBUTING.md`, `review-contract.md`, and the selected
+reviewer prompt from this repository, like the CLI bot's repository-local
+prompt loading. Candidate mode loads their exact approved PR-head contents;
+trusted mode reads the trusted controller checkout. No Agent OS checkout,
+plugin installation, or cross-repository credential is required.
 
 Non-posting smoke shape for an already-approved run:
 
@@ -120,11 +116,8 @@ Claude runs in a dedicated temporary input directory with `--bare`,
 `openai/codex-action` with its provider-direct credential proxy and `drop-sudo`.
 The CLI then uses that isolated configuration, no daemon, ignored execution
 rules, ephemeral state, a read-only sandbox, and no inherited shell environment.
-Provider keys and the Agent OS token are not intentionally exposed to model
-steps beyond required environment variables. GitHub Actions root action state can
-leave the post-revocation Agent OS token readable to a read-only model process;
-that known ceiling is bounded by the token's `contents: read` scope on
-`agent-os`.
+Provider keys are restricted to the provider steps; posting uses a separate
+job with the repository-scoped GitHub token.
 
 Consolidation runs when either independent pass succeeds. The workflow downloads
 available normalized Claude/Codex artifacts by pattern plus mandatory evidence;

@@ -28,11 +28,6 @@ const config = {
     commit: '3cb948c5a70d31fbcb0fd1dcc616ee196a125cd0',
     paths: ['.github/ai-review'],
   },
-  sharedSkill: {
-    repository: 'supabase/agent-os',
-    path: 'plugins/engineering/engineering-ai/ai-pr-review/SKILL.md',
-    commit: '060ae5faca5c410eb7dc441413c0281904ceb8c1',
-  },
   candidateInstructionPaths: [
     '.github/ai-review/prompts/codex-review.md',
     'CONTRIBUTING.md',
@@ -93,13 +88,13 @@ function validReview(overrides = {}) {
     },
     instruction_sources: [
       {
-        kind: 'shared-skill',
+        kind: 'approved-pr-head-candidate-instruction',
         url: null,
-        path: 'plugins/engineering/engineering-ai/ai-pr-review/SKILL.md',
-        ref: '060ae5faca5c410eb7dc441413c0281904ceb8c1',
-        sha: '060ae5faca5c410eb7dc441413c0281904ceb8c1',
-        status: 'consulted',
-        informed: 'Shared review rules.',
+        path: 'CONTRIBUTING.md',
+        ref: 'head-sha',
+        sha: 'head-sha',
+        status: 'loaded',
+        informed: 'Repository review rubric.',
       },
     ],
     review_identity:
