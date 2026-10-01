@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  extractLoadedSkillsFromText,
-  extractSkillPathFromText,
-} from './extract.js';
+import { extractLoadedSkillsFromText } from './extract.js';
 
 describe('extractLoadedSkillsFromText', () => {
   it('extracts skill names from SKILL.md path mentions', () => {
@@ -47,16 +44,5 @@ describe('extractLoadedSkillsFromText', () => {
     expect(
       extractLoadedSkillsFromText('.agents/skills/supabase/references/auth.md')
     ).toEqual([]);
-  });
-});
-
-describe('extractSkillPathFromText', () => {
-  it('returns the SKILL.md path from a shell read', () => {
-    expect(
-      extractSkillPathFromText(
-        `/bin/bash -lc "cat /tmp/sandbox/.agents/skills/supabase/SKILL.md"`
-      )
-    ).toBe('/tmp/sandbox/.agents/skills/supabase/SKILL.md');
-    expect(extractSkillPathFromText('ls')).toBeUndefined();
   });
 });

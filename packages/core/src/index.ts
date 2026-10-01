@@ -103,7 +103,6 @@ export {
 } from './eval-metadata.js';
 export { parseEvalMarkdown } from './eval-markdown.js';
 export { buildSkillResult } from './skill-results.js';
-export { extractSkillPathFromText } from './parsers/shared/extract.js';
 export {
   buildDocsResult,
   rehydrateTruncatedDocsResults,
