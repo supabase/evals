@@ -380,7 +380,7 @@ describe('extractCommandEntries', () => {
     ]);
   });
 
-  it('prefers endedAt over ts for the call time', () => {
+  it('takes the call time from endedAt', () => {
     expect(
       extractCommandEntries([
         record({ command: 'supabase stop', ts: 1000, endedAt: 2000 }),
@@ -388,24 +388,20 @@ describe('extractCommandEntries', () => {
     ).toEqual([{ command: 'supabase stop', at: 2000 }]);
   });
 
-  it('falls back to ts when endedAt is missing or not a positive number', () => {
+  it('omits the time when endedAt is missing or not a positive number, whatever ts holds', () => {
     expect(
       extractCommandEntries([
         record({ command: 'supabase stop', ts: 1000 }),
         record({ command: 'supabase start', ts: 1500, endedAt: 'soon' }),
         record({ command: 'supabase status', ts: 1700, endedAt: 0 }),
+        record({ command: 'supabase db reset', ts: 0 }),
       ])
     ).toEqual([
-      { command: 'supabase stop', at: 1000 },
-      { command: 'supabase start', at: 1500 },
-      { command: 'supabase status', at: 1700 },
+      { command: 'supabase stop' },
+      { command: 'supabase start' },
+      { command: 'supabase status' },
+      { command: 'supabase db reset' },
     ]);
-  });
-
-  it('omits the time when ts is 0 and there is no endedAt', () => {
-    expect(
-      extractCommandEntries([record({ command: 'supabase stop', ts: 0 })])
-    ).toEqual([{ command: 'supabase stop' }]);
   });
 });
 
