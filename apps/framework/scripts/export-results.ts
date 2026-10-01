@@ -88,6 +88,7 @@ export function toEvalResult(
     toolCallCount: parsedResult.toolCallCount,
     agentRunDurationMs: parsedResult.agentRunDurationMs,
     agentRunStartedAt: parsedResult.agentRunStartedAt,
+    agentPromptAt: parsedResult.agentPromptAt,
     agentRunEndedAt: parsedResult.agentRunEndedAt,
     scoringEndedAt: parsedResult.scoringEndedAt,
     sandboxUsage: parsedResult.sandboxUsage,

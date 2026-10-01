@@ -84,6 +84,8 @@ interface PendingRow {
   /** Unix seconds. */
   startTime?: number;
   endTime?: number;
+  /** When the CLI recorded the prompt; absent on older results. */
+  promptTime?: number;
   /** When `agent.run()` returned and scoring began; absent on older results. */
   agentEndTime?: number;
   scoringEndTime?: number;
@@ -326,6 +328,7 @@ async function collectRows(
           ? { tool_call_count: result.toolCallCount }
           : {}),
       },
+      promptTime: sec(result.agentPromptAt),
       agentEndTime: sec(result.agentRunEndedAt),
       scoringEndTime: sec(result.scoringEndedAt),
       ...runWindow(
@@ -398,7 +401,7 @@ export interface SpanSink {
  * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/codex.rs#L929-L932
  *
  *   eval                      0s → 50s
- *   ├─ setup                  0s → 2s   only when a non-assistant message opens the transcript
+ *   ├─ setup                  0s → 2s   CLI boot until it records the prompt
  *   ├─ task                   2s → 38s
  *   │  ├─ llm (text + Skill)  2s → 4s
  *   │  ├─ Skill               4s → 5s
@@ -408,9 +411,10 @@ export interface SpanSink {
  *   ├─ teardown              38s → 40s  CLI exit until `agent.run()` returns
  *   └─ passed (score)        40s → 50s  workspace export, checks, judges
  *
- * Without a setup span the first LLM span starts at the run start, so it
- * includes CLI boot. Parts without a `requestId` each get their own LLM span.
- * Transcripts without timestamps collapse every span to the run start.
+ * Without a prompt time or a leading non-assistant message there is no setup
+ * span, and the first LLM span starts at the run start. Parts without a
+ * `requestId` each get their own LLM span. Transcripts without timestamps
+ * collapse every span to the run start.
  */
 export function logTranscript(
   parent: SpanSink,
@@ -426,17 +430,26 @@ export function logTranscript(
     | 'toolLabels'
     | 'startTime'
     | 'endTime'
+    | 'promptTime'
     | 'agentEndTime'
     | 'scoringEndTime'
   >
 ): void {
-  // Transcripts omit CLI startup, so most open with the first model response
-  // and get no setup span.
   const [first] = row.transcript;
+  const promptTime =
+    row.promptTime ??
+    (first?.type === 'message' && first.role !== 'assistant'
+      ? sec(first.ts)
+      : undefined);
+  const firstTime = sec(row.transcript.find((part) => part.ts)?.ts);
+  // The prompt time is on the sandbox clock, so keep it inside the run.
   const setupEnd =
-    first?.type === 'message' && first.role !== 'assistant'
-      ? latest(row.startTime, sec(first.ts))
-      : undefined;
+    promptTime === undefined
+      ? undefined
+      : Math.min(
+          Math.max(row.startTime ?? promptTime, promptTime),
+          firstTime ?? Infinity
+        );
   if (row.startTime !== undefined && setupEnd !== undefined) {
     const setup = parent.startSpan({
       name: 'setup',

@@ -111,6 +111,19 @@ export function createOpencodeRunner(
       );
     },
 
+    // stdout has no user message record, so read its time from the session db.
+    async enrichEvents(sandbox) {
+      const script = `const { DatabaseSync } = require('node:sqlite');
+const db = new DatabaseSync(process.env.HOME + '/.local/share/opencode/opencode.db');
+const row = db.prepare("select min(json_extract(data, '$.time.created')) as t from message where json_extract(data, '$.role') = 'user'").get();
+console.log(row?.t ?? '');`;
+      const out = await sandbox.exec(
+        `node --no-warnings -e ${shellQuote(script)}`
+      );
+      if (!out.ok) return;
+      return { promptAt: Number(out.stdout.trim()) || undefined };
+    },
+
     async exec({
       sandbox,
       model,

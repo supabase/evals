@@ -121,12 +121,13 @@ export interface AgentRunner<M extends string = string> {
   sessionDir?: string;
   /**
    * Fills in event `timestamp`, `requestId`, and `usage` from the CLI's session
-   * files, since stdout lacks them. Returns `stepCount` if the files have it.
+   * files, since stdout lacks them. Returns `stepCount` if the files have it,
+   * and `promptAt`, the epoch ms the CLI recorded the user prompt.
    */
   enrichEvents?(
     sandbox: AgentSandbox,
     events: TranscriptEvent[]
-  ): Promise<{ stepCount?: number } | void>;
+  ): Promise<{ stepCount?: number; promptAt?: number } | void>;
 }
 
 /**

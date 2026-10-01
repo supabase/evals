@@ -472,6 +472,24 @@ describe('enrichFromRollout', () => {
       ['', 't3', 'r2'],
     ]);
   });
+
+  it('returns the first user message time as the prompt time', () => {
+    const line = (timestamp: string, role: string) =>
+      JSON.stringify({
+        timestamp,
+        type: 'response_item',
+        payload: { type: 'message', role },
+      });
+    const rollout = [
+      line('2026-10-01T17:43:08.454Z', 'developer'),
+      line('2026-10-01T17:43:08.454Z', 'user'),
+      line('2026-10-01T17:43:08.473Z', 'user'),
+      line('2026-10-01T17:43:18.250Z', 'assistant'),
+    ].join('\n');
+    expect(enrichFromRollout([], rollout)).toBe(
+      Date.parse('2026-10-01T17:43:08.454Z')
+    );
+  });
 });
 
 describe('enrichFromRollout tool pairing', () => {
