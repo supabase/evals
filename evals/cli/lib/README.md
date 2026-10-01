@@ -11,6 +11,11 @@ What stays in each eval's `EVAL.ts`: check composition, every `judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
 helpers with a single consumer stay colocated with that eval.
 
+Invocation attribution (`cli-invocations.ts`) starts from a tool call's `cwd`
+only when the agent parser records one (Codex, OpenCode); a `cd` persisting
+across separate tool calls in a persistent shell (e.g. Claude Code) is not
+tracked.
+
 Tests live beside each module; run them with:
 
 ```bash

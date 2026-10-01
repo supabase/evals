@@ -223,8 +223,47 @@ function maskQuotedLiterals(text: string): string {
   return text.replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''");
 }
 
-function maskLiterals(text: string): string {
-  return maskQuotedLiterals(maskHeredocs(text));
+const COMMENT_PRECEDER_RE = /[\s;&|(]/;
+
+/** Drops each unquoted, word-initial `#` through end of line; `"#"`, `a#b` and `${#x}` are kept. */
+function stripShellComments(text: string): string {
+  let out = '';
+  let quote: string | undefined;
+  let atWordStart = true;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote !== undefined) {
+      if (ch === '\\' && quote === '"') {
+        out += ch + (text[i + 1] ?? '');
+        i++;
+        continue;
+      }
+      if (ch === quote) quote = undefined;
+      out += ch;
+      continue;
+    }
+    if (ch === '#' && atWordStart) {
+      const end = text.indexOf('\n', i);
+      if (end === -1) break;
+      i = end - 1;
+      continue;
+    }
+    if (ch === '\\') {
+      out += ch + (text[i + 1] ?? '');
+      i++;
+      atWordStart = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") quote = ch;
+    out += ch;
+    atWordStart = COMMENT_PRECEDER_RE.test(ch);
+  }
+  return out;
+}
+
+/** Unwraps a leading shell wrapper, then masks heredocs and strips comments — the text every segmenter splits. */
+function executableText(command: string): string {
+  return stripShellComments(maskHeredocs(unwrapShell(command)));
 }
 
 /**
@@ -242,9 +281,9 @@ function maskQuotedLiteralsPreservingOffsets(text: string): string {
 
 const SEGMENT_DELIMITER_RE = /\n|;|&&|\|\||\||\(|(?<![<>&\d])&(?![&>])/;
 
-/** Unwraps a leading shell wrapper, masks quoted/heredoc literals, then splits into executable segments. */
+/** Unwraps a leading shell wrapper, masks quoted/heredoc literals and comments, then splits into executable segments. */
 export function commandSegments(command: string): string[] {
-  const body = maskLiterals(unwrapShell(command));
+  const body = maskQuotedLiterals(executableText(command));
   return body
     .split(SEGMENT_DELIMITER_RE)
     .map((segment) => segment.trim())
@@ -258,55 +297,88 @@ export function commandSegments(command: string): string[] {
  * quoted `--unix-socket` path); never use this for context-pattern matching.
  */
 export function unmaskedCommandSegments(command: string): string[] {
-  const heredocMasked = maskHeredocs(unwrapShell(command));
-  const boundarySafe = maskQuotedLiteralsPreservingOffsets(heredocMasked);
-
-  const delimiterRe = new RegExp(SEGMENT_DELIMITER_RE, 'g');
-  const segments: string[] = [];
-  let cursor = 0;
-  let match: RegExpExecArray | null;
-  while ((match = delimiterRe.exec(boundarySafe))) {
-    segments.push(heredocMasked.slice(cursor, match.index));
-    cursor = match.index + match[0].length;
-  }
-  segments.push(heredocMasked.slice(cursor));
-
-  return segments
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0);
+  return scopedCommandSegments(command).map(({ segment }) => segment);
 }
 
-const VAR_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=\S*\s+/;
-const TIMEOUT_RE = /^timeout\s+\S+\s+/;
-const ENV_WORD_RE = /^env\s+/;
-const OTHER_PASSTHROUGH_RE = /^(?:exec|command|time|nohup)\s+/;
-const ENV_FLAG_RE = /^(?:-i|-u\s+\S+|--unset=\S+|-C\s+\S+)\s+/;
+export type ScopedSegment = {
+  segment: string;
+  /** Subshell `(`s opened since the previous segment. */
+  opens: number;
+  /** Unquoted `)`s inside the segment, each closing a subshell after it runs. */
+  closes: number;
+};
+
+/** `unmaskedCommandSegments` with the subshell nesting around each segment. */
+export function scopedCommandSegments(command: string): ScopedSegment[] {
+  const text = executableText(command);
+  const boundarySafe = maskQuotedLiteralsPreservingOffsets(text);
+
+  const delimiterRe = new RegExp(SEGMENT_DELIMITER_RE, 'g');
+  const segments: ScopedSegment[] = [];
+  let cursor = 0;
+  let opens = 0;
+  const pushUntil = (end: number) => {
+    const segment = text.slice(cursor, end).trim();
+    if (segment.length === 0) return;
+    const closes = boundarySafe.slice(cursor, end).split(')').length - 1;
+    segments.push({ segment, opens, closes });
+    opens = 0;
+  };
+  let match: RegExpExecArray | null;
+  while ((match = delimiterRe.exec(boundarySafe))) {
+    pushUntil(match.index);
+    if (match[0] === '(') opens++;
+    cursor = match.index + match[0].length;
+  }
+  pushUntil(text.length);
+  return segments;
+}
+
+const VAR_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const PASSTHROUGH_WORDS = new Set(['exec', 'command', 'time', 'nohup']);
+
+/**
+ * Skips `env`'s own options (`-i`, `-u NAME`, `--unset[=]NAME`, `-C DIR`,
+ * `--chdir[=]DIR`) from `start`, just past the `env` word; `chdir` is the
+ * directory the command runs in, if given.
+ */
+export function skipEnvOptions(
+  tokens: readonly string[],
+  start: number
+): { next: number; chdir?: string } {
+  let i = start;
+  let chdir: string | undefined;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token === '-i' || token.startsWith('--unset=')) {
+      i++;
+    } else if (token === '-u' || token === '--unset') {
+      i += 2;
+    } else if (token === '-C' || token === '--chdir') {
+      chdir = tokens[i + 1] ?? chdir;
+      i += 2;
+    } else if (token.startsWith('--chdir=')) {
+      chdir = token.slice('--chdir='.length);
+      i++;
+    } else {
+      break;
+    }
+  }
+  return { next: i, ...(chdir === undefined ? {} : { chdir }) };
+}
 
 /** Segment with env/var-assignment/wrapper prefixes (and env's own flags) stripped, whitespace-split into tokens (first token basename'd, lowercased). */
 function leadingTokens(segment: string): string[] {
-  let rest = segment.trim();
-  let stripped = true;
-  while (stripped) {
-    stripped = false;
-    for (const re of [
-      VAR_ASSIGNMENT_RE,
-      TIMEOUT_RE,
-      ENV_WORD_RE,
-      OTHER_PASSTHROUGH_RE,
-    ]) {
-      const match = rest.match(re);
-      if (!match) continue;
-      rest = rest.slice(match[0].length);
-      stripped = true;
-      if (re === ENV_WORD_RE) {
-        let flagMatch: RegExpMatchArray | null;
-        while ((flagMatch = rest.match(ENV_FLAG_RE))) {
-          rest = rest.slice(flagMatch[0].length);
-        }
-      }
-    }
+  const all = segment.trim().split(/\s+/);
+  let i = 0;
+  while (i < all.length - 1) {
+    const token = all[i];
+    if (token === 'env') i = skipEnvOptions(all, i + 1).next;
+    else if (token === 'timeout') i += 2;
+    else if (VAR_ASSIGNMENT_RE.test(token) || PASSTHROUGH_WORDS.has(token)) i++;
+    else break;
   }
-  const tokens = rest.split(/\s+/);
+  const tokens = all.slice(i);
   if (!tokens[0]) return [];
   tokens[0] = tokens[0].slice(tokens[0].lastIndexOf('/') + 1).toLowerCase();
   return tokens;
@@ -396,17 +468,43 @@ function recordCommand(record: ToolCallRecord): string {
   );
 }
 
-/** `extractCommands` paired with each call's working directory, index-aligned with it. */
+/**
+ * `extractCommands` paired with each call's working directory, index-aligned
+ * with it. `cwd` comes from agent parsers that record a per-call directory
+ * (Codex, OpenCode) and is absent otherwise; a `cd` persisting across separate
+ * tool calls in a persistent shell (e.g. Claude Code) is not tracked. `at` is
+ * the call's completion time (epoch ms), present only when the agent parser records it.
+ */
 export function extractCommandEntries(
   toolCalls: readonly ToolCallRecord[]
-): Array<{ command: string; cwd?: string }> {
+): Array<{ command: string; cwd?: string; at?: number }> {
   return toolCalls.flatMap((record) => {
     const command = recordCommand(record);
     if (command.length === 0) return [];
     // `cwd` isn't on every core version's ToolCallRecord yet.
     const cwd = (record as { cwd?: unknown }).cwd;
-    return [typeof cwd === 'string' ? { command, cwd } : { command }];
+    const at = recordTime(record);
+    return [
+      {
+        command,
+        ...(typeof cwd === 'string' ? { cwd } : {}),
+        ...(at === undefined ? {} : { at }),
+      },
+    ];
   });
+}
+
+function positiveTime(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
+}
+
+// `endedAt` isn't on every core version's ToolCallRecord, and parsers that
+// don't record a time leave `ts` at 0.
+function recordTime(record: ToolCallRecord): number | undefined {
+  const { endedAt, ts } = record as { endedAt?: unknown; ts?: unknown };
+  return positiveTime(endedAt) ?? positiveTime(ts);
 }
 
 /** Numbers `commands` in order for the detour judge's input, each passed through in full. */

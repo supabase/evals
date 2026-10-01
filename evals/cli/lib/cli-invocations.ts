@@ -2,7 +2,8 @@ import { parse as shellQuoteParse, type ParseEntry } from 'shell-quote';
 import {
   leadingWord,
   PASSIVE_LEADING_WORDS,
-  unmaskedCommandSegments,
+  scopedCommandSegments,
+  skipEnvOptions,
 } from './detours.js';
 
 export type SupabaseInvocation = {
@@ -10,17 +11,19 @@ export type SupabaseInvocation = {
   commandIndex: number;
   /** Executed argv, normalised so `argv[0]` is always `supabase`. */
   argv: string[];
-  /** The command's working directory, updated by any earlier `cd`/`pushd` in the same command. */
+  /** The command's working directory, updated by any earlier `cd`/`pushd` in the same command (until its subshell closes) or `env -C`. */
   cwd?: string;
   /** A `SUPABASE_WORKDIR=<dir>` assignment prefixing the invocation. */
   workdir?: string;
+  /** The tool call's completion time (epoch ms), present only when the agent parser records it. */
+  at?: number;
 };
 
-export type CommandEntry = { command: string; cwd?: string };
+export type CommandEntry = { command: string; cwd?: string; at?: number };
 
 const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
-const PASSTHROUGH_WORDS = new Set(['env', 'exec', 'command', 'time', 'nohup']);
+const PASSTHROUGH_WORDS = new Set(['exec', 'command', 'time', 'nohup']);
 const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
 const SHELL_KEYWORDS = new Set([
   'if',
@@ -69,6 +72,15 @@ function joinPath(base: string | undefined, path: string): string {
   return `${joined.startsWith('/') ? '/' : ''}${parts.join('/')}`;
 }
 
+function changeDir(
+  cwd: string | undefined,
+  target: string | undefined
+): string | undefined {
+  return target === undefined || target === '-' || target.startsWith('~')
+    ? undefined
+    : joinPath(cwd, target);
+}
+
 // Unlike lib's `tryShellQuoteParse`, keeps `$VAR` literal instead of
 // expanding it to '', so a loop variable target is detectable as unresolved.
 function parseKeepingVariables(text: string): ParseEntry[] | undefined {
@@ -93,15 +105,21 @@ function words(tokens: readonly ParseEntry[]): string[] {
 function stripPrefixes(argv: readonly string[]): {
   argv: string[];
   workdir?: string;
+  chdir?: string;
 } {
   let i = 0;
   let workdir: string | undefined;
+  let chdir: string | undefined;
   while (i < argv.length && SHELL_KEYWORDS.has(argv[i])) i++;
   while (i < argv.length) {
     const word = argv[i];
     if (word.startsWith(WORKDIR_ASSIGNMENT)) {
       workdir = word.slice(WORKDIR_ASSIGNMENT.length);
       i++;
+    } else if (word === 'env') {
+      const options = skipEnvOptions(argv, i + 1);
+      i = options.next;
+      chdir = options.chdir ?? chdir;
     } else if (ENV_ASSIGNMENT_RE.test(word) || PASSTHROUGH_WORDS.has(word)) {
       i++;
     } else if (word === 'timeout') {
@@ -120,7 +138,11 @@ function stripPrefixes(argv: readonly string[]): {
       break;
     }
   }
-  return { argv: argv.slice(i), ...(workdir ? { workdir } : {}) };
+  return {
+    argv: argv.slice(i),
+    ...(workdir ? { workdir } : {}),
+    ...(chdir === undefined ? {} : { chdir }),
+  };
 }
 
 function isSupabaseBinary(word: string | undefined): boolean {
@@ -129,11 +151,19 @@ function isSupabaseBinary(word: string | undefined): boolean {
   );
 }
 
+function executedArgv(segment: string): ReturnType<typeof stripPrefixes> {
+  const lead = leadingWord(segment);
+  if (lead && PASSIVE_LEADING_WORDS.has(lead)) return { argv: [] };
+  const tokens = parseKeepingVariables(segment);
+  return stripPrefixes(tokens === undefined ? [] : words(tokens));
+}
+
 /**
  * Every `supabase` invocation the agent actually executed, in order — parsed
- * from argv per executable segment, so an echoed, committed or heredoc'd
- * command line never counts. `cd`/`pushd` is tracked within a single command only,
- * starting from the entry's `cwd`. `--help`/`-h` invocations are skipped.
+ * from argv per executable segment, so an echoed, commented, committed or
+ * heredoc'd command line never counts. `cd`/`pushd` is tracked within a single
+ * command only, starting from the entry's `cwd` and ending with its subshell.
+ * `--help`/`-h` invocations are skipped.
  */
 export function findSupabaseInvocations(
   commands: readonly (string | CommandEntry)[]
@@ -142,28 +172,29 @@ export function findSupabaseInvocations(
   commands.forEach((entry, commandIndex) => {
     const command = typeof entry === 'string' ? entry : entry.command;
     let cwd = typeof entry === 'string' ? undefined : entry.cwd;
-    for (const segment of unmaskedCommandSegments(command)) {
-      const lead = leadingWord(segment);
-      if (lead && PASSIVE_LEADING_WORDS.has(lead)) continue;
-      const tokens = parseKeepingVariables(segment);
-      if (tokens === undefined) continue;
-      const { argv, workdir } = stripPrefixes(words(tokens));
+    const at = typeof entry === 'string' ? undefined : entry.at;
+    const enclosing: Array<string | undefined> = [];
+    for (const { segment, opens, closes } of scopedCommandSegments(command)) {
+      for (let n = 0; n < opens; n++) enclosing.push(cwd);
+      const { argv, workdir, chdir } = executedArgv(segment);
+      const dir = chdir === undefined ? cwd : changeDir(cwd, chdir);
       if (CHDIR_WORDS.has(argv[0])) {
-        const target = argv[1];
-        cwd =
-          target === undefined || target === '-' || target.startsWith('~')
-            ? undefined
-            : joinPath(cwd, target);
-        continue;
+        cwd = changeDir(cwd, argv[1]);
+      } else if (
+        isSupabaseBinary(argv[0]) &&
+        !argv.some((word) => HELP_FLAGS.has(word))
+      ) {
+        invocations.push({
+          commandIndex,
+          argv: ['supabase', ...argv.slice(1)],
+          ...(dir === undefined ? {} : { cwd: dir }),
+          ...(workdir === undefined ? {} : { workdir }),
+          ...(at === undefined ? {} : { at }),
+        });
       }
-      if (!isSupabaseBinary(argv[0])) continue;
-      if (argv.some((word) => HELP_FLAGS.has(word))) continue;
-      invocations.push({
-        commandIndex,
-        argv: ['supabase', ...argv.slice(1)],
-        ...(cwd === undefined ? {} : { cwd }),
-        ...(workdir === undefined ? {} : { workdir }),
-      });
+      for (let n = 0; n < closes && enclosing.length > 0; n++) {
+        cwd = enclosing.pop();
+      }
     }
   });
   return invocations;
