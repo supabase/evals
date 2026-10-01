@@ -43,6 +43,7 @@ export type LifecycleEvent = {
   /** `cmd #<n> "<argv>"`, plus the directory it ran in when known. */
   label: string;
   failed: boolean;
+  commandIndex: number;
 };
 
 /** Allowed skew between the agent host's command times and the database's clock. */
@@ -135,7 +136,12 @@ export function lifecycleEvents(
     const kind = lifecycleKind(inv);
     if (kind === undefined || !targetsService(inv, kind, service)) return [];
     return [
-      { kind, label: describeInvocation(inv), failed: inv.failed === true },
+      {
+        kind,
+        label: describeInvocation(inv),
+        failed: inv.failed === true,
+        commandIndex: inv.commandIndex,
+      },
     ];
   });
 }
@@ -191,12 +197,32 @@ function compareToSetup(
   };
 }
 
-function commandsSuffix(anchor: FleetInvocation, label: string): string {
-  const reason =
-    anchor.at === undefined
-      ? 'no timing recorded'
-      : `${label} postmaster start time unavailable`;
-  return `after setup (${describeInvocation(anchor)}); ${reason}`;
+/**
+ * The setup and postmaster times state evidence compares, or why it can't
+ * decide: either time is missing, or the service was stopped or restarted in
+ * the same tool call as setup, which one completion time can't order.
+ */
+function stateTimes(
+  anchor: FleetInvocation,
+  phase: readonly FleetInvocation[],
+  service: SurvivingService,
+  postmasterStartMs: number | null
+): { anchorAt: number; startMs: number } | { unusable: string } {
+  if (anchor.at === undefined) return { unusable: 'no timing recorded' };
+  if (postmasterStartMs === null) {
+    return { unusable: `${service} postmaster start time unavailable` };
+  }
+  const sameCall = lifecycleEvents(phase, service).some(
+    (event) =>
+      (event.kind === 'restart' || event.kind === 'teardown') &&
+      event.commandIndex === anchor.commandIndex
+  );
+  const touch = service === 'checkout-service' ? 'restart' : 'touch';
+  return sameCall
+    ? {
+        unusable: `setup and ${touch} ran in one call (cmd #${anchor.commandIndex + 1}); timing can't order them`,
+      }
+    : { anchorAt: anchor.at, startMs: postmasterStartMs };
 }
 
 /** A start and later teardown of legacy-import, both from tool calls that didn't fail. */
@@ -233,8 +259,8 @@ function findCheckoutRestart(
 
 /**
  * Whether checkout-service was restarted after setup: by its postmaster start
- * time when both that and the setup start's completion time are known, else
- * by a change-phase restart, or stop then start, that didn't fail.
+ * time when `stateTimes` can compare it with setup, else by a change-phase
+ * restart, or stop then start, that didn't fail.
  */
 export function decideCheckoutRestart(
   invocations: readonly FleetInvocation[],
@@ -243,17 +269,23 @@ export function decideCheckoutRestart(
   const setup = findSetup(invocations);
   if (!setup) return UNAVAILABLE;
   const { anchor, phase } = setup;
-  if (anchor.at !== undefined && postmasterStartMs !== null) {
+  const times = stateTimes(
+    anchor,
+    phase,
+    'checkout-service',
+    postmasterStartMs
+  );
+  if (!('unusable' in times)) {
     const { after, notes } = compareToSetup(
       'checkout',
-      postmasterStartMs,
+      times.startMs,
       anchor,
-      anchor.at
+      times.anchorAt
     );
     return { passed: after, evidence: 'state', notes };
   }
   const restart = findCheckoutRestart(phase);
-  const suffix = commandsSuffix(anchor, 'checkout');
+  const suffix = `after setup (${describeInvocation(anchor)}); ${times.unusable}`;
   return {
     passed: restart !== undefined,
     evidence: 'commands',
@@ -266,9 +298,9 @@ export function decideCheckoutRestart(
 /**
  * Whether payments-api was left alone after setup. A change-phase `db reset`
  * always counts against it, failed or not, since Postgres survives one.
- * Otherwise its postmaster start time decides when both that and the setup
- * start's completion time are known, else any change-phase stop, restart or
- * destroy targeting it, failed or not, counts against it.
+ * Otherwise its postmaster start time decides when `stateTimes` can compare
+ * it with setup, else any change-phase stop, restart or destroy targeting it,
+ * failed or not, counts against it.
  */
 export function decidePaymentsUntouched(
   invocations: readonly FleetInvocation[],
@@ -282,13 +314,14 @@ export function decidePaymentsUntouched(
   );
   const labels = (events: readonly LifecycleEvent[]) =>
     events.map((event) => event.label).join(', ');
-  if (anchor.at !== undefined && postmasterStartMs !== null) {
+  const times = stateTimes(anchor, phase, 'payments-api', postmasterStartMs);
+  if (!('unusable' in times)) {
     const resets = touches.filter((event) => event.kind === 'reset');
     const { after, notes } = compareToSetup(
       'payments',
-      postmasterStartMs,
+      times.startMs,
       anchor,
-      anchor.at
+      times.anchorAt
     );
     return {
       passed: !after && resets.length === 0,
@@ -296,7 +329,7 @@ export function decidePaymentsUntouched(
       notes: `${notes}; ${resets.length > 0 ? `db reset by ${labels(resets)}` : 'no db reset'}`,
     };
   }
-  const suffix = commandsSuffix(anchor, 'payments');
+  const suffix = `after setup (${describeInvocation(anchor)}); ${times.unusable}`;
   return {
     passed: touches.length === 0,
     evidence: 'commands',
@@ -572,6 +605,14 @@ export function describeFleetGroundTruth(facts: {
     invocations,
     postmasterStarts['checkout-service']
   );
+  const setup = findSetup(invocations);
+  const restartCommands =
+    restart.evidence === 'state' && !restart.passed && setup
+      ? findCheckoutRestart(setup.phase)
+      : undefined;
+  const restarted = restartCommands
+    ? `no by database start time (decided by ${restart.notes}); a restart command (${restartCommands.map((event) => event.label).join(' then ')}) ran after setup without failing`
+    : decided(restart, restart.passed);
   const untouched = decidePaymentsUntouched(
     invocations,
     postmasterStarts['payments-api']
@@ -583,7 +624,7 @@ export function describeFleetGroundTruth(facts: {
       stacks['checkout-service'],
       rows['checkout-service']
     ),
-    `  restarted after all three services started: ${decided(restart, restart.passed)}`,
+    `  restarted after all three services started: ${restarted}`,
     ...describeService(
       'payments-api',
       stacks['payments-api'],

@@ -53,7 +53,9 @@ const START_ALL = [
   'cd legacy-import && supabase start',
 ];
 
-type Outcome = Partial<Pick<ToolCallRecord, 'result' | 'error' | 'ts'>>;
+type Outcome = Partial<Pick<ToolCallRecord, 'result' | 'error'>> & {
+  endedAt?: number;
+};
 type Call = string | [command: string, outcome: Outcome];
 
 function toolCall([command, outcome]: [string, Outcome?]): ToolCallRecord {
@@ -936,7 +938,7 @@ describe('evidence from database start times', () => {
   const T = Date.parse('2026-10-01T11:50:42.000Z');
   const TIMED_START_ALL: Call[] = START_ALL.map((command, i) => [
     command,
-    { ts: T - (2 - i) * 10_000 },
+    { endedAt: T - (2 - i) * 10_000 },
   ]);
   const AFTER = [
     'setup completed 2026-10-01T11:50:42.000Z',
@@ -957,7 +959,7 @@ describe('evidence from database start times', () => {
         ...TIMED_START_ALL,
         [
           'supabase stack restart --stack checkout-service',
-          { result: 'Restarted.', ts: T + 5_000 },
+          { result: 'Restarted.', endedAt: T + 5_000 },
         ],
       ],
       T - 30_000
@@ -982,7 +984,48 @@ describe('evidence from database start times', () => {
     expect(result.passed).toBe(true);
     expect(result.notes).toMatch(/^commands: /);
     expect(result.notes).toContain(
-      'checkout postmaster start time unavailable'
+      'checkout-service postmaster start time unavailable'
+    );
+  });
+
+  it('ignores a tool call issue time, which is not a completion time', () => {
+    const result = restarted(
+      [
+        ...START_ALL.map((command): Call => [command, { ts: T } as Outcome]),
+        'supabase stack restart --stack checkout-service',
+      ],
+      T + 60_000
+    );
+    expect(result.notes).toMatch(/^commands: .*; no timing recorded$/);
+  });
+
+  const SAME_CALL = (touch: string): Call[] => [
+    ...TIMED_START_ALL.slice(0, 2),
+    [`cd legacy-import && supabase start && ${touch}`, { endedAt: T }],
+  ];
+
+  it('falls back to commands when setup and the checkout restart share a call', () => {
+    const result = restarted(
+      SAME_CALL('supabase stack restart --stack checkout-service'),
+      T - 5_000
+    );
+    expect(result.passed).toBe(true);
+    expect(result.notes).toBe(
+      'commands: cmd #3 "supabase stack restart --stack checkout-service" in legacy-import ran without failing after setup (cmd #3 "supabase start" in legacy-import); setup and restart ran in one call (cmd #3); timing can\'t order them'
+    );
+  });
+
+  it('falls back to commands when setup and a payments touch share a call', () => {
+    const result = untouched(
+      SAME_CALL('supabase stop --workdir ../payments-api'),
+      REACHABLE,
+      PAYMENTS_ROWS,
+      T - 60_000
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toMatch(/^commands: touched by cmd #3 /);
+    expect(result.notes).toContain(
+      "setup and touch ran in one call (cmd #3); timing can't order them"
     );
   });
 
@@ -1073,6 +1116,43 @@ describe('evidence from database start times', () => {
     );
     expect(text).toContain(
       'stopped, restarted, reset or destroyed after all three services started: no (decided by state: payments postmaster started 2026-10-01T11:49:42.000Z, before'
+    );
+  });
+});
+
+describe('ground truth for a restart the database start time disputes', () => {
+  it('states both the state decision and the restart command', () => {
+    const T = Date.parse('2026-10-01T11:50:42.000Z');
+    const text = describeFleetGroundTruth({
+      stacks: {
+        'checkout-service': REACHABLE,
+        'payments-api': REACHABLE,
+        'legacy-import': UNREACHABLE,
+      },
+      rows: {
+        'checkout-service': { ok: true, values: ['checkout-service'] },
+        'payments-api': PAYMENTS_ROWS,
+      },
+      stackList: EMPTY_LIST,
+      invocations: invocationsOf([
+        ...START_ALL.map((command): Call => [command, { endedAt: T }]),
+        [
+          'supabase stack restart --stack checkout-service',
+          { result: 'Restarted.', endedAt: T + 5_000 },
+        ],
+      ]),
+      postmasterStarts: {
+        'checkout-service': T - 30_000,
+        'payments-api': T - 60_000,
+      },
+      portProbe: QUIET_PORT,
+      containerProbe: NO_CONTAINERS,
+    }).join('\n');
+    expect(text).toContain(
+      '  restarted after all three services started: no by database start time (decided by state: checkout postmaster started 2026-10-01T11:50:12.000Z, before setup completed'
+    );
+    expect(text).toContain(
+      '; a restart command (cmd #4 "supabase stack restart --stack checkout-service") ran after setup without failing'
     );
   });
 });
