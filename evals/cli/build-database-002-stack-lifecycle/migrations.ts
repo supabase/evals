@@ -1,5 +1,6 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import { describeFailure, shellQuote, type StackProbe } from './stack.js';
+import { describeFailure, shellQuote } from '../lib/shell.js';
+import type { StackProbe } from '../lib/stack.js';
 
 const CREATES_NOTES_RE =
   /create\s+table\s+(if\s+not\s+exists\s+)?("?public"?\.)?"?notes"?(?![\w$"])/i;
