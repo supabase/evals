@@ -1,4 +1,5 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/cli/lib
+import type { ToolCallRecord } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 import { describe, expect, it } from 'vitest';
 import {
@@ -11,7 +12,14 @@ import {
   findDetours,
   formatDetourJudgeInput,
   leadingWord,
+  scopedCommandSegments,
+  skipEnvOptions,
 } from './detours.js';
+
+// `cwd` mirrors the field newer core versions add to ToolCallRecord.
+type RecordFields = Partial<Omit<ToolCallRecord, 'cwd'>> & { cwd?: unknown };
+const record = (fields: RecordFields): ToolCallRecord =>
+  ({ tool: {}, body: {}, ts: 0, ...fields }) as ToolCallRecord;
 
 // Exact `.source` text of the DETOUR_PATTERNS entries in detours.ts, so a
 // reorder of that array doesn't silently weaken these assertions. Order
@@ -221,10 +229,74 @@ describe('commandSegments', () => {
     expect(commandSegments('a 2>&1 & b')).toEqual(['a 2>&1', 'b']);
   });
 
+  it('drops comment text so it cannot leak into segments', () => {
+    expect(commandSegments('echo ok # cleanup; sudo dockerd')).toEqual([
+      'echo ok',
+    ]);
+    expect(commandSegments('a\n  # b; c\nd')).toEqual(['a', 'd']);
+  });
+
+  it('keeps a quoted or mid-word # that is not a comment', () => {
+    expect(commandSegments('echo a#b ${#x}; sudo dockerd')).toEqual([
+      'echo a#b ${#x}',
+      'sudo dockerd',
+    ]);
+    expect(commandSegments(`echo "#"; sudo dockerd`)).toEqual([
+      'echo ""',
+      'sudo dockerd',
+    ]);
+  });
+
   it('masks quoted literals so their contents cannot leak into segments', () => {
     expect(
       commandSegments('echo "sudo systemctl start docker; rm -rf /"')
     ).toEqual(['echo ""']);
+  });
+});
+
+describe('findDetours with comments', () => {
+  it('ignores a detour inside a trailing comment', () => {
+    expect(findDetours('echo ok # then: sudo systemctl start docker')).toEqual(
+      []
+    );
+    expect(findDetours('ls # cleanup; sudo dockerd')).toEqual([]);
+  });
+
+  it('still flags a detour before a comment', () => {
+    expect(findDetours('sudo dockerd # start the daemon')).toEqual([
+      'leading:sudo',
+    ]);
+  });
+});
+
+describe('scopedCommandSegments', () => {
+  it('reports the subshells opened before and closed within each segment', () => {
+    expect(scopedCommandSegments('(cd a && (b)); c')).toEqual([
+      { segment: 'cd a', opens: 1, closes: 0 },
+      { segment: 'b))', opens: 1, closes: 2 },
+      { segment: 'c', opens: 0, closes: 0 },
+    ]);
+  });
+
+  it('does not count a quoted paren', () => {
+    expect(scopedCommandSegments(`echo ")"`)).toEqual([
+      { segment: 'echo ")"', opens: 0, closes: 0 },
+    ]);
+  });
+});
+
+describe('skipEnvOptions', () => {
+  it.each([
+    [['-i', 'x'], { next: 1 }],
+    [['-u', 'DOCKER_HOST', 'x'], { next: 2 }],
+    [['--unset=DOCKER_HOST', 'x'], { next: 1 }],
+    [['--unset', 'DOCKER_HOST', 'x'], { next: 2 }],
+    [['-C', 'dir', 'x'], { next: 2, chdir: 'dir' }],
+    [['--chdir=dir', 'x'], { next: 1, chdir: 'dir' }],
+    [['--chdir', 'dir', '-i', 'x'], { next: 3, chdir: 'dir' }],
+    [['FOO=1', 'x'], { next: 0 }],
+  ])('%j -> %j', (tokens, expected) => {
+    expect(skipEnvOptions(tokens, 0)).toEqual(expected);
   });
 });
 
@@ -242,6 +314,9 @@ describe('leadingWord', () => {
     expect(leadingWord('env -u DOCKER_HOST sudo')).toBe('sudo');
     expect(leadingWord('env --unset=DOCKER_HOST sudo')).toBe('sudo');
     expect(leadingWord('env -C /tmp sudo')).toBe('sudo');
+    expect(leadingWord('env --unset DOCKER_HOST --chdir=/tmp sudo')).toBe(
+      'sudo'
+    );
   });
 
   it('takes the basename of an absolute path', () => {
@@ -259,36 +334,33 @@ describe('leadingWord', () => {
 
 describe('extractCommands', () => {
   it('reads the normalized `command` field when present', () => {
-    expect(
-      extractCommands([{ command: 'docker info', body: {}, tool: {} } as never])
-    ).toEqual(['docker info']);
+    expect(extractCommands([record({ command: 'docker info' })])).toEqual([
+      'docker info',
+    ]);
   });
 
   it('falls back to a raw `body.command` array joined with spaces', () => {
     expect(
-      extractCommands([
-        { body: { command: ['docker', 'info'] }, tool: {} } as never,
-      ])
+      extractCommands([record({ body: { command: ['docker', 'info'] } })])
     ).toEqual(['docker info']);
   });
 
   it('drops calls with no resolvable command', () => {
-    expect(extractCommands([{ body: {}, tool: {} } as never])).toEqual([]);
+    expect(extractCommands([record({})])).toEqual([]);
   });
 });
 
 describe('extractCommandEntries', () => {
   const calls = [
-    { command: 'ls', cwd: '/tmp/sandbox-x', body: {}, tool: {} },
-    { body: {}, tool: {} },
-    {
+    record({ command: 'ls', cwd: '/tmp/sandbox-x' }),
+    record({}),
+    record({
       body: { command: ['supabase', 'stop'] },
       cwd: '/tmp/sandbox-x/legacy-import',
-      tool: {},
-    },
-    { command: 'supabase start', cwd: 42, body: {}, tool: {} },
-    { command: 'supabase status', body: {}, tool: {} },
-  ] as never[];
+    }),
+    record({ command: 'supabase start', cwd: 42 }),
+    record({ command: 'supabase status' }),
+  ];
 
   it('keeps the order and filtering of extractCommands', () => {
     expect(extractCommandEntries(calls).map(({ command }) => command)).toEqual(

@@ -120,13 +120,43 @@ describe('checkMarkerIsolation', () => {
     ).toBe(false);
   });
 
-  it('matches labels case-insensitively', () => {
+  it('matches labels case-insensitively, ignoring surrounding whitespace', () => {
     expect(
       checkMarkerIsolation(NAME, [
         { label: 'client-a', rows: rows('Client-A') },
-        { label: 'client-b', rows: rows('CLIENT-B marker') },
+        { label: 'client-b', rows: rows(' CLIENT-B\n') },
       ]).passed
     ).toBe(true);
+  });
+
+  it('passes overlapping labels that are correctly isolated', () => {
+    expect(
+      checkMarkerIsolation(NAME, [
+        { label: 'client-a', rows: rows('client-a') },
+        { label: 'client-a-archive', rows: rows('client-a-archive') },
+      ]).passed
+    ).toBe(true);
+  });
+
+  it('still fails overlapping labels when one db holds both', () => {
+    expect(
+      checkMarkerIsolation(NAME, [
+        { label: 'client-a', rows: rows('client-a') },
+        {
+          label: 'client-a-archive',
+          rows: rows('client-a-archive', 'client-a'),
+        },
+      ]).passed
+    ).toBe(false);
+  });
+
+  it('does not count a value merely containing the label', () => {
+    expect(
+      checkMarkerIsolation(NAME, [
+        { label: 'client-a', rows: rows('client-a marker') },
+        { label: 'client-b', rows: rows('client-b') },
+      ]).passed
+    ).toBe(false);
   });
 
   it('fails with each entry described when any rows are unreadable', () => {

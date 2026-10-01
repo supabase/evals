@@ -256,6 +256,124 @@ describe('findSupabaseInvocations', () => {
     ).toEqual([]);
   });
 
+  it('restores the outer directory when a subshell that ran cd closes', () => {
+    expect(
+      findSupabaseInvocations([
+        '(cd legacy-import && supabase status); supabase stop',
+        {
+          command: '(cd legacy-import && supabase status); supabase stop',
+          cwd: '/w',
+        },
+      ])
+    ).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'status'], cwd: 'legacy-import' },
+      { commandIndex: 0, argv: ['supabase', 'stop'] },
+      {
+        commandIndex: 1,
+        argv: ['supabase', 'status'],
+        cwd: '/w/legacy-import',
+      },
+      { commandIndex: 1, argv: ['supabase', 'stop'], cwd: '/w' },
+    ]);
+  });
+
+  it('scopes cd to each level of nested subshells', () => {
+    expect(
+      findSupabaseInvocations([
+        'cd a && (cd b && (cd c && supabase start) && supabase status) && supabase stop',
+      ]).map(({ argv, cwd }) => [argv[1], cwd])
+    ).toEqual([
+      ['start', 'a/b/c'],
+      ['status', 'a/b'],
+      ['stop', 'a'],
+    ]);
+  });
+
+  it('keeps a cd that runs outside any subshell after an unrelated one closes', () => {
+    expect(
+      findSupabaseInvocations(['(supabase status) && cd a && supabase stop'])
+    ).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'status'] },
+      { commandIndex: 0, argv: ['supabase', 'stop'], cwd: 'a' },
+    ]);
+  });
+
+  it('ignores a quoted paren when scoping cd', () => {
+    expect(
+      findSupabaseInvocations(['cd a && echo ")" && supabase stop'])
+    ).toEqual([{ commandIndex: 0, argv: ['supabase', 'stop'], cwd: 'a' }]);
+  });
+
+  it('ignores invocations inside a trailing comment', () => {
+    expect(
+      findSupabaseInvocations([
+        'echo ok # suggested cleanup; supabase stop --all',
+      ])
+    ).toEqual([]);
+  });
+
+  it('keeps an invocation followed by a comment', () => {
+    expect(findSupabaseInvocations(['supabase stop # done'])).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'stop'] },
+    ]);
+  });
+
+  it('does not treat a quoted or mid-word # as a comment', () => {
+    expect(
+      findSupabaseInvocations([
+        'echo "#"; supabase stop',
+        'echo a#b; echo ${#x}; supabase start',
+      ]).map(({ argv }) => argv)
+    ).toEqual([
+      ['supabase', 'stop'],
+      ['supabase', 'start'],
+    ]);
+  });
+
+  it('skips a commented line in a multi-line command', () => {
+    expect(
+      findSupabaseInvocations([
+        'supabase start\n# supabase stop --all\nsupabase status',
+      ]).map(({ argv }) => argv)
+    ).toEqual([
+      ['supabase', 'start'],
+      ['supabase', 'status'],
+    ]);
+  });
+
+  it.each([
+    'env -u DOCKER_HOST supabase start --workdir client-a',
+    'env --unset=DOCKER_HOST supabase start --workdir client-a',
+    'env --unset DOCKER_HOST supabase start --workdir client-a',
+    'env -i SUPABASE_EXPERIMENTAL_STACK=1 supabase start --workdir client-a',
+  ])('strips env options in %j', (command) => {
+    const [found] = findSupabaseInvocations([command]);
+    expect(found.argv).toEqual(['supabase', 'start', '--workdir', 'client-a']);
+    expect(invocationTargets(found, 'client-a')).toBe(true);
+  });
+
+  it('finds env -i supabase stop', () => {
+    expect(findSupabaseInvocations(['env -i supabase stop'])).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'stop'] },
+    ]);
+  });
+
+  it('runs an env -C or --chdir invocation in that directory, for that invocation only', () => {
+    const found = findSupabaseInvocations([
+      {
+        command:
+          'env -C legacy-import supabase stop && env --chdir=../x supabase start && supabase status',
+        cwd: '/w',
+      },
+    ]);
+    expect(found.map(({ argv, cwd }) => [argv[1], cwd])).toEqual([
+      ['stop', '/w/legacy-import'],
+      ['start', '/x'],
+      ['status', '/w'],
+    ]);
+    expect(invocationTargets(found[0], 'legacy-import')).toBe(true);
+  });
+
   it('never throws on unbalanced quotes', () => {
     expect(() => findSupabaseInvocations(['supabase stop "'])).not.toThrow();
   });
