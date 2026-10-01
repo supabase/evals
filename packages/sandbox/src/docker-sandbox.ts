@@ -97,7 +97,7 @@ export const SANDBOX_CONTAINER_LABEL = 'supabase-evals-sandbox';
  */
 const CLIENT_TIMEOUT_HEADROOM_MS = 20_000;
 
-const SANDBOX_PATH = [
+export const SANDBOX_PATH = [
   '/home/node/.npm-global/bin',
   '/usr/local/sbin',
   '/usr/local/bin',
@@ -106,6 +106,10 @@ const SANDBOX_PATH = [
   '/sbin',
   '/bin',
 ].join(':');
+
+// Login shells (Codex runs commands via `bash -lc`) source /etc/profile, which
+// resets a non-root PATH; this snippet restores SANDBOX_PATH for them.
+export const SANDBOX_PATH_PROFILE = '/etc/profile.d/00-sandbox-path.sh';
 
 export interface DockerSandboxOptions {
   /** Image to run; defaults to node:22-slim. */
@@ -228,6 +232,11 @@ export class DockerSandbox {
     if (!chown.ok) {
       throw new Error(`failed to chown sandbox workspace: ${chown.stderr}`);
     }
+
+    await this.writeRootFile(
+      SANDBOX_PATH_PROFILE,
+      `export PATH=${shellQuote(SANDBOX_PATH)}\n`
+    );
   }
 
   /** The sandbox container id (empty when not running). */
@@ -516,6 +525,28 @@ export class DockerSandbox {
 
   async [Symbol.asyncDispose](): Promise<void> {
     return this.stop();
+  }
+}
+
+/** Assert `name` resolves to `expected` (`null`: nothing) in the agent's plain and login shells. */
+export async function assertAgentResolves(
+  sandbox: Pick<DockerSandbox, 'runShell'>,
+  name: string,
+  expected: string | null
+): Promise<void> {
+  const probe = `command -v ${name}`;
+  const shells = [
+    ['non-login', probe],
+    ['login', `bash -lc ${shellQuote(probe)}`],
+  ] as const;
+  for (const [shell, command] of shells) {
+    const resolved = (await sandbox.runShell(command)).stdout.trim();
+    if (resolved !== (expected ?? '')) {
+      throw new Error(
+        `\`${name}\` resolves to ${JSON.stringify(resolved)} in the agent's ${shell} shell; ` +
+          `expected ${expected === null ? 'nothing' : JSON.stringify(expected)}`
+      );
+    }
   }
 }
 

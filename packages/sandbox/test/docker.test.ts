@@ -242,7 +242,7 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
     );
 
     it(
-      'a no-daemon sandbox root-owns the marker and both shims, read-only to the agent',
+      'a no-daemon sandbox root-owns the marker and both shims, and login shells resolve the shims',
       { timeout: TEST_TIMEOUT_MS },
       async () => {
         // Docker-less staging guards both projectRunning: false and no hosted
@@ -260,6 +260,14 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
             '0:0 444',
             '0:0 755',
             '0:0 755',
+          ]);
+
+          const login = await session.scoringContext.exec(
+            "bash -lc 'command -v supabase docker'"
+          );
+          expect(login.stdout.trim().split('\n')).toEqual([
+            '/usr/local/sbin/supabase',
+            '/usr/local/sbin/docker',
           ]);
 
           const write = await session.scoringContext.exec(
