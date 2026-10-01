@@ -304,6 +304,10 @@ function resultPath(modelName: string, evalId: string, run: number) {
   return join(runDir(modelName, evalId, run), 'result.json');
 }
 
+function sessionArchivePath(modelName: string, evalId: string, run: number) {
+  return join(runDir(modelName, evalId, run), 'session-archive.tar.gz');
+}
+
 function workspacePath(modelName: string, evalId: string, run: number) {
   return join(runDir(modelName, evalId, run), 'workspace');
 }
@@ -450,6 +454,7 @@ async function runOne(
       sandbox: session.sandbox,
       mcpServers: session.mcpServers,
       timeoutSec: TIMEOUT_SEC,
+      sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
     });
     await session.ensureReady?.();
     // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
@@ -536,6 +541,7 @@ async function runOne(
     mcpServers: session.mcpServers,
     sandbox: cliSandbox?.sandbox,
     timeoutSec: TIMEOUT_SEC,
+    sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
   });
   const last = await (scorer as ToolScorer)({
     ...session.scoringContext,

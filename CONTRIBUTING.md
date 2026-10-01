@@ -22,7 +22,7 @@ If your scenario contains anything not self-explanatory, consider adding a `READ
 
 ## Eval criteria
 
-Every new scenario needs a `motivation:` defined in `PROMPT.md` frontmatter that cites some evidence for the scenario being a part of the Supabase user journey, ideally a pain point. Examples include support tickets, GitHub issues, Linear issues, or social media threads.
+Every new scenario needs a `motivation:` defined in `PROMPT.md` frontmatter that cites concrete evidence for the scenario being part of the Supabase user journey, ideally a pain point. Examples include Supabase troubleshooting guides, user or support reports, GitHub or Linear issues, Slack threads, or social posts.
 
 For new **benchmark** scenarios, we need to see at least one agent, ideally more, failing the new scenario to ensure we're getting signal from results. If agents are already acing your scenario, consider hardening it with a more ambiguous or misleading prompt, unusual seed data, or subtle footgun. Run locally and review agent failures to ensure they're legitimate reasoning mistakes, not eval framework limitations. We also want to keep benchmarks representative of the user journey. Review the [Evals coverage table](https://app.hex.tech/supabase/app/Evals-033abDlwqlTbW5ktgwFffU/latest) and make sure you're not over-indexing on a niche use case.
 
@@ -34,9 +34,9 @@ Instead of spoonfeeding agents in the prompt, move details into seed data to let
 
 ## Writing scorers
 
-Prefer deterministic checks where possible for stability and efficiency. Avoid being overly prescriptive with the process an agent takes to reach a solution (unless critical to the scenario), prefer checking the end state by inspecting the project or filesystem.
+Prefer deterministic checks where possible because they are cheaper, faster, repeatable, and easier to debug. Avoid being overly prescriptive with the process an agent takes to reach a solution (unless critical to the scenario), prefer checking the end state by inspecting the project or filesystem.
 
-If deterministic checks are too inflexible or convoluted, use an LLM-as-a-judge check via `judge()` to check semantic correctness.
+Reserve LLM-as-a-judge checks via `judge()` for semantic or free-form outcomes where multiple valid forms make exact checks brittle.
 
 Prefer building checks declaratively and returning the list in one place instead of accumulating checks within branching logic, so the list remains stable if one path fails.
 
@@ -59,6 +59,18 @@ You have a few options to run evals in CI:
 - Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow manually to target any branch and choose specific evals, experiments, or other options. It can commit results directly to the selected branch or open a separate results PR.
 
 Include refreshed results for PRs with new/changed evals so a reviewer can see results directly from your PR or Vercel preview build.
+
+## Reviewing an eval
+
+Use this checklist after the author has followed [Submitting evals for review](#submitting-evals-for-review). A failing run can be useful signal, so all-green results are not required.
+
+- Read [Eval criteria](#eval-criteria) and [Writing prompts](#writing-prompts). The `motivation:` should cite a real user problem, with the respective external link or Linear issue ID, and the prompt should have one clear, observable goal without leaking commands, schema details, or rubric language.
+- Review [Writing scorers](#writing-scorers) assertion by assertion. Each check should map to a user requirement, avoid known false passes and false fails, and measure behavior instead of one implementation path. Don't turn incidental diagnostics into pass/fail checks.
+- Ask for a deterministic or fixture-based check whenever it can replace `judge()`. Reserve judges for semantic or free-form outcomes where exact checks would be brittle.
+- Require refreshed CI results, inspect at least one success run and each distinct failure shape, and confirm the experiment matches the intended suite, skills, runtime, hosted or local state, and any CLI or Docker assumptions.
+- Classify each failure before requesting changes: agent gap, product gap, scorer bug, or harness/runtime failure. Ideally, show that the scorer rejects at least one known-bad solution or counterexample with a scorer unit test or a failing run linked in the PR.
+
+Tag #team-ai on Slack only for framework, runtime, experiment, result schema, or contract changes; scenario wording and scorer tuning should stay with the owning team.
 
 ## Docs evals
 

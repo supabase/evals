@@ -47,6 +47,7 @@ async function captureRunCommand(): Promise<string> {
         return ok;
       },
       readFile: async () => '',
+      copyToHost: async () => {},
     },
     model: 'claude-sonnet-4-6',
     apiKey: 'k',
