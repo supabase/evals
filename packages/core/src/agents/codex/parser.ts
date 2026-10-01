@@ -15,16 +15,21 @@
  * (correlated by the item id) so the adapter can attach the output.
  *
  * NB: this is the `--json` event schema, NOT the `~/.codex/sessions` rollout
- * format (event_msg/response_item) that older parsers targeted.
+ * format (event_msg/response_item) that older parsers targeted. The rollout is
+ * read only to recover each command's cwd (see `extractCommandCwds`).
  */
 
+import { fileURLToPath } from 'node:url';
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
   ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
-import type { AgentTranscriptParser } from '../../parsers/types.js';
+import type {
+  AgentTranscriptParser,
+  ParseContext,
+} from '../../parsers/types.js';
 import {
   normalizeToolName,
   type AgentToolMap,
@@ -224,8 +229,120 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   }
 }
 
+/** A rollout `CommandExecution`'s argv and the absolute directory it ran in. */
+export interface CommandCwd {
+  argv?: string[];
+  cwd?: string;
+}
+
+/**
+ * Each completed `CommandExecution` in a Codex session rollout, in order. Kept
+ * even when a field is unreadable so positions still line up with the stream.
+ */
+export function extractCommandCwds(rollout: string): CommandCwd[] {
+  const { records } = parseJsonlRecords(rollout);
+  const commands: CommandCwd[] = [];
+  for (const record of records) {
+    if (record.type !== 'event_msg' || !isRecord(record.payload)) continue;
+    if (record.payload.type !== 'item_completed') continue;
+    const item = record.payload.item;
+    if (!isRecord(item) || item.type !== 'CommandExecution') continue;
+    const argv =
+      Array.isArray(item.command) &&
+      item.command.every((part) => typeof part === 'string')
+        ? item.command
+        : undefined;
+    commands.push({ argv, cwd: directoryPath(item.cwd) });
+  }
+  return commands;
+}
+
+function directoryPath(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value) return undefined;
+  if (!value.startsWith('file:')) return value;
+  try {
+    return fileURLToPath(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * POSIX shell word splitting (quotes and backslashes, no expansion), enough to
+ * recover the argv Codex shell-joined into a `command_execution` command.
+ * Undefined on an unterminated quote or trailing backslash.
+ */
+function splitShellWords(command: string): string[] | undefined {
+  const words: string[] = [];
+  let word: string | undefined;
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i];
+    if (ch === "'") {
+      const end = command.indexOf("'", i + 1);
+      if (end === -1) return undefined;
+      word = (word ?? '') + command.slice(i + 1, end);
+      i = end;
+    } else if (ch === '"') {
+      let quoted = '';
+      i += 1;
+      for (; i < command.length && command[i] !== '"'; i += 1) {
+        const next = command[i + 1];
+        if (
+          command[i] === '\\' &&
+          next !== undefined &&
+          '$`"\\\n'.includes(next)
+        ) {
+          i += 1;
+          if (next === '\n') continue;
+        }
+        quoted += command[i];
+      }
+      if (i >= command.length) return undefined;
+      word = (word ?? '') + quoted;
+    } else if (ch === '\\') {
+      i += 1;
+      if (i >= command.length) return undefined;
+      if (command[i] !== '\n') word = (word ?? '') + command[i];
+    } else if (/\s/.test(ch)) {
+      if (word !== undefined) words.push(word);
+      word = undefined;
+    } else {
+      word = (word ?? '') + ch;
+    }
+  }
+  if (word !== undefined) words.push(word);
+  return words;
+}
+
+// The --json stream omits each command's cwd. The rollout lists the same
+// commands in the same order, so join by position and keep only argv matches.
+function attachCommandCwds(events: TranscriptEvent[], rollout: string): void {
+  const commands = extractCommandCwds(rollout);
+  let index = 0;
+  for (const event of events) {
+    const tool = event.tool;
+    if (event.type !== 'tool_call' || !tool) continue;
+    if (
+      tool.call?.kind !== 'other' ||
+      tool.originalName !== 'command_execution'
+    )
+      continue;
+    const { argv, cwd } = commands[index] ?? {};
+    index += 1;
+    const words =
+      typeof tool.args?.command === 'string'
+        ? splitShellWords(tool.args.command)
+        : undefined;
+    if (cwd && argv && words && sameWords(words, argv)) tool.cwd = cwd;
+  }
+}
+
+function sameWords(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((word, i) => word === b[i]);
+}
+
 export const codexParser: AgentTranscriptParser = {
-  parseTranscript(raw: string): ParsedTranscript {
+  parseTranscript(raw: string, ctx?: ParseContext): ParsedTranscript {
     const { records, errors } = parseJsonlRecords(raw);
     const events: TranscriptEvent[] = [];
     for (const record of records) {
@@ -235,6 +352,7 @@ export const codexParser: AgentTranscriptParser = {
         errors.push(e instanceof Error ? e.message : String(e));
       }
     }
+    if (ctx?.sessionLog) attachCommandCwds(events, ctx.sessionLog);
     return { events, errors };
   },
 };

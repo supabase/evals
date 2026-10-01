@@ -81,6 +81,8 @@ export interface RunnerExecResult {
    * eval-metadata.ts for what counts as one.
    */
   stepCount?: number;
+  /** The CLI's on-disk session log, handed to the parser as `ParseContext.sessionLog`. */
+  sessionLog?: string;
 }
 
 /** A CLI coding agent's execution strategy. `M` is its SDK model-id type. */
