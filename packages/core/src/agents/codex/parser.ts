@@ -16,7 +16,8 @@
  *
  * NB: this is the `--json` event schema, NOT the `~/.codex/sessions` rollout
  * format (event_msg/response_item) that older parsers targeted. The rollout is
- * read only to recover each command's cwd (see `extractCommandCwds`).
+ * read only to recover each command's cwd and completion time (see
+ * `extractCommandExecutions`).
  */
 
 import { fileURLToPath } from 'node:url';
@@ -229,19 +230,20 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   }
 }
 
-/** A rollout `CommandExecution`'s argv and the absolute directory it ran in. */
-export interface CommandCwd {
+/** A rollout `CommandExecution`'s argv, the absolute directory it ran in, and when it completed (epoch ms). */
+export interface CommandExecution {
   argv?: string[];
   cwd?: string;
+  endedAt?: number;
 }
 
 /**
  * Each completed `CommandExecution` in a Codex session rollout, in order. Kept
  * even when a field is unreadable so positions still line up with the stream.
  */
-export function extractCommandCwds(rollout: string): CommandCwd[] {
+export function extractCommandExecutions(rollout: string): CommandExecution[] {
   const { records } = parseJsonlRecords(rollout);
-  const commands: CommandCwd[] = [];
+  const commands: CommandExecution[] = [];
   for (const record of records) {
     if (record.type !== 'event_msg' || !isRecord(record.payload)) continue;
     if (record.payload.type !== 'item_completed') continue;
@@ -252,9 +254,19 @@ export function extractCommandCwds(rollout: string): CommandCwd[] {
       item.command.every((part) => typeof part === 'string')
         ? item.command
         : undefined;
-    commands.push({ argv, cwd: directoryPath(item.cwd) });
+    commands.push({
+      argv,
+      cwd: directoryPath(item.cwd),
+      endedAt: epochMs(record.timestamp),
+    });
   }
   return commands;
+}
+
+function epochMs(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? undefined : ms;
 }
 
 function directoryPath(value: unknown): string | undefined {
@@ -314,10 +326,13 @@ function splitShellWords(command: string): string[] | undefined {
   return words;
 }
 
-// The --json stream omits each command's cwd. The rollout lists the same
-// commands in the same order, so join by position and keep only argv matches.
-function attachCommandCwds(events: TranscriptEvent[], rollout: string): void {
-  const commands = extractCommandCwds(rollout);
+// The --json stream omits each command's cwd and timing. The rollout lists the
+// same commands in the same order, so join by position and keep only argv matches.
+function attachCommandExecutions(
+  events: TranscriptEvent[],
+  rollout: string
+): void {
+  const commands = extractCommandExecutions(rollout);
   let index = 0;
   for (const event of events) {
     const tool = event.tool;
@@ -327,13 +342,15 @@ function attachCommandCwds(events: TranscriptEvent[], rollout: string): void {
       tool.originalName !== 'command_execution'
     )
       continue;
-    const { argv, cwd } = commands[index] ?? {};
+    const { argv, cwd, endedAt } = commands[index] ?? {};
     index += 1;
     const words =
       typeof tool.args?.command === 'string'
         ? splitShellWords(tool.args.command)
         : undefined;
-    if (cwd && argv && words && sameWords(words, argv)) tool.cwd = cwd;
+    if (!argv || !words || !sameWords(words, argv)) continue;
+    if (cwd) tool.cwd = cwd;
+    if (endedAt !== undefined) tool.endedAt = endedAt;
   }
 }
 
@@ -352,7 +369,7 @@ export const codexParser: AgentTranscriptParser = {
         errors.push(e instanceof Error ? e.message : String(e));
       }
     }
-    if (ctx?.sessionLog) attachCommandCwds(events, ctx.sessionLog);
+    if (ctx?.sessionLog) attachCommandExecutions(events, ctx.sessionLog);
     return { events, errors };
   },
 };

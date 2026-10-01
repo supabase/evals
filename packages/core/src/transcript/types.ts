@@ -83,6 +83,8 @@ export interface TranscriptEvent {
     url?: string;
     /** Absolute directory the call ran in, when the agent records one per call. */
     cwd?: string;
+    /** Epoch ms the call completed, when the agent records it per call. */
+    endedAt?: number;
     /** Skill names loaded by this call, when the parser can identify any. */
     loadedSkills?: string[];
     /** Tool result payload (for `tool_result`). */

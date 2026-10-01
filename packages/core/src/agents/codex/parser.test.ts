@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codexParser, extractCommandCwds } from './parser.js';
+import { codexParser, extractCommandExecutions } from './parser.js';
 import { codexRunner } from './runner.js';
 import { adaptTranscript } from '../../parsers/adapt.js';
 
@@ -264,8 +264,13 @@ function commandItem(id: string, command: string): string {
 }
 
 /** A session-rollout `CommandExecution` completion, as Codex writes it to disk. */
-function rolloutCommand(script: string, cwd?: string): string {
+function rolloutCommand(
+  script: string,
+  cwd?: string,
+  timestamp?: unknown
+): string {
   return JSON.stringify({
+    timestamp,
     type: 'event_msg',
     payload: {
       type: 'item_completed',
@@ -352,10 +357,78 @@ describe('codexParser command cwd', () => {
   });
 });
 
-describe('extractCommandCwds', () => {
-  it('lists rollout commands in order with normalized cwds', () => {
+describe('codexParser command completion time', () => {
+  it('sets endedAt from the matched rollout line timestamp', () => {
+    const stream = [
+      commandItem('c1', "/bin/bash -lc 'supabase start'"),
+      commandItem('c2', "/bin/bash -lc 'supabase status'"),
+    ].join('\n');
+    const sessionLog = [
+      rolloutCommand(
+        'supabase start',
+        'file:///tmp/s',
+        '2026-10-01T11:48:01.731Z'
+      ),
+      rolloutCommand('supabase status', undefined, '2026-10-01T11:48:09.002Z'),
+    ].join('\n');
+
+    const { toolCalls } = adaptTranscript(
+      codexParser.parseTranscript(stream, { sessionLog }).events
+    );
+    expect(toolCalls.map((t) => t.endedAt)).toEqual([
+      Date.parse('2026-10-01T11:48:01.731Z'),
+      Date.parse('2026-10-01T11:48:09.002Z'),
+    ]);
+    expect(toolCalls.map((t) => t.cwd)).toEqual(['/tmp/s', undefined]);
+  });
+
+  it('leaves endedAt unset when the rollout command does not match', () => {
+    const stream = commandItem('c1', "/bin/bash -lc 'pwd'");
+    const sessionLog = rolloutCommand(
+      'whoami',
+      'file:///tmp/s',
+      '2026-10-01T11:48:01.731Z'
+    );
+
+    const { toolCalls } = adaptTranscript(
+      codexParser.parseTranscript(stream, { sessionLog }).events
+    );
+    expect(toolCalls[0].endedAt).toBeUndefined();
+    expect(toolCalls[0].cwd).toBeUndefined();
+  });
+
+  it('leaves endedAt unset when the rollout timestamp is missing or invalid', () => {
+    const stream = [
+      commandItem('c1', "/bin/bash -lc 'ls'"),
+      commandItem('c2', "/bin/bash -lc 'pwd'"),
+      commandItem('c3', "/bin/bash -lc 'whoami'"),
+    ].join('\n');
+    const sessionLog = [
+      rolloutCommand('ls', 'file:///tmp/s'),
+      rolloutCommand('pwd', 'file:///tmp/s', 'not a date'),
+      rolloutCommand('whoami', 'file:///tmp/s', 1759319281731),
+    ].join('\n');
+
+    const parsed = codexParser.parseTranscript(stream, { sessionLog });
+    expect(parsed.errors).toEqual([]);
+    const { toolCalls } = adaptTranscript(parsed.events);
+    expect(toolCalls.map((t) => t.endedAt)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(toolCalls.map((t) => t.cwd)).toEqual(['/tmp/s', '/tmp/s', '/tmp/s']);
+  });
+});
+
+describe('extractCommandExecutions', () => {
+  it('lists rollout commands in order with normalized cwds and completion times', () => {
     const rollout = [
-      rolloutCommand('ls', 'file:///tmp/s/client-a'),
+      rolloutCommand(
+        'ls',
+        'file:///tmp/s/client-a',
+        '2026-10-01T11:48:01.731Z'
+      ),
       '{"truncated":',
       rolloutCommand('pwd', '/tmp/s'),
       rolloutCommand('whoami'),
@@ -364,12 +437,16 @@ describe('extractCommandCwds', () => {
         payload: { type: 'function_call', name: 'exec_command' },
       }),
     ].join('\n');
-    expect(extractCommandCwds(rollout)).toEqual([
-      { argv: ['/bin/bash', '-lc', 'ls'], cwd: '/tmp/s/client-a' },
+    expect(extractCommandExecutions(rollout)).toEqual([
+      {
+        argv: ['/bin/bash', '-lc', 'ls'],
+        cwd: '/tmp/s/client-a',
+        endedAt: Date.parse('2026-10-01T11:48:01.731Z'),
+      },
       { argv: ['/bin/bash', '-lc', 'pwd'], cwd: '/tmp/s' },
       { argv: ['/bin/bash', '-lc', 'whoami'], cwd: undefined },
     ]);
-    expect(extractCommandCwds('')).toEqual([]);
+    expect(extractCommandExecutions('')).toEqual([]);
   });
 });
 
