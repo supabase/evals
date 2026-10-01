@@ -38,7 +38,7 @@ describe('readStackList', () => {
     ]);
   });
 
-  it('keeps object entries whatever their shape and drops non-objects', async () => {
+  it('keeps entries whatever their shape and drops nulls', async () => {
     const { ctx } = fakeCtx(
       commandResult(
         '{"stacks":[{"id":"abc","stack":{"label":"checkout-service"}},"stray",null],"message":""}'
@@ -46,7 +46,29 @@ describe('readStackList', () => {
     );
     expect(await readStackList(ctx)).toEqual({
       ok: true,
-      stacks: [{ id: 'abc', stack: { label: 'checkout-service' } }],
+      stacks: [{ id: 'abc', stack: { label: 'checkout-service' } }, 'stray'],
+    });
+  });
+
+  it('accepts a top-level array as the stacks list', async () => {
+    const { ctx } = fakeCtx(
+      commandResult('[{"name":"legacy-import","status":"stopped"}]')
+    );
+    const result = await readStackList(ctx);
+    expect(result).toEqual({
+      ok: true,
+      stacks: [{ name: 'legacy-import', status: 'stopped' }],
+    });
+    expect(stackListContainsName(result, 'legacy-import')).toBe(true);
+  });
+
+  it('accepts a top-level array after [task] progress lines', async () => {
+    const { ctx } = fakeCtx(
+      commandResult('[task] listing\n[\n  {"name":"payments-api"}\n]\n')
+    );
+    expect(await readStackList(ctx)).toEqual({
+      ok: true,
+      stacks: [{ name: 'payments-api' }],
     });
   });
 
@@ -60,34 +82,53 @@ describe('readStackList', () => {
     });
   });
 
-  it('fails with the CLI error when there is no stack command at all', async () => {
+  it('is unsupported when there is no stack command at all', async () => {
     const { ctx } = fakeCtx({
       ok: false,
       exitCode: 1,
       stdout: '',
       stderr: 'Error: unknown command "stack" for "supabase"',
     });
-    const result = await readStackList(ctx);
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.notes).toContain('unknown command');
+    expect(await readStackList(ctx)).toEqual({
+      ok: false,
+      unsupported: true,
+      notes: 'exit 1: Error: unknown command "stack" for "supabase"',
+    });
   });
 
-  it('fails when the JSON has no stacks array', async () => {
-    const { ctx } = fakeCtx(
-      commandResult(
-        '{"_tag":"Error","error":{"code":"UnknownSubcommand"}}',
-        false
-      )
+  it.each([
+    ['Unknown subcommand stack'],
+    ['{"_tag":"Error","error":{"code":"UnknownSubcommand"}}'],
+  ])('is unsupported on %s', async (stdout) => {
+    const { ctx } = fakeCtx(commandResult(stdout, false));
+    const result = await readStackList(ctx);
+    expect(!result.ok && result.unsupported).toBe(true);
+  });
+
+  it.each([
+    ['an object with no stacks array', '{"message":"ok"}', true],
+    ['garbage', 'legacy-import  stopped', true],
+    ['empty output', '', true],
+    [
+      'an unrelated CLI error envelope',
+      '{"_tag":"Error","message":"No managed stack exists"}',
+      false,
+    ],
+  ])('fails closed on %s', async (_label, stdout, ok) => {
+    const { ctx } = fakeCtx(commandResult(stdout, ok));
+    const result = await readStackList(ctx);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.unsupported).toBe(false);
+    expect(!result.ok && result.notes).toContain(
+      'unreadable stack list output'
     );
-    const result = await readStackList(ctx);
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.notes).toContain('no "stacks" array');
   });
 
-  it('fails with the thrown message when exec throws', async () => {
+  it('fails closed with the thrown message when exec throws', async () => {
     const { ctx } = fakeCtx(new Error('sandbox gone'));
     expect(await readStackList(ctx)).toEqual({
       ok: false,
+      unsupported: false,
       notes: 'sandbox gone',
     });
   });
@@ -124,7 +165,10 @@ describe('stackEntryMatchesName', () => {
 describe('stackListContainsName', () => {
   it('is false when the listing is unavailable', () => {
     expect(
-      stackListContainsName({ ok: false, notes: 'x' }, 'legacy-import')
+      stackListContainsName(
+        { ok: false, unsupported: true, notes: 'x' },
+        'legacy-import'
+      )
     ).toBe(false);
   });
 

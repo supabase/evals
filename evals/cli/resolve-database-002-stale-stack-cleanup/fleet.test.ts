@@ -2,6 +2,7 @@
 import type {
   CommandResult,
   LocalStackEvalContext,
+  ToolCallRecord,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import {
@@ -16,9 +17,13 @@ import {
   checkLegacyImportGone,
   checkPaymentsUntouched,
   describeFleetGroundTruth,
+  findFleetInvocations,
   findLegacyTeardown,
+  probeLegacyContainers,
   probeLegacyDbPort,
   readConfigDbPort,
+  type ContainerProbe,
+  type FleetInvocation,
   type PortProbe,
 } from './fleet.js';
 
@@ -31,6 +36,10 @@ const REACHABLE: StackProbe = {
 };
 const EMPTY_LIST: StackListProbe = { ok: true, stacks: [] };
 const QUIET_PORT: PortProbe = { answered: false, notes: 'not probed' };
+const NO_CONTAINERS: ContainerProbe = {
+  running: false,
+  notes: 'no containers',
+};
 const PAYMENTS_ROWS: RowStringsProbe = { ok: true, values: ['payments-api'] };
 
 const LOOP_START =
@@ -42,30 +51,53 @@ const START_ALL = [
   'cd legacy-import && supabase start',
 ];
 
+type Outcome = Pick<ToolCallRecord, 'result' | 'error'>;
+type Call = string | [command: string, outcome: Outcome];
+
+function toolCall([command, outcome]: [string, Outcome?]): ToolCallRecord {
+  return {
+    tool: { kind: 'other', toolName: 'Bash' },
+    body: {},
+    command,
+    ts: 0,
+    ...outcome,
+  };
+}
+
+const invocationsOf = (calls: readonly Call[]): FleetInvocation[] =>
+  findFleetInvocations(
+    calls.map((call) => toolCall(typeof call === 'string' ? [call] : call))
+  );
+
+const ok = (result: unknown = ''): Outcome => ({ result });
+const failed = (error: string): Outcome => ({ error });
+
 function gone(
-  commands: string[],
+  commands: readonly Call[],
   overrides: {
     stackList?: StackListProbe;
     stack?: StackProbe;
     portProbe?: PortProbe;
+    containerProbe?: ContainerProbe;
   } = {}
 ) {
   return checkLegacyImportGone({
     stackList: overrides.stackList ?? EMPTY_LIST,
     stack: overrides.stack ?? UNREACHABLE,
-    invocations: findSupabaseInvocations(commands),
+    invocations: invocationsOf(commands),
     portProbe: overrides.portProbe ?? QUIET_PORT,
+    containerProbe: overrides.containerProbe ?? NO_CONTAINERS,
   });
 }
 
-const restarted = (commands: string[]) =>
-  checkCheckoutRestarted(findSupabaseInvocations(commands));
+const restarted = (commands: readonly Call[]) =>
+  checkCheckoutRestarted(invocationsOf(commands));
 
 const untouched = (
-  commands: string[],
+  commands: readonly Call[],
   stack: StackProbe = REACHABLE,
   rows: RowStringsProbe = PAYMENTS_ROWS
-) => checkPaymentsUntouched(findSupabaseInvocations(commands), stack, rows);
+) => checkPaymentsUntouched(invocationsOf(commands), stack, rows);
 
 describe('checkLegacyImportGone', () => {
   it('passes after a legacy start then stop in its directory', () => {
@@ -74,7 +106,7 @@ describe('checkLegacyImportGone', () => {
       name: 'legacy-import stack is gone',
       passed: true,
       notes:
-        'started by `(in legacy-import) supabase start`, torn down by `(in legacy-import) supabase stop`; stack list does not list it; does not resolve (no stack); not probed',
+        'started by `(in legacy-import) supabase start`, torn down by `(in legacy-import) supabase stop`; stack list does not list it; does not resolve (no stack); not probed; no containers',
     });
   });
 
@@ -92,17 +124,13 @@ describe('checkLegacyImportGone', () => {
       ...START_ALL,
       `psql "$DB_URL" -c "delete from service_marker where name='legacy-import'"`,
     ];
-    expect(findLegacyTeardown(findSupabaseInvocations(commands))).toBe(
-      undefined
-    );
+    expect(findLegacyTeardown(invocationsOf(commands))).toBe(undefined);
     expect(gone(commands).passed).toBe(false);
   });
 
   it('fails after rm -rf legacy-import while the stack is still reachable', () => {
     const commands = [...START_ALL, 'rm -rf legacy-import'];
-    expect(findLegacyTeardown(findSupabaseInvocations(commands))).toBe(
-      undefined
-    );
+    expect(findLegacyTeardown(invocationsOf(commands))).toBe(undefined);
     const result = gone(commands, { stack: REACHABLE });
     expect(result.passed).toBe(false);
     expect(result.notes).toContain('still resolves (managed-named');
@@ -112,7 +140,9 @@ describe('checkLegacyImportGone', () => {
   it('fails a stop of a stack that was never started', () => {
     const result = gone(['cd legacy-import && supabase stop']);
     expect(result.passed).toBe(false);
-    expect(result.notes).toContain('no supabase start followed by a stop');
+    expect(result.notes).toContain(
+      'no supabase start followed by a stop/destroy targeting legacy-import ran without failing'
+    );
   });
 
   it('fails when the teardown ran before the start', () => {
@@ -154,14 +184,30 @@ describe('checkLegacyImportGone', () => {
     expect(result.notes).toContain('stack list still lists it');
   });
 
-  it('skips the listing half, saying so, when stack list is unavailable', () => {
+  it('skips the listing half, saying so, when stack list is unsupported', () => {
     const result = gone([...START_ALL, 'cd legacy-import && supabase stop'], {
-      stackList: { ok: false, notes: 'unknown command "stack"' },
+      stackList: {
+        ok: false,
+        unsupported: true,
+        notes: 'unknown command "stack"',
+      },
     });
     expect(result.passed).toBe(true);
     expect(result.notes).toContain(
-      'stack list unavailable, listing not checked (unknown command "stack")'
+      'stack list unsupported, listing not checked (unknown command "stack")'
     );
+  });
+
+  it('fails closed when the stack list output is unreadable', () => {
+    const result = gone([...START_ALL, 'cd legacy-import && supabase stop'], {
+      stackList: {
+        ok: false,
+        unsupported: false,
+        notes: 'unreadable stack list output (exit 0: legacy-import stopped)',
+      },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain('stack list unreadable, failing closed');
   });
 
   it('fails when the configured db port still answers', () => {
@@ -174,10 +220,10 @@ describe('checkLegacyImportGone', () => {
 });
 
 describe('checkCheckoutRestarted', () => {
-  it('passes on supabase stack restart after the first start', () => {
+  it('passes on supabase stack restart after all three started', () => {
     expect(
       restarted([
-        'supabase stack start --stack checkout-service',
+        ...START_ALL,
         'supabase stack restart --stack checkout-service',
       ])
     ).toEqual({
@@ -246,7 +292,7 @@ describe('checkPaymentsUntouched', () => {
       name: 'payments-api left untouched',
       passed: true,
       notes:
-        'no stop/restart/destroy targeted it after its first start; resolves; marker rows ["payments-api"]',
+        'no stop/restart/reset/destroy targeted it after all three services started; resolves; marker rows ["payments-api"]',
     });
   });
 
@@ -311,9 +357,7 @@ describe('starts from a shell loop', () => {
       LOOP_START,
       'for s in checkout-service payments-api legacy-import; do (cd "$s" && supabase stop); done',
     ];
-    expect(findLegacyTeardown(findSupabaseInvocations(commands))).toBe(
-      undefined
-    );
+    expect(findLegacyTeardown(invocationsOf(commands))).toBe(undefined);
     expect(gone(commands).passed).toBe(false);
     expect(untouched(commands).passed).toBe(true);
   });
@@ -373,12 +417,290 @@ describe('commands attributed by per-call working directory', () => {
         stack: UNREACHABLE,
         invocations,
         portProbe: QUIET_PORT,
+        containerProbe: NO_CONTAINERS,
       }).passed
     ).toBe(true);
     expect(checkCheckoutRestarted(invocations).passed).toBe(true);
     expect(
       checkPaymentsUntouched(invocations, REACHABLE, PAYMENTS_ROWS).passed
     ).toBe(true);
+  });
+});
+
+describe('failed tool calls', () => {
+  const START_BY_WORKDIR = [
+    'supabase start --workdir checkout-service',
+    'supabase start --workdir payments-api',
+    'supabase start --workdir legacy-import',
+  ];
+  const RESTART =
+    'SUPABASE_EXPERIMENTAL_STACK=1 supabase stack restart --stack checkout-service';
+
+  it('do not count a stack restart that exited non-zero', () => {
+    const result = restarted([
+      ...START_BY_WORKDIR,
+      [RESTART, failed('Unknown subcommand stack')],
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain('ran without failing');
+  });
+
+  it('do not count a stack restart whose output is a CLI error envelope', () => {
+    expect(
+      restarted([
+        ...START_BY_WORKDIR,
+        [
+          RESTART,
+          ok(
+            '{"_tag":"Error","code":"StackNotFound","message":"No managed stack exists"}'
+          ),
+        ],
+      ]).passed
+    ).toBe(false);
+  });
+
+  it('read a CLI error inside structured tool output', () => {
+    expect(
+      restarted([
+        ...START_BY_WORKDIR,
+        [
+          RESTART,
+          ok([{ type: 'text', text: 'Error: UnknownSubcommand: stack' }]),
+        ],
+      ]).passed
+    ).toBe(false);
+  });
+
+  it('count a stack restart that succeeded or whose outcome was not recorded', () => {
+    expect(
+      restarted([...START_BY_WORKDIR, [RESTART, ok('Restarted.')]]).passed
+    ).toBe(true);
+    expect(restarted([...START_BY_WORKDIR, RESTART]).passed).toBe(true);
+  });
+
+  it('never count a top-level supabase restart, which no CLI has', () => {
+    expect(
+      restarted([
+        ...START_BY_WORKDIR,
+        'supabase restart --workdir checkout-service',
+      ]).passed
+    ).toBe(false);
+  });
+
+  it('do not count a stop then start when the stop failed', () => {
+    expect(
+      restarted([
+        ...START_BY_WORKDIR,
+        ['supabase stop --workdir checkout-service', failed('exit 1')],
+        'supabase start --workdir checkout-service',
+      ]).passed
+    ).toBe(false);
+  });
+
+  it('do not count a failed teardown of legacy-import after its directory was removed', () => {
+    const commands: Call[] = [
+      ...START_BY_WORKDIR,
+      'rm -rf legacy-import',
+      [
+        'supabase stop --workdir legacy-import',
+        failed('cannot read config in legacy-import'),
+      ],
+    ];
+    expect(findLegacyTeardown(invocationsOf(commands))).toBe(undefined);
+    expect(gone(commands).passed).toBe(false);
+  });
+
+  it('do not count a failed start as legacy-import start evidence', () => {
+    expect(
+      gone([
+        ['supabase start --workdir legacy-import', failed('port in use')],
+        'supabase stop --workdir legacy-import',
+      ]).passed
+    ).toBe(false);
+  });
+
+  it('map back to their tool call past calls with no command', () => {
+    const invocations = findFleetInvocations([
+      toolCall(['supabase start --workdir checkout-service']),
+      {
+        tool: { kind: 'other', toolName: 'Read' },
+        body: {},
+        path: 'x',
+        ts: 0,
+      },
+      toolCall(['supabase start --workdir payments-api', failed('exit 1')]),
+    ]);
+    expect(invocations.map((inv) => inv.failed)).toEqual([undefined, true]);
+  });
+});
+
+describe('change phase', () => {
+  it('ignores a setup-phase stop and start of checkout-service', () => {
+    const result = restarted([
+      'supabase start --workdir checkout-service',
+      'supabase stop --workdir checkout-service',
+      'supabase start --workdir checkout-service',
+      'supabase start --workdir payments-api',
+      'supabase start --workdir legacy-import',
+      'supabase stop --workdir legacy-import',
+    ]);
+    expect(result.passed).toBe(false);
+  });
+
+  it('ignores a setup-phase retry of payments-api', () => {
+    expect(
+      untouched([
+        'supabase start --workdir payments-api',
+        'supabase stop --workdir payments-api',
+        'supabase start --workdir payments-api',
+        'supabase start --workdir checkout-service',
+        'supabase start --workdir legacy-import',
+        'supabase stack restart --stack checkout-service',
+      ]).passed
+    ).toBe(true);
+  });
+
+  it('never begins when a start failed, failing restart and untouched with a note', () => {
+    const commands: Call[] = [
+      'supabase start --workdir checkout-service',
+      'supabase start --workdir payments-api',
+      ['supabase start --workdir legacy-import', failed('port in use')],
+      'supabase stack restart --stack checkout-service',
+    ];
+    const restart = restarted(commands);
+    expect(restart.passed).toBe(false);
+    expect(restart.notes).toBe(
+      'not all three services had a start that did not fail, so no change phase to check'
+    );
+    const payments = untouched(commands);
+    expect(payments.passed).toBe(false);
+    expect(payments.notes).toContain('no change phase to check');
+  });
+
+  it('still begins after a loop start', () => {
+    expect(
+      restarted([LOOP_START, 'supabase stack restart --stack checkout-service'])
+        .passed
+    ).toBe(true);
+  });
+});
+
+describe('payments-api db reset', () => {
+  it('counts as a touch after all three started', () => {
+    const result = untouched([
+      ...START_ALL,
+      'supabase db reset --workdir payments-api',
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      'touched by `supabase db reset --workdir payments-api`'
+    );
+  });
+
+  it('does not count during setup', () => {
+    expect(
+      untouched([
+        'supabase start --workdir payments-api',
+        'supabase db reset --workdir payments-api',
+        'supabase start --workdir checkout-service',
+        'supabase start --workdir legacy-import',
+      ]).passed
+    ).toBe(true);
+  });
+});
+
+describe('leftover legacy-import containers', () => {
+  it('fail gone even after a teardown that succeeded', () => {
+    const result = gone(
+      [
+        ...START_ALL,
+        'cd legacy-import && supabase stop',
+        'rm -rf legacy-import',
+      ],
+      {
+        containerProbe: {
+          running: true,
+          notes: 'docker still runs supabase_db_legacy-import',
+        },
+      }
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      'docker still runs supabase_db_legacy-import'
+    );
+  });
+});
+
+describe('probeLegacyContainers', () => {
+  function fakeCtx(result: CommandResult | Error) {
+    const commands: string[] = [];
+    const ctx = {
+      exec: async (command: string) => {
+        commands.push(command);
+        if (result instanceof Error) throw result;
+        return result;
+      },
+    } as unknown as Pick<LocalStackEvalContext, 'exec'>;
+    return { ctx, commands };
+  }
+  const docker = (stdout: string): CommandResult => ({
+    ok: true,
+    exitCode: 0,
+    stdout,
+    stderr: '',
+  });
+
+  it('does nothing while the directory exists', async () => {
+    const { ctx, commands } = fakeCtx(docker(''));
+    expect(await probeLegacyContainers(ctx, './legacy-import')).toEqual({
+      running: false,
+      notes: 'directory exists; containers not probed',
+    });
+    expect(commands).toEqual([]);
+  });
+
+  it('finds a container by the CLI project label', async () => {
+    const { ctx, commands } = fakeCtx(
+      docker('sandbox\t\nsupabase_db_x\tlegacy-import\n')
+    );
+    expect(await probeLegacyContainers(ctx, undefined)).toEqual({
+      running: true,
+      notes: 'docker still runs supabase_db_x',
+    });
+    expect(commands).toEqual([
+      `docker ps --format '{{.Names}}\t{{.Label "com.supabase.cli.project"}}'`,
+    ]);
+  });
+
+  it('finds a container by its supabase_<service>_legacy-import name', async () => {
+    const { ctx } = fakeCtx(docker('supabase_edge_runtime_legacy-import\t\n'));
+    expect((await probeLegacyContainers(ctx, undefined)).running).toBe(true);
+  });
+
+  it('ignores other projects and the sandbox container', async () => {
+    const { ctx } = fakeCtx(
+      docker(
+        'supabase_db_payments-api\tpayments-api\nsandbox-123\t\nlegacy-import-notes\t\n'
+      )
+    );
+    expect(await probeLegacyContainers(ctx, undefined)).toEqual({
+      running: false,
+      notes: 'docker runs no legacy-import containers',
+    });
+  });
+
+  it('skips when docker is unreachable', async () => {
+    const { ctx } = fakeCtx({
+      ok: false,
+      exitCode: 1,
+      stdout: '',
+      stderr: 'Cannot connect to the Docker daemon',
+    });
+    expect(await probeLegacyContainers(ctx, undefined)).toEqual({
+      running: false,
+      notes:
+        'docker unreachable, containers not probed (exit 1: Cannot connect to the Docker daemon)',
+    });
   });
 });
 
@@ -495,19 +817,84 @@ describe('describeFleetGroundTruth', () => {
         'payments-api': PAYMENTS_ROWS,
       },
       stackList,
-      invocations: findSupabaseInvocations(commands),
+      invocations: invocationsOf(commands),
       portProbe: QUIET_PORT,
+      containerProbe: NO_CONTAINERS,
     }).join('\n');
 
   it('withholds a failed stack list probe error the agent never saw', () => {
     const text = groundTruth({
       ok: false,
+      unsupported: true,
       notes:
         'exit 1: Error: UnknownSubcommand: unknown command "stack" for "supabase"',
     });
     expect(text).not.toContain('UnknownSubcommand');
     expect(text).toContain(
       '- legacy-import: fleet listing: not available on this CLI (harness probe only; not shown to the agent)'
+    );
+  });
+
+  it('says no restart or teardown when those commands failed', () => {
+    const text = describeFleetGroundTruth({
+      stacks: {
+        'checkout-service': REACHABLE,
+        'payments-api': REACHABLE,
+        'legacy-import': UNREACHABLE,
+      },
+      rows: {
+        'checkout-service': { ok: true, values: ['checkout-service'] },
+        'payments-api': PAYMENTS_ROWS,
+      },
+      stackList: EMPTY_LIST,
+      invocations: invocationsOf([
+        ...START_ALL,
+        [
+          'supabase stack restart --stack checkout-service',
+          failed('Unknown subcommand stack'),
+        ],
+        ['cd legacy-import && supabase stop', failed('exit 1')],
+      ]),
+      portProbe: QUIET_PORT,
+      containerProbe: NO_CONTAINERS,
+    }).join('\n');
+    expect(text).toContain(
+      'restarted via the CLI after all three services started: no'
+    );
+    expect(text).toContain(
+      "started then torn down via the CLI, by commands that didn't fail: no"
+    );
+  });
+
+  it('marks restart and touches not applicable when not all three started', () => {
+    const text = describeFleetGroundTruth({
+      stacks: {
+        'checkout-service': UNREACHABLE,
+        'payments-api': UNREACHABLE,
+        'legacy-import': UNREACHABLE,
+      },
+      rows: {
+        'checkout-service': { ok: false, notes: 'no stack' },
+        'payments-api': { ok: false, notes: 'no stack' },
+      },
+      stackList: EMPTY_LIST,
+      invocations: [],
+      portProbe: QUIET_PORT,
+      containerProbe: NO_CONTAINERS,
+    }).join('\n');
+    expect(text).toContain(
+      'restarted via the CLI after all three services started: not applicable'
+    );
+    expect(text).toContain(
+      'stopped, restarted, reset or destroyed via the CLI after all three services started: not applicable'
+    );
+  });
+
+  it('withholds an unreadable stack list probe', () => {
+    expect(
+      groundTruth({ ok: false, unsupported: false, notes: 'garbage' })
+    ).toContain(
+      '- legacy-import: fleet listing: harness probe output unreadable (not shown to the agent)'
     );
   });
 

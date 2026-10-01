@@ -106,7 +106,7 @@ describe('checkMetrics', () => {
       [],
       [],
       [],
-      { ok: false, notes: 'unknown command' },
+      { ok: false, unsupported: true, notes: 'unknown command' },
       { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE }
     );
     const metrics = JSON.parse(result.notes as string);
@@ -133,7 +133,7 @@ describe('checkMetrics', () => {
       ),
       findSupabaseInvocations(entries),
       [],
-      { ok: false, notes: 'unknown command' },
+      { ok: false, unsupported: true, notes: 'unknown command' },
       { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE }
     );
     const { attemptedStart, attemptedAnyStart } = JSON.parse(

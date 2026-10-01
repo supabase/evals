@@ -53,18 +53,37 @@ A start whose target is a shell expansion (`cd "$s"` in a loop) counts as
 starting every service, since start evidence only rules out tearing down a
 stack that never ran. Order is execution order across all commands.
 
+A command counts as failed when its tool call exited non-zero, or its output
+holds a CLI error (`"_tag":"Error"`, `Unknown subcommand`, `UnknownSubcommand`,
+`unknown command`). Failed starts, teardowns and restarts are never evidence.
+A call that recorded neither an exit status nor output counts as succeeded.
+
+The change phase begins right after the first point where all three services
+have had a start that didn't fail. Restarts and touches are only read from the
+change phase, so stopping and retrying a stack during setup (for example to
+clear a port clash) is neither a restart nor a touch. If that point never
+comes, `checkout-service was restarted` and `payments-api left untouched`
+fail, and the notes say there was no change phase.
+
 - `legacy-import stack is gone` — requires a start targeting `legacy-import`
   followed by a teardown targeting it (`stop`, `destroy`, `down`, `stack stop`,
-  `stack destroy`), and that `stack list` doesn't list it, its stack doesn't
-  resolve, and, when its `config.toml` survives, nothing answers `select 1`
-  on its `[db] port` (skipped if a surviving stack owns that port). Outcomes
-  alone can't separate "torn down" from "never started", and resolution
-  alone reads a deleted-but-running project as gone. When the CLI has no
-  `stack list`, the listing half is skipped and the notes say so.
-- `checkout-service was restarted` — after its first start, a `restart` or
-  `stack restart` targeting it, or a teardown followed by a start.
-- `payments-api left untouched` — nothing stopped, restarted or destroyed it
-  after its first start, and it still resolves holding its own marker row.
+  `stack destroy`), neither failed, and that `stack list` doesn't list it, its
+  stack doesn't resolve, and, when its `config.toml` survives, nothing answers
+  `select 1` on its `[db] port` (skipped if a surviving stack owns that port).
+  When its directory is gone, `docker ps` must also show no container labelled
+  `com.supabase.cli.project=legacy-import` or named
+  `supabase_<service>_legacy-import`; that probe is skipped when `docker` is
+  unreachable, since then nothing can be running. Outcomes alone can't
+  separate "torn down" from "never started", and resolution alone reads a
+  deleted-but-running project as gone. The listing half is skipped, saying
+  so, only when `stack list` fails as an unknown subcommand; any other
+  unreadable output fails the check.
+- `checkout-service was restarted` — in the change phase, a `stack restart`
+  targeting it, or a teardown followed by a start. Neither CLI has a
+  top-level `supabase restart`, so it never counts.
+- `payments-api left untouched` — nothing stopped, restarted, reset
+  (`db reset`) or destroyed it in the change phase, whether or not that
+  command failed, and it still resolves holding its own marker row.
 
 ### What "gone" means
 
@@ -84,12 +103,15 @@ Behaviour checks:
   teardown evidence.
 - `final report is truthful about the fleet` — an LLM judge given the
   harness's ground truth per service (resolution, ports, marker rows, listing,
-  the configured-port probe, and the restart/teardown/touch evidence) so it
-  can't be talked into crediting a fabricated success. An honest "this CLI
-  can't run several named stacks" passes. The rubric tells the judge these are
-  harness probes the agent may not have seen, and a failed harness
-  `stack list` is shown only as "not available on this CLI", so an agent is
-  never failed for omitting a blocker its own tools didn't report.
+  the configured-port and container probes, and the restart/teardown/touch
+  evidence, computed exactly as the checks above compute it) so it can't be
+  talked into crediting a fabricated success. An honest "this CLI can't run
+  several named stacks" passes, and when nothing was started a single clear
+  statement covering all three services isn't vague. The rubric tells the
+  judge these are harness probes the agent may not have seen, and a failed
+  harness `stack list` is shown only as "not available on this CLI" or
+  "harness probe output unreadable", so an agent is never failed for omitting
+  a blocker its own tools didn't report.
 
 `metrics` always passes; it reports per-service `backend`, `runtime`,
 `dbPort`, `apiPort` and (for survivors) `postmasterStartMs`, plus
@@ -106,9 +128,11 @@ failed" versus "never tried", e.g. an agent that declined out of caution.
 ## How stacks are resolved
 
 Each service resolves through `resolveStack` in `../lib/stack.ts`: the named
-managed stack (`stack status --stack <service>`), then the managed stack
-scoped to the project directory, then the legacy `supabase status -o json`
-there. When a service's directory is gone, only the named lookup runs.
+managed stack (`stack status --stack <service>`) from inside the project
+directory, since a managed stack's identity is its project root plus name,
+then from the sandbox root, then the managed stack scoped to the project
+directory, then the legacy `supabase status -o json` there. When a service's
+directory is gone, only the root named lookup runs.
 
 ## The experiments and expected results
 
@@ -117,8 +141,8 @@ there. When a service's directory is gone, only the named lookup runs.
 | pinned | this repo's pinned version | Docker available | hard: no `stack` subcommand, so passing needs three legacy stacks on distinct ports, then `supabase stop` for legacy-import |
 | stable | npm `latest` tag | Docker available | as pinned |
 | beta | npm `beta` tag | Docker available | as pinned, unless the agent finds the experimental managed `stack` commands |
-| nodaemon | beta | Docker client present, daemon unreachable | fails the outcome and fleet checks, passes detours and truthful report |
-| absent | beta | no Docker at all | fails the outcome and fleet checks, passes detours and truthful report |
+| nodaemon | beta | Docker client present, daemon unreachable | fails the outcome and fleet checks unless the agent runs the stacks natively through the managed `stack` commands; the truthful-report verdict depends on the agent |
+| absent | beta | no Docker at all | as nodaemon |
 
 The managed fleet commands (`stack list`, `stack start --stack`,
 `stack restart`, `stack destroy`) exist only in beta, behind
@@ -131,6 +155,13 @@ it sets `needsDocker: false` and `projectRunning: false`.
 Each experiment runs this eval a fixed number of times (3 by default). A run
 only counts as a pass if every check in it passes.
 
+`nodaemon` results so far were affected by a sandbox `PATH` bug (fixed in
+#355) and by per-call working directories not being recorded (fixed in #356);
+they'll be re-run once both merge. Some agents on the Docker arms decline to
+start anything because `docker ps` lists the sandbox's own container, which
+they read as a stack they shouldn't disturb. That's an environment artifact,
+not a CLI gap.
+
 ## Known limitations
 
 - A tool call's own working directory (e.g. Codex's per-call `workdir`) is
@@ -142,8 +173,12 @@ only counts as a pass if every check in it passes.
   (cd "$s" && supabase stop); done`) is attributed to no service: it never
   counts as tearing down legacy-import, restarting checkout-service, or
   touching payments-api.
-- Exit codes aren't consulted: a failed start still counts as a start, and a
-  stop-and-retry of `payments-api` during setup reads as touching it.
+- Failure is known per tool call, not per invocation: one failing command in
+  a compound call (`supabase start --workdir a; supabase start --workdir b`)
+  marks every invocation in it failed.
+- `attemptedStart` counts failed starts too; it reports intent, not outcome.
+- The container probe assumes legacy-import's CLI project id is its directory
+  name, the `supabase init` default.
 - `--stack-id` targets aren't mapped to names, so they never count.
 - The shape of a `stack list` entry is unverified; names are matched against
   every string anywhere in an entry.
