@@ -10,6 +10,7 @@ import { appendFile, stat } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { extractSkillPathFromText } from '@supabase-evals/core';
 import {
   modelUsageSchema,
   type AgentUsage,
@@ -75,7 +76,8 @@ interface PendingRow {
   modelId?: string;
   modelProvider?: string;
   transcript: TranscriptPart[];
-  toolLabels: (string | undefined)[];
+  /** Parallel to the transcript's tool calls. */
+  tools: ToolInfo[];
   metadata: Record<string, unknown>;
   tags: string[];
   metrics: Record<string, number>;
@@ -195,23 +197,36 @@ export function tokenMetrics(
   return metrics;
 }
 
-function toolLabels(toolCalls: unknown): (string | undefined)[] {
+interface ToolInfo {
+  label?: string;
+  loadedSkills?: string[];
+  /** Shell reads only mention the path inside `command`. */
+  skillPath?: string;
+}
+
+function toolInfo(toolCalls: unknown): ToolInfo[] {
   if (!Array.isArray(toolCalls)) {
     return [];
   }
   return toolCalls.map((call) => {
-    const { path, command, url } = z
+    const { path, command, url, loadedSkills } = z
       .object({
         path: z.string().optional(),
         command: z.string().optional(),
         url: z.string().optional(),
+        loadedSkills: z.array(z.string()).optional(),
       })
       .catch({})
       .parse(call);
-    if (path) {
-      return basename(path);
-    }
-    return command ? summarize(unwrapShell(command)) : url;
+    const label = path
+      ? basename(path)
+      : command
+        ? summarize(unwrapShell(command))
+        : url;
+    const skillPath = loadedSkills?.length
+      ? (path ?? (command ? extractSkillPathFromText(command) : undefined))
+      : undefined;
+    return { label, loadedSkills, skillPath };
   });
 }
 
@@ -289,7 +304,7 @@ async function collectRows(
       modelId: display?.modelId,
       modelProvider: display?.modelProvider,
       transcript,
-      toolLabels: toolLabels(result.toolCalls),
+      tools: toolInfo(result.toolCalls),
       sessionArchivePath: existsSync(sessionArchivePath)
         ? sessionArchivePath
         : undefined,
@@ -405,7 +420,7 @@ export function logTranscript(
     | 'modelId'
     | 'modelProvider'
     | 'transcript'
-    | 'toolLabels'
+    | 'tools'
     | 'startTime'
     | 'endTime'
   >
@@ -504,11 +519,18 @@ export function logTranscript(
         content: part.error ?? part.output ?? null,
       });
     }
-    const label = row.toolLabels[toolIndex++];
+    const { label, loadedSkills = [], skillPath } =
+      row.tools[toolIndex++] ?? {};
+    // A call that loads several skills can't name just one.
+    const skillName = loadedSkills.length === 1 ? loadedSkills[0] : undefined;
     const endTime = sec(part.resultTs) ?? at;
     latestTime = latest(latestTime, endTime);
     const span = task.startSpan({
-      name: label ? `${part.name}: ${label}` : part.name,
+      name: skillName
+        ? `skill: ${skillName}`
+        : label
+          ? `${part.name}: ${label}`
+          : part.name,
       type: 'tool',
       startTime: at,
     });
@@ -516,7 +538,16 @@ export function logTranscript(
       input: part.input,
       // The span name adds a label, so keep the raw name filterable.
       // https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/skill-load-metadata.md
-      metadata: { tool_name: part.name },
+      metadata: {
+        tool_name: part.name,
+        ...(loadedSkills.length
+          ? {
+              tool_kind: 'skill',
+              ...(skillName ? { skill_name: skillName } : {}),
+              ...(skillPath ? { skill_path: skillPath } : {}),
+            }
+          : {}),
+      },
       ...(part.output !== undefined ? { output: part.output } : {}),
       ...(part.error ? { error: part.error } : {}),
     });

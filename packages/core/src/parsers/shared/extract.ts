@@ -74,3 +74,8 @@ export function extractLoadedSkillsFromText(text: string): string[] {
   }
   return [...names];
 }
+
+/** The first SKILL.md path mentioned, e.g. in a `cat` command. */
+export function extractSkillPathFromText(text: string): string | undefined {
+  return text.matchAll(SKILL_ENTRYPOINT_PATTERN).next().value?.[0];
+}

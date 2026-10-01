@@ -99,6 +99,7 @@ interface RecordedSpan {
   end?: number;
   metrics?: unknown;
   input?: unknown;
+  metadata?: unknown;
   children: RecordedSpan[];
 }
 
@@ -116,6 +117,9 @@ function recorder(node: RecordedSpan): SpanSink {
     log(event) {
       if (event.metrics) {
         node.metrics = event.metrics;
+      }
+      if (event.metadata?.tool_kind) {
+        node.metadata = event.metadata;
       }
       if (event.input !== undefined && node.name === 'm') {
         node.input = event.input;
@@ -139,7 +143,7 @@ describe('logTranscript', () => {
       modelId: 'm',
       startTime: 100,
       endTime: 170,
-      toolLabels: [],
+      tools: [{ loadedSkills: ['supabase'] }],
       transcript: [
         {
           type: 'message',
@@ -222,7 +226,14 @@ describe('logTranscript', () => {
           input: [prompt],
           metrics: { prompt_tokens: 10, completion_tokens: 2, tokens: 12 },
         },
-        span('Skill', 4, 5),
+        {
+          ...span('skill: supabase', 4, 5),
+          metadata: {
+            tool_name: 'Skill',
+            tool_kind: 'skill',
+            skill_name: 'supabase',
+          },
+        },
         { ...span('m', 5, 8), input: [prompt, first, skillResult] },
         span('Bash', 8, 31),
         {
