@@ -128,7 +128,7 @@ function recorder(node: RecordedSpan): SpanSink {
 }
 
 describe('logTranscript', () => {
-  it('logs back-to-back LLM spans per request, with tool calls as siblings under task', () => {
+  it('logs back-to-back LLM spans per request, with teardown and score after task', () => {
     const root: RecordedSpan = { children: [] };
     const ms = (s: number) => (100 + s) * 1000;
     logTranscript(recorder(root), {
@@ -138,7 +138,9 @@ describe('logTranscript', () => {
       passed: true,
       modelId: 'm',
       startTime: 100,
-      endTime: 170,
+      endTime: 150,
+      agentEndTime: 140,
+      scoringEndTime: 150,
       toolLabels: [],
       transcript: [
         {
@@ -230,7 +232,61 @@ describe('logTranscript', () => {
           input: [prompt, first, skillResult, second, bashResult],
         }
       ),
-      span('passed', 70, 70),
+      span('teardown', 38, 40),
+      span('passed', 40, 50),
+    ]);
+  });
+
+  it('ends setup at a leading non-assistant message and starts task there', () => {
+    const root: RecordedSpan = { children: [] };
+    logTranscript(recorder(root), {
+      prompt: '',
+      agentReport: '',
+      checks: [],
+      passed: false,
+      startTime: 100,
+      endTime: 120,
+      agentEndTime: 110,
+      scoringEndTime: 120,
+      toolLabels: [],
+      transcript: [
+        { type: 'message', role: 'system', content: 'init', ts: 103_000 },
+        { type: 'message', role: 'assistant', content: 'a', ts: 108_000 },
+      ],
+    });
+    expect(
+      root.children.map(({ name, start, end }) => [name, start, end])
+    ).toEqual([
+      ['setup', 100, 103],
+      ['task', 103, 108],
+      ['teardown', 108, 110],
+      ['passed', 110, 120],
+    ]);
+    expect(root.children[1]?.children.map((c) => c.name)).toEqual([
+      'system',
+      'assistant',
+    ]);
+  });
+
+  it('keeps a zero-length score at the run end for results without recorded times', () => {
+    const root: RecordedSpan = { children: [] };
+    logTranscript(recorder(root), {
+      prompt: '',
+      agentReport: '',
+      checks: [],
+      passed: true,
+      startTime: 100,
+      endTime: 170,
+      toolLabels: [],
+      transcript: [
+        { type: 'message', role: 'assistant', content: 'a', ts: 104_000 },
+      ],
+    });
+    expect(
+      root.children.map(({ name, start, end }) => [name, start, end])
+    ).toEqual([
+      ['task', 100, 104],
+      ['passed', 170, 170],
     ]);
   });
 });
