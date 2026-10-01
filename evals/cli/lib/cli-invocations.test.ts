@@ -83,6 +83,94 @@ describe('findSupabaseInvocations', () => {
     ]);
   });
 
+  it('strips pnpm exec, yarn and yarn dlx', () => {
+    expect(
+      findSupabaseInvocations([
+        'pnpm exec supabase start',
+        'yarn supabase stop',
+        'yarn dlx supabase status',
+      ]).map(({ argv }) => argv)
+    ).toEqual([
+      ['supabase', 'start'],
+      ['supabase', 'stop'],
+      ['supabase', 'status'],
+    ]);
+  });
+
+  it('skips leading shell keywords and negation', () => {
+    const found = findSupabaseInvocations([
+      'if supabase start --workdir client-a; then echo ok; fi',
+      'if ! supabase status; then supabase start; elif true; then :; else supabase stop; fi',
+      'while ! supabase status; do sleep 1; done',
+      'until supabase status; do supabase start; done',
+    ]);
+    expect(found.map(({ commandIndex, argv }) => [commandIndex, argv])).toEqual(
+      [
+        [0, ['supabase', 'start', '--workdir', 'client-a']],
+        [1, ['supabase', 'status']],
+        [1, ['supabase', 'start']],
+        [1, ['supabase', 'stop']],
+        [2, ['supabase', 'status']],
+        [3, ['supabase', 'status']],
+        [3, ['supabase', 'start']],
+      ]
+    );
+    expect(invocationTargets(found[0], 'client-a')).toBe(true);
+  });
+
+  it('still ignores an echoed shell keyword line', () => {
+    expect(
+      findSupabaseInvocations([
+        'echo "if supabase start"',
+        'if echo supabase start; then :; fi',
+      ])
+    ).toEqual([]);
+  });
+
+  it('tracks pushd like cd', () => {
+    expect(
+      findSupabaseInvocations(['pushd services/legacy-import && supabase stop'])
+    ).toEqual([
+      {
+        commandIndex: 0,
+        argv: ['supabase', 'stop'],
+        cwd: 'services/legacy-import',
+      },
+    ]);
+  });
+
+  it('targets the SUPABASE_WORKDIR assignment, relative to the cd directory', () => {
+    const [plain, viaEnv, nested] = findSupabaseInvocations([
+      'SUPABASE_WORKDIR=client-a supabase start',
+      'env SUPABASE_EXPERIMENTAL_STACK=1 SUPABASE_WORKDIR=./client-b supabase stop',
+      { command: 'SUPABASE_WORKDIR=../client-c supabase status', cwd: 'x/y' },
+    ]);
+    expect(plain).toEqual({
+      commandIndex: 0,
+      argv: ['supabase', 'start'],
+      workdir: 'client-a',
+    });
+    expect(invocationTargets(plain, 'client-a')).toBe(true);
+    expect(invocationTargets(viaEnv, 'client-b')).toBe(true);
+    expect(invocationTargets(nested, 'client-c')).toBe(true);
+    expect(invocationTargets(nested, 'y')).toBe(false);
+  });
+
+  it('lets --workdir override SUPABASE_WORKDIR', () => {
+    const [found] = findSupabaseInvocations([
+      'SUPABASE_WORKDIR=client-a supabase start --workdir client-b',
+    ]);
+    expect(invocationTargets(found, 'client-b')).toBe(true);
+    expect(invocationTargets(found, 'client-a')).toBe(false);
+  });
+
+  it('flags a SUPABASE_WORKDIR from a variable as unresolved', () => {
+    const [found] = findSupabaseInvocations([
+      'SUPABASE_WORKDIR="$s" supabase start',
+    ]);
+    expect(invocationTargetUnresolved(found)).toBe(true);
+  });
+
   it('recognises npx supabase stack destroy --stack legacy-import as targeting it', () => {
     const [found] = findSupabaseInvocations([
       'npx supabase stack destroy --stack legacy-import',
@@ -106,6 +194,19 @@ describe('findSupabaseInvocations', () => {
     expect(
       findSupabaseInvocations(['cd legacy-import', 'supabase stop'])
     ).toEqual([{ commandIndex: 1, argv: ['supabase', 'stop'] }]);
+  });
+
+  it("gives every invocation its entry's time and none to string commands", () => {
+    expect(
+      findSupabaseInvocations([
+        { command: 'supabase start && supabase status', at: 1234 },
+        'supabase stop',
+      ])
+    ).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'start'], at: 1234 },
+      { commandIndex: 0, argv: ['supabase', 'status'], at: 1234 },
+      { commandIndex: 1, argv: ['supabase', 'stop'] },
+    ]);
   });
 
   it('forgets the directory on cd - or cd ~', () => {
@@ -166,6 +267,124 @@ describe('findSupabaseInvocations', () => {
         'cd a && supabase stack restart --help',
       ])
     ).toEqual([]);
+  });
+
+  it('restores the outer directory when a subshell that ran cd closes', () => {
+    expect(
+      findSupabaseInvocations([
+        '(cd legacy-import && supabase status); supabase stop',
+        {
+          command: '(cd legacy-import && supabase status); supabase stop',
+          cwd: '/w',
+        },
+      ])
+    ).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'status'], cwd: 'legacy-import' },
+      { commandIndex: 0, argv: ['supabase', 'stop'] },
+      {
+        commandIndex: 1,
+        argv: ['supabase', 'status'],
+        cwd: '/w/legacy-import',
+      },
+      { commandIndex: 1, argv: ['supabase', 'stop'], cwd: '/w' },
+    ]);
+  });
+
+  it('scopes cd to each level of nested subshells', () => {
+    expect(
+      findSupabaseInvocations([
+        'cd a && (cd b && (cd c && supabase start) && supabase status) && supabase stop',
+      ]).map(({ argv, cwd }) => [argv[1], cwd])
+    ).toEqual([
+      ['start', 'a/b/c'],
+      ['status', 'a/b'],
+      ['stop', 'a'],
+    ]);
+  });
+
+  it('keeps a cd that runs outside any subshell after an unrelated one closes', () => {
+    expect(
+      findSupabaseInvocations(['(supabase status) && cd a && supabase stop'])
+    ).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'status'] },
+      { commandIndex: 0, argv: ['supabase', 'stop'], cwd: 'a' },
+    ]);
+  });
+
+  it('ignores a quoted paren when scoping cd', () => {
+    expect(
+      findSupabaseInvocations(['cd a && echo ")" && supabase stop'])
+    ).toEqual([{ commandIndex: 0, argv: ['supabase', 'stop'], cwd: 'a' }]);
+  });
+
+  it('ignores invocations inside a trailing comment', () => {
+    expect(
+      findSupabaseInvocations([
+        'echo ok # suggested cleanup; supabase stop --all',
+      ])
+    ).toEqual([]);
+  });
+
+  it('keeps an invocation followed by a comment', () => {
+    expect(findSupabaseInvocations(['supabase stop # done'])).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'stop'] },
+    ]);
+  });
+
+  it('does not treat a quoted or mid-word # as a comment', () => {
+    expect(
+      findSupabaseInvocations([
+        'echo "#"; supabase stop',
+        'echo a#b; echo ${#x}; supabase start',
+      ]).map(({ argv }) => argv)
+    ).toEqual([
+      ['supabase', 'stop'],
+      ['supabase', 'start'],
+    ]);
+  });
+
+  it('skips a commented line in a multi-line command', () => {
+    expect(
+      findSupabaseInvocations([
+        'supabase start\n# supabase stop --all\nsupabase status',
+      ]).map(({ argv }) => argv)
+    ).toEqual([
+      ['supabase', 'start'],
+      ['supabase', 'status'],
+    ]);
+  });
+
+  it.each([
+    'env -u DOCKER_HOST supabase start --workdir client-a',
+    'env --unset=DOCKER_HOST supabase start --workdir client-a',
+    'env --unset DOCKER_HOST supabase start --workdir client-a',
+    'env -i SUPABASE_EXPERIMENTAL_STACK=1 supabase start --workdir client-a',
+  ])('strips env options in %j', (command) => {
+    const [found] = findSupabaseInvocations([command]);
+    expect(found.argv).toEqual(['supabase', 'start', '--workdir', 'client-a']);
+    expect(invocationTargets(found, 'client-a')).toBe(true);
+  });
+
+  it('finds env -i supabase stop', () => {
+    expect(findSupabaseInvocations(['env -i supabase stop'])).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'stop'] },
+    ]);
+  });
+
+  it('runs an env -C or --chdir invocation in that directory, for that invocation only', () => {
+    const found = findSupabaseInvocations([
+      {
+        command:
+          'env -C legacy-import supabase stop && env --chdir=../x supabase start && supabase status',
+        cwd: '/w',
+      },
+    ]);
+    expect(found.map(({ argv, cwd }) => [argv[1], cwd])).toEqual([
+      ['stop', '/w/legacy-import'],
+      ['start', '/x'],
+      ['status', '/w'],
+    ]);
+    expect(invocationTargets(found[0], 'legacy-import')).toBe(true);
   });
 
   it('never throws on unbalanced quotes', () => {
