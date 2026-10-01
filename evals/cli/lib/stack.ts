@@ -128,6 +128,7 @@ const MIN_NOTES_CHARS = 300;
 
 type CascadeStep = {
   label: StackBackend;
+  noteLabel?: string;
   envCommand: string;
   statusCommand?: string;
 };
@@ -135,17 +136,25 @@ type CascadeStep = {
 function cascadeSteps(target: StackTarget): CascadeStep[] {
   const steps: CascadeStep[] = [];
   const stackName = target.kind === 'root' ? undefined : target.stackName;
+  const dir = target.kind === 'project' ? target.dir : undefined;
   if (stackName !== undefined) {
     const flag = `--stack ${shellQuote(stackName)}`;
-    steps.push({
-      label: 'managed-named',
-      envCommand: `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --env --output-format json`,
-      statusCommand: `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --output-format json`,
-    });
+    const envCommand = `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --env --output-format json`;
+    const statusCommand = `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --output-format json`;
+    // A managed stack's identity is (projectRoot, name), so a named stack
+    // started inside the project dir is only visible from that dir.
+    if (dir !== undefined) {
+      steps.push({
+        label: 'managed-named',
+        noteLabel: 'managed-named (project dir)',
+        envCommand: inProjectDir(dir, envCommand),
+        statusCommand: inProjectDir(dir, statusCommand),
+      });
+    }
+    steps.push({ label: 'managed-named', envCommand, statusCommand });
   }
   if (target.kind === 'named') return steps;
 
-  const dir = target.kind === 'project' ? target.dir : undefined;
   steps.push(
     {
       label: 'managed',
@@ -202,8 +211,9 @@ async function runStep(
 
 /**
  * Resolves which stack backend actually came up and the Postgres connection
- * string to reach it, trying a named managed stack (when a name is given),
- * then the cwd-scoped managed stack, then the legacy Docker Compose stack.
+ * string to reach it, trying a named managed stack (when a name is given;
+ * from the project dir first, then the sandbox root), then the cwd-scoped
+ * managed stack, then the legacy Docker Compose stack.
  * The first step that yields a `DB_URL` wins.
  */
 export async function resolveStack(
@@ -215,7 +225,7 @@ export async function resolveStack(
   for (const step of steps) {
     const outcome = await runStep(ctx, step);
     if ('ok' in outcome) return outcome;
-    details.push(`${step.label}: ${outcome.detail}`);
+    details.push(`${step.noteLabel ?? step.label}: ${outcome.detail}`);
   }
   return {
     ok: false,

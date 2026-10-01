@@ -234,7 +234,7 @@ describe('resolveStack', () => {
     ]);
   });
 
-  it('tries the named stack first for a project with a stack name', async () => {
+  it('tries the named stack in the project dir, then at the root, for a project with a stack name', async () => {
     const { ctx, commands } = fakeCtx({});
     const probe = await resolveStack(ctx, {
       kind: 'project',
@@ -242,6 +242,7 @@ describe('resolveStack', () => {
       stackName: 'svc',
     });
     expect(commands).toEqual([
+      "cd 'svc' && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'svc' --env --output-format json",
       "SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'svc' --env --output-format json",
       `cd 'svc' && ${ROOT_MANAGED_ENV}`,
       `cd 'svc' && ${ROOT_LEGACY}`,
@@ -249,7 +250,82 @@ describe('resolveStack', () => {
     expect(probe).toEqual({
       ok: false,
       notes:
-        'managed-named: exit 1: error; managed: exit 1: error; legacy: exit 1: error',
+        'managed-named (project dir): exit 1: error; managed-named: exit 1: error; managed: exit 1: error; legacy: exit 1: error',
+    });
+  });
+
+  describe('with stack identity = (cwd, name)', () => {
+    /** Fake `exec` where `stack status --stack <name>` only finds a stack started from the same cwd under that name. */
+    function identityCtx(started: Array<{ cwd?: string; name: string }>) {
+      const commands: string[] = [];
+      const ctx = {
+        exec: async (command: string) => {
+          commands.push(command);
+          const cwd = /^cd '([^']*)' && /.exec(command)?.[1];
+          const name = /--stack '([^']*)'/.exec(command)?.[1];
+          const hit = started.some(
+            (stack) =>
+              name !== undefined && stack.name === name && stack.cwd === cwd
+          );
+          if (!hit) return commandResult('', false);
+          return command.includes('--env')
+            ? commandResult(
+                `{"DB_URL":"postgresql://${cwd ?? 'root'}/${name}"}`
+              )
+            : commandResult('{"runtime":{"kind":"native"}}');
+        },
+      } as unknown as Pick<LocalStackEvalContext, 'exec'>;
+      return { ctx, commands };
+    }
+
+    it('finds a named stack started inside the project dir', async () => {
+      const { ctx, commands } = identityCtx([
+        { cwd: 'checkout-service', name: 'checkout-service' },
+      ]);
+      expect(
+        await resolveStack(ctx, {
+          kind: 'project',
+          dir: 'checkout-service',
+          stackName: 'checkout-service',
+        })
+      ).toEqual({
+        ok: true,
+        backend: 'managed-named',
+        dbUrl: 'postgresql://checkout-service/checkout-service',
+        runtime: 'native',
+      });
+      expect(commands).toEqual([
+        "cd 'checkout-service' && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'checkout-service' --env --output-format json",
+        "cd 'checkout-service' && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'checkout-service' --output-format json",
+      ]);
+    });
+
+    it('falls back to a named stack started from the root', async () => {
+      const { ctx, commands } = identityCtx([{ name: 'checkout-service' }]);
+      expect(
+        await resolveStack(ctx, {
+          kind: 'project',
+          dir: 'checkout-service',
+          stackName: 'checkout-service',
+        })
+      ).toMatchObject({
+        ok: true,
+        backend: 'managed-named',
+        dbUrl: 'postgresql://root/checkout-service',
+      });
+      expect(commands).toHaveLength(3);
+    });
+
+    it('does not find a project-dir stack through a named target', async () => {
+      const { ctx } = identityCtx([
+        { cwd: 'checkout-service', name: 'checkout-service' },
+      ]);
+      expect(
+        await resolveStack(ctx, {
+          kind: 'named',
+          stackName: 'checkout-service',
+        })
+      ).toEqual({ ok: false, notes: 'managed-named: exit 1: error' });
     });
   });
 
