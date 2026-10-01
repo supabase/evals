@@ -13,7 +13,7 @@ import {
   type McpServerConfig,
 } from '@supabase-evals/core';
 import { isRecord } from '@supabase-evals/core/json';
-import { DockerSandbox } from './docker-sandbox.js';
+import { assertAgentResolves, DockerSandbox } from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
 import {
   computeExcludedServices,
@@ -287,17 +287,11 @@ export function localStackRuntime(
 
         // The root shell's PATH differs from the agent's SANDBOX_PATH, so
         // also assert the binary is gone from the PATH the agent runs under.
-        const pathCheck = await sandbox.runShell(
-          '! command -v docker >/dev/null 2>&1'
-        );
-        if (!pathCheck.ok) {
-          throw new Error(
-            `docker is still on the agent's PATH after removal: ${pathCheck.stderr || pathCheck.stdout}`
-          );
-        }
+        await assertAgentResolves(sandbox, 'docker', null);
 
         if (docker === 'no-daemon') {
           await installDockerDaemonShim(sandbox, dockerVersion);
+          await assertAgentResolves(sandbox, 'docker', DOCKER_SHIM_PATH);
         }
 
         if (localDir) {
@@ -424,6 +418,7 @@ async function installSupabaseShim(
     buildSupabaseShimScript(real, excluded),
     '0755'
   );
+  await assertAgentResolves(sandbox, 'supabase', SUPABASE_SHIM_PATH);
 }
 
 /**
