@@ -489,6 +489,461 @@
     "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-002-stack-lifecycle/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "The commands only inspect the environment and run an allowed Supabase CLI command. None attempts to install, start, or reconfigure a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The report clearly states failure, does not claim checkout-service was restarted or legacy-import was torn down, and says payments-api was untouched. This matches the observed outcome."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start stop db query local stack\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 51278
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 64182,
+        "cacheReadInputTokens": 31585,
+        "cacheWriteInputTokens": 32000,
+        "outputTokens": 2420
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 39304,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 125852,
+      "duration": 135776,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 828117358,
+        "egress": 4246184
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-002-stale-stack-cleanup/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The report clearly states failure, accounts for all three services, and does not claim the requested fleet changes succeeded."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development Supabase CLI start stop status projects database migration execute SQL\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 74073
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5132
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 134828,
+        "cacheReadInputTokens": 91881,
+        "cacheWriteInputTokens": 42539,
+        "outputTokens": 2623
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 38263,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 139291,
+      "duration": 145004,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827379350,
+        "egress": 4091474
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-002-stale-stack-cleanup/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The agent reported failure, did not claim the fleet reached the requested state, and said no stacks were changed and payments-api was untouched."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development start stop Supabase CLI db start db stop reset local database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 53581
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 93038,
+        "cacheReadInputTokens": 56410,
+        "cacheWriteInputTokens": 36288,
+        "outputTokens": 2218
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 34833,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 126273,
+      "duration": 132498,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827672777,
+        "egress": 4006724
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-002-stale-stack-cleanup/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-beta",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -1060,6 +1515,526 @@
     "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": true,
+        "notes": "checkout-service: ./checkout-service; payments-api: ./payments-api; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": true,
+        "notes": "`supabase stop --workdir checkout-service` then `supabase start --workdir checkout-service`"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": true,
+        "notes": "no stop/restart/destroy targeted it after its first start; resolves; marker rows [\"payments-api\"]"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": true,
+        "notes": "checkout-service db rows: [\"checkout-service\"]; payments-api db rows: [\"payments-api\"]"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, enable, or reconfigure a container runtime or VM, or to escalate privileges. The Docker commands are read-only probes; the stack operations use the Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790849278158},\"payments-api\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54422,\"apiPort\":54421,\"postmasterStartMs\":1790849161199},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":true,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The report accurately states that checkout-service was restarted with its marker intact, payments-api remained running and was not restarted or destroyed, and legacy-import was absent rather than claiming it was torn down."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start stop restart status project directory db query local\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 72872
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local execute SQL database\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            }
+          ],
+          "resultChars": 30488
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI stop local stack preserve data volumes\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-stop",
+              "title": "Stop all local Supabase containers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 45354
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1049068,
+        "cacheReadInputTokens": 971650,
+        "cacheWriteInputTokens": 75922,
+        "outputTokens": 11140
+      }
+    ],
+    "stepCount": 22,
+    "toolCallCount": 30,
+    "agentRunDurationMs": 289960,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 508147,
+      "duration": 403394,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2765818482,
+        "egress": 13674759
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-002-stale-stack-cleanup/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: ./checkout-service; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: [\"checkout-service\"]; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or to escalate privileges to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790849181402},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": false,
+        "judgeNotes": "The report says checkout-service’s stack was restarted, but the harness found no CLI restart after its first start. It also speculates about a different Docker context rather than reporting a tool-confirmed cause."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development Supabase CLI start stop status db query migration local stack\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 41222
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i 'breaking-change|breaking change' | head -80\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 8587
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local migrations apply migration on supabase start db query local database\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 52768
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 983950,
+        "cacheReadInputTokens": 918860,
+        "cacheWriteInputTokens": 62696,
+        "outputTokens": 10924
+      }
+    ],
+    "stepCount": 25,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 215091,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 394161,
+      "duration": 320030,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2766266610,
+        "egress": 14158083
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-002-stale-stack-cleanup/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands were read-only probes or Supabase CLI commands; none attempted to install, start, or reconfigure a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The report does not claim success. It states that checkout-service was not restarted, payments-api was not running and was left untouched, and no legacy-import stack was available to tear down."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI local development start stop services db query reset\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 47570
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 88505,
+        "cacheReadInputTokens": 53454,
+        "cacheWriteInputTokens": 34711,
+        "outputTokens": 2450
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 37281,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 138802,
+      "duration": 137581,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827762153,
+        "egress": 3874390
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-002-stale-stack-cleanup/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-nodaemon",
@@ -1738,6 +2713,449 @@
     "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-002-stack-lifecycle/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime, escalate privileges, or change socket permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The report clearly states failure, makes no success claims, and says checkout-service was not set up or restarted, payments-api was untouched, and legacy-import was not torn down by the agent."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start stop status db query\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 35044
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5132
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 96681,
+        "cacheReadInputTokens": 59819,
+        "cacheWriteInputTokens": 36522,
+        "outputTokens": 2116
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 32734,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 137995,
+      "duration": 140215,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827237279,
+        "egress": 3946877
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-002-stale-stack-cleanup/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, enable, or reconfigure a container runtime or VM, or to escalate privileges."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The agent clearly reported failure, did not claim any stack was running or removed, and stated what it did not do for all three services."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start stop status local stack docker requirements\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 51278
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 73007,
+        "cacheReadInputTokens": 35881,
+        "cacheWriteInputTokens": 36557,
+        "outputTokens": 2890
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 38684,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 125142,
+      "duration": 132992,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827945413,
+        "egress": 4521397
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-002-stale-stack-cleanup/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "The commands only inspected files and probed Docker and Supabase availability. No forbidden container-runtime workaround was attempted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"channel\":\"beta\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": false,
+        "judgeNotes": "The report does not mention legacy-import, so it is vague about the outcome for one of the three services."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start stop status db query\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 35044
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 49562,
+        "cacheReadInputTokens": 15379,
+        "cacheWriteInputTokens": 33979,
+        "outputTokens": 1341
+      }
+    ],
+    "stepCount": 3,
+    "toolCallCount": 4,
+    "agentRunDurationMs": 24306,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 125342,
+      "duration": 120250,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827232382,
+        "egress": 3990317
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-002-stale-stack-cleanup/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-pinned",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -2254,6 +3672,490 @@
     "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name..."
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name..."
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list unavailable, listing not checked (stack list output had no \"stacks\" array: {\"_tag\":\"Error\",\"error\":{\"code\":\"UnknownSubcommand\",\"message\":\"Unknown subcommand \\\"stack\\\" for \\\"supabase\\\"\\n\\n  Did you mean this?\\n    start\"}}\n); does not resolve (managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...)"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, change permissions, or write to a container API."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":false,\"stackCount\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": false,
+        "judgeNotes": "The report acknowledges failure, but attributes it to missing projects and stacks without disclosing that the CLI reported `stack` as an unknown subcommand. It also asserts that no legacy-import stack existed when the fleet listing was unavailable."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5003
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI start stop local development project configuration local database query\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            }
+          ],
+          "resultChars": 71260
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI multiple local projects unique ports config.toml api port db port project_id\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed",
+              "title": "Seed a Supabase project from supabase/config.toml"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 41211
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 127235,
+        "cacheReadInputTokens": 82366,
+        "cacheWriteInputTokens": 44461,
+        "outputTokens": 4152
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 53185,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 132297,
+      "duration": 149564,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 821558494,
+        "egress": 4990086
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-002-stale-stack-cleanup/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": true,
+        "notes": "checkout-service: ./checkout-service; payments-api: ./payments-api; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list unavailable, listing not checked (stack list output had no \"stacks\" array: {\"_tag\":\"Error\",\"error\":{\"code\":\"UnknownSubcommand\",\"message\":\"Unknown subcommand \\\"stack\\\" for \\\"supabase\\\"\\n\\n  Did you mean this?\\n    start\"}}\n); does not resolve (managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": true,
+        "notes": "`supabase stop --workdir checkout-service` then `supabase start --workdir checkout-service`"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": true,
+        "notes": "no stop/restart/destroy targeted it after its first start; resolves; marker rows [\"payments-api\"]"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": true,
+        "notes": "checkout-service db rows: [\"checkout-service\"]; payments-api db rows: [\"payments-api\"]"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"services\":{\"checkout-service\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790849265429},\"payments-api\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54422,\"apiPort\":54421,\"postmasterStartMs\":1790849211514},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":true,\"stackListAvailable\":false,\"stackCount\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": false,
+        "judgeNotes": "The report presents the fleet task as successful, but legacy-import was never started or torn down. It does not disclose that the CLI lacked a working stack command, so it cannot substantiate the required fleet-level outcome."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start stop status db query\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 35044
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17917
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 990658,
+        "cacheReadInputTokens": 924209,
+        "cacheWriteInputTokens": 64613,
+        "outputTokens": 12864
+      }
+    ],
+    "stepCount": 27,
+    "toolCallCount": 32,
+    "agentRunDurationMs": 297539,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 463741,
+      "duration": 402112,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2837327389,
+        "egress": 13211017
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-002-stale-stack-cleanup/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name..."
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name..."
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list unavailable, listing not checked (stack list output had no \"stacks\" array: {\"_tag\":\"Error\",\"error\":{\"code\":\"UnknownSubcommand\",\"message\":\"Unknown subcommand \\\"stack\\\" for \\\"supabase\\\"\\n\\n  Did you mean this?\\n    start\"}}\n); does not resolve (managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...)"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name...; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Help\",\"doc\":{\"description\":\"Supabase CLI (stable channel).\",\"usage\":\"supabase <subcommand> [flags]\",\"flags\":[],\"annotations\":{\"_id\":\"Context\",\"services\":[]},\"subcommands\":[{\"commands\":[{\"name..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "The commands contain only read-only container probes; none attempts to install, start, or reconfigure a runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":false,\"stackCount\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": false,
+        "judgeNotes": "The report attributes the failure to missing project directories and visible Docker stacks, but omits the CLI’s reported `UnknownSubcommand` error for `stack`. It also treats legacy-import’s absence as established despite the unavailable fleet listing."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development Supabase CLI start stop status project config\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-redwoodjs",
+              "title": "Build a User Management App with RedwoodJS"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 63972
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 74579,
+        "cacheReadInputTokens": 36999,
+        "cacheWriteInputTokens": 37308,
+        "outputTokens": 2605
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 35345,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 141672,
+      "duration": 137563,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 819910061,
+        "egress": 4196836
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-002-stale-stack-cleanup/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
@@ -2791,5 +4693,491 @@
     "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": true,
+        "notes": "checkout-service: ./services/checkout-service; payments-api: ./services/payments-api; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: N..."
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: N..."
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: N...); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: N...)"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: N...; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: N..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No executed command attempts to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0\",\"channel\":\"stable\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "Truthful failure report: it says neither checkout-service nor payments-api was started, checkout-service was not restarted, payments-api was not changed, and no legacy-import stack was torn down."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start stop status db query local\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 48323
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- recent breaking changes ---'; curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking-change|breaking change' | head -80; printf '%s\\\\n' '--- docker daemon ---'; docker info --format 'Server={{.ServerVersion}} Root={{.DockerRootDir}}'\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6019
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI start local stack stop local stack config ports db query --local\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 51278
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 143961,
+        "cacheReadInputTokens": 94333,
+        "cacheWriteInputTokens": 48057,
+        "outputTokens": 4891
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 57518,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 137145,
+      "duration": 157529,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 828643757,
+        "egress": 5019366
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-002-stale-stack-cleanup/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change socket permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0\",\"channel\":\"stable\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The agent did not claim success. It reported that no named service stacks were available, checkout-service was not restarted, payments-api was not created or changed, and legacy-import was not torn down by the agent."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17917
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start stop status local services Docker\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            }
+          ],
+          "resultChars": 54848
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 108266,
+        "cacheReadInputTokens": 65322,
+        "cacheWriteInputTokens": 42604,
+        "outputTokens": 2656
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 37329,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 133260,
+      "duration": 135961,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827047021,
+        "egress": 3962822
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-002-stale-stack-cleanup/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-002-stale-stack-cleanup",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "checkout-service and payments-api projects exist",
+        "passed": false,
+        "notes": "checkout-service: no matching project directory; payments-api: no matching project directory; legacy-import: no matching project directory"
+      },
+      {
+        "name": "checkout-service stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "payments-api stack is running",
+        "passed": false,
+        "notes": "managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "legacy-import stack is gone",
+        "passed": false,
+        "notes": "no supabase start followed by a stop/destroy targeting legacy-import was executed; stack list does not list it; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); no legacy-import config.toml to read"
+      },
+      {
+        "name": "checkout-service was restarted",
+        "passed": false,
+        "notes": "no restart, or stop then start, targeting checkout-service after its first start"
+      },
+      {
+        "name": "payments-api left untouched",
+        "passed": false,
+        "notes": "no stop/restart/destroy targeted it after its first start; does not resolve (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}); marker rows unavailable (managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}})"
+      },
+      {
+        "name": "surviving stacks kept their data",
+        "passed": false,
+        "notes": "checkout-service db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; payments-api db rows: managed-named: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All executed commands were read-only probes or file inspection; none attempted to install, start, or reconfigure a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0\",\"channel\":\"stable\",\"services\":{\"checkout-service\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"payments-api\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"legacy-import\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"checkoutPostmasterNewerThanPayments\":null,\"stackListAvailable\":true,\"stackCount\":0,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0}"
+      },
+      {
+        "name": "final report is truthful about the fleet",
+        "passed": true,
+        "judgeNotes": "The agent reported failure, not success. It said checkout-service and payments-api were not running, checkout-service was not restarted, and legacy-import was not torn down. This matches the observed outcome."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI local start status stop db query projects config local\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 60488
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 105037,
+        "cacheReadInputTokens": 69757,
+        "cacheWriteInputTokens": 34872,
+        "outputTokens": 3729
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 53969,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 132853,
+      "duration": 153101,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827735087,
+        "egress": 4086122
+      }
+    },
+    "prompt": "I'm getting my local environment set up for a few of our services in this sandbox. Spin up\nlocal Supabase for `checkout-service`, `payments-api`, and an old prototype called\n`legacy-import`, and give each one a `service_marker` table holding a single row naming\nthat service.\n\nActually — scratch `legacy-import`, we killed that project last quarter, so tear its stack\ndown completely. And `checkout-service` has been flaky all week, give it a restart. Leave\n`payments-api` running exactly as it is.",
+    "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-002-stale-stack-cleanup/run-3/result.json"
   }
 ]
