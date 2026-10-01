@@ -372,3 +372,38 @@ describe('enrichFromRollout pairing guard', () => {
     expect(call.timestamp).toBeUndefined();
   });
 });
+
+describe('enrichFromRollout redaction', () => {
+  it('pairs a command whose stdout copy redacts a secret', () => {
+    const command = `export URL=http://127.0.0.1:54321 && node signup.mjs --password hunter2`;
+    const rollout = [
+      JSON.stringify({
+        timestamp: 't1',
+        type: 'response_item',
+        payload: { type: 'function_call', call_id: 'c1' },
+      }),
+      JSON.stringify({
+        type: 'event_msg',
+        payload: {
+          type: 'item_completed',
+          item: {
+            type: 'CommandExecution',
+            id: 'c1',
+            command: ['/bin/bash', '-lc', command],
+          },
+        },
+      }),
+    ].join('\n');
+    const call: TranscriptEvent = {
+      type: 'tool_call',
+      tool: {
+        name: 'shell',
+        originalName: 'x',
+        id: 'item_1',
+        command: `/bin/bash -lc '${command.replace('hunter2', 'REDACTED_SECRET')}'`,
+      },
+    };
+    enrichFromRollout([call], rollout);
+    expect(call.timestamp).toBe('t1');
+  });
+});

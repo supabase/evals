@@ -342,15 +342,26 @@ export function enrichFromRollout(
 /**
  * Whether a `--json` tool call and a rollout item are the same call. Commands
  * compare on letters and digits only, since stdout shell-quotes the argv the
- * rollout keeps raw.
+ * rollout keeps raw. Stdout also swaps secrets for `REDACTED_SECRET`, so the
+ * pieces around each one must appear in order in the raw command:
+ *
+ *   stdout:  login --password REDACTED_SECRET --json → [loginpassword, json]
+ *   rollout: login --password hunter2 --json         → matches both, in order
  */
 function sameCall(event: TranscriptEvent, item: Record<string, unknown>) {
   const alnum = (text: string) => text.replace(/[^a-z0-9]/gi, '');
   if (item.type === 'CommandExecution' && Array.isArray(item.command)) {
     const command = event.tool?.command;
-    return (
-      !!command && alnum(command).includes(alnum(String(item.command.at(-1))))
-    );
+    if (!command) return false;
+    const raw = alnum(item.command.join(' '));
+    let at = 0;
+    return alnum(command)
+      .split('REDACTEDSECRET')
+      .every((piece) => {
+        const found = raw.indexOf(piece, at);
+        at = found + piece.length;
+        return found >= 0;
+      });
   }
   if (item.type === 'McpToolCall') {
     return event.tool?.call?.toolName === item.tool;
