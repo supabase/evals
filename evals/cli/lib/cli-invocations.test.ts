@@ -120,6 +120,54 @@ describe('findSupabaseInvocations', () => {
     ).toEqual([{ commandIndex: 0, argv: ['supabase', 'stop'], cwd: 'a' }]);
   });
 
+  it('targets a bare command by its entry cwd', () => {
+    const [found] = findSupabaseInvocations([
+      {
+        command: 'supabase stop --no-backup',
+        cwd: '/tmp/sandbox-x/legacy-import',
+      },
+    ]);
+    expect(found.cwd).toBe('/tmp/sandbox-x/legacy-import');
+    expect(invocationTargets(found, 'legacy-import')).toBe(true);
+  });
+
+  it('resolves an in-command cd relative to the entry cwd', () => {
+    const [found] = findSupabaseInvocations([
+      {
+        command: 'cd ../checkout-service && supabase restart',
+        cwd: '/tmp/sandbox-x/payments-api',
+      },
+    ]);
+    expect(found.cwd).toBe('/tmp/sandbox-x/checkout-service');
+    expect(invocationTargets(found, 'checkout-service')).toBe(true);
+    expect(invocationTargets(found, 'payments-api')).toBe(false);
+  });
+
+  it('targets no service from the sandbox root cwd', () => {
+    const [found] = findSupabaseInvocations([
+      { command: 'supabase start', cwd: '/tmp/sandbox-x' },
+    ]);
+    for (const name of ['legacy-import', 'payments-api', 'checkout-service']) {
+      expect(invocationTargets(found, name)).toBe(false);
+    }
+  });
+
+  it('treats an entry without cwd like a plain string', () => {
+    expect(findSupabaseInvocations([{ command: 'supabase stop' }])).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'stop'] },
+    ]);
+  });
+
+  it('skips --help and -h invocations', () => {
+    expect(
+      findSupabaseInvocations([
+        'supabase start --help',
+        'supabase stop -h',
+        'cd a && supabase stack restart --help',
+      ])
+    ).toEqual([]);
+  });
+
   it('never throws on unbalanced quotes', () => {
     expect(() => findSupabaseInvocations(['supabase stop "'])).not.toThrow();
   });
