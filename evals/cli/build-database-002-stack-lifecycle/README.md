@@ -59,7 +59,7 @@ workflow":
 or `none`), `timeToReadyMs`, `cliVersion`, `cliDetours`, `clearedDockerHost`,
 `rawDockerSocketProbes`, and `channel`. These are reported for every
 experiment, never asserted against. `cliDetours` is a regex-based diagnostic
-count (see `detours.ts`) that can disagree with the `no container-runtime
+count (see `../lib/detours.ts`) that can disagree with the `no container-runtime
 detours` judge and is never itself asserted.
 
 ## How readiness is resolved
