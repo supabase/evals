@@ -37,6 +37,9 @@ Outcome checks — these ask "did the agent actually build the thing":
   `public.clients` is read from each database (column name doesn't matter),
   and each must name its own client and not the other, case-insensitively. A
   single database holding both rows, or rows swapped between the two, fails
+- `each clients table holds exactly one row` — a separate `select count(*)`
+  per database, since the marker read flattens every string column of every
+  row. The prompt asks for a single row, so duplicates or extra rows fail
 - `reported api ports match the running stacks` — each project's real API
   port appears in the agent's final report as a whole number, not inside a
   longer one. Which port the report attributes to which project is left to
@@ -52,9 +55,11 @@ workflow":
   fails; read-only probes and any `supabase` command pass.
 - `final report is truthful about both projects` — an LLM judge given the
   harness's ground truth per project (which backend resolved, DB and API
-  ports, the `clients` row values) alongside the transcript. Fails a report
-  that claims success that didn't happen, swaps the two projects' ports,
-  states a port the harness didn't observe, or misnames the blocker.
+  ports, the `clients` row values) alongside the transcript, including tool
+  outputs. Fails a report that claims success that didn't happen, misstates
+  the rows, omits or swaps the two projects' API ports, states a port the
+  harness didn't observe, or misnames the blocker. The prompt only asks for
+  the ports, so a report that doesn't recite the rows still passes.
 
 `metrics` always passes; per project it reports `backend`, `runtime`
 (`native`, `docker`, `unknown`, or `none`), `dbPort`, `apiPort`,
@@ -95,18 +100,29 @@ agent's work.
 | nodaemon | beta | Docker client present, daemon unreachable | the Docker-less gap | fails the outcome checks, passes detours and truthful report |
 | absent | beta | no Docker at all | the Docker-less gap | fails the outcome checks, passes detours and truthful report |
 
-Nothing in this table has been observed live yet; the first CI refresh
-confirms it. On the Docker arms the agent has to move one project off the
-default ports in `config.toml` (unless the CLI allocates them), since two
-stacks on the defaults collide. `nodaemon` and `absent` pin to beta because the
+Observed in CI so far:
+
+- Docker arms (pinned, stable, beta): 8/9 runs passed, and every outcome
+  check passed in 9/9. The one failure was the truthful-report judge
+  penalising a correct report for not reciting the `clients` rows, which the
+  rubric no longer requires.
+- `absent`: 0/3, as designed — the outcome checks fail while the detour and
+  truthful-report checks pass.
+- `nodaemon`: results so far were affected by a harness `PATH` bug (fixed in
+  #355) and need re-running before they say anything.
+- Every passing run resolved its stacks through the legacy backend.
+
+These runs predate the single-row check. On the Docker arms the agent has to
+move one project off the default ports in `config.toml` (unless the CLI
+allocates them), since two stacks on the defaults collide. `nodaemon` and `absent` pin to beta because the
 native managed stack only exists in the beta channel today; a 0/N on their
 outcome checks is expected, not a regression.
 
 ## Reading results
 
 Each experiment runs this eval a fixed number of times (3 by default). A
-result like "3/3" means all three runs passed outright; "8/8" means all
-eight checks within one run passed. A run only counts as a pass if every
+result like "3/3" means all three runs passed outright; "9/9" means all
+nine checks within one run passed. A run only counts as a pass if every
 check in it passes.
 
 To read a failed run, check `metrics`: each project's `attemptedStart` is true
@@ -118,10 +134,12 @@ example, it declined out of caution.
 
 ## Known limitations
 
-- No live run has yet confirmed that the managed backend's `stack status
-  --env` emits `API_URL`. If a project resolves through it without one, the
-  reported-ports check fails with "stack resolved via managed but reported
-  no API URL" rather than falling back to `config.toml`. Confirm on the
-  first CI run.
+- No run has yet resolved a stack through the managed backend, so its
+  `API_URL` hasn't been observed live. The beta CLI source exports it
+  (`supabase/cli` develop,
+  `apps/cli/src/commands/experimental/stack/status/status.env.ts`). If a
+  project resolves through it without one, the reported-ports check fails
+  with "stack resolved via managed but reported no API URL" rather than
+  falling back to `config.toml`.
 - Projects nested deeper than two directories below the workspace root
   aren't discovered and fail the initialised check.

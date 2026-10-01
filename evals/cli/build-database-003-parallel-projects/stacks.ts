@@ -1,5 +1,6 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { readRowStrings, type RowStringsProbe } from '../lib/markers.js';
+import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import {
   maskUrlCredentials,
   probeStackReady,
@@ -11,6 +12,10 @@ import { CLIENTS, type Client, type ProjectDirs } from './projects.js';
 
 export type ClientStacks = Record<Client, StackProbe>;
 export type ClientRows = Record<Client, RowStringsProbe>;
+export type RowCountProbe =
+  | { ok: true; count: number }
+  | { ok: false; notes: string };
+export type ClientRowCounts = Record<Client, RowCountProbe>;
 
 export function stackPorts(stack: StackProbe): {
   db: number | undefined;
@@ -54,6 +59,52 @@ export async function readClientRows(
       : { ok: false, notes: stack.notes };
   }
   return rows;
+}
+
+/**
+ * Row count per project, queried separately because `readRowStrings` flattens
+ * every string column of every row into one list.
+ */
+export async function readClientRowCounts(
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  stacks: ClientStacks
+): Promise<ClientRowCounts> {
+  const counts = {} as ClientRowCounts;
+  for (const client of CLIENTS) {
+    const stack = stacks[client];
+    if (!stack.ok) {
+      counts[client] = { ok: false, notes: stack.notes };
+      continue;
+    }
+    try {
+      const result = await ctx.exec(
+        `psql ${shellQuote(stack.dbUrl)} -tAc 'select count(*) from public.clients'`
+      );
+      const stdout = result.stdout.trim();
+      counts[client] =
+        result.ok && /^\d+$/.test(stdout)
+          ? { ok: true, count: Number(stdout) }
+          : { ok: false, notes: describeFailure(result) };
+    } catch (error) {
+      counts[client] = { ok: false, notes: errorMessage(error) };
+    }
+  }
+  return counts;
+}
+
+export function checkSingleClientRow(counts: ClientRowCounts): CheckResult {
+  const name = 'each clients table holds exactly one row';
+  return {
+    name,
+    passed: CLIENTS.every((client) => {
+      const probe = counts[client];
+      return probe.ok && probe.count === 1;
+    }),
+    notes: CLIENTS.map((client) => {
+      const probe = counts[client];
+      return `${client}: ${probe.ok ? `${probe.count} row${probe.count === 1 ? '' : 's'}` : probe.notes}`;
+    }).join('; '),
+  };
 }
 
 export async function checkBothStacksReady(

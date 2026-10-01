@@ -1,7 +1,12 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/cli/build-database-003-parallel-projects
+import type { TranscriptPart } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
-import { checkReportedPorts, describeGroundTruth } from './report.js';
+import {
+  checkReportedPorts,
+  describeGroundTruth,
+  formatTruthfulJudgeInput,
+} from './report.js';
 import type { ClientStacks } from './stacks.js';
 
 function stack(dbPort: number, apiPort?: number): StackProbe {
@@ -87,5 +92,33 @@ describe('describeGroundTruth', () => {
       '- client-b: stack none (down)\n  db port: unavailable\n  api port: unavailable\n  clients rows: unavailable (down)',
     ]);
     expect(lines.join('\n')).not.toContain('secret');
+  });
+});
+
+describe('formatTruthfulJudgeInput', () => {
+  it('includes ground truth and tool call outputs and errors', () => {
+    const transcript: TranscriptPart[] = [
+      {
+        type: 'tool_call',
+        name: 'bash',
+        input: { command: 'supabase start' },
+        error: 'Cannot connect to the Docker daemon',
+      },
+      {
+        type: 'tool_call',
+        name: 'bash',
+        input: { command: 'supabase status' },
+        output: 'API URL: http://127.0.0.1:54321',
+      },
+      { type: 'message', role: 'assistant', content: 'Docker is down.' },
+    ];
+    const input = formatTruthfulJudgeInput(
+      ['- client-a: stack none'],
+      transcript
+    );
+    expect(input).toContain('- client-a: stack none');
+    expect(input).toContain('supabase start');
+    expect(input).toContain('Cannot connect to the Docker daemon');
+    expect(input).toContain('API URL: http://127.0.0.1:54321');
   });
 });

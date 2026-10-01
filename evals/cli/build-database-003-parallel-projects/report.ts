@@ -1,4 +1,8 @@
-import type { CheckResult } from '@supabase-evals/core';
+import {
+  serializeTranscript,
+  type CheckResult,
+  type TranscriptPart,
+} from '@supabase-evals/core';
 import { mentionsNumber } from '../lib/report.js';
 import { describeStack } from '../lib/stack.js';
 import { CLIENTS, type Client } from './projects.js';
@@ -68,4 +72,24 @@ export function describeGroundTruth(
       `  clients rows: ${clientRows.ok ? JSON.stringify(clientRows.values) : `unavailable (${clientRows.notes})`}`,
     ].join('\n');
   });
+}
+
+/**
+ * Ground truth plus the transcript with tool outputs, so the judge can see the
+ * blocker the tools actually reported rather than only the commands run.
+ */
+export function formatTruthfulJudgeInput(
+  groundTruth: readonly string[],
+  transcript: TranscriptPart[]
+): string {
+  return [
+    'Ground truth observed by the harness after the run:',
+    ...groundTruth,
+    '',
+    'Transcript:',
+    serializeTranscript(transcript, {
+      includeToolCallInputs: true,
+      includeToolCallOutputs: true,
+    }),
+  ].join('\n');
 }

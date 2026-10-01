@@ -10,6 +10,8 @@ import type { ProjectDirs } from './projects.js';
 import {
   checkBothStacksReady,
   checkDistinctPorts,
+  checkSingleClientRow,
+  readClientRowCounts,
   readClientRows,
   resolveClientStacks,
   type ClientStacks,
@@ -68,9 +70,10 @@ function fakeCtx(options: {
       if (query.includes('select 1')) return commandResult('1\n');
       if (query.includes('public.clients')) {
         const tableRows = rows[dbUrl];
-        return tableRows
-          ? commandResult(JSON.stringify(tableRows))
-          : commandResult('', false);
+        if (!tableRows) return commandResult('', false);
+        return query.includes('count(*)')
+          ? commandResult(`${tableRows.length}\n`)
+          : commandResult(JSON.stringify(tableRows));
       }
     }
     return commandResult('', false);
@@ -250,5 +253,65 @@ describe('marker isolation over readClientRows', () => {
       'client-b': { ok: false, notes: 'no stack' },
     });
     expect(rows['client-b']).toEqual({ ok: false, notes: 'no stack' });
+  });
+});
+
+describe('checkSingleClientRow over readClientRowCounts', () => {
+  const stacks: ClientStacks = {
+    'client-a': resolved(DB_A),
+    'client-b': resolved(DB_B),
+  };
+
+  async function singleRow(
+    rows: Record<string, Array<Record<string, unknown>>>
+  ) {
+    return checkSingleClientRow(
+      await readClientRowCounts(fakeCtx({ rows }), stacks)
+    );
+  }
+
+  it('passes when each table holds one row', async () => {
+    const result = await singleRow({
+      [DB_A]: [{ name: 'client-a' }],
+      [DB_B]: [{ name: 'client-b' }],
+    });
+    expect(result).toEqual({
+      name: 'each clients table holds exactly one row',
+      passed: true,
+      notes: 'client-a: 1 row; client-b: 1 row',
+    });
+  });
+
+  it('fails when a table holds duplicate marker rows', async () => {
+    const result = await singleRow({
+      [DB_A]: [{ name: 'client-a' }, { name: 'client-a' }, { name: 'acme' }],
+      [DB_B]: [{ name: 'client-b' }],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.notes).toBe('client-a: 3 rows; client-b: 1 row');
+  });
+
+  it('fails when a table is empty', async () => {
+    const result = await singleRow({
+      [DB_A]: [{ name: 'client-a' }],
+      [DB_B]: [],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.notes).toBe('client-a: 1 row; client-b: 0 rows');
+  });
+
+  it('fails with the probe notes when a table is missing or a stack is down', async () => {
+    const counts = await readClientRowCounts(
+      fakeCtx({ rows: { [DB_A]: [{ name: 'client-a' }] } }),
+      {
+        'client-a': resolved(DB_A),
+        'client-b': { ok: false, notes: 'no stack' },
+      }
+    );
+    expect(checkSingleClientRow(counts)).toEqual({
+      name: 'each clients table holds exactly one row',
+      passed: false,
+      notes: 'client-a: 1 row; client-b: no stack',
+    });
   });
 });
