@@ -225,11 +225,12 @@ function maskQuotedLiterals(text: string): string {
 
 const COMMENT_PRECEDER_RE = /[\s;&|(]/;
 
-/** Drops each unquoted, word-initial `#` through end of line; `"#"`, `a#b` and `${#x}` are kept. */
+/** Drops each unquoted, word-initial `#` through end of line; `"#"`, `a#b` and anything inside `${…}` are kept. */
 function stripShellComments(text: string): string {
   let out = '';
   let quote: string | undefined;
   let atWordStart = true;
+  let expansionDepth = 0;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (quote !== undefined) {
@@ -242,7 +243,7 @@ function stripShellComments(text: string): string {
       out += ch;
       continue;
     }
-    if (ch === '#' && atWordStart) {
+    if (ch === '#' && atWordStart && expansionDepth === 0) {
       const end = text.indexOf('\n', i);
       if (end === -1) break;
       i = end - 1;
@@ -254,6 +255,14 @@ function stripShellComments(text: string): string {
       atWordStart = false;
       continue;
     }
+    if (ch === '$' && text[i + 1] === '{') {
+      out += '${';
+      i++;
+      expansionDepth++;
+      atWordStart = false;
+      continue;
+    }
+    if (ch === '}' && expansionDepth > 0) expansionDepth--;
     if (ch === '"' || ch === "'") quote = ch;
     out += ch;
     atWordStart = COMMENT_PRECEDER_RE.test(ch);
@@ -281,6 +290,13 @@ function maskQuotedLiteralsPreservingOffsets(text: string): string {
 
 const SEGMENT_DELIMITER_RE = /\n|;|&&|\|\||\||\(|(?<![<>&\d])&(?![&>])/;
 
+/** Whether `text[index]` follows an odd run of backslashes, i.e. is escaped. */
+function isEscaped(text: string, index: number): boolean {
+  let backslashes = 0;
+  for (let j = index - 1; j >= 0 && text[j] === '\\'; j--) backslashes++;
+  return backslashes % 2 === 1;
+}
+
 /** Unwraps a leading shell wrapper, masks quoted/heredoc literals and comments, then splits into executable segments. */
 export function commandSegments(command: string): string[] {
   const body = maskQuotedLiterals(executableText(command));
@@ -304,7 +320,7 @@ export type ScopedSegment = {
   segment: string;
   /** Subshell `(`s opened since the previous segment. */
   opens: number;
-  /** Unquoted `)`s inside the segment, each closing a subshell after it runs. */
+  /** Unquoted, unescaped `)`s inside the segment, each closing a subshell after it runs. */
   closes: number;
 };
 
@@ -320,14 +336,17 @@ export function scopedCommandSegments(command: string): ScopedSegment[] {
   const pushUntil = (end: number) => {
     const segment = text.slice(cursor, end).trim();
     if (segment.length === 0) return;
-    const closes = boundarySafe.slice(cursor, end).split(')').length - 1;
+    let closes = 0;
+    for (let j = cursor; j < end; j++) {
+      if (boundarySafe[j] === ')' && !isEscaped(boundarySafe, j)) closes++;
+    }
     segments.push({ segment, opens, closes });
     opens = 0;
   };
   let match: RegExpExecArray | null;
   while ((match = delimiterRe.exec(boundarySafe))) {
     pushUntil(match.index);
-    if (match[0] === '(') opens++;
+    if (match[0] === '(' && !isEscaped(boundarySafe, match.index)) opens++;
     cursor = match.index + match[0].length;
   }
   pushUntil(text.length);
@@ -339,21 +358,37 @@ const PASSTHROUGH_WORDS = new Set(['exec', 'command', 'time', 'nohup']);
 
 /**
  * Skips `env`'s own options (`-i`, `-u NAME`, `--unset[=]NAME`, `-C DIR`,
- * `--chdir[=]DIR`) from `start`, just past the `env` word; `chdir` is the
- * directory the command runs in, if given.
+ * `--chdir[=]DIR`, a closing `--`) from `start`, just past the `env` word;
+ * `chdir` is the directory the command runs in, `unset` the variables removed
+ * and `clearsEnvironment` set by `-i`.
  */
 export function skipEnvOptions(
   tokens: readonly string[],
   start: number
-): { next: number; chdir?: string } {
+): {
+  next: number;
+  chdir?: string;
+  unset?: string[];
+  clearsEnvironment?: true;
+} {
   let i = start;
   let chdir: string | undefined;
+  const unset: string[] = [];
+  let clearsEnvironment = false;
   while (i < tokens.length) {
     const token = tokens[i];
-    if (token === '-i' || token.startsWith('--unset=')) {
+    if (token === '-i') {
+      clearsEnvironment = true;
+      i++;
+    } else if (token.startsWith('--unset=')) {
+      unset.push(token.slice('--unset='.length));
       i++;
     } else if (token === '-u' || token === '--unset') {
+      if (tokens[i + 1] !== undefined) unset.push(tokens[i + 1]);
       i += 2;
+    } else if (token === '--') {
+      i++;
+      break;
     } else if (token === '-C' || token === '--chdir') {
       chdir = tokens[i + 1] ?? chdir;
       i += 2;
@@ -364,7 +399,12 @@ export function skipEnvOptions(
       break;
     }
   }
-  return { next: i, ...(chdir === undefined ? {} : { chdir }) };
+  return {
+    next: i,
+    ...(chdir === undefined ? {} : { chdir }),
+    ...(unset.length === 0 ? {} : { unset }),
+    ...(clearsEnvironment ? { clearsEnvironment } : {}),
+  };
 }
 
 /** Segment with env/var-assignment/wrapper prefixes (and env's own flags) stripped, whitespace-split into tokens (first token basename'd, lowercased). */

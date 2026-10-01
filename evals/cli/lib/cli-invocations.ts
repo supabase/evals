@@ -36,7 +36,8 @@ const SHELL_KEYWORDS = new Set([
   '!',
 ]);
 const CHDIR_WORDS = new Set(['cd', 'pushd']);
-const WORKDIR_ASSIGNMENT = 'SUPABASE_WORKDIR=';
+const WORKDIR_VARIABLE = 'SUPABASE_WORKDIR';
+const WORKDIR_ASSIGNMENT = `${WORKDIR_VARIABLE}=`;
 const HELP_FLAGS = new Set(['--help', '-h']);
 
 // Flags that consume the next token, so the verb isn't mistaken for a value.
@@ -119,7 +120,16 @@ function stripPrefixes(argv: readonly string[]): {
     } else if (word === 'env') {
       const options = skipEnvOptions(argv, i + 1);
       i = options.next;
-      chdir = options.chdir ?? chdir;
+      if (options.chdir !== undefined) {
+        chdir =
+          chdir === undefined ? options.chdir : joinPath(chdir, options.chdir);
+      }
+      if (
+        options.clearsEnvironment ||
+        options.unset?.includes(WORKDIR_VARIABLE)
+      ) {
+        workdir = undefined;
+      }
     } else if (ENV_ASSIGNMENT_RE.test(word) || PASSTHROUGH_WORDS.has(word)) {
       i++;
     } else if (word === 'timeout') {

@@ -311,6 +311,21 @@ describe('findSupabaseInvocations', () => {
     ]);
   });
 
+  it('ignores a backslash-escaped paren when scoping cd', () => {
+    expect(
+      findSupabaseInvocations([
+        {
+          command:
+            '(cd legacy-import && echo \\) && supabase stop); supabase status',
+          cwd: '/w',
+        },
+      ]).map(({ argv, cwd }) => [argv[1], cwd])
+    ).toEqual([
+      ['stop', '/w/legacy-import'],
+      ['status', '/w'],
+    ]);
+  });
+
   it('ignores a quoted paren when scoping cd', () => {
     expect(
       findSupabaseInvocations(['cd a && echo ")" && supabase stop'])
@@ -329,6 +344,15 @@ describe('findSupabaseInvocations', () => {
     expect(findSupabaseInvocations(['supabase stop # done'])).toEqual([
       { commandIndex: 0, argv: ['supabase', 'stop'] },
     ]);
+  });
+
+  it('keeps an invocation after a # inside a parameter expansion', () => {
+    expect(
+      findSupabaseInvocations([
+        'echo ${DOCKER_HOST:- # unset}; supabase stop',
+        'echo ${DOCKER_HOST} # unset; supabase stop',
+      ])
+    ).toEqual([{ commandIndex: 0, argv: ['supabase', 'stop'] }]);
   });
 
   it('does not treat a quoted or mid-word # as a comment', () => {
@@ -385,6 +409,57 @@ describe('findSupabaseInvocations', () => {
       ['status', '/w'],
     ]);
     expect(invocationTargets(found[0], 'legacy-import')).toBe(true);
+  });
+
+  it('combines nested env -C wrappers', () => {
+    expect(
+      findSupabaseInvocations([
+        {
+          command: 'env -C services/legacy-import env --chdir=.. supabase stop',
+          cwd: '/w',
+        },
+        { command: 'env -C a env -C /x supabase stop', cwd: '/w' },
+        'env -C a env -C b supabase stop',
+      ]).map(({ cwd }) => cwd)
+    ).toEqual(['/w/services', '/x', 'a/b']);
+  });
+
+  it.each([
+    'SUPABASE_WORKDIR=legacy-import env -u SUPABASE_WORKDIR supabase stop',
+    'SUPABASE_WORKDIR=legacy-import env --unset=SUPABASE_WORKDIR supabase stop',
+    'SUPABASE_WORKDIR=legacy-import env --unset SUPABASE_WORKDIR supabase stop',
+    'SUPABASE_WORKDIR=legacy-import env -i supabase stop',
+  ])('drops a SUPABASE_WORKDIR that env removes in %j', (command) => {
+    const [found] = findSupabaseInvocations([{ command, cwd: '/w/client-b' }]);
+    expect(found).toEqual({
+      commandIndex: 0,
+      argv: ['supabase', 'stop'],
+      cwd: '/w/client-b',
+    });
+    expect(invocationTargets(found, 'client-b')).toBe(true);
+    expect(invocationTargets(found, 'legacy-import')).toBe(false);
+  });
+
+  it.each([
+    'SUPABASE_WORKDIR=legacy-import env -u DOCKER_HOST supabase stop',
+    'env -i SUPABASE_WORKDIR=legacy-import supabase stop',
+    'SUPABASE_WORKDIR=x env -u SUPABASE_WORKDIR SUPABASE_WORKDIR=legacy-import supabase stop',
+  ])('keeps a SUPABASE_WORKDIR env still passes in %j', (command) => {
+    const [found] = findSupabaseInvocations([{ command, cwd: '/w/client-b' }]);
+    expect(found.workdir).toBe('legacy-import');
+    expect(invocationTargets(found, 'legacy-import')).toBe(true);
+  });
+
+  it('finds an invocation after env --', () => {
+    expect(
+      findSupabaseInvocations([
+        'env -- supabase stop',
+        'env -u DOCKER_HOST -- supabase start',
+      ]).map(({ argv }) => argv)
+    ).toEqual([
+      ['supabase', 'stop'],
+      ['supabase', 'start'],
+    ]);
   });
 
   it('never throws on unbalanced quotes', () => {
