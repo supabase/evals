@@ -339,71 +339,135 @@ describe('enrichFromRollout', () => {
   });
 });
 
-describe('enrichFromRollout pairing guard', () => {
-  it('leaves tool events untouched when a pair disagrees on the command', () => {
-    const rollout = [
-      JSON.stringify({
-        timestamp: 't1',
-        type: 'response_item',
-        payload: { type: 'function_call', call_id: 'c1' },
-      }),
-      JSON.stringify({
-        type: 'event_msg',
-        payload: {
-          type: 'item_completed',
-          item: {
-            type: 'CommandExecution',
-            id: 'c1',
-            command: ['/bin/bash', '-lc', 'pwd'],
-          },
-        },
-      }),
-    ].join('\n');
-    const call: TranscriptEvent = {
-      type: 'tool_call',
-      tool: {
-        name: 'shell',
-        originalName: 'x',
-        id: 'item_1',
-        command: '/bin/bash -lc ls',
+describe('enrichFromRollout tool pairing', () => {
+  const line = (timestamp: string, type: string, payload: object) =>
+    JSON.stringify({ timestamp, type, payload });
+  const issued = (id: string, at: string) =>
+    line(at, 'response_item', { type: 'function_call', call_id: id });
+  const completed = (id: string, script: string) =>
+    line('', 'event_msg', {
+      type: 'item_completed',
+      item: {
+        type: 'CommandExecution',
+        id,
+        command: ['/bin/bash', '-lc', script],
       },
-    };
-    enrichFromRollout([call], rollout);
-    expect(call.timestamp).toBeUndefined();
-  });
-});
+    });
+  const finished = (id: string, at: string) =>
+    line(at, 'response_item', { type: 'function_call_output', call_id: id });
+  const call = (id: string, command: string): TranscriptEvent[] => [
+    {
+      type: 'tool_call',
+      tool: { name: 'shell', originalName: 'x', id, command },
+    },
+    { type: 'tool_result', tool: { name: 'shell', originalName: 'x', id } },
+  ];
+  const times = (events: TranscriptEvent[], rollout: string[]) => {
+    enrichFromRollout(events, rollout.join('\n'));
+    return events.map((e) => e.timestamp);
+  };
 
-describe('enrichFromRollout redaction', () => {
-  it('pairs a command whose stdout copy redacts a secret', () => {
-    const command = `export URL=http://127.0.0.1:54321 && node signup.mjs --password hunter2`;
-    const rollout = [
-      JSON.stringify({
-        timestamp: 't1',
-        type: 'response_item',
-        payload: { type: 'function_call', call_id: 'c1' },
-      }),
-      JSON.stringify({
-        type: 'event_msg',
-        payload: {
-          type: 'item_completed',
-          item: {
-            type: 'CommandExecution',
-            id: 'c1',
-            command: ['/bin/bash', '-lc', command],
-          },
-        },
-      }),
-    ].join('\n');
-    const call: TranscriptEvent = {
-      type: 'tool_call',
-      tool: {
-        name: 'shell',
-        originalName: 'x',
-        id: 'item_1',
-        command: `/bin/bash -lc '${command.replace('hunter2', 'REDACTED_SECRET')}'`,
-      },
-    };
-    enrichFromRollout([call], rollout);
-    expect(call.timestamp).toBe('t1');
+  it('matches shell-quoted commands to the argv', () => {
+    expect(
+      times(call('item_1', `/bin/bash -lc 'cat "a b.txt"'`), [
+        issued('c1', 't1'),
+        completed('c1', 'cat "a b.txt"'),
+        finished('c1', 't2'),
+      ])
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('skips all pairing when one command has extra arguments', () => {
+    expect(
+      times(
+        [
+          ...call('item_1', '/bin/bash -lc pwd'),
+          ...call('item_2', '/bin/bash -lc ls -la'),
+        ],
+        [
+          issued('c1', 't1'),
+          completed('c1', 'pwd'),
+          finished('c1', 't2'),
+          issued('c2', 't3'),
+          completed('c2', 'ls'),
+          finished('c2', 't4'),
+        ]
+      )
+    ).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('matches a redacted secret', () => {
+    expect(
+      times(
+        call('item_1', `/bin/bash -lc 'login --password [REDACTED_SECRET]'`),
+        [
+          issued('c1', 't1'),
+          completed('c1', 'login --password hunter2'),
+          finished('c1', 't2'),
+        ]
+      )
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('rejects different text around a redacted secret', () => {
+    expect(
+      times(
+        call('item_1', `/bin/bash -lc 'logout --password [REDACTED_SECRET]'`),
+        [
+          issued('c1', 't1'),
+          completed('c1', 'login --password hunter2'),
+          finished('c1', 't2'),
+        ]
+      )
+    ).toEqual([undefined, undefined]);
+  });
+
+  it('skips all pairing when the rollout is missing a command', () => {
+    expect(
+      times(
+        [
+          ...call('item_1', '/bin/bash -lc pwd'),
+          ...call('item_2', '/bin/bash -lc ls'),
+        ],
+        [issued('c1', 't1'), completed('c1', 'pwd'), finished('c1', 't2')]
+      )
+    ).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('pairs repeated commands in order', () => {
+    const command = `/bin/bash -lc 'supabase status'`;
+    expect(
+      times(
+        [...call('item_1', command), ...call('item_2', command)],
+        [
+          issued('c1', 't1'),
+          completed('c1', 'supabase status'),
+          finished('c1', 't2'),
+          issued('c2', 't3'),
+          completed('c2', 'supabase status'),
+          finished('c2', 't4'),
+        ]
+      )
+    ).toEqual(['t1', 't2', 't3', 't4']);
+  });
+
+  it('pairs parallel calls in completion order', () => {
+    // c1 starts first, but both streams list c2 first because it finished first.
+    expect(
+      times(
+        [
+          ...call('item_2', `/bin/bash -lc 'echo hi'`),
+          ...call('item_1', `/bin/bash -lc 'sleep 2'`),
+        ],
+        [
+          issued('c1', 't1'),
+          issued('c2', 't2'),
+          completed('c2', 'echo hi'),
+          finished('c2', 't3'),
+          completed('c1', 'sleep 2'),
+          finished('c1', 't4'),
+        ]
+      )
+    ).toEqual(['t2', 't3', 't1', 't4']);
   });
 });

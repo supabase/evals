@@ -340,33 +340,85 @@ export function enrichFromRollout(
 }
 
 /**
- * Whether a `--json` tool call and a rollout item are the same call. Commands
- * compare on letters and digits only, since stdout shell-quotes the argv the
- * rollout keeps raw. Stdout also swaps secrets for `REDACTED_SECRET`, so the
- * pieces around each one must appear in order in the raw command:
+ * A command must split into exactly the rollout's argv. Stdout redacts secrets
+ * the rollout keeps, so `[REDACTED_SECRET]` matches any text in its word.
+ * https://github.com/openai/codex/blob/5fa5aaf0fffd6593ca60ed974af3e87e29f3be28/codex-rs/secrets/src/sanitizer.rs#L15-L22
  *
- *   stdout:  login --password REDACTED_SECRET --json → [loginpassword, json]
- *   rollout: login --password hunter2 --json         → matches both, in order
+ *   stdout:  [bash, -lc, "login --password [REDACTED_SECRET]"]
+ *   rollout: [bash, -lc, "login --password hunter2"]   → same call
  */
 function sameCall(event: TranscriptEvent, item: Record<string, unknown>) {
-  const alnum = (text: string) => text.replace(/[^a-z0-9]/gi, '');
   if (item.type === 'CommandExecution' && Array.isArray(item.command)) {
-    const command = event.tool?.command;
-    if (!command) return false;
-    const raw = alnum(item.command.join(' '));
-    let at = 0;
-    return alnum(command)
-      .split('REDACTEDSECRET')
-      .every((piece) => {
-        const found = raw.indexOf(piece, at);
-        at = found + piece.length;
-        return found >= 0;
-      });
+    const words = event.tool?.command
+      ? splitShellWords(event.tool.command)
+      : undefined;
+    const argv = item.command.map(String);
+    return (
+      !!words &&
+      words.length === argv.length &&
+      words.every((word, i) => sameWord(word, argv[i]))
+    );
   }
   if (item.type === 'McpToolCall') {
     return event.tool?.call?.toolName === item.tool;
   }
   return true;
+}
+
+const REDACTED = '[REDACTED_SECRET]';
+
+function sameWord(word: string, raw: string): boolean {
+  if (!word.includes(REDACTED)) return word === raw;
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = word.split(REDACTED).map(escape).join('[\\s\\S]*');
+  return new RegExp(`^${pattern}$`).test(raw);
+}
+
+/**
+ * POSIX shell word splitting (quotes and backslashes, no expansion), enough to
+ * recover the argv Codex shell-joined into a `command_execution` command.
+ * Undefined on an unterminated quote or trailing backslash.
+ */
+function splitShellWords(command: string): string[] | undefined {
+  const words: string[] = [];
+  let word: string | undefined;
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i];
+    if (ch === "'") {
+      const end = command.indexOf("'", i + 1);
+      if (end === -1) return undefined;
+      word = (word ?? '') + command.slice(i + 1, end);
+      i = end;
+    } else if (ch === '"') {
+      let quoted = '';
+      i += 1;
+      for (; i < command.length && command[i] !== '"'; i += 1) {
+        const next = command[i + 1];
+        if (
+          command[i] === '\\' &&
+          next !== undefined &&
+          '$`"\\\n'.includes(next)
+        ) {
+          i += 1;
+          if (next === '\n') continue;
+        }
+        quoted += command[i];
+      }
+      if (i >= command.length) return undefined;
+      word = (word ?? '') + quoted;
+    } else if (ch === '\\') {
+      i += 1;
+      if (i >= command.length) return undefined;
+      if (command[i] !== '\n') word = (word ?? '') + command[i];
+    } else if (/\s/.test(ch)) {
+      if (word !== undefined) words.push(word);
+      word = undefined;
+    } else {
+      word = (word ?? '') + ch;
+    }
+  }
+  if (word !== undefined) words.push(word);
+  return words;
 }
 
 /** Codex's `input_tokens` already includes both cache buckets. */
