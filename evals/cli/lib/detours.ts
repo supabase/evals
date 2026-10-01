@@ -385,15 +385,28 @@ export function countRawDockerSocketProbes(
 export function extractCommands(
   toolCalls: readonly ToolCallRecord[]
 ): string[] {
-  return toolCalls
-    .map((record) => {
-      const c = (record.body as Record<string, unknown>)?.command;
-      return (
-        record.command ??
-        (Array.isArray(c) ? c.join(' ') : c === undefined ? '' : String(c))
-      );
-    })
-    .filter((command) => command.length > 0);
+  return toolCalls.map(recordCommand).filter((command) => command.length > 0);
+}
+
+function recordCommand(record: ToolCallRecord): string {
+  const c = (record.body as Record<string, unknown>)?.command;
+  return (
+    record.command ??
+    (Array.isArray(c) ? c.join(' ') : c === undefined ? '' : String(c))
+  );
+}
+
+/** `extractCommands` paired with each call's working directory, index-aligned with it. */
+export function extractCommandEntries(
+  toolCalls: readonly ToolCallRecord[]
+): Array<{ command: string; cwd?: string }> {
+  return toolCalls.flatMap((record) => {
+    const command = recordCommand(record);
+    if (command.length === 0) return [];
+    // `cwd` isn't on every core version's ToolCallRecord yet.
+    const cwd = (record as { cwd?: unknown }).cwd;
+    return [typeof cwd === 'string' ? { command, cwd } : { command }];
+  });
 }
 
 /** Numbers `commands` in order for the detour judge's input, each passed through in full. */

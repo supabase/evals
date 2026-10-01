@@ -5,6 +5,7 @@ import {
   commandSegments,
   countRawDockerSocketProbes,
   detourJudgeRubric,
+  extractCommandEntries,
   extractCommands,
   findCliDetourCommands,
   findDetours,
@@ -273,6 +274,35 @@ describe('extractCommands', () => {
 
   it('drops calls with no resolvable command', () => {
     expect(extractCommands([{ body: {}, tool: {} } as never])).toEqual([]);
+  });
+});
+
+describe('extractCommandEntries', () => {
+  const calls = [
+    { command: 'ls', cwd: '/tmp/sandbox-x', body: {}, tool: {} },
+    { body: {}, tool: {} },
+    {
+      body: { command: ['supabase', 'stop'] },
+      cwd: '/tmp/sandbox-x/legacy-import',
+      tool: {},
+    },
+    { command: 'supabase start', cwd: 42, body: {}, tool: {} },
+    { command: 'supabase status', body: {}, tool: {} },
+  ] as never[];
+
+  it('keeps the order and filtering of extractCommands', () => {
+    expect(extractCommandEntries(calls).map(({ command }) => command)).toEqual(
+      extractCommands(calls)
+    );
+  });
+
+  it('carries a string cwd and omits a missing or non-string one', () => {
+    expect(extractCommandEntries(calls)).toEqual([
+      { command: 'ls', cwd: '/tmp/sandbox-x' },
+      { command: 'supabase stop', cwd: '/tmp/sandbox-x/legacy-import' },
+      { command: 'supabase start' },
+      { command: 'supabase status' },
+    ]);
   });
 });
 
