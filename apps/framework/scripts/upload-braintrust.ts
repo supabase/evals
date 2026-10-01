@@ -520,8 +520,11 @@ export function logTranscript(
         content: part.error ?? part.output ?? null,
       });
     }
-    const { label, loadedSkills = [], skillPath } =
-      row.tools[toolIndex++] ?? {};
+    const {
+      label,
+      loadedSkills = [],
+      skillPath,
+    } = row.tools[toolIndex++] ?? {};
     // A call that loads several skills can't name just one.
     const skillName = loadedSkills.length === 1 ? loadedSkills[0] : undefined;
     const endTime = sec(part.resultTs) ?? at;
