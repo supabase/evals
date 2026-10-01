@@ -395,9 +395,10 @@ export interface SpanSink {
  * https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/eval-spans.md#trace-shape
  *
  * An LLM span starts where the previous span ended, since the agent only
- * writes a request's timestamps once its blocks finish generating. Braintrust
- * starts it at the first block instead, which leaves the generation time as a
- * gap.
+ * writes a request's timestamps once its blocks finish generating. Braintrust's
+ * Claude Code translator starts it at the first block instead, which leaves the
+ * generation time as a gap. Their Codex translator does what we do.
+ * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/codex.rs#L929-L932
  *
  *   task                    0s → 38s
  *   ├─ llm (text + Skill)   0s → 4s
