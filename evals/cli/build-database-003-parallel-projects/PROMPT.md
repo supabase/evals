@@ -4,11 +4,10 @@ interface: cli
 product:
   - database
 topic:
-  - migrations
   - sql
 projectRunning: false
 needsDocker: false
-motivation: CLI-2399, https://linear.app/supabase/issue/CLI-2399/build-cli-006-parallel-projects-two-projects-running-concurrently
+motivation: CLI-2399, https://github.com/orgs/supabase/discussions/5968
 ---
 
 I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need
