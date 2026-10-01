@@ -3,6 +3,7 @@ import type {
   LocalStackEnvironmentMarker,
   LocalStackEvalContext,
 } from '@supabase-evals/core';
+import type { SupabaseInvocation } from '../lib/cli-invocations.js';
 import { countRawDockerSocketProbes } from '../lib/detours.js';
 import {
   countClearedDockerHost,
@@ -15,6 +16,7 @@ import {
   type StackProbe,
 } from '../lib/stack.js';
 import type { StackListProbe } from '../lib/stack-list.js';
+import { isStartInvocation, lifecycleEvents } from './fleet.js';
 import { SERVICES, type Service } from './services.js';
 
 const SURVIVING = new Set<Service>(['checkout-service', 'payments-api']);
@@ -48,6 +50,7 @@ export async function checkMetrics(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   marker: LocalStackEnvironmentMarker | undefined,
   commands: readonly string[],
+  invocations: readonly SupabaseInvocation[],
   cliDetourCommands: readonly string[],
   stackList: StackListProbe,
   stacks: Record<Service, StackProbe>
@@ -59,6 +62,14 @@ export async function checkMetrics(
   for (const service of SERVICES) {
     services[service] = await serviceMetrics(ctx, service, stacks[service]);
   }
+  const attemptedStart = Object.fromEntries(
+    SERVICES.map((service) => [
+      service,
+      lifecycleEvents(invocations, service).some(
+        (event) => event.kind === 'start'
+      ),
+    ])
+  ) as Record<Service, boolean>;
   const checkoutMs = services['checkout-service'].postmasterStartMs;
   const paymentsMs = services['payments-api'].postmasterStartMs;
 
@@ -66,6 +77,8 @@ export async function checkMetrics(
     cliVersion: await readCliVersion(ctx),
     channel: marker?.channel ?? 'pinned',
     services,
+    attemptedStart,
+    attemptedAnyStart: invocations.some(isStartInvocation),
     // Unverified whether native `stack restart` restarts Postgres, so this is
     // reported rather than asserted by `checkout-service was restarted`.
     checkoutPostmasterNewerThanPayments:

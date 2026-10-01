@@ -36,6 +36,11 @@ const VERB_KINDS = new Map<string, LifecycleKind>([
   ['stack restart', 'restart'],
 ]);
 
+/** Whether the invocation is a `supabase start` or `supabase stack start`, whatever it targets. */
+export function isStartInvocation(inv: SupabaseInvocation): boolean {
+  return VERB_KINDS.get(invocationVerb(inv) ?? '') === 'start';
+}
+
 /**
  * Start/teardown/restart invocations targeting `service`, in execution order.
  * A start whose target is a shell expansion (a loop) counts for every service,

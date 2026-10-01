@@ -95,6 +95,11 @@ Behaviour checks:
 `cliVersion`, `channel`, `cliDetours`, `clearedDockerHost` and
 `rawDockerSocketProbes`. Postmaster ordering is reported rather than asserted
 because it's unverified whether a native `stack restart` restarts Postgres.
+`attemptedStart` reports per service whether the agent executed a
+`supabase start` or `stack start` targeting it (a loop start counts for every
+service), and `attemptedAnyStart` whether it executed any start at all. Use
+them to split a failed run into "tried to start and the CLI or runtime
+failed" versus "never tried", e.g. an agent that declined out of caution.
 
 ## How stacks are resolved
 

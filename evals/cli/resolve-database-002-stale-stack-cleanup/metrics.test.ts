@@ -4,6 +4,7 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
+import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
 import { checkMetrics } from './metrics.js';
 
@@ -38,6 +39,7 @@ describe('checkMetrics', () => {
       fakeCtx({ 54322: 2000, 54422: 1000, 54522: 500 }),
       undefined,
       ['unset DOCKER_HOST && supabase start', 'sudo dockerd'],
+      findSupabaseInvocations(['unset DOCKER_HOST && supabase start']),
       ['sudo dockerd'],
       { ok: true, stacks: [{ name: 'checkout-service' }] },
       {
@@ -73,6 +75,12 @@ describe('checkMetrics', () => {
           postmasterStartMs: null,
         },
       },
+      attemptedStart: {
+        'checkout-service': false,
+        'payments-api': false,
+        'legacy-import': false,
+      },
+      attemptedAnyStart: true,
       checkoutPostmasterNewerThanPayments: true,
       stackListAvailable: true,
       stackCount: 1,
@@ -94,6 +102,7 @@ describe('checkMetrics', () => {
       },
       [],
       [],
+      [],
       { ok: false, notes: 'unknown command' },
       { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE }
     );
@@ -110,5 +119,73 @@ describe('checkMetrics', () => {
     expect(metrics.checkoutPostmasterNewerThanPayments).toBe(null);
     expect(metrics.stackListAvailable).toBe(false);
     expect(metrics.stackCount).toBe(null);
+  });
+
+  async function attemptedStarts(commands: string[]) {
+    const result = await checkMetrics(
+      fakeCtx({}),
+      undefined,
+      commands,
+      findSupabaseInvocations(commands),
+      [],
+      { ok: false, notes: 'unknown command' },
+      { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE }
+    );
+    const { attemptedStart, attemptedAnyStart } = JSON.parse(
+      result.notes as string
+    );
+    return { attemptedStart, attemptedAnyStart };
+  }
+
+  it('reports no start attempts when no start was invoked', async () => {
+    expect(await attemptedStarts(['ls', 'supabase --version'])).toEqual({
+      attemptedStart: {
+        'checkout-service': false,
+        'payments-api': false,
+        'legacy-import': false,
+      },
+      attemptedAnyStart: false,
+    });
+  });
+
+  it('attributes a --workdir start to that service only', async () => {
+    expect(
+      await attemptedStarts(['supabase start --workdir checkout-service'])
+    ).toEqual({
+      attemptedStart: {
+        'checkout-service': true,
+        'payments-api': false,
+        'legacy-import': false,
+      },
+      attemptedAnyStart: true,
+    });
+  });
+
+  it('attributes a loop start with an unresolved target to every service', async () => {
+    expect(
+      await attemptedStarts([
+        'for s in checkout-service payments-api legacy-import; do (cd "$s" && supabase start); done',
+      ])
+    ).toEqual({
+      attemptedStart: {
+        'checkout-service': true,
+        'payments-api': true,
+        'legacy-import': true,
+      },
+      attemptedAnyStart: true,
+    });
+  });
+
+  it('does not count an echoed start', async () => {
+    expect(
+      await attemptedStarts(['echo "cd checkout-service && supabase start"'])
+    ).toEqual({
+      attemptedStart: {
+        'checkout-service': false,
+        'payments-api': false,
+        'legacy-import': false,
+      },
+      attemptedAnyStart: false,
+    });
   });
 });

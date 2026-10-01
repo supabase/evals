@@ -105,6 +105,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         ctx,
         marker,
         commands,
+        invocations,
         cliDetourCommands,
         stackList,
         stacks
