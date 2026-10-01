@@ -5,7 +5,7 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { checkMetrics } from './metrics.js';
+import { checkMetrics, findStartAttempts } from './metrics.js';
 import type { ClientStacks } from './stacks.js';
 
 const DB_A = 'postgresql://postgres:secret@127.0.0.1:54322/postgres';
@@ -73,6 +73,7 @@ describe('checkMetrics', () => {
           dbPort: 54322,
           apiPort: 54321,
           postmasterStartMs: 5_000,
+          attemptedStart: false,
         },
         'client-b': {
           backend: 'legacy',
@@ -80,9 +81,11 @@ describe('checkMetrics', () => {
           dbPort: 54332,
           apiPort: null,
           postmasterStartMs: 7_000,
+          attemptedStart: false,
         },
       },
       timeToReadyMs: 6_000,
+      attemptedAnyStart: false,
       cliDetours: 1,
       clearedDockerHost: 1,
       rawDockerSocketProbes: 0,
@@ -110,11 +113,67 @@ describe('checkMetrics', () => {
       dbPort: null,
       apiPort: null,
       postmasterStartMs: null,
+      attemptedStart: false,
     });
   });
 
   it('reports channel "pinned" when the environment marker is missing', async () => {
     const result = await checkMetrics(fakeCtx({}), undefined, [], [], STACKS);
     expect(JSON.parse(result.notes as string).channel).toBe('pinned');
+  });
+});
+
+describe('findStartAttempts', () => {
+  it('reports no attempts when the agent never ran a start', () => {
+    expect(findStartAttempts(['supabase init', 'supabase status'])).toEqual({
+      projects: { 'client-a': false, 'client-b': false },
+      any: false,
+    });
+  });
+
+  it('attributes a --workdir start to that project only', () => {
+    expect(findStartAttempts(['supabase start --workdir client-a'])).toEqual({
+      projects: { 'client-a': true, 'client-b': false },
+      any: true,
+    });
+  });
+
+  it('attributes a start after cd to that project only', () => {
+    expect(findStartAttempts(['cd client-b && supabase start'])).toEqual({
+      projects: { 'client-a': false, 'client-b': true },
+      any: true,
+    });
+  });
+
+  it('attributes a start inside a loop over the project dirs to both projects', () => {
+    expect(
+      findStartAttempts([
+        'for d in client-a client-b; do (cd "$d" && supabase start); done',
+      ])
+    ).toEqual({
+      projects: { 'client-a': true, 'client-b': true },
+      any: true,
+    });
+  });
+
+  it('ignores an echoed start command', () => {
+    expect(findStartAttempts(['echo "supabase start"'])).toEqual({
+      projects: { 'client-a': false, 'client-b': false },
+      any: false,
+    });
+  });
+
+  it('reports the attempt in the metrics notes', async () => {
+    const result = await checkMetrics(
+      fakeCtx({}),
+      MARKER,
+      [],
+      ['cd client-a && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack start'],
+      STACKS
+    );
+    const metrics = JSON.parse(result.notes as string);
+    expect(metrics.attemptedAnyStart).toBe(true);
+    expect(metrics.projects['client-a'].attemptedStart).toBe(true);
+    expect(metrics.projects['client-b'].attemptedStart).toBe(false);
   });
 });

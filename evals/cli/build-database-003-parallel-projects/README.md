@@ -57,10 +57,11 @@ workflow":
   states a port the harness didn't observe, or misnames the blocker.
 
 `metrics` always passes; per project it reports `backend`, `runtime`
-(`native`, `docker`, `unknown`, or `none`), `dbPort`, `apiPort`, and
-`postmasterStartMs`, plus `timeToReadyMs` (session start to the later of the
-two postmaster starts), `cliVersion`, `cliDetours`, `clearedDockerHost`,
-`rawDockerSocketProbes`, and `channel`. These are reported for every
+(`native`, `docker`, `unknown`, or `none`), `dbPort`, `apiPort`,
+`postmasterStartMs`, and `attemptedStart`, plus `timeToReadyMs` (session
+start to the later of the two postmaster starts), `attemptedAnyStart`,
+`cliVersion`, `cliDetours`, `clearedDockerHost`, `rawDockerSocketProbes`, and
+`channel`. These are reported for every
 experiment, never asserted against.
 
 ## How stacks are resolved per project
@@ -107,6 +108,13 @@ Each experiment runs this eval a fixed number of times (3 by default). A
 result like "3/3" means all three runs passed outright; "8/8" means all
 eight checks within one run passed. A run only counts as a pass if every
 check in it passes.
+
+To read a failed run, check `metrics`: each project's `attemptedStart` is true
+if the agent executed a `supabase start` or `supabase stack start` addressing
+it (a loop over both directories counts for both), and `attemptedAnyStart` is
+true for any start at all. A failure with `attemptedStart: true` means the CLI
+or runtime failed the start; `false` means the agent never tried — for
+example, it declined out of caution.
 
 ## Known limitations
 

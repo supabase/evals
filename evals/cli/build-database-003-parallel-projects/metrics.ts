@@ -3,6 +3,12 @@ import type {
   LocalStackEnvironmentMarker,
   LocalStackEvalContext,
 } from '@supabase-evals/core';
+import {
+  findSupabaseInvocations,
+  invocationTargets,
+  invocationTargetUnresolved,
+  invocationVerb,
+} from '../lib/cli-invocations.js';
 import { countRawDockerSocketProbes } from '../lib/detours.js';
 import {
   countClearedDockerHost,
@@ -20,7 +26,33 @@ type ProjectMetrics = {
   dbPort: number | null;
   apiPort: number | null;
   postmasterStartMs: number | null;
+  attemptedStart: boolean;
 };
+
+export type StartAttempts = {
+  projects: Record<Client, boolean>;
+  any: boolean;
+};
+
+const START_VERBS = new Set(['start', 'stack start']);
+
+/**
+ * Which projects the agent ran a stack start against. A start whose target is
+ * a shell expansion (e.g. a `for d in …; do (cd "$d" && …)` loop) counts for
+ * every project.
+ */
+export function findStartAttempts(commands: readonly string[]): StartAttempts {
+  const starts = findSupabaseInvocations(commands).filter((inv) =>
+    START_VERBS.has(invocationVerb(inv) ?? '')
+  );
+  const projects = {} as Record<Client, boolean>;
+  for (const client of CLIENTS) {
+    projects[client] = starts.some(
+      (inv) => invocationTargetUnresolved(inv) || invocationTargets(inv, client)
+    );
+  }
+  return { projects, any: starts.length > 0 };
+}
 
 export async function checkMetrics(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
@@ -32,6 +64,7 @@ export async function checkMetrics(
   const name = 'metrics';
 
   const cliVersion = await readCliVersion(ctx);
+  const startAttempts = findStartAttempts(commands);
 
   const projects = {} as Record<Client, ProjectMetrics>;
   for (const client of CLIENTS) {
@@ -45,6 +78,7 @@ export async function checkMetrics(
       postmasterStartMs: stack.ok
         ? await safely(() => readPostmasterStartMs(ctx, stack.dbUrl))
         : null,
+      attemptedStart: startAttempts.projects[client],
     };
   }
 
@@ -62,6 +96,7 @@ export async function checkMetrics(
     cliVersion,
     projects,
     timeToReadyMs,
+    attemptedAnyStart: startAttempts.any,
     // Regex-based diagnostic — can disagree with `no container-runtime
     // detours` (a judge), and is never asserted against.
     cliDetours: cliDetourCommands.length,
