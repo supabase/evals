@@ -12,6 +12,7 @@ import {
   checkCheckoutRestarted,
   checkLegacyImportGone,
   checkPaymentsUntouched,
+  describeFleetGroundTruth,
   findLegacyTeardown,
   probeLegacyDbPort,
   readConfigDbPort,
@@ -438,5 +439,49 @@ describe('probeLegacyDbPort', () => {
       answered: false,
       notes: 'ENOENT',
     });
+  });
+});
+
+describe('describeFleetGroundTruth', () => {
+  const commands = [
+    ...START_ALL,
+    'cd checkout-service && supabase stop && supabase start',
+    'cd legacy-import && supabase stop',
+  ];
+  const groundTruth = (stackList: StackListProbe) =>
+    describeFleetGroundTruth({
+      stacks: {
+        'checkout-service': REACHABLE,
+        'payments-api': REACHABLE,
+        'legacy-import': UNREACHABLE,
+      },
+      rows: {
+        'checkout-service': { ok: true, values: ['checkout-service'] },
+        'payments-api': PAYMENTS_ROWS,
+      },
+      stackList,
+      invocations: findSupabaseInvocations(commands),
+      portProbe: QUIET_PORT,
+    }).join('\n');
+
+  it('withholds a failed stack list probe error the agent never saw', () => {
+    const text = groundTruth({
+      ok: false,
+      notes:
+        'exit 1: Error: UnknownSubcommand: unknown command "stack" for "supabase"',
+    });
+    expect(text).not.toContain('UnknownSubcommand');
+    expect(text).toContain(
+      '- legacy-import: fleet listing: not available on this CLI (harness probe only; not shown to the agent)'
+    );
+  });
+
+  it('renders a successful listing', () => {
+    expect(groundTruth(EMPTY_LIST)).toContain(
+      '- legacy-import: fleet listing no longer shows it'
+    );
+    expect(
+      groundTruth({ ok: true, stacks: [{ name: 'legacy-import' }] })
+    ).toContain('- legacy-import: fleet listing still shows it');
   });
 });
