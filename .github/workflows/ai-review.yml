@@ -1,0 +1,479 @@
+name: AI Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_run:
+    workflows: ["Refresh eval results"]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  resolve:
+    name: Resolve review target
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      should_run: ${{ steps.resolve.outputs.should_run || steps.controller-available.outputs.should_run }}
+      reason: ${{ steps.resolve.outputs.reason || steps.controller-available.outputs.reason }}
+      pr_number: ${{ steps.resolve.outputs.pr_number || steps.controller-available.outputs.pr_number }}
+      head_sha: ${{ steps.resolve.outputs.head_sha || steps.controller-available.outputs.head_sha }}
+      base_sha: ${{ steps.resolve.outputs.base_sha || steps.controller-available.outputs.base_sha }}
+      head_ref: ${{ steps.resolve.outputs.head_ref || steps.controller-available.outputs.head_ref }}
+      base_ref: ${{ steps.resolve.outputs.base_ref || steps.controller-available.outputs.base_ref }}
+      instruction_mode: ${{ steps.resolve.outputs.instruction_mode || steps.controller-available.outputs.instruction_mode }}
+      controller_ref: ${{ steps.controller-available.outputs.controller_sha }}
+    steps:
+      - name: Select trusted controller ref
+        id: controller-ref
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          candidate="${{ github.event.pull_request.head.sha || '' }}"
+          approved="${{ vars.AI_REVIEW_APPROVED_CONTROLLER_SHA }}"
+          if [ -n "$approved" ] && [ "$candidate" = "$approved" ]; then
+            controller_ref="$approved"
+          else
+            controller_ref="${{ github.event.repository.default_branch }}"
+          fi
+          echo "ref=$controller_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout trusted controller
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ steps.controller-ref.outputs.ref }}
+          persist-credentials: false
+
+      - name: Check trusted controller availability
+        id: controller-available
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "controller_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+          if [ -f .github/ai-review/review.mjs ] && [ -f .github/ai-review/instruction-loader.mjs ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          echo "should_run=false" >> "$GITHUB_OUTPUT"
+          echo "reason=Trusted AI review controller is not available on ${{ steps.controller-ref.outputs.ref }}." >> "$GITHUB_OUTPUT"
+          echo "pr_number=" >> "$GITHUB_OUTPUT"
+          echo "head_sha=" >> "$GITHUB_OUTPUT"
+          echo "base_sha=" >> "$GITHUB_OUTPUT"
+          echo "head_ref=" >> "$GITHUB_OUTPUT"
+          echo "base_ref=" >> "$GITHUB_OUTPUT"
+          echo "instruction_mode=trusted" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.controller-available.outputs.available == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Resolve
+        if: steps.controller-available.outputs.available == 'true'
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AI_REVIEW_CONTROLLER_REF: ${{ steps.controller-available.outputs.controller_sha }}
+          AI_REVIEW_APPROVED_CONTROLLER_SHA: ${{ vars.AI_REVIEW_APPROVED_CONTROLLER_SHA }}
+          AI_REVIEW_APPROVED_INSTRUCTION_SHA: ${{ vars.AI_REVIEW_APPROVED_INSTRUCTION_SHA }}
+          AI_REVIEW_ALLOWED_PRS: ${{ vars.AI_REVIEW_ALLOWED_PRS }}
+        run: node .github/ai-review/review.mjs resolve
+
+  evidence:
+    name: Collect evidence
+    needs: resolve
+    if: needs.resolve.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: read
+      statuses: read
+    outputs:
+      should_review: ${{ steps.gate.outputs.should_review }}
+      reason: ${{ steps.gate.outputs.reason }}
+      changed_paths: ${{ steps.gate.outputs.changed_paths }}
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ needs.resolve.outputs.controller_ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Collect read-only PR evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/ai-review
+          node .github/ai-review/collect-evidence.mjs \
+            --repo "${{ github.repository }}" \
+            --pr "${{ needs.resolve.outputs.pr_number }}" \
+            --output /tmp/ai-review/evidence.json
+
+      - name: Gate relevant paths
+        id: gate
+        run: node .github/ai-review/review.mjs gate --evidence /tmp/ai-review/evidence.json
+
+      - name: Redact evidence artifact
+        if: always()
+        run: |
+          if [ -f /tmp/ai-review/evidence.json ]; then
+            node .github/ai-review/review.mjs redact --input /tmp/ai-review/evidence.json \
+              || { rm -f /tmp/ai-review/evidence.json; exit 1; }
+          fi
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ai-review-evidence
+          path: /tmp/ai-review/evidence.json
+          retention-days: 3
+
+  claude-review:
+    name: Claude review
+    needs: [resolve, evidence]
+    if: needs.evidence.outputs.should_review == 'true' && vars.AI_REVIEW_PAID_RUN_APPROVED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ needs.resolve.outputs.controller_ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install provider CLIs
+        run: |
+          npm install -g \
+            --userconfig "${RUNNER_TEMP}/ai-review-npmrc-user" \
+            --globalconfig "${RUNNER_TEMP}/ai-review-npmrc-global" \
+            --registry=https://registry.npmjs.org/ \
+            @anthropic-ai/claude-code@2.1.280
+
+      - name: Download evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ai-review-evidence
+          path: /tmp/ai-review
+
+      - name: Read Agent OS instructions
+        id: agent-os-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: supabase
+          repositories: agent-os
+          permission-contents: read
+
+      - name: Checkout pinned Agent OS instructions
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          repository: supabase/agent-os
+          ref: 060ae5faca5c410eb7dc441413c0281904ceb8c1
+          token: ${{ steps.agent-os-token.outputs.token }}
+          path: .ai-review-agent-os
+          persist-credentials: false
+
+      - name: Run Claude review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_REVIEW_AGENT_OS_DIR: ${{ github.workspace }}/.ai-review-agent-os
+          AI_REVIEW_CONTROLLER_REF: ${{ needs.resolve.outputs.controller_ref }}
+          AI_REVIEW_APPROVED_CONTROLLER_SHA: ${{ vars.AI_REVIEW_APPROVED_CONTROLLER_SHA }}
+          AI_REVIEW_APPROVED_INSTRUCTION_SHA: ${{ vars.AI_REVIEW_APPROVED_INSTRUCTION_SHA }}
+          AI_REVIEW_PAID_RUN_APPROVED: ${{ vars.AI_REVIEW_PAID_RUN_APPROVED }}
+          AI_REVIEW_INSTRUCTION_MODE: ${{ needs.resolve.outputs.instruction_mode }}
+        run: |
+          node .github/ai-review/review.mjs run-model \
+            --reviewer claude \
+            --evidence /tmp/ai-review/evidence.json \
+            --output /tmp/ai-review/claude-review.json
+
+      - name: Redact Claude review artifacts
+        if: always()
+        run: |
+          for f in /tmp/ai-review/claude-review.json /tmp/ai-review/claude-review-raw.json; do
+            if [ -f "$f" ]; then
+              node .github/ai-review/review.mjs redact --input "$f" || { rm -f "$f"; exit 1; }
+            fi
+          done
+
+      - name: Upload Claude review
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: claude-review
+          path: /tmp/ai-review/claude-review.json
+          retention-days: 3
+
+  codex-review:
+    name: Codex review
+    needs: [resolve, evidence]
+    if: needs.evidence.outputs.should_review == 'true' && vars.AI_REVIEW_PAID_RUN_APPROVED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ needs.resolve.outputs.controller_ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Download evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ai-review-evidence
+          path: /tmp/ai-review
+
+      - name: Read Agent OS instructions
+        id: agent-os-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: supabase
+          repositories: agent-os
+          permission-contents: read
+
+      - name: Checkout pinned Agent OS instructions
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          repository: supabase/agent-os
+          ref: 060ae5faca5c410eb7dc441413c0281904ceb8c1
+          token: ${{ steps.agent-os-token.outputs.token }}
+          path: .ai-review-agent-os
+          persist-credentials: false
+
+      - name: Isolate provider-direct Codex credentials
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          codex-version: "0.159.2"
+          codex-home: /tmp/ai-review/codex-home
+          safety-strategy: drop-sudo
+          sandbox: read-only
+
+      - name: Run Codex review
+        env:
+          AI_REVIEW_CODEX_PROXY_HOME: /tmp/ai-review/codex-home
+          AI_REVIEW_AGENT_OS_DIR: ${{ github.workspace }}/.ai-review-agent-os
+          AI_REVIEW_CONTROLLER_REF: ${{ needs.resolve.outputs.controller_ref }}
+          AI_REVIEW_APPROVED_CONTROLLER_SHA: ${{ vars.AI_REVIEW_APPROVED_CONTROLLER_SHA }}
+          AI_REVIEW_APPROVED_INSTRUCTION_SHA: ${{ vars.AI_REVIEW_APPROVED_INSTRUCTION_SHA }}
+          AI_REVIEW_PAID_RUN_APPROVED: ${{ vars.AI_REVIEW_PAID_RUN_APPROVED }}
+          AI_REVIEW_INSTRUCTION_MODE: ${{ needs.resolve.outputs.instruction_mode }}
+        run: |
+          node .github/ai-review/review.mjs run-model \
+            --reviewer codex \
+            --evidence /tmp/ai-review/evidence.json \
+            --output /tmp/ai-review/codex-review.json
+
+      - name: Redact Codex review artifacts
+        if: always()
+        run: |
+          for f in /tmp/ai-review/codex-review.json /tmp/ai-review/codex-review-raw.json; do
+            if [ -f "$f" ]; then
+              node .github/ai-review/review.mjs redact --input "$f" || { rm -f "$f"; exit 1; }
+            fi
+          done
+
+      - name: Upload Codex review
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: codex-review
+          path: /tmp/ai-review/codex-review.json
+          retention-days: 3
+
+  consolidate:
+    name: Consolidate
+    needs: [resolve, evidence, claude-review, codex-review]
+    if: ${{ always() && !cancelled() && (needs.claude-review.result == 'success' || needs.codex-review.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ needs.resolve.outputs.controller_ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Download available independent reviews
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: "*-review"
+          path: /tmp/ai-review/in
+          merge-multiple: true
+
+      - name: Download evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ai-review-evidence
+          path: /tmp/ai-review
+
+      - name: Read Agent OS instructions
+        id: agent-os-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: supabase
+          repositories: agent-os
+          permission-contents: read
+
+      - name: Checkout pinned Agent OS instructions
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          repository: supabase/agent-os
+          ref: 060ae5faca5c410eb7dc441413c0281904ceb8c1
+          token: ${{ steps.agent-os-token.outputs.token }}
+          path: .ai-review-agent-os
+          persist-credentials: false
+
+      - name: Isolate provider-direct Codex credentials
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          codex-version: "0.159.2"
+          codex-home: /tmp/ai-review/codex-home
+          safety-strategy: drop-sudo
+          sandbox: read-only
+
+      - name: Consolidate reviews
+        env:
+          AI_REVIEW_CODEX_PROXY_HOME: /tmp/ai-review/codex-home
+          AI_REVIEW_AGENT_OS_DIR: ${{ github.workspace }}/.ai-review-agent-os
+          AI_REVIEW_CONTROLLER_REF: ${{ needs.resolve.outputs.controller_ref }}
+          AI_REVIEW_APPROVED_CONTROLLER_SHA: ${{ vars.AI_REVIEW_APPROVED_CONTROLLER_SHA }}
+          AI_REVIEW_APPROVED_INSTRUCTION_SHA: ${{ vars.AI_REVIEW_APPROVED_INSTRUCTION_SHA }}
+          AI_REVIEW_PAID_RUN_APPROVED: ${{ vars.AI_REVIEW_PAID_RUN_APPROVED }}
+          AI_REVIEW_INSTRUCTION_MODE: ${{ needs.resolve.outputs.instruction_mode }}
+        run: |
+          node .github/ai-review/review.mjs run-model \
+            --reviewer consolidated \
+            --evidence /tmp/ai-review/evidence.json \
+            --claude /tmp/ai-review/in/claude-review.json \
+            --codex /tmp/ai-review/in/codex-review.json \
+            --output /tmp/ai-review/consolidated-review.json
+
+      - name: Redact consolidated review artifacts
+        if: always()
+        run: |
+          for f in /tmp/ai-review/consolidated-review.json /tmp/ai-review/consolidated-review-raw.json; do
+            if [ -f "$f" ]; then
+              node .github/ai-review/review.mjs redact --input "$f" || { rm -f "$f"; exit 1; }
+            fi
+          done
+
+      - name: Upload consolidated review
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: consolidated-review
+          path: /tmp/ai-review/consolidated-review.json
+          retention-days: 3
+
+  post-review:
+    name: Post advisory result
+    needs: [resolve, evidence, claude-review, codex-review, consolidate]
+    if: ${{ always() && !cancelled() && needs.resolve.outputs.should_run == 'true' && vars.AI_REVIEW_POST_APPROVED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: ai-review-post-${{ needs.resolve.outputs.pr_number || github.run_id }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ needs.resolve.outputs.controller_ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Download consolidated review
+        if: ${{ needs.consolidate.result == 'success' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: consolidated-review
+          path: /tmp/ai-review
+
+      - name: Post or update advisory comment
+        id: post
+        if: ${{ needs.consolidate.result == 'success' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AI_REVIEW_POST_APPROVED: ${{ vars.AI_REVIEW_POST_APPROVED }}
+        run: |
+          node .github/ai-review/review.mjs post \
+            --repo "${{ github.repository }}" \
+            --pr "${{ needs.resolve.outputs.pr_number }}" \
+            --input /tmp/ai-review/consolidated-review.json
+
+      - name: Mark advisory review incomplete
+        if: ${{ always() && (needs.consolidate.result != 'success' || steps.post.outcome != 'success') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AI_REVIEW_POST_APPROVED: ${{ vars.AI_REVIEW_POST_APPROVED }}
+          AI_REVIEW_EXPECTED_HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          AI_REVIEW_FAILURE_REASON: "evidence=${{ needs.evidence.result }}; evidence-review=${{ needs.evidence.outputs.should_review || 'unknown' }}; claude-review=${{ needs.claude-review.result }}; codex-review=${{ needs.codex-review.result }}; consolidate=${{ needs.consolidate.result }}; post=${{ steps.post.outcome || 'skipped' }}"
+        run: |
+          node .github/ai-review/review.mjs mark-incomplete \
+            --repo "${{ github.repository }}" \
+            --pr "${{ needs.resolve.outputs.pr_number }}"
+
+      - name: Fail incomplete advisory review
+        if: ${{ always() && (needs.consolidate.result != 'success' || steps.post.outcome != 'success') }}
+        run: exit 1

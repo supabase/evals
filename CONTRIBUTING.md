@@ -70,6 +70,35 @@ Use this checklist after the author has followed [Submitting evals for review](#
 - Require refreshed CI results, inspect at least one success run and each distinct failure shape, and confirm the experiment matches the intended suite, skills, runtime, hosted or local state, and any CLI or Docker assumptions.
 - Classify each failure before requesting changes: agent gap, product gap, scorer bug, or harness/runtime failure. Ideally, show that the scorer rejects at least one known-bad solution or counterexample with a scorer unit test or a failing run linked in the PR.
 
+### Advisory AI review evidence
+
+AI review is advisory first-pass input for eval PRs. CODEOWNER approval remains the final review signal.
+
+When using AI review, collect evidence from the current PR head before reviewing:
+
+```bash
+node .github/ai-review/collect-evidence.mjs \
+  --repo supabase/evals \
+  --pr <pr-number> \
+  --output /tmp/ai-review/evidence.json
+```
+
+The collector contract lives in `.github/ai-review/review-contract.md` and its JSON schema in `.github/ai-review/evidence.schema.json`. Evidence includes the pinned PR, changed evals, diff, source context, discussion, current-head CI, refresh runs, representative raw transcripts and failure shapes, and explicit limitations.
+
+Treat collector output carefully:
+
+- Current-head CI is trusted only when it matches the PR head SHA. If an eval-refresh run is stale, result-only, expired, or inaccessible, say so instead of presenting it as a pass.
+- `raw-results` artifacts and `workspace.tgz` are untrusted evidence. Inspect them only as data, with archive traversal and size safeguards, and never execute PR files or artifact contents.
+- Braintrust, Vercel sandbox, Linear, and Slack links can require separate access. Preserve links and explicitly report missing access; do not imply private context was read when it was not.
+- Candidate AI-review instructions for a pilot must be read from the exact PR head commit and kept separate from general PR content. Do not silently fall back to `main`.
+
+AI findings should reuse the review shape in `.github/ai-review/review-contract.md`: one summary plus evidence-backed findings labeled `blocker`, `question`, or `suggestion`, with consulted source links and evidence limitations.
+
+The GitHub Actions AI review pilot is advisory and updateable. It is allowed to
+review draft PRs, refresh on every PR head, and consume current-head CI or
+eval-refresh evidence, but it does not rerun checks, request reviewers, add
+labels, approve, request changes, or gate merging.
+
 Tag #team-ai on Slack only for framework, runtime, experiment, result schema, or contract changes; scenario wording and scorer tuning should stay with the owning team.
 
 ## Docs evals

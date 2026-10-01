@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "evals-ai-review-config-v1",
+  "referenceImplementation": {
+    "repository": "supabase/cli",
+    "ref": "develop",
+    "commit": "3cb948c5a70d31fbcb0fd1dcc616ee196a125cd0",
+    "paths": [
+      ".github/ai-review",
+      ".github/scripts/ai-review",
+      ".github/workflows/ai-review.yml"
+    ]
+  },
+  "sharedSkill": {
+    "name": "ai-pr-review",
+    "repository": "supabase/agent-os",
+    "path": "plugins/engineering/engineering-ai/ai-pr-review/SKILL.md",
+    "commit": "060ae5faca5c410eb7dc441413c0281904ceb8c1"
+  },
+  "models": {
+    "claude": {
+      "cli": "claude",
+      "model": "claude-opus-5-5",
+      "maxBudgetUsd": "4"
+    },
+    "codex": {
+      "cli": "codex",
+      "cliVersion": "0.159.2",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    }
+  },
+  "candidateInstructionPaths": [
+    ".github/ai-review/review-contract.md",
+    ".github/ai-review/prompts/claude-review.md",
+    ".github/ai-review/prompts/codex-review.md",
+    ".github/ai-review/prompts/consolidate.md",
+    "CONTRIBUTING.md"
+  ],
+  "approval": {
+    "requirePaidRunApprovalEnv": "AI_REVIEW_PAID_RUN_APPROVED",
+    "requirePostApprovalEnv": "AI_REVIEW_POST_APPROVED",
+    "approvedControllerShaEnv": "AI_REVIEW_APPROVED_CONTROLLER_SHA",
+    "approvedInstructionShaEnv": "AI_REVIEW_APPROVED_INSTRUCTION_SHA",
+    "allowedPullRequestsEnv": "AI_REVIEW_ALLOWED_PRS"
+  },
+  "relevantPathPrefixes": [
+    "evals/",
+    ".github/ai-review/",
+    ".github/workflows/ai-review.yml",
+    ".github/workflows/eval-refresh.yml",
+    "CONTRIBUTING.md",
+    "skills/",
+    "submodules/agent-skills/"
+  ]
+}
