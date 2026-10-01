@@ -10,14 +10,17 @@ export type SupabaseInvocation = {
   commandIndex: number;
   /** Executed argv, normalised so `argv[0]` is always `supabase`. */
   argv: string[];
-  /** Directory entered by an earlier `cd` in the same command, if any. */
+  /** The command's working directory, updated by any earlier `cd` in the same command. */
   cwd?: string;
 };
+
+export type CommandEntry = { command: string; cwd?: string };
 
 const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const PASSTHROUGH_WORDS = new Set(['env', 'exec', 'command', 'time', 'nohup']);
 const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
+const HELP_FLAGS = new Set(['--help', '-h']);
 
 // Flags that consume the next token, so the verb isn't mistaken for a value.
 const VALUE_FLAGS = new Set([
@@ -102,14 +105,16 @@ function isSupabaseBinary(word: string | undefined): boolean {
 /**
  * Every `supabase` invocation the agent actually executed, in order — parsed
  * from argv per executable segment, so an echoed, committed or heredoc'd
- * command line never counts. `cd` is tracked within a single command only.
+ * command line never counts. `cd` is tracked within a single command only,
+ * starting from the entry's `cwd`. `--help`/`-h` invocations are skipped.
  */
 export function findSupabaseInvocations(
-  commands: readonly string[]
+  commands: readonly (string | CommandEntry)[]
 ): SupabaseInvocation[] {
   const invocations: SupabaseInvocation[] = [];
-  commands.forEach((command, commandIndex) => {
-    let cwd: string | undefined;
+  commands.forEach((entry, commandIndex) => {
+    const command = typeof entry === 'string' ? entry : entry.command;
+    let cwd = typeof entry === 'string' ? undefined : entry.cwd;
     for (const segment of unmaskedCommandSegments(command)) {
       const lead = leadingWord(segment);
       if (lead && PASSIVE_LEADING_WORDS.has(lead)) continue;
@@ -125,6 +130,7 @@ export function findSupabaseInvocations(
         continue;
       }
       if (!isSupabaseBinary(argv[0])) continue;
+      if (argv.some((word) => HELP_FLAGS.has(word))) continue;
       invocations.push({
         commandIndex,
         argv: ['supabase', ...argv.slice(1)],
