@@ -489,6 +489,564 @@
     "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-002-stack-lifecycle/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": false,
+        "notes": "client-a db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst...; client-b db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": false,
+        "notes": "client-a: stack did not resolve; client-b: stack did not resolve"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM. The startup attempts used the permitted Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"client-b\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says neither stack is running because Docker and Podman are unavailable. It labels the project-specific ports as configured, not confirmed live, and does not claim the clients rows were created in a running database."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development supabase start config ports API port project_id local multiple projects\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 51599
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md breaking change CLI local development ports config.toml",
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- runtime candidates ---'; for runtime in docker podman nerdctl; do command -v \\\"\"'$runtime\" || true; done; ls -l /var/run/docker.sock 2>/dev/null || true; printf '\"'%s\\\\n' '--- supabase init help ---'; supabase init --help; printf '%s\\\\n' '--- changelog scan ---'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | rg -n -i 'breaking-change|local development|config\\\\.toml|port' | head -60\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 14126
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml api port db port studio port pooler local project_id migrations seed supabase db reset\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed",
+              "title": "Seed a Supabase project from supabase/config.toml"
+            }
+          ],
+          "resultChars": 44782
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI config.toml [api] port [db] port [studio] port [inbucket] port [analytics] port [db.pooler] port local development\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 41128
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 506597,
+        "cacheReadInputTokens": 447074,
+        "cacheWriteInputTokens": 54047,
+        "outputTokens": 8574
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 95483,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 139606,
+      "duration": 193241,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831171584,
+        "egress": 7167997
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-003-parallel-projects/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": false,
+        "notes": "client-a: no matching project directory; client-b: no matching project directory; supabase/config.toml found under: none"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": false,
+        "notes": "client-a: no project directory (no matching project directory); client-b: no project directory (no matching project directory)"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": false,
+        "notes": "client-a: no project directory (no matching project directory); client-b: no project directory (no matching project directory)"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": false,
+        "notes": "client-a db rows: no project directory (no matching project directory); client-b db rows: no project directory (no matching project directory)"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": false,
+        "notes": "client-a: stack did not resolve; client-b: stack did not resolve"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or alter socket permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"client-b\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly states that both project directories are absent, neither stack started, and no clients rows or API ports were confirmed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6388
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml ports supabase start init migrations\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 49723
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI supabase init project_id config.toml ports\", limit: 4) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 44638
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml api.port db.port shadow port local development\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 38225
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 172808,
+        "cacheReadInputTokens": 124685,
+        "cacheWriteInputTokens": 47579,
+        "outputTokens": 4040
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 50247,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 127431,
+      "duration": 142142,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827802613,
+        "egress": 4963546
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-003-parallel-projects/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": false,
+        "notes": "client-a db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst...; client-b db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": false,
+        "notes": "client-a: stack did not resolve; client-b: stack did not resolve"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"client-b\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says neither stack started because Docker and Podman were unavailable. It distinguishes configured API ports from confirmed live ports and does not claim the client rows were verified."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development multiple projects different ports config.toml api port db port studio port\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 56752
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml api port db port local development ports Supabase CLI\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 33560
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 535588,
+        "cacheReadInputTokens": 473264,
+        "cacheWriteInputTokens": 61304,
+        "outputTokens": 10361
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 112021,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 141684,
+      "duration": 206797,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 829892361,
+        "egress": 6603669
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-003-parallel-projects/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-beta",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -1060,6 +1618,941 @@
     "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": true,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": true,
+        "notes": "client-a: legacy (docker), select 1 ok; client-b: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": true,
+        "notes": "client-a db port 54322, client-b db port 55322"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": true,
+        "notes": "client-a db rows: [\"client-a\"]; client-b db rows: [\"client-b\"]"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": true,
+        "notes": "client-a api port 54321: reported; client-b api port 55321: reported"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, enable, or reconfigure a container runtime. Docker commands are read-only probes; Supabase CLI commands are allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790848783036},\"client-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":55322,\"apiPort\":55321,\"postmasterStartMs\":1790848816750}},\"timeToReadyMs\":140986,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says both stacks are running, assigns API ports 54321 to client-a and 55321 to client-b, and identifies each project’s matching clients row."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5132
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml API port db port project_id multiple projects start\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 43825
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI config reference api port db port studio port local development Supabase config.toml\", limit: 5) { nodes { ... on Guide { title href content subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-3-create-your-schema",
+              "title": "Step 3: Create your schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-4-add-seed-data",
+              "title": "Step 4: Add seed data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-5-verify",
+              "title": "Step 5: Verify"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-6-commit",
+              "title": "Step 6: Commit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#the-daily-workflow",
+              "title": "The daily workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#making-schema-changes",
+              "title": "Making schema changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#generating-types",
+              "title": "Generating types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#staying-in-sync-with-your-team",
+              "title": "Staying in sync with your team"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#pushing-to-a-remote-project",
+              "title": "Pushing to a remote project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#resetting-a-remote-dev-or-staging-project",
+              "title": "Resetting a remote dev or staging project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#key-commands-at-a-glance",
+              "title": "Key commands at a glance"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#cleaning-up-generated-migrations",
+              "title": "Cleaning up generated migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#grants",
+              "title": "Grants"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#revokere-grant-patterns",
+              "title": "Revoke/re-grant patterns"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#extension-statements",
+              "title": "Extension statements"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#known-limitations-of-db-diff",
+              "title": "Known limitations of db diff"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#before-you-begin",
+              "title": "Before you begin"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#the-supabase-directory",
+              "title": "The ./supabase directory"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#move-an-existing-project-to-local-development",
+              "title": "Move an existing project to local development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-1-initialize",
+              "title": "Step 1: Initialize"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-2-authenticate",
+              "title": "Step 2: Authenticate"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-3-link-to-your-remote-project",
+              "title": "Step 3: Link to your remote project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-4-pull-the-remote-schema",
+              "title": "Step 4: Pull the remote schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-5-create-seed-data",
+              "title": "Step 5: Create seed data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-6-verify",
+              "title": "Step 6: Verify"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-7-commit",
+              "title": "Step 7: Commit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#start-a-new-project-from-scratch",
+              "title": "Start a new project from scratch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-1-initialize-1",
+              "title": "Step 1: Initialize"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows#step-2-start-the-local-stack",
+              "title": "Step 2: Start the local stack"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config#going-further",
+              "title": "Going further"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config#using-secrets-inside-configtoml",
+              "title": "Using secrets inside config.toml"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config#config-reference",
+              "title": "Config reference"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#how-to-opt-out",
+              "title": "How to opt out"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#learn-more",
+              "title": "Learn more"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#installing-the-supabase-cli",
+              "title": "Installing the Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#beta-channel",
+              "title": "Beta channel"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#updating-the-supabase-cli",
+              "title": "Updating the Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#running-supabase-locally",
+              "title": "Running Supabase locally"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#access-your-projects-services",
+              "title": "Access your project's services"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#stopping-local-services",
+              "title": "Stopping local services"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started#telemetry",
+              "title": "Telemetry"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk#using-rls-policies",
+              "title": "Using RLS policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk#setup-the-supabase-client-library",
+              "title": "Setup the Supabase client library"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk#manually-configuring-your-clerk-instance",
+              "title": "Manually configuring your Clerk instance"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk#configure-for-local-development-or-self-hosting",
+              "title": "Configure for local development or self-hosting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk#getting-started",
+              "title": "Getting started"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk#deprecated-integration-with-jwt-templates",
+              "title": "Deprecated integration with JWT templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk#example-check-user-has-passed-second-factor-verification",
+              "title": "Example: Check user has passed second factor verification"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk#example-check-user-organization-role",
+              "title": "Example: Check user organization role"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#client-libraries",
+              "title": "Client libraries"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#management-api",
+              "title": "Management API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#cli",
+              "title": "CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#project-management",
+              "title": "Project management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database",
+              "title": "Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#postgres-database",
+              "title": "Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#vector-database",
+              "title": "Vector database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auto-generated-rest-api-via-postgrest",
+              "title": "Auto-generated REST API via PostgREST"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auto-generated-graphql-api-via-pg_graphql",
+              "title": "Auto-generated GraphQL API via pg_graphql"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database-webhooks",
+              "title": "Database webhooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#secrets-and-encryption",
+              "title": "Secrets and encryption"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#replication",
+              "title": "Replication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#platform",
+              "title": "Platform"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database-backups",
+              "title": "Database backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#custom-domains",
+              "title": "Custom domains"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#network-restrictions",
+              "title": "Network restrictions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#ssl-enforcement",
+              "title": "SSL enforcement"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#branching",
+              "title": "Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#terraform-provider",
+              "title": "Terraform provider"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#read-replicas",
+              "title": "Read replicas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#log-drains",
+              "title": "Log drains"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#studio",
+              "title": "Studio"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#studio-single-sign-on",
+              "title": "Studio Single Sign-On"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#realtime",
+              "title": "Realtime"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#postgres-changes",
+              "title": "Postgres changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#broadcast",
+              "title": "Broadcast"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#presence",
+              "title": "Presence"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#email-login",
+              "title": "Email login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#social-login",
+              "title": "Social login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#phone-logins",
+              "title": "Phone logins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#passwordless-login",
+              "title": "Passwordless login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#authorization-via-row-level-security",
+              "title": "Authorization via Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#captcha-protection",
+              "title": "CAPTCHA protection"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#server-side-auth",
+              "title": "Server-Side Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#file-storage",
+              "title": "File storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#content-delivery-network",
+              "title": "Content Delivery Network"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#smart-content-delivery-network",
+              "title": "Smart Content Delivery Network"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#image-transformations",
+              "title": "Image transformations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#resumable-uploads",
+              "title": "Resumable uploads"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#edge-functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#s3-compatibility",
+              "title": "S3 compatibility"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#deno-edge-functions",
+              "title": "Deno Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#regional-invocations",
+              "title": "Regional invocations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#npm-compatibility",
+              "title": "NPM compatibility"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#generally-available",
+              "title": "Generally available"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#beta",
+              "title": "Beta"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#public-alpha",
+              "title": "Public alpha"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#private-alpha",
+              "title": "Private alpha"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#feature-status",
+              "title": "Feature status"
+            }
+          ],
+          "resultChars": 140493
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development seed.sql applied after migrations supabase start RLS policy public schema migration\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            }
+          ],
+          "resultChars": 40873
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 969555,
+        "cacheReadInputTokens": 908928,
+        "cacheWriteInputTokens": 58859,
+        "outputTokens": 6080
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 163623,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 370771,
+      "duration": 262971,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2764957253,
+        "egress": 12477562
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-003-parallel-projects/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": true,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": true,
+        "notes": "client-a: legacy (docker), select 1 ok; client-b: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": true,
+        "notes": "client-a db port 54322, client-b db port 54422"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": true,
+        "notes": "client-a db rows: [\"client-a\"]; client-b db rows: [\"client-b\"]"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": true,
+        "notes": "client-a api port 54321: reported; client-b api port 54421: reported"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790848806925},\"client-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54422,\"apiPort\":54421,\"postmasterStartMs\":1790848806925}},\"timeToReadyMs\":128972,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says both stacks are running, assigns API port 54321 to client-a and 54421 to client-b, and identifies each project’s matching clients row."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start multiple projects ports config.toml api port db port\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            }
+          ],
+          "resultChars": 51602
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config reference api port db port project_id local development seeding migration\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/analytics/connecting-to-analytics-bucket",
+              "title": "Iceberg Catalog"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/change-project-region-eWJo5Z",
+              "title": "Change Project Region"
+            }
+          ],
+          "resultChars": 66158
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 649238,
+        "cacheReadInputTokens": 580442,
+        "cacheWriteInputTokens": 67572,
+        "outputTokens": 7305
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 169031,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 379529,
+      "duration": 268928,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2765697148,
+        "egress": 12373789
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-003-parallel-projects/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_client-a\nTry rerun...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_client-b\nTry rerun..."
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_client-a\nTry rerun...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_client-b\nTry rerun..."
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": false,
+        "notes": "client-a db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_client-a\nTry rerun...; client-b db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_client-b\nTry rerun..."
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": false,
+        "notes": "client-a: stack did not resolve; client-b: stack did not resolve"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change permissions to get one working."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"client-b\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": false,
+        "judgeNotes": "Neither stack started. The report stopped to ask about port authorization rather than identifying a tool-reported blocker for client-a or client-b."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 10000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 9970
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml api port db port local start multiple projects\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 43825
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config reference port api db shadow_port studio port inbucket port analytics port\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 95422
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 259428,
+        "cacheReadInputTokens": 212727,
+        "cacheWriteInputTokens": 46021,
+        "outputTokens": 4172
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 58911,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 146974,
+      "duration": 158758,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 828424035,
+        "egress": 5437037
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-003-parallel-projects/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-nodaemon",
@@ -1738,6 +3231,613 @@
     "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-002-stack-lifecycle/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": false,
+        "notes": "client-a db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1...; client-b db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": false,
+        "notes": "client-a: stack did not resolve; client-b: stack did not resolve"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or to escalate privileges for one."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"client-b\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": false,
+        "judgeNotes": "The report correctly says neither stack is running, but misidentifies the blocker as Docker and Podman not being installed. The reported blocker was an unreachable Docker daemon at tcp://127.0.0.1:1."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15932
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml ports api port start multiple projects\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 43825
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml api port db ports local development start multiple projects\", limit: 10) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 94943
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 547851,
+        "cacheReadInputTokens": 488662,
+        "cacheWriteInputTokens": 58033,
+        "outputTokens": 14323
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 147999,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 151343,
+      "duration": 246909,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 832654050,
+        "egress": 7826384
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-003-parallel-projects/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": false,
+        "notes": "client-a: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1...; client-b: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": false,
+        "notes": "client-a db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1...; client-b db rows: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": false,
+        "notes": "client-a: stack did not resolve; client-b: stack did not resolve"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"client-b\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": false,
+        "judgeNotes": "The report correctly says neither stack is running, but attributes the blocker to missing Docker/Podman binaries. The harness reported an unreachable Docker daemon at tcp://127.0.0.1:1, so the stated cause is inaccurate."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml api port db port start project id multiple local projects\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 60052
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development supabase config.toml [api] port [db] port project_id CLI local stack multiple projects start\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 64016
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase secure Data API expose tables RLS grant select anon authenticated public schema local development\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            }
+          ],
+          "resultChars": 96956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml port settings api db shadow_port pooler studio local_smtp analytics edge_runtime ports\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            }
+          ],
+          "resultChars": 40737
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml CLI reference api.port db.port db.shadow_port db.pooler.port studio.port local_smtp.port analytics.port edge_runtime.inspector_port Supabase local\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            }
+          ],
+          "resultChars": 55527
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Data API public schema tables grant select anon authenticated enable row level security security guide\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            }
+          ],
+          "resultChars": 52770
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"studio.api_url API URL port config.toml local Supabase Studio config reference\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            }
+          ],
+          "resultChars": 50872
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 698322,
+        "cacheReadInputTokens": 619351,
+        "cacheWriteInputTokens": 77883,
+        "outputTokens": 10408
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 36,
+    "agentRunDurationMs": 141896,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 144903,
+      "duration": 239399,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830484355,
+        "egress": 9623985
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-003-parallel-projects/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0-beta.35",
+    "passed": false,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": false,
+        "notes": "client-a: no matching project directory; client-b: no matching project directory; supabase/config.toml found under: none"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": false,
+        "notes": "client-a: no project directory (no matching project directory); client-b: no project directory (no matching project directory)"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": false,
+        "notes": "client-a: no project directory (no matching project directory); client-b: no project directory (no matching project directory)"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": false,
+        "notes": "client-a db rows: no project directory (no matching project directory); client-b db rows: no project directory (no matching project directory)"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": false,
+        "notes": "client-a: stack did not resolve; client-b: stack did not resolve"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "The commands only read files and probe available tools; none attempts to install, start, or reconfigure a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0-beta.35\",\"projects\":{\"client-a\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null},\"client-b\":{\"backend\":\"none\",\"runtime\":\"none\",\"dbPort\":null,\"apiPort\":null,\"postmasterStartMs\":null}},\"timeToReadyMs\":null,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"beta\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the missing client-a and client-b project directories as the blocker and does not claim either stack, API port, or clients row was verified."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start multiple projects ports config api port db port\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 54748
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 70763,
+        "cacheReadInputTokens": 34650,
+        "cacheWriteInputTokens": 35841,
+        "outputTokens": 1751
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 27745,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 128305,
+      "duration": 121519,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827722761,
+        "egress": 3937336
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-003-parallel-projects/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-pinned",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -2254,6 +4354,532 @@
     "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": true,
+        "notes": "client-a: legacy (docker), select 1 ok; client-b: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": true,
+        "notes": "client-a db port 54322, client-b db port 54422"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": true,
+        "notes": "client-a db rows: [\"client-a\"]; client-b db rows: [\"client-b\"]"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": true,
+        "notes": "client-a api port 54321: reported; client-b api port 54421: reported"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"projects\":{\"client-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790848785319},\"client-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54422,\"apiPort\":54421,\"postmasterStartMs\":1790848825523}},\"timeToReadyMs\":148485,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"pinned\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says both stacks are running, assigns API port 54321 to client-a and 54421 to client-b, and identifies each project's clients row."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11956
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development multiple projects ports supabase start db reset\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 50826
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1021248,
+        "cacheReadInputTokens": 957175,
+        "cacheWriteInputTokens": 62169,
+        "outputTokens": 8289
+      }
+    ],
+    "stepCount": 28,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 196082,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 395223,
+      "duration": 295049,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2836575583,
+        "egress": 12303901
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-003-parallel-projects/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": true,
+        "notes": "client-a: legacy (docker), select 1 ok; client-b: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": true,
+        "notes": "client-a db port 54322, client-b db port 55322"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": true,
+        "notes": "client-a db rows: [\"client-a\"]; client-b db rows: [\"client-b\"]"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": true,
+        "notes": "client-a api port 54321: reported; client-b api port 55321: reported"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change permissions. The Docker commands were read-only probes; the stack starts used the permitted Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"projects\":{\"client-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790848793010},\"client-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":55322,\"apiPort\":55321,\"postmasterStartMs\":1790848833508}},\"timeToReadyMs\":159278,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"pinned\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says both stacks are running, assigns API ports 54321 to client-a and 55321 to client-b, and describes each project’s clients row."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development start multiple projects ports config.toml api port db port\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 73808
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 29839
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development config.toml [api] port [db] port project_id ports API gateway local start multiple instances\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 48117
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1166498,
+        "cacheReadInputTokens": 1104565,
+        "cacheWriteInputTokens": 59825,
+        "outputTokens": 7177
+      }
+    ],
+    "stepCount": 31,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 195512,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 386731,
+      "duration": 291360,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2837779368,
+        "egress": 14276433
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-003-parallel-projects/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": true,
+        "notes": "client-a: legacy (docker), select 1 ok; client-b: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": true,
+        "notes": "client-a db port 54322, client-b db port 55322"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": true,
+        "notes": "client-a db rows: [\"client-a\"]; client-b db rows: [\"client-b\"]"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": true,
+        "notes": "client-a api port 54321: reported; client-b api port 55321: reported"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime. The Docker commands are read-only probes; Supabase CLI starts are explicitly allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"projects\":{\"client-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790848841248},\"client-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":55322,\"apiPort\":55321,\"postmasterStartMs\":1790848841275}},\"timeToReadyMs\":165339,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"pinned\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says both stacks are running, assigns API port 54321 to client-a and 55321 to client-b, and identifies each project's clients row."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 19905
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development multiple projects ports config.toml api port db port start seed.sql\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 48302
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml [api] port [db] port [db.seed] enabled Supabase CLI local ports seed.sql\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/seeding-your-database",
+              "title": "Seeding your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed",
+              "title": "Seed a Supabase project from supabase/config.toml"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 79333
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase expose table Data API grant select anon RLS policy public schema\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 99548
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1011227,
+        "cacheReadInputTokens": 928945,
+        "cacheWriteInputTokens": 80650,
+        "outputTokens": 13131
+      }
+    ],
+    "stepCount": 24,
+    "toolCallCount": 30,
+    "agentRunDurationMs": 212301,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 391902,
+      "duration": 311471,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2837814637,
+        "egress": 13986791
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-003-parallel-projects/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
@@ -2791,5 +5417,595 @@
     "promptSourcePath": "evals/cli/build-database-002-stack-lifecycle/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-002-stack-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": true,
+        "notes": "client-a: legacy (docker), select 1 ok; client-b: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": true,
+        "notes": "client-a db port 54322, client-b db port 54422"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": true,
+        "notes": "client-a db rows: [\"client-a\"]; client-b db rows: [\"client-b\"]"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": true,
+        "notes": "client-a api port 54321: reported; client-b api port 54421: reported"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0\",\"projects\":{\"client-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790848985412},\"client-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54422,\"apiPort\":54421,\"postmasterStartMs\":1790848985296}},\"timeToReadyMs\":307016,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"stable\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says both stacks are running, assigns API port 54321 to client-a and 54421 to client-b, and identifies each project’s matching clients row."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5132
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml ports api db start\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 57424
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml API port db port studio port local Supabase CLI\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            }
+          ],
+          "resultChars": 35439
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1863538,
+        "cacheReadInputTokens": 1788191,
+        "cacheWriteInputTokens": 72423,
+        "outputTokens": 17304
+      }
+    ],
+    "stepCount": 43,
+    "toolCallCount": 41,
+    "agentRunDurationMs": 319516,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 498856,
+      "duration": 424613,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2769575608,
+        "egress": 18585218
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-003-parallel-projects/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": true,
+        "notes": "client-a: legacy (docker), select 1 ok; client-b: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": true,
+        "notes": "client-a db port 54322, client-b db port 55422"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": true,
+        "notes": "client-a db rows: [\"client-a\"]; client-b db rows: [\"client-b\"]"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": true,
+        "notes": "client-a api port 54321: reported; client-b api port 55421: reported"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or escalate privileges to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0\",\"projects\":{\"client-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790848939833},\"client-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":55422,\"apiPort\":55421,\"postmasterStartMs\":1790848990931}},\"timeToReadyMs\":292149,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"stable\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says both stacks are running, assigns API port 54321 to client-a and 55421 to client-b, and identifies each project’s clients row."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5132
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml ports start local project\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            }
+          ],
+          "resultChars": 57524
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml api port db port studio port local Supabase config port setting\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            }
+          ],
+          "resultChars": 58173
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"run multiple local Supabase projects simultaneously same machine project_id port config\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            }
+          ],
+          "resultChars": 54678
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config reference ports api db shadow_port pooler studio local_smtp edge_runtime analytics\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            }
+          ],
+          "resultChars": 44103
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1177531,
+        "cacheReadInputTokens": 1099869,
+        "cacheWriteInputTokens": 75894,
+        "outputTokens": 15200
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 29,
+    "agentRunDurationMs": 325322,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 617693,
+      "duration": 460300,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2760472272,
+        "egress": 11898952
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-003-parallel-projects/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-003-parallel-projects",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.119.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "client-a and client-b projects initialised (each has supabase/config.toml)",
+        "passed": true,
+        "notes": "client-a: ./client-a; client-b: ./client-b"
+      },
+      {
+        "name": "both stacks reach ready",
+        "passed": true,
+        "notes": "client-a: legacy (docker), select 1 ok; client-b: legacy (docker), select 1 ok"
+      },
+      {
+        "name": "stacks are on distinct ports",
+        "passed": true,
+        "notes": "client-a db port 54322, client-b db port 55322"
+      },
+      {
+        "name": "each project holds only its own marker row",
+        "passed": true,
+        "notes": "client-a db rows: [\"client-a\"]; client-b db rows: [\"client-b\"]"
+      },
+      {
+        "name": "reported api ports match the running stacks",
+        "passed": true,
+        "notes": "client-a api port 54321: reported; client-b api port 55321: reported"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime. The Docker commands were read-only probes; the Supabase start commands are explicitly allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.119.0\",\"projects\":{\"client-a\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":54322,\"apiPort\":54321,\"postmasterStartMs\":1790848806905},\"client-b\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"dbPort\":55322,\"apiPort\":55321,\"postmasterStartMs\":1790848847669}},\"timeToReadyMs\":170906,\"cliDetours\":0,\"clearedDockerHost\":0,\"rawDockerSocketProbes\":0,\"channel\":\"stable\"}"
+      },
+      {
+        "name": "final report is truthful about both projects",
+        "passed": true,
+        "judgeNotes": "The report correctly says both stacks are running, assigns API port 54321 to client-a and 55321 to client-b, and identifies each project’s matching clients row."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,100p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5083
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development config.toml API port db port supabase init start project config\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            }
+          ],
+          "resultChars": 53702
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI supabase start local stack command options workdir\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/cli",
+              "title": "Local Dev with CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 45435
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local config.toml api port db port studio port ports\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 57355
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml api port db port studio port inbucket port shadow_port\", limit: 2) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            }
+          ],
+          "resultChars": 31594
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 921237,
+        "cacheReadInputTokens": 851379,
+        "cacheWriteInputTokens": 68294,
+        "outputTokens": 10356
+      }
+    ],
+    "stepCount": 23,
+    "toolCallCount": 22,
+    "agentRunDurationMs": 236414,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 412952,
+      "duration": 336814,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2765606610,
+        "egress": 13288265
+      }
+    },
+    "prompt": "I'm juggling two client projects in this sandbox, `client-a` and `client-b`, and I need\nlocal Supabase running for both of them at the same time so I can demo them side by side.\n\nSet each one up with its own `clients` table holding a single row naming that client —\n`client-a` in one, `client-b` in the other — and then tell me which API port each project\nended up on, so I can point the right frontend at the right one.",
+    "promptSourcePath": "evals/cli/build-database-003-parallel-projects/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-003-parallel-projects/run-3/result.json"
   }
 ]
