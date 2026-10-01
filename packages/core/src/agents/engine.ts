@@ -19,6 +19,8 @@
  * specific agent, so adding one never touches this file.
  */
 
+import { rmSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
 import type { AgentHarness, AgentRunResult } from '../index.js';
 import type { ModelProvider, ReasoningEffortLevel } from '../eval-metadata.js';
 import { adaptTranscript } from '../parsers/adapt.js';
@@ -32,6 +34,9 @@ import {
   rewriteLoopback,
   writeSandboxFile,
 } from './shared.js';
+
+// Absolute because `copyToHost` can't expand `$HOME`.
+const SESSION_ARCHIVE_STAGING_DIR = '/tmp/eval-session-archive';
 
 function modelProviderForAgent(id: AgentRunner['id']): ModelProvider {
   switch (id) {
@@ -116,6 +121,7 @@ export function createCliAgent<M extends string = string>(
         reasoningEffort: options.reasoningEffort,
         timeoutSec: args.timeoutSec,
       });
+      const durationMs = Date.now() - start;
 
       const { events } = raw
         ? parser.parseTranscript(raw, {
@@ -123,6 +129,21 @@ export function createCliAgent<M extends string = string>(
           })
         : { events: [] };
       const adapted = adaptTranscript(events);
+
+      if (runner.sessionDir && args.sessionArchivePath) {
+        // Keeps a failed archive from leaving a --force rerun's old one behind.
+        rmSync(args.sessionArchivePath, { force: true });
+        const staged = `${SESSION_ARCHIVE_STAGING_DIR}/${basename(args.sessionArchivePath)}`;
+        const tar = await sandbox.exec(
+          `mkdir -p ${SESSION_ARCHIVE_STAGING_DIR} && tar -czf ${staged} --exclude=auth.json -C ${runner.sessionDir} .`
+        );
+        if (tar.ok) {
+          await sandbox.copyToHost(
+            SESSION_ARCHIVE_STAGING_DIR,
+            dirname(args.sessionArchivePath)
+          );
+        }
+      }
 
       // Surface run failures that would otherwise be invisible in results
       // (visible under --debug): the CLI's own error events, or a run that
@@ -147,7 +168,7 @@ export function createCliAgent<M extends string = string>(
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
         usage: runner.extractUsage?.(raw, options.model),
         stepCount: stepCount ?? runner.extractStepCount?.(raw),
-        durationMs: Date.now() - start,
+        durationMs,
       };
     },
   };
