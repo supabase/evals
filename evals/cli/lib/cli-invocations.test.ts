@@ -83,6 +83,94 @@ describe('findSupabaseInvocations', () => {
     ]);
   });
 
+  it('strips pnpm exec, yarn and yarn dlx', () => {
+    expect(
+      findSupabaseInvocations([
+        'pnpm exec supabase start',
+        'yarn supabase stop',
+        'yarn dlx supabase status',
+      ]).map(({ argv }) => argv)
+    ).toEqual([
+      ['supabase', 'start'],
+      ['supabase', 'stop'],
+      ['supabase', 'status'],
+    ]);
+  });
+
+  it('skips leading shell keywords and negation', () => {
+    const found = findSupabaseInvocations([
+      'if supabase start --workdir client-a; then echo ok; fi',
+      'if ! supabase status; then supabase start; elif true; then :; else supabase stop; fi',
+      'while ! supabase status; do sleep 1; done',
+      'until supabase status; do supabase start; done',
+    ]);
+    expect(found.map(({ commandIndex, argv }) => [commandIndex, argv])).toEqual(
+      [
+        [0, ['supabase', 'start', '--workdir', 'client-a']],
+        [1, ['supabase', 'status']],
+        [1, ['supabase', 'start']],
+        [1, ['supabase', 'stop']],
+        [2, ['supabase', 'status']],
+        [3, ['supabase', 'status']],
+        [3, ['supabase', 'start']],
+      ]
+    );
+    expect(invocationTargets(found[0], 'client-a')).toBe(true);
+  });
+
+  it('still ignores an echoed shell keyword line', () => {
+    expect(
+      findSupabaseInvocations([
+        'echo "if supabase start"',
+        'if echo supabase start; then :; fi',
+      ])
+    ).toEqual([]);
+  });
+
+  it('tracks pushd like cd', () => {
+    expect(
+      findSupabaseInvocations(['pushd services/legacy-import && supabase stop'])
+    ).toEqual([
+      {
+        commandIndex: 0,
+        argv: ['supabase', 'stop'],
+        cwd: 'services/legacy-import',
+      },
+    ]);
+  });
+
+  it('targets the SUPABASE_WORKDIR assignment, relative to the cd directory', () => {
+    const [plain, viaEnv, nested] = findSupabaseInvocations([
+      'SUPABASE_WORKDIR=client-a supabase start',
+      'env SUPABASE_EXPERIMENTAL_STACK=1 SUPABASE_WORKDIR=./client-b supabase stop',
+      { command: 'SUPABASE_WORKDIR=../client-c supabase status', cwd: 'x/y' },
+    ]);
+    expect(plain).toEqual({
+      commandIndex: 0,
+      argv: ['supabase', 'start'],
+      workdir: 'client-a',
+    });
+    expect(invocationTargets(plain, 'client-a')).toBe(true);
+    expect(invocationTargets(viaEnv, 'client-b')).toBe(true);
+    expect(invocationTargets(nested, 'client-c')).toBe(true);
+    expect(invocationTargets(nested, 'y')).toBe(false);
+  });
+
+  it('lets --workdir override SUPABASE_WORKDIR', () => {
+    const [found] = findSupabaseInvocations([
+      'SUPABASE_WORKDIR=client-a supabase start --workdir client-b',
+    ]);
+    expect(invocationTargets(found, 'client-b')).toBe(true);
+    expect(invocationTargets(found, 'client-a')).toBe(false);
+  });
+
+  it('flags a SUPABASE_WORKDIR from a variable as unresolved', () => {
+    const [found] = findSupabaseInvocations([
+      'SUPABASE_WORKDIR="$s" supabase start',
+    ]);
+    expect(invocationTargetUnresolved(found)).toBe(true);
+  });
+
   it('recognises npx supabase stack destroy --stack legacy-import as targeting it', () => {
     const [found] = findSupabaseInvocations([
       'npx supabase stack destroy --stack legacy-import',

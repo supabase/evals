@@ -10,8 +10,10 @@ export type SupabaseInvocation = {
   commandIndex: number;
   /** Executed argv, normalised so `argv[0]` is always `supabase`. */
   argv: string[];
-  /** The command's working directory, updated by any earlier `cd` in the same command. */
+  /** The command's working directory, updated by any earlier `cd`/`pushd` in the same command. */
   cwd?: string;
+  /** A `SUPABASE_WORKDIR=<dir>` assignment prefixing the invocation. */
+  workdir?: string;
 };
 
 export type CommandEntry = { command: string; cwd?: string };
@@ -20,6 +22,18 @@ const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const PASSTHROUGH_WORDS = new Set(['env', 'exec', 'command', 'time', 'nohup']);
 const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
+const SHELL_KEYWORDS = new Set([
+  'if',
+  'then',
+  'elif',
+  'else',
+  'while',
+  'until',
+  'do',
+  '!',
+]);
+const CHDIR_WORDS = new Set(['cd', 'pushd']);
+const WORKDIR_ASSIGNMENT = 'SUPABASE_WORKDIR=';
 const HELP_FLAGS = new Set(['--help', '-h']);
 
 // Flags that consume the next token, so the verb isn't mistaken for a value.
@@ -76,24 +90,37 @@ function words(tokens: readonly ParseEntry[]): string[] {
   return out;
 }
 
-function stripPrefixes(argv: readonly string[]): string[] {
+function stripPrefixes(argv: readonly string[]): {
+  argv: string[];
+  workdir?: string;
+} {
   let i = 0;
+  let workdir: string | undefined;
+  while (i < argv.length && SHELL_KEYWORDS.has(argv[i])) i++;
   while (i < argv.length) {
     const word = argv[i];
-    if (ENV_ASSIGNMENT_RE.test(word) || PASSTHROUGH_WORDS.has(word)) {
+    if (word.startsWith(WORKDIR_ASSIGNMENT)) {
+      workdir = word.slice(WORKDIR_ASSIGNMENT.length);
+      i++;
+    } else if (ENV_ASSIGNMENT_RE.test(word) || PASSTHROUGH_WORDS.has(word)) {
       i++;
     } else if (word === 'timeout') {
       i += 2;
     } else if (PACKAGE_RUNNERS.has(word)) {
       i++;
       while (argv[i]?.startsWith('-')) i++;
-    } else if (word === 'pnpm' && argv[i + 1] === 'dlx') {
+    } else if (
+      word === 'pnpm' &&
+      (argv[i + 1] === 'dlx' || argv[i + 1] === 'exec')
+    ) {
       i += 2;
+    } else if (word === 'yarn') {
+      i += argv[i + 1] === 'dlx' ? 2 : 1;
     } else {
       break;
     }
   }
-  return argv.slice(i);
+  return { argv: argv.slice(i), ...(workdir ? { workdir } : {}) };
 }
 
 function isSupabaseBinary(word: string | undefined): boolean {
@@ -105,7 +132,7 @@ function isSupabaseBinary(word: string | undefined): boolean {
 /**
  * Every `supabase` invocation the agent actually executed, in order — parsed
  * from argv per executable segment, so an echoed, committed or heredoc'd
- * command line never counts. `cd` is tracked within a single command only,
+ * command line never counts. `cd`/`pushd` is tracked within a single command only,
  * starting from the entry's `cwd`. `--help`/`-h` invocations are skipped.
  */
 export function findSupabaseInvocations(
@@ -120,8 +147,8 @@ export function findSupabaseInvocations(
       if (lead && PASSIVE_LEADING_WORDS.has(lead)) continue;
       const tokens = parseKeepingVariables(segment);
       if (tokens === undefined) continue;
-      const argv = stripPrefixes(words(tokens));
-      if (argv[0] === 'cd') {
+      const { argv, workdir } = stripPrefixes(words(tokens));
+      if (CHDIR_WORDS.has(argv[0])) {
         const target = argv[1];
         cwd =
           target === undefined || target === '-' || target.startsWith('~')
@@ -135,6 +162,7 @@ export function findSupabaseInvocations(
         commandIndex,
         argv: ['supabase', ...argv.slice(1)],
         ...(cwd === undefined ? {} : { cwd }),
+        ...(workdir === undefined ? {} : { workdir }),
       });
     }
   });
@@ -171,14 +199,15 @@ export function invocationVerb(inv: SupabaseInvocation): string | undefined {
 
 /**
  * The stack or project name an invocation addresses: `--stack` or
- * `--project-id`, else `--workdir`'s basename, else the `cd` directory's.
+ * `--project-id`, else the basename of `--workdir` (or `SUPABASE_WORKDIR`),
+ * else the `cd` directory's.
  */
 function targetName(inv: SupabaseInvocation): string | undefined {
   const stack =
     flagValue(inv.argv, '--stack') ?? flagValue(inv.argv, '--project-id');
   if (stack !== undefined) return stack;
   if (flagValue(inv.argv, '--stack-id') !== undefined) return undefined;
-  const workdir = flagValue(inv.argv, '--workdir');
+  const workdir = flagValue(inv.argv, '--workdir') ?? inv.workdir;
   const dir = workdir === undefined ? inv.cwd : joinPath(inv.cwd, workdir);
   return dir === undefined ? undefined : basename(dir);
 }
