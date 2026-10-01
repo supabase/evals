@@ -15,9 +15,11 @@ export type SupabaseInvocation = {
   cwd?: string;
   /** A `SUPABASE_WORKDIR=<dir>` assignment prefixing the invocation. */
   workdir?: string;
+  /** The tool call's completion time (epoch ms), present only when the agent parser records it. */
+  at?: number;
 };
 
-export type CommandEntry = { command: string; cwd?: string };
+export type CommandEntry = { command: string; cwd?: string; at?: number };
 
 const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
@@ -170,6 +172,7 @@ export function findSupabaseInvocations(
   commands.forEach((entry, commandIndex) => {
     const command = typeof entry === 'string' ? entry : entry.command;
     let cwd = typeof entry === 'string' ? undefined : entry.cwd;
+    const at = typeof entry === 'string' ? undefined : entry.at;
     const enclosing: Array<string | undefined> = [];
     for (const { segment, opens, closes } of scopedCommandSegments(command)) {
       for (let n = 0; n < opens; n++) enclosing.push(cwd);
@@ -186,6 +189,7 @@ export function findSupabaseInvocations(
           argv: ['supabase', ...argv.slice(1)],
           ...(dir === undefined ? {} : { cwd: dir }),
           ...(workdir === undefined ? {} : { workdir }),
+          ...(at === undefined ? {} : { at }),
         });
       }
       for (let n = 0; n < closes && enclosing.length > 0; n++) {

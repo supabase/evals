@@ -196,6 +196,19 @@ describe('findSupabaseInvocations', () => {
     ).toEqual([{ commandIndex: 1, argv: ['supabase', 'stop'] }]);
   });
 
+  it("gives every invocation its entry's time and none to string commands", () => {
+    expect(
+      findSupabaseInvocations([
+        { command: 'supabase start && supabase status', at: 1234 },
+        'supabase stop',
+      ])
+    ).toEqual([
+      { commandIndex: 0, argv: ['supabase', 'start'], at: 1234 },
+      { commandIndex: 0, argv: ['supabase', 'status'], at: 1234 },
+      { commandIndex: 1, argv: ['supabase', 'stop'] },
+    ]);
+  });
+
   it('forgets the directory on cd - or cd ~', () => {
     expect(
       findSupabaseInvocations(['cd a && cd - && supabase stop'])[0].cwd

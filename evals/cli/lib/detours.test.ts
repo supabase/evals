@@ -16,8 +16,11 @@ import {
   skipEnvOptions,
 } from './detours.js';
 
-// `cwd` mirrors the field newer core versions add to ToolCallRecord.
-type RecordFields = Partial<Omit<ToolCallRecord, 'cwd'>> & { cwd?: unknown };
+// `cwd`/`endedAt` mirror the fields newer core versions add to ToolCallRecord.
+type RecordFields = Partial<Omit<ToolCallRecord, 'cwd' | 'endedAt'>> & {
+  cwd?: unknown;
+  endedAt?: unknown;
+};
 const record = (fields: RecordFields): ToolCallRecord =>
   ({ tool: {}, body: {}, ts: 0, ...fields }) as ToolCallRecord;
 
@@ -375,6 +378,34 @@ describe('extractCommandEntries', () => {
       { command: 'supabase start' },
       { command: 'supabase status' },
     ]);
+  });
+
+  it('prefers endedAt over ts for the call time', () => {
+    expect(
+      extractCommandEntries([
+        record({ command: 'supabase stop', ts: 1000, endedAt: 2000 }),
+      ])
+    ).toEqual([{ command: 'supabase stop', at: 2000 }]);
+  });
+
+  it('falls back to ts when endedAt is missing or not a positive number', () => {
+    expect(
+      extractCommandEntries([
+        record({ command: 'supabase stop', ts: 1000 }),
+        record({ command: 'supabase start', ts: 1500, endedAt: 'soon' }),
+        record({ command: 'supabase status', ts: 1700, endedAt: 0 }),
+      ])
+    ).toEqual([
+      { command: 'supabase stop', at: 1000 },
+      { command: 'supabase start', at: 1500 },
+      { command: 'supabase status', at: 1700 },
+    ]);
+  });
+
+  it('omits the time when ts is 0 and there is no endedAt', () => {
+    expect(
+      extractCommandEntries([record({ command: 'supabase stop', ts: 0 })])
+    ).toEqual([{ command: 'supabase stop' }]);
   });
 });
 

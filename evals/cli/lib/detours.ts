@@ -472,18 +472,39 @@ function recordCommand(record: ToolCallRecord): string {
  * `extractCommands` paired with each call's working directory, index-aligned
  * with it. `cwd` comes from agent parsers that record a per-call directory
  * (Codex, OpenCode) and is absent otherwise; a `cd` persisting across separate
- * tool calls in a persistent shell (e.g. Claude Code) is not tracked.
+ * tool calls in a persistent shell (e.g. Claude Code) is not tracked. `at` is
+ * the call's completion time (epoch ms), present only when the agent parser records it.
  */
 export function extractCommandEntries(
   toolCalls: readonly ToolCallRecord[]
-): Array<{ command: string; cwd?: string }> {
+): Array<{ command: string; cwd?: string; at?: number }> {
   return toolCalls.flatMap((record) => {
     const command = recordCommand(record);
     if (command.length === 0) return [];
     // `cwd` isn't on every core version's ToolCallRecord yet.
     const cwd = (record as { cwd?: unknown }).cwd;
-    return [typeof cwd === 'string' ? { command, cwd } : { command }];
+    const at = recordTime(record);
+    return [
+      {
+        command,
+        ...(typeof cwd === 'string' ? { cwd } : {}),
+        ...(at === undefined ? {} : { at }),
+      },
+    ];
   });
+}
+
+function positiveTime(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
+}
+
+// `endedAt` isn't on every core version's ToolCallRecord, and parsers that
+// don't record a time leave `ts` at 0.
+function recordTime(record: ToolCallRecord): number | undefined {
+  const { endedAt, ts } = record as { endedAt?: unknown; ts?: unknown };
+  return positiveTime(endedAt) ?? positiveTime(ts);
 }
 
 /** Numbers `commands` in order for the detour judge's input, each passed through in full. */
