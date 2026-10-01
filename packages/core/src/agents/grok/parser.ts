@@ -245,15 +245,17 @@ function stepUsage(usage: unknown): RequestUsage | undefined {
  * Fills in event times from the session's `updates.jsonl`, which the stdout
  * stream lacks. Tool calls match by `toolCallId`. Assistant messages pair by
  * position with runs of `agent_message_chunk`, and take the run's last time.
+ * Returns when the first user prompt was recorded, in epoch ms.
  */
 export function enrichFromUpdates(
   events: TranscriptEvent[],
   updates: string
-): void {
+): number | undefined {
   const callStarts = new Map<string, number>();
   const callEnds = new Map<string, number>();
   const messageEnds: number[] = [];
   let inMessage = false;
+  let promptAt: number | undefined;
   for (const record of parseJsonlRecords(updates).records) {
     const params = isRecord(record.params) ? record.params : {};
     const meta = isRecord(params._meta) ? params._meta : {};
@@ -261,6 +263,7 @@ export function enrichFromUpdates(
     const at = Number(meta.agentTimestampMs) || undefined;
     const kind = update.sessionUpdate;
     const id = str(update.toolCallId);
+    if (kind === 'user_message_chunk') promptAt ??= at;
     if (kind === 'agent_message_chunk') {
       if (!inMessage) messageEnds.push(0);
       if (at) messageEnds[messageEnds.length - 1] = at;
@@ -289,10 +292,11 @@ export function enrichFromUpdates(
   const messages = events.filter(
     (e) => e.type === 'message' && e.role === 'assistant'
   );
-  if (messages.length !== messageEnds.length) return;
+  if (messages.length !== messageEnds.length) return promptAt;
   messages.forEach((event, i) => {
     event.timestamp = iso(messageEnds[i]) ?? event.timestamp;
   });
+  return promptAt;
 }
 
 export const grokParser: AgentTranscriptParser = {

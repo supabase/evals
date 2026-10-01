@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { claudeCodeParser, sessionRequestUsage } from './parser.js';
+import {
+  claudeCodeParser,
+  sessionPromptAt,
+  sessionRequestUsage,
+} from './parser.js';
 import { adaptTranscript } from '../../parsers/adapt.js';
 
 /** A representative Claude Code `--print` JSONL session. */
@@ -275,5 +279,18 @@ describe('sessionRequestUsage', () => {
         ],
       ])
     );
+  });
+});
+
+describe('sessionPromptAt', () => {
+  it('returns the first user record time, skipping queue records', () => {
+    const jsonl = [
+      { type: 'queue-operation', timestamp: '2026-09-30T20:31:32.391Z' },
+      { type: 'user', timestamp: '2026-09-30T20:31:34.374Z' },
+      { type: 'user', timestamp: '2026-09-30T20:31:40.000Z' },
+    ]
+      .map((r) => JSON.stringify(r))
+      .join('\n');
+    expect(sessionPromptAt(jsonl)).toBe(Date.parse('2026-09-30T20:31:34.374Z'));
   });
 });

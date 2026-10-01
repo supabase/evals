@@ -237,6 +237,43 @@ describe('logTranscript', () => {
     ]);
   });
 
+  it.each([
+    ['recorded prompt', 102, 102],
+    ['prompt before run start', 98, 100],
+    ['prompt after first event', 109, 108],
+  ])('starts task and the first LLM span at the %s', (_, promptTime, at) => {
+    const root: RecordedSpan = { children: [] };
+    logTranscript(recorder(root), {
+      prompt: 'go',
+      agentReport: '',
+      checks: [],
+      passed: true,
+      modelId: 'm',
+      startTime: 100,
+      endTime: 120,
+      promptTime,
+      agentEndTime: 110,
+      scoringEndTime: 120,
+      toolLabels: [],
+      transcript: [
+        { type: 'message', role: 'assistant', content: 'a', ts: 108_000 },
+      ],
+    });
+    expect(
+      root.children.map(({ name, start, end }) => [name, start, end])
+    ).toEqual([
+      ['setup', 100, at],
+      ['task', at, 108],
+      ['teardown', 108, 110],
+      ['passed', 110, 120],
+    ]);
+    expect(root.children[1]?.children[0]).toMatchObject({
+      name: 'm',
+      start: at,
+      end: 108,
+    });
+  });
+
   it('ends setup at a leading non-assistant message and starts task there', () => {
     const root: RecordedSpan = { children: [] };
     logTranscript(recorder(root), {

@@ -458,6 +458,8 @@ export type AgentRunResult = {
   durationMs: number;
   /** Host epoch ms the agent process or model loop started. */
   startedAt: number;
+  /** Epoch ms the CLI recorded the user prompt, from its session files. */
+  promptAt?: number;
 };
 
 export type AgentHarness = {

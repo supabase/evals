@@ -250,11 +250,13 @@ export const codexParser: AgentTranscriptParser = {
  *   rollout: reasoning → message → function_call(c1) → token_usage_record(r1)
  *            → function_call_output(c1)
  *   events:  message → tool_call → tool_result, each tagged requestId r1
+ *
+ * Returns when the rollout recorded the first user message, in epoch ms.
  */
 export function enrichFromRollout(
   events: TranscriptEvent[],
   rollout: string
-): void {
+): number | undefined {
   interface Request {
     id?: string;
     usage?: RequestUsage;
@@ -264,6 +266,7 @@ export function enrichFromRollout(
   const messages: { at?: string; request: Request }[] = [];
   const toolItems: Record<string, unknown>[] = [];
   let open: Request | undefined;
+  let promptAt: number | undefined;
 
   for (const record of parseJsonlRecords(rollout).records) {
     const at = str(record.timestamp);
@@ -283,7 +286,10 @@ export function enrichFromRollout(
         if (callId) callEnds.set(callId, at);
         continue;
       }
-      if (payload.type === 'message' && payload.role !== 'assistant') continue;
+      if (payload.type === 'message' && payload.role !== 'assistant') {
+        if (payload.role === 'user' && at) promptAt ??= Date.parse(at);
+        continue;
+      }
       open ??= {};
       if (payload.type === 'message') messages.push({ at, request: open });
       if (callId) callStarts.set(callId, { at, request: open });
@@ -320,7 +326,7 @@ export function enrichFromRollout(
     calls.length !== toolItems.length ||
     calls.some((event, i) => !sameCall(event, toolItems[i]))
   ) {
-    return;
+    return promptAt;
   }
   const callIdByItem = new Map<string, string>();
   calls.forEach((event, i) => {
@@ -337,6 +343,7 @@ export function enrichFromRollout(
     const end = callId ? callEnds.get(callId) : undefined;
     if (end) event.timestamp = end;
   }
+  return promptAt;
 }
 
 /**

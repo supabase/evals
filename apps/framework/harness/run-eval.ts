@@ -374,6 +374,7 @@ async function runOne(
     toolCallCount: number;
     agentRunDurationMs: number;
     agentRunStartedAt: number;
+    agentPromptAt?: number;
     agentRunEndedAt: number;
     scoringEndedAt: number;
     cliVersion?: string;
@@ -509,6 +510,7 @@ async function runOne(
       toolCallCount: run.toolCalls.length,
       agentRunDurationMs: run.durationMs,
       agentRunStartedAt: run.startedAt,
+      agentPromptAt: run.promptAt,
       agentRunEndedAt,
       scoringEndedAt,
       cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
@@ -579,6 +581,7 @@ async function runOne(
     toolCallCount: run.toolCalls.length,
     agentRunDurationMs: run.durationMs,
     agentRunStartedAt: run.startedAt,
+    agentPromptAt: run.promptAt,
     agentRunEndedAt,
     scoringEndedAt,
     // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.

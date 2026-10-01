@@ -462,4 +462,17 @@ describe('grok request timing and usage', () => {
       outputTokens: 1,
     });
   });
+
+  it('returns the first user prompt time', () => {
+    const update = (ms: number, sessionUpdate: string) =>
+      JSON.stringify({
+        params: { _meta: { agentTimestampMs: ms }, update: { sessionUpdate } },
+      });
+    const updates = [
+      update(1000, 'user_message_chunk'),
+      update(1100, 'user_message_chunk'),
+      update(4000, 'agent_message_chunk'),
+    ].join('\n');
+    expect(enrichFromUpdates([], updates)).toBe(1000);
+  });
 });

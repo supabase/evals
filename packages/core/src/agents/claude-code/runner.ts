@@ -8,7 +8,7 @@ import type { Model as AnthropicModel } from '@anthropic-ai/sdk/resources/messag
 import type { McpServerConfig } from '../../index.js';
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
-import { sessionRequestUsage } from './parser.js';
+import { sessionPromptAt, sessionRequestUsage } from './parser.js';
 import {
   npmGlobalBin,
   npmInstallGlobal,
@@ -38,6 +38,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       const request = event.requestId && usage.get(event.requestId);
       if (request) event.usage = request;
     }
+    return { promptAt: sessionPromptAt(session.stdout) };
   },
 
   async install(sandbox, version) {
