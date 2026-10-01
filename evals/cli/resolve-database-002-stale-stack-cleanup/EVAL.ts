@@ -28,9 +28,11 @@ import {
   findFleetInvocations,
   probeLegacyContainers,
   probeLegacyDbPort,
+  readPostmasterStarts,
   type ContainerProbe,
   type FleetInvocation,
   type PortProbe,
+  type PostmasterStarts,
   type SurvivingService,
 } from './fleet.js';
 import { checkMetrics } from './metrics.js';
@@ -63,6 +65,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       'checkout-service': await readMarkerRows(ctx, stacks['checkout-service']),
       'payments-api': await readMarkerRows(ctx, stacks['payments-api']),
     };
+    const postmasterStarts = await readPostmasterStarts(ctx, stacks);
     const survivingDbPorts = [
       stacks['checkout-service'],
       stacks['payments-api'],
@@ -95,9 +98,10 @@ const scorer: LocalStackScorer = async (ctx) => {
         portProbe,
         containerProbe,
       }),
-      checkCheckoutRestarted(invocations),
+      checkCheckoutRestarted(invocations, postmasterStarts['checkout-service']),
       checkPaymentsUntouched(
         invocations,
+        postmasterStarts['payments-api'],
         stacks['payments-api'],
         rows['payments-api']
       ),
@@ -113,13 +117,15 @@ const scorer: LocalStackScorer = async (ctx) => {
         invocations,
         cliDetourCommands,
         stackList,
-        stacks
+        stacks,
+        postmasterStarts
       ),
       await checkReportIsTruthful(ctx, {
         stacks,
         rows,
         stackList,
         invocations,
+        postmasterStarts,
         portProbe,
         containerProbe,
       }),
@@ -183,6 +189,7 @@ async function checkReportIsTruthful(
     rows: Record<SurvivingService, RowStringsProbe>;
     stackList: StackListProbe;
     invocations: readonly FleetInvocation[];
+    postmasterStarts: PostmasterStarts;
     portProbe: PortProbe;
     containerProbe: ContainerProbe;
   }

@@ -22,6 +22,7 @@ import {
   probeLegacyContainers,
   probeLegacyDbPort,
   readConfigDbPort,
+  readPostmasterStarts,
   type ContainerProbe,
   type FleetInvocation,
   type PortProbe,
@@ -41,6 +42,7 @@ const NO_CONTAINERS: ContainerProbe = {
   notes: 'no containers',
 };
 const PAYMENTS_ROWS: RowStringsProbe = { ok: true, values: ['payments-api'] };
+const NO_POSTMASTER = { 'checkout-service': null, 'payments-api': null };
 
 const LOOP_START =
   'for s in checkout-service payments-api legacy-import; do (cd "$s" && supabase start); done';
@@ -51,7 +53,7 @@ const START_ALL = [
   'cd legacy-import && supabase start',
 ];
 
-type Outcome = Pick<ToolCallRecord, 'result' | 'error'>;
+type Outcome = Partial<Pick<ToolCallRecord, 'result' | 'error' | 'ts'>>;
 type Call = string | [command: string, outcome: Outcome];
 
 function toolCall([command, outcome]: [string, Outcome?]): ToolCallRecord {
@@ -90,14 +92,25 @@ function gone(
   });
 }
 
-const restarted = (commands: readonly Call[]) =>
-  checkCheckoutRestarted(invocationsOf(commands));
+const restarted = (
+  commands: readonly Call[],
+  postmasterStartMs: number | null = null
+) => checkCheckoutRestarted(invocationsOf(commands), postmasterStartMs);
 
 const untouched = (
   commands: readonly Call[],
   stack: StackProbe = REACHABLE,
-  rows: RowStringsProbe = PAYMENTS_ROWS
-) => checkPaymentsUntouched(invocationsOf(commands), stack, rows);
+  rows: RowStringsProbe = PAYMENTS_ROWS,
+  postmasterStartMs: number | null = null
+) =>
+  checkPaymentsUntouched(
+    invocationsOf(commands),
+    postmasterStartMs,
+    stack,
+    rows
+  );
+
+const SETUP = 'after setup (cmd #3 "supabase start" in legacy-import)';
 
 describe('checkLegacyImportGone', () => {
   it('passes after a legacy start then stop in its directory', () => {
@@ -106,7 +119,7 @@ describe('checkLegacyImportGone', () => {
       name: 'legacy-import stack is gone',
       passed: true,
       notes:
-        'started by `(in legacy-import) supabase start`, torn down by `(in legacy-import) supabase stop`; stack list does not list it; does not resolve (no stack); not probed; no containers',
+        'listing: stack list does not list it; resolution: does not resolve (no stack); db port: not probed; containers: no containers; commands: started by cmd #3 "supabase start" in legacy-import, torn down by cmd #4 "supabase stop" in legacy-import',
     });
   });
 
@@ -229,7 +242,7 @@ describe('checkCheckoutRestarted', () => {
     ).toEqual({
       name: 'checkout-service was restarted',
       passed: true,
-      notes: '`supabase stack restart --stack checkout-service`',
+      notes: `commands: cmd #4 "supabase stack restart --stack checkout-service" ran without failing ${SETUP}; no timing recorded`,
     });
   });
 
@@ -240,7 +253,7 @@ describe('checkCheckoutRestarted', () => {
     ]);
     expect(result.passed).toBe(true);
     expect(result.notes).toBe(
-      '`(in checkout-service) supabase stop` then `(in checkout-service) supabase start`'
+      `commands: cmd #4 "supabase stop" in checkout-service then cmd #4 "supabase start" in checkout-service ran without failing ${SETUP}; no timing recorded`
     );
   });
 
@@ -291,8 +304,7 @@ describe('checkPaymentsUntouched', () => {
     ).toEqual({
       name: 'payments-api left untouched',
       passed: true,
-      notes:
-        'no stop/restart/reset/destroy targeted it after all three services started; resolves; marker rows ["payments-api"]',
+      notes: `commands: no stop/restart/reset/destroy targeted it ${SETUP}; no timing recorded; resolves; marker rows ["payments-api"]`,
     });
   });
 
@@ -303,7 +315,7 @@ describe('checkPaymentsUntouched', () => {
     ]);
     expect(result.passed).toBe(false);
     expect(result.notes).toContain(
-      'touched by `supabase stack restart --stack payments-api`'
+      'commands: touched by cmd #4 "supabase stack restart --stack payments-api"'
     );
   });
 
@@ -337,6 +349,15 @@ describe('checkPaymentsUntouched', () => {
     ).toBe(true);
   });
 
+  it('matches its marker as a whole value only', () => {
+    expect(
+      untouched(START_ALL, REACHABLE, {
+        ok: true,
+        values: ['payments-api-archive'],
+      }).passed
+    ).toBe(false);
+  });
+
   it('passes after a loop start when nothing touched it', () => {
     expect(untouched([LOOP_START]).passed).toBe(true);
   });
@@ -349,7 +370,7 @@ describe('starts from a shell loop', () => {
       'supabase stack destroy --stack legacy-import',
     ]);
     expect(result.passed).toBe(true);
-    expect(result.notes).toContain('started by `(in $s) supabase start`');
+    expect(result.notes).toContain('started by cmd #1 "supabase start" in $s');
   });
 
   it('never count a loop stop as a legacy-import teardown or a payments-api touch', () => {
@@ -420,9 +441,9 @@ describe('commands attributed by per-call working directory', () => {
         containerProbe: NO_CONTAINERS,
       }).passed
     ).toBe(true);
-    expect(checkCheckoutRestarted(invocations).passed).toBe(true);
+    expect(checkCheckoutRestarted(invocations, null).passed).toBe(true);
     expect(
-      checkPaymentsUntouched(invocations, REACHABLE, PAYMENTS_ROWS).passed
+      checkPaymentsUntouched(invocations, null, REACHABLE, PAYMENTS_ROWS).passed
     ).toBe(true);
   });
 });
@@ -570,7 +591,7 @@ describe('change phase', () => {
     const restart = restarted(commands);
     expect(restart.passed).toBe(false);
     expect(restart.notes).toBe(
-      'not all three services had a start that did not fail, so no change phase to check'
+      'unavailable: not all three services had a start that did not fail, so no change phase to check'
     );
     const payments = untouched(commands);
     expect(payments.passed).toBe(false);
@@ -593,7 +614,7 @@ describe('payments-api db reset', () => {
     ]);
     expect(result.passed).toBe(false);
     expect(result.notes).toContain(
-      'touched by `supabase db reset --workdir payments-api`'
+      'commands: touched by cmd #4 "supabase db reset --workdir payments-api"'
     );
   });
 
@@ -818,6 +839,7 @@ describe('describeFleetGroundTruth', () => {
       },
       stackList,
       invocations: invocationsOf(commands),
+      postmasterStarts: NO_POSTMASTER,
       portProbe: QUIET_PORT,
       containerProbe: NO_CONTAINERS,
     }).join('\n');
@@ -855,11 +877,12 @@ describe('describeFleetGroundTruth', () => {
         ],
         ['cd legacy-import && supabase stop', failed('exit 1')],
       ]),
+      postmasterStarts: NO_POSTMASTER,
       portProbe: QUIET_PORT,
       containerProbe: NO_CONTAINERS,
     }).join('\n');
     expect(text).toContain(
-      'restarted via the CLI after all three services started: no'
+      'restarted after all three services started: no (decided by commands: '
     );
     expect(text).toContain(
       "started then torn down via the CLI, by commands that didn't fail: no"
@@ -879,14 +902,15 @@ describe('describeFleetGroundTruth', () => {
       },
       stackList: EMPTY_LIST,
       invocations: [],
+      postmasterStarts: NO_POSTMASTER,
       portProbe: QUIET_PORT,
       containerProbe: NO_CONTAINERS,
     }).join('\n');
     expect(text).toContain(
-      'restarted via the CLI after all three services started: not applicable'
+      'restarted after all three services started: not applicable'
     );
     expect(text).toContain(
-      'stopped, restarted, reset or destroyed via the CLI after all three services started: not applicable'
+      'stopped, restarted, reset or destroyed after all three services started: not applicable'
     );
   });
 
@@ -905,5 +929,170 @@ describe('describeFleetGroundTruth', () => {
     expect(
       groundTruth({ ok: true, stacks: [{ name: 'legacy-import' }] })
     ).toContain('- legacy-import: fleet listing still shows it');
+  });
+});
+
+describe('evidence from database start times', () => {
+  const T = Date.parse('2026-10-01T11:50:42.000Z');
+  const TIMED_START_ALL: Call[] = START_ALL.map((command, i) => [
+    command,
+    { ts: T - (2 - i) * 10_000 },
+  ]);
+  const AFTER = [
+    'setup completed 2026-10-01T11:50:42.000Z',
+    '(cmd #3 "supabase start" in legacy-import)',
+  ].join(' ');
+
+  it('passes restarted on a later checkout postmaster with no restart command', () => {
+    const result = restarted(TIMED_START_ALL, T + 60_000);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toBe(
+      `state: checkout postmaster started 2026-10-01T11:51:42.000Z, after ${AFTER}`
+    );
+  });
+
+  it('fails restarted on an earlier checkout postmaster despite a restart command', () => {
+    const result = restarted(
+      [
+        ...TIMED_START_ALL,
+        [
+          'supabase stack restart --stack checkout-service',
+          { result: 'Restarted.', ts: T + 5_000 },
+        ],
+      ],
+      T - 30_000
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toBe(
+      `state: checkout postmaster started 2026-10-01T11:50:12.000Z, before ${AFTER}`
+    );
+  });
+
+  it('does not count a checkout postmaster within the clock tolerance', () => {
+    const result = restarted(TIMED_START_ALL, T + 500);
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain('within 1000ms of setup completed');
+  });
+
+  it('falls back to commands when the postmaster start is unreadable', () => {
+    const result = restarted(
+      [...TIMED_START_ALL, 'supabase stack restart --stack checkout-service'],
+      null
+    );
+    expect(result.passed).toBe(true);
+    expect(result.notes).toMatch(/^commands: /);
+    expect(result.notes).toContain(
+      'checkout postmaster start time unavailable'
+    );
+  });
+
+  it('falls back to commands when no command time was recorded', () => {
+    const result = restarted(
+      [...START_ALL, 'supabase stack restart --stack checkout-service'],
+      T + 60_000
+    );
+    expect(result.passed).toBe(true);
+    expect(result.notes).toMatch(/^commands: .*; no timing recorded$/);
+  });
+
+  it('fails untouched on a later payments postmaster', () => {
+    const result = untouched(
+      TIMED_START_ALL,
+      REACHABLE,
+      PAYMENTS_ROWS,
+      T + 45_000
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      `state: payments postmaster started 2026-10-01T11:51:27.000Z, after ${AFTER}; no db reset`
+    );
+  });
+
+  it('passes untouched on an earlier payments postmaster despite a stop command', () => {
+    const result = untouched(
+      [...TIMED_START_ALL, 'supabase stop --workdir payments-api'],
+      REACHABLE,
+      PAYMENTS_ROWS,
+      T - 60_000
+    );
+    expect(result.passed).toBe(true);
+    expect(result.notes).toContain(
+      `state: payments postmaster started 2026-10-01T11:49:42.000Z, before ${AFTER}; no db reset`
+    );
+  });
+
+  it('fails untouched on a db reset whatever the payments postmaster says', () => {
+    const result = untouched(
+      [...TIMED_START_ALL, 'supabase db reset --workdir payments-api'],
+      REACHABLE,
+      PAYMENTS_ROWS,
+      T - 60_000
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      'db reset by cmd #4 "supabase db reset --workdir payments-api"'
+    );
+  });
+
+  it('still requires the payments marker under state evidence', () => {
+    expect(
+      untouched(
+        TIMED_START_ALL,
+        REACHABLE,
+        { ok: true, values: ['other'] },
+        T - 60_000
+      ).passed
+    ).toBe(false);
+  });
+
+  it('feeds the same decisions into the ground truth', () => {
+    const text = describeFleetGroundTruth({
+      stacks: {
+        'checkout-service': REACHABLE,
+        'payments-api': REACHABLE,
+        'legacy-import': UNREACHABLE,
+      },
+      rows: {
+        'checkout-service': { ok: true, values: ['checkout-service'] },
+        'payments-api': PAYMENTS_ROWS,
+      },
+      stackList: EMPTY_LIST,
+      invocations: invocationsOf([
+        ...TIMED_START_ALL,
+        'supabase stop --workdir payments-api',
+      ]),
+      postmasterStarts: {
+        'checkout-service': T + 60_000,
+        'payments-api': T - 60_000,
+      },
+      portProbe: QUIET_PORT,
+      containerProbe: NO_CONTAINERS,
+    }).join('\n');
+    expect(text).toContain(
+      'restarted after all three services started: yes (decided by state: checkout postmaster started 2026-10-01T11:51:42.000Z, after'
+    );
+    expect(text).toContain(
+      'stopped, restarted, reset or destroyed after all three services started: no (decided by state: payments postmaster started 2026-10-01T11:49:42.000Z, before'
+    );
+  });
+});
+
+describe('readPostmasterStarts', () => {
+  it('reads survivors only, null when a stack is unresolved or unreadable', async () => {
+    const commands: string[] = [];
+    const ctx = {
+      exec: async (command: string): Promise<CommandResult> => {
+        commands.push(command);
+        return { ok: true, exitCode: 0, stdout: '1700000000000\n', stderr: '' };
+      },
+    } as unknown as Pick<LocalStackEvalContext, 'exec'>;
+    expect(
+      await readPostmasterStarts(ctx, {
+        'checkout-service': REACHABLE,
+        'payments-api': UNREACHABLE,
+        'legacy-import': REACHABLE,
+      })
+    ).toEqual({ 'checkout-service': 1700000000000, 'payments-api': null });
+    expect(commands).toHaveLength(1);
   });
 });

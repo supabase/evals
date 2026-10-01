@@ -24,22 +24,18 @@ const stack = (port: number): StackProbe => ({
 });
 const NONE: StackProbe = { ok: false, notes: 'no stack' };
 
-function fakeCtx(postmasterMs: Record<number, number>) {
-  return {
-    exec: async (command: string) => {
-      if (command === 'supabase --version') return commandResult('2.118.0\n');
-      const port = Number(command.match(/127\.0\.0\.1:(\d+)/)?.[1]);
-      return postmasterMs[port] === undefined
-        ? commandResult('', false)
-        : commandResult(`${postmasterMs[port]}\n`);
-    },
-  } as unknown as Pick<LocalStackEvalContext, 'exec'>;
-}
+const ctx = {
+  exec: async (command: string) =>
+    command === 'supabase --version'
+      ? commandResult('2.118.0\n')
+      : commandResult('', false),
+} as unknown as Pick<LocalStackEvalContext, 'exec'>;
+const NO_POSTMASTER = { 'checkout-service': null, 'payments-api': null };
 
 describe('checkMetrics', () => {
   it('reports per-service backend, ports and postmaster start for survivors', async () => {
     const result = await checkMetrics(
-      fakeCtx({ 54322: 2000, 54422: 1000, 54522: 500 }),
+      ctx,
       undefined,
       ['unset DOCKER_HOST && supabase start', 'sudo dockerd'],
       findSupabaseInvocations(['unset DOCKER_HOST && supabase start']),
@@ -49,7 +45,8 @@ describe('checkMetrics', () => {
         'checkout-service': stack(54322),
         'payments-api': stack(54422),
         'legacy-import': stack(54522),
-      }
+      },
+      { 'checkout-service': 2000, 'payments-api': 1000 }
     );
     expect(result.passed).toBe(true);
     expect(JSON.parse(result.notes as string)).toEqual({
@@ -84,6 +81,11 @@ describe('checkMetrics', () => {
         'legacy-import': false,
       },
       attemptedAnyStart: true,
+      setupCompletedAt: null,
+      evidence: {
+        checkoutRestarted: 'unavailable',
+        paymentsUntouched: 'unavailable',
+      },
       checkoutPostmasterNewerThanPayments: true,
       stackListAvailable: true,
       stackCount: 1,
@@ -95,7 +97,7 @@ describe('checkMetrics', () => {
 
   it('reports nulls when nothing resolved and the listing is unavailable', async () => {
     const result = await checkMetrics(
-      fakeCtx({}),
+      ctx,
       {
         runtime: 'local-stack',
         channel: 'beta',
@@ -107,7 +109,8 @@ describe('checkMetrics', () => {
       [],
       [],
       { ok: false, unsupported: true, notes: 'unknown command' },
-      { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE }
+      { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE },
+      NO_POSTMASTER
     );
     const metrics = JSON.parse(result.notes as string);
     expect(result.passed).toBe(true);
@@ -126,7 +129,7 @@ describe('checkMetrics', () => {
 
   async function attemptedStarts(entries: (string | CommandEntry)[]) {
     const result = await checkMetrics(
-      fakeCtx({}),
+      ctx,
       undefined,
       entries.map((entry) =>
         typeof entry === 'string' ? entry : entry.command
@@ -134,7 +137,8 @@ describe('checkMetrics', () => {
       findSupabaseInvocations(entries),
       [],
       { ok: false, unsupported: true, notes: 'unknown command' },
-      { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE }
+      { 'checkout-service': NONE, 'payments-api': NONE, 'legacy-import': NONE },
+      NO_POSTMASTER
     );
     const { attemptedStart, attemptedAnyStart } = JSON.parse(
       result.notes as string
@@ -217,6 +221,38 @@ describe('checkMetrics', () => {
         'legacy-import': false,
       },
       attemptedAnyStart: false,
+    });
+  });
+
+  it('reports when setup completed and which evidence decided each check', async () => {
+    const T = Date.parse('2026-10-01T11:50:42.000Z');
+    const entries: CommandEntry[] = [
+      'checkout-service',
+      'payments-api',
+      'legacy-import',
+    ].map((service, i) => ({
+      command: `supabase start --workdir ${service}`,
+      at: T - (2 - i) * 10_000,
+    }));
+    const result = await checkMetrics(
+      ctx,
+      undefined,
+      entries.map((entry) => entry.command),
+      findSupabaseInvocations(entries),
+      [],
+      { ok: false, unsupported: true, notes: 'unknown command' },
+      {
+        'checkout-service': stack(54322),
+        'payments-api': stack(54422),
+        'legacy-import': NONE,
+      },
+      { 'checkout-service': T + 60_000, 'payments-api': null }
+    );
+    const { setupCompletedAt, evidence } = JSON.parse(result.notes as string);
+    expect(setupCompletedAt).toBe(T);
+    expect(evidence).toEqual({
+      checkoutRestarted: 'state',
+      paymentsUntouched: 'commands',
     });
   });
 });

@@ -155,7 +155,7 @@ describe('checkStackRunning', () => {
     ).toEqual({
       name: 'checkout-service stack is running',
       passed: true,
-      notes: 'managed (native), select 1 ok',
+      notes: 'state: resolved, managed (native), select 1 ok',
     });
   });
 
@@ -169,7 +169,7 @@ describe('checkStackRunning', () => {
     ).toEqual({
       name: 'payments-api stack is running',
       passed: false,
-      notes: 'no stack',
+      notes: 'state: does not resolve (no stack)',
     });
   });
 });

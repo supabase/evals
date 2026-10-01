@@ -70,5 +70,6 @@ export async function checkStackRunning(
 ): Promise<CheckResult> {
   const name = `${service} stack is running`;
   const { ready, notes } = await probeStackReady(ctx, stack);
-  return { name, passed: ready, notes };
+  const state = stack.ok ? `resolved, ${notes}` : `does not resolve (${notes})`;
+  return { name, passed: ready, notes: `state: ${state}` };
 }

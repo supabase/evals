@@ -3,28 +3,29 @@ import type {
   LocalStackEnvironmentMarker,
   LocalStackEvalContext,
 } from '@supabase-evals/core';
-import type { SupabaseInvocation } from '../lib/cli-invocations.js';
 import { countRawDockerSocketProbes } from '../lib/detours.js';
 import {
   countClearedDockerHost,
   readCliVersion,
   safely,
 } from '../lib/metrics.js';
-import {
-  readPostmasterStartMs,
-  urlPort,
-  type StackProbe,
-} from '../lib/stack.js';
+import { urlPort, type StackProbe } from '../lib/stack.js';
 import type { StackListProbe } from '../lib/stack-list.js';
-import { isStartInvocation, lifecycleEvents } from './fleet.js';
+import {
+  decideCheckoutRestart,
+  decidePaymentsUntouched,
+  findSetup,
+  isStartInvocation,
+  lifecycleEvents,
+  type FleetInvocation,
+  type PostmasterStarts,
+} from './fleet.js';
 import { SERVICES, type Service } from './services.js';
 
-const SURVIVING = new Set<Service>(['checkout-service', 'payments-api']);
-
-async function serviceMetrics(
-  ctx: Pick<LocalStackEvalContext, 'exec'>,
+function serviceMetrics(
   service: Service,
-  stack: StackProbe
+  stack: StackProbe,
+  postmasterStarts: PostmasterStarts
 ) {
   if (!stack.ok) {
     return {
@@ -40,9 +41,8 @@ async function serviceMetrics(
     runtime: stack.runtime,
     dbPort: urlPort(stack.dbUrl) ?? null,
     apiPort: stack.apiUrl ? (urlPort(stack.apiUrl) ?? null) : null,
-    postmasterStartMs: SURVIVING.has(service)
-      ? await safely(() => readPostmasterStartMs(ctx, stack.dbUrl))
-      : null,
+    postmasterStartMs:
+      service === 'legacy-import' ? null : postmasterStarts[service],
   };
 }
 
@@ -50,18 +50,18 @@ export async function checkMetrics(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   marker: LocalStackEnvironmentMarker | undefined,
   commands: readonly string[],
-  invocations: readonly SupabaseInvocation[],
+  invocations: readonly FleetInvocation[],
   cliDetourCommands: readonly string[],
   stackList: StackListProbe,
-  stacks: Record<Service, StackProbe>
+  stacks: Record<Service, StackProbe>,
+  postmasterStarts: PostmasterStarts
 ): Promise<CheckResult> {
-  const services = {} as Record<
-    Service,
-    Awaited<ReturnType<typeof serviceMetrics>>
-  >;
-  for (const service of SERVICES) {
-    services[service] = await serviceMetrics(ctx, service, stacks[service]);
-  }
+  const services = Object.fromEntries(
+    SERVICES.map((service) => [
+      service,
+      serviceMetrics(service, stacks[service], postmasterStarts),
+    ])
+  ) as Record<Service, ReturnType<typeof serviceMetrics>>;
   const attemptedStart = Object.fromEntries(
     SERVICES.map((service) => [
       service,
@@ -79,8 +79,13 @@ export async function checkMetrics(
     services,
     attemptedStart,
     attemptedAnyStart: invocations.some(isStartInvocation),
-    // Unverified whether native `stack restart` restarts Postgres, so this is
-    // reported rather than asserted by `checkout-service was restarted`.
+    setupCompletedAt: findSetup(invocations)?.anchor.at ?? null,
+    evidence: {
+      checkoutRestarted: decideCheckoutRestart(invocations, checkoutMs)
+        .evidence,
+      paymentsUntouched: decidePaymentsUntouched(invocations, paymentsMs)
+        .evidence,
+    },
     checkoutPostmasterNewerThanPayments:
       checkoutMs !== null && paymentsMs !== null
         ? checkoutMs > paymentsMs
