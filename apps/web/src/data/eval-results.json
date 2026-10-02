@@ -1,208 +1,5 @@
 [
   {
-    "experiment": "claude-code-sonnet-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "build-auth-001-email-password-flow",
-    "stage": "build",
-    "product": [
-      "auth",
-      "database"
-    ],
-    "topic": [
-      "sdk",
-      "rls"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "cliVersion": "2.117.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "auth module loads and the driver completes",
-        "passed": true,
-        "notes": "driver produced a result"
-      },
-      {
-        "name": "signUp creates the account and returns its user id",
-        "passed": true,
-        "notes": "db user 908f2774-813f-462b-a306-5ce14ed235fe, signUp returned {\"userId\":\"908f2774-813f-462b-a306-5ce14ed235fe\"}"
-      },
-      {
-        "name": "signup metadata reaches the profile (display name)",
-        "passed": true,
-        "notes": "profiles.display_name = \"Alex Doe\""
-      },
-      {
-        "name": "wrong password is rejected gracefully (no throw, no session)",
-        "passed": true,
-        "notes": "{\"error\":\"Invalid login credentials\"}"
-      },
-      {
-        "name": "signIn with the right password returns the user id",
-        "passed": true,
-        "notes": "{\"userId\":\"908f2774-813f-462b-a306-5ce14ed235fe\"}"
-      },
-      {
-        "name": "getMyProfile returns the signed-in user's profile",
-        "passed": true,
-        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
-      },
-      {
-        "name": "app code does not use the secret / service-role key",
-        "passed": true,
-        "notes": "no secret-key references found"
-      },
-      {
-        "name": "implementation uses @supabase/supabase-js",
-        "passed": true,
-        "notes": "imports found in: app/src/auth.mjs"
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "usage": [
-      {
-        "model": "claude-sonnet-5",
-        "inputTokens": 484384,
-        "cacheReadInputTokens": 457064,
-        "cacheWriteInputTokens": 27296,
-        "outputTokens": 5664
-      }
-    ],
-    "stepCount": 17,
-    "toolCallCount": 15,
-    "agentRunDurationMs": 65396,
-    "agentRunStartedAt": 1790897207967,
-    "agentPromptAt": 1790897211803,
-    "agentRunEndedAt": 1790897273526,
-    "scoringEndedAt": 1790897277667,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 392952,
-      "duration": 272163,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 1596885296,
-        "egress": 6552964
-      }
-    },
-    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
-    "promptSourcePath": "evals/benchmark/build-auth-001-email-password-flow/PROMPT.md",
-    "run": 1,
-    "sourcePath": "claude-code-sonnet-5/build-auth-001-email-password-flow/run-1/result.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5",
-      "reasoningEffort": "high"
-    },
-    "eval": "resolve-dataapi-001-empty-results",
-    "stage": "resolve",
-    "product": [
-      "data-api",
-      "database",
-      "auth"
-    ],
-    "topic": [
-      "rls",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "mcp",
-    "passed": true,
-    "checks": [
-      {
-        "name": "RLS still enabled on bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A reads own bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user B cannot read user A bookmarks",
-        "passed": true
-      },
-      {
-        "name": "anon reads no bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A can save a new bookmark",
-        "passed": true
-      },
-      {
-        "name": "user B cannot insert a bookmark as user A",
-        "passed": true
-      },
-      {
-        "name": "diagnosed RLS and added owner-scoped policies",
-        "passed": true,
-        "judgeNotes": "Diagnosed RLS default-deny and created authenticated SELECT and INSERT policies scoped to user_id = auth.uid(), while keeping RLS enabled."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "usage": [
-      {
-        "model": "claude-sonnet-5",
-        "inputTokens": 328817,
-        "cacheReadInputTokens": 306426,
-        "cacheWriteInputTokens": 22373,
-        "outputTokens": 4312
-      }
-    ],
-    "stepCount": 16,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 53322,
-    "agentRunStartedAt": 1790897116911,
-    "agentPromptAt": 1790897120532,
-    "agentRunEndedAt": 1790897170410,
-    "scoringEndedAt": 1790897172490,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 160292,
-      "duration": 163596,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 710695921,
-        "egress": 3509610
-      }
-    },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
-    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
-    "run": 1,
-    "sourcePath": "claude-code-sonnet-5/resolve-dataapi-001-empty-results/run-1/result.json"
-  },
-  {
     "experiment": "codex-gpt-6-luna",
     "experimentSuite": "benchmark",
     "experimentDisplay": {
@@ -234,7 +31,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 0fdf2a72-c8a6-411a-805a-b0ce3ed16b1b, signUp returned {\"userId\":\"0fdf2a72-c8a6-411a-805a-b0ce3ed16b1b\"}"
+        "notes": "db user 59f59a09-3cfe-4a81-95a9-f24cfb04a36f, signUp returned {\"userId\":\"59f59a09-3cfe-4a81-95a9-f24cfb04a36f\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -249,7 +46,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"0fdf2a72-c8a6-411a-805a-b0ce3ed16b1b\"}"
+        "notes": "{\"userId\":\"59f59a09-3cfe-4a81-95a9-f24cfb04a36f\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -279,106 +76,104 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js auth signUp signInWithPassword user metadata select profile getUser session\", limit: 6) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth",
-              "title": "Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
-              "title": "Sign in with Google"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
-              "title": "Sign in with Figma"
-            }
-          ],
-          "resultChars": 93698
-        },
-        {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 10000'",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 18000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 9970
+          "resultChars": 17917
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"JavaScript signUp email password options data user_metadata signInWithPassword getUser auth\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "query": "query { searchDocs(query: \"supabase-js auth signUp signInWithPassword getSession createClient javascript\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
+              "title": "Sign in with Figma"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/passwords",
               "title": "Password-based Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/auth-identity-linking",
-              "title": "Identity Linking"
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-gitlab",
+              "title": "Sign in with GitLab"
             },
             {
-              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
-              "title": "signInWithPassword()"
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-bitbucket",
+              "title": "Sign in with Bitbucket"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
-              "title": "Passwordless email sign-in"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/csharp/auth-signinwithpassword",
-              "title": "SignIn(email, password)"
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-zoom",
+              "title": "Sign in with Zoom"
             }
           ],
-          "resultChars": 74055
+          "resultChars": 115582
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"JavaScript auth.signUp options.data display_name signUp email password\", limit: 3) { nodes { ... on ClientLibraryFunctionReference { title href content methodName language } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
+            }
+          ],
+          "resultChars": 3845
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"JavaScript auth.signInWithPassword auth.getSession supabase-js\", limit: 3) { nodes { ... on ClientLibraryFunctionReference { title href content methodName language } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            }
+          ],
+          "resultChars": 60064
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 549080,
-        "cacheReadInputTokens": 490301,
-        "cacheWriteInputTokens": 57623,
-        "outputTokens": 15363
+        "inputTokens": 592240,
+        "cacheReadInputTokens": 519788,
+        "cacheWriteInputTokens": 71432,
+        "outputTokens": 23323
       }
     ],
-    "stepCount": 17,
-    "toolCallCount": 24,
-    "agentRunDurationMs": 157468,
-    "agentRunStartedAt": 1790897160468,
-    "agentPromptAt": 1790897161986,
-    "agentRunEndedAt": 1790897318039,
-    "scoringEndedAt": 1790897321007,
+    "stepCount": 15,
+    "toolCallCount": 35,
+    "agentRunDurationMs": 204098,
+    "agentRunStartedAt": 1790895138423,
+    "agentRunEndedAt": 1790895342674,
+    "scoringEndedAt": 1790895346056,
     "sandboxUsage": {
-      "activeCpuDurationMs": 293105,
-      "duration": 314497,
+      "activeCpuDurationMs": 380144,
+      "duration": 391745,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1653374509,
-        "egress": 9866021
+        "ingress": 1651696923,
+        "egress": 8526514
       }
     },
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
@@ -437,7 +232,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed deny-all RLS, created authenticated SELECT and INSERT policies scoped to user_id = auth.uid(), and kept RLS enabled."
+        "judgeNotes": "Diagnosed deny-all RLS with no policies, created authenticated owner-scoped SELECT and INSERT policies, kept RLS enabled, and verified access controls."
       }
     ],
     "skills": {
@@ -454,41 +249,63 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Exposing tables to Data API grants authenticated RLS policies\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Monitoring and Debugging Data API empty results PostgREST RLS grants\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase troubleshooting Data API returns empty rows RLS policies authenticated select insert auth.uid monitoring debugging\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/extensions/pgaudit",
-              "title": "PGAudit: Postgres Auditing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/reports",
-              "title": "Reports"
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx",
+              "title": "Why is my select returning an empty data array and I have data in the table?"
             },
             {
               "url": "https://supabase.com/docs/guides/database/secure-data",
               "title": "Securing your data"
             },
             {
-              "url": "https://supabase.com/docs/guides/api/rest/postgrest-error-codes",
-              "title": "Error Codes"
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/storage-error-403-forbidden-new-row-violates-row-level-security-policy-on-upload-a94384",
+              "title": "Storage error: 403 Forbidden: 'new row violates row-level security policy' on upload"
             }
           ],
-          "resultChars": 95811
+          "resultChars": 42716
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Expose tables Data API GRANT authenticated RLS policy SELECT INSERT\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0027_pg_graphql_authenticated_table_exposed",
+              "title": "Database Advisor: Lint 0027_pg_graphql_authenticated_table_exposed"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            }
+          ],
+          "resultChars": 111109
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/monitoring-and-debugging Supabase PostgREST RLS Data API logs",
+          "query": "site:supabase.com/docs/guides/monitoring-and-debugging Supabase monitoring debugging empty select RLS",
           "pages": []
         }
       ]
@@ -496,654 +313,30 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 170790,
-        "cacheReadInputTokens": 126701,
-        "cacheWriteInputTokens": 38856,
-        "outputTokens": 5366
+        "inputTokens": 278185,
+        "cacheReadInputTokens": 226801,
+        "cacheWriteInputTokens": 46061,
+        "outputTokens": 6047
       }
     ],
-    "stepCount": 8,
-    "toolCallCount": 19,
-    "agentRunDurationMs": 65909,
-    "agentRunStartedAt": 1790897156096,
-    "agentPromptAt": 1790897158378,
-    "agentRunEndedAt": 1790897222213,
-    "scoringEndedAt": 1790897225135,
+    "stepCount": 11,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 79984,
+    "agentRunStartedAt": 1790895060722,
+    "agentRunEndedAt": 1790895140857,
+    "scoringEndedAt": 1790895143540,
     "sandboxUsage": {
-      "activeCpuDurationMs": 230804,
-      "duration": 216896,
+      "activeCpuDurationMs": 155624,
+      "duration": 186498,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 761132225,
-        "egress": 2844717
+        "ingress": 764032647,
+        "egress": 5003647
       }
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
     "run": 1,
     "sourcePath": "codex-gpt-6-luna/resolve-dataapi-001-empty-results/run-1/result.json"
-  },
-  {
-    "experiment": "grok-4.7",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "grok",
-      "modelProvider": "spacexai",
-      "modelId": "grok-4.7",
-      "reasoningEffort": "high"
-    },
-    "eval": "build-auth-001-email-password-flow",
-    "stage": "build",
-    "product": [
-      "auth",
-      "database"
-    ],
-    "topic": [
-      "sdk",
-      "rls"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "cliVersion": "2.117.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "auth module loads and the driver completes",
-        "passed": true,
-        "notes": "driver produced a result"
-      },
-      {
-        "name": "signUp creates the account and returns its user id",
-        "passed": true,
-        "notes": "db user 8e5bee7f-ef2b-40c8-8b29-bbfc5143da44, signUp returned {\"userId\":\"8e5bee7f-ef2b-40c8-8b29-bbfc5143da44\"}"
-      },
-      {
-        "name": "signup metadata reaches the profile (display name)",
-        "passed": true,
-        "notes": "profiles.display_name = \"Alex Doe\""
-      },
-      {
-        "name": "wrong password is rejected gracefully (no throw, no session)",
-        "passed": true,
-        "notes": "{\"error\":\"Invalid login credentials\"}"
-      },
-      {
-        "name": "signIn with the right password returns the user id",
-        "passed": true,
-        "notes": "{\"userId\":\"8e5bee7f-ef2b-40c8-8b29-bbfc5143da44\"}"
-      },
-      {
-        "name": "getMyProfile returns the signed-in user's profile",
-        "passed": true,
-        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
-      },
-      {
-        "name": "app code does not use the secret / service-role key",
-        "passed": true,
-        "notes": "no secret-key references found"
-      },
-      {
-        "name": "implementation uses @supabase/supabase-js",
-        "passed": true,
-        "notes": "imports found in: app/src/auth.mjs"
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"signUp signInWithPassword getUser JavaScript client publishable key user metadata\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithoauth"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpasskey"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passkeys",
-              "title": "Passkey authentication"
-            }
-          ],
-          "resultChars": 17236
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"createClient publishable key initialize supabase-js auth getSession select from table\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
-              "title": "Build a User Management App with Next.js"
-            }
-          ],
-          "resultChars": 20380
-        },
-        {
-          "source": "web_search",
-          "query": "supabase changelog breaking changes auth signUp user metadata publishable key 2026",
-          "pages": [
-            {
-              "url": "https://supabase.com/blog/supabase-security-2025-retro"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data"
-            },
-            {
-              "url": "https://supabase.com/changelog?tags=auth"
-            },
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4099
-        },
-        {
-          "source": "shell_fetch",
-          "query": "supabase --version && ls /tmp/sandbox-5e23a0ba/.agents /tmp/sandbox-5e23a0ba/.claude /tmp/sandbox-5e23a0ba/.grok 2>/dev/null; find /tmp/sandbox-5e23a0ba -name '*.md' -o -name '*test*' -o -name '.env*' | head -50; curl -sS -o /dev/null -w \"%{http_code}\" https://supabase.com/changelog.md; echo; curl -sS https://supabase.com/changelog.md | head -c 8000",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 13302
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"npm security pin package versions supabase-js lockfile\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/security/npm-security",
-              "title": "Securing npm installs"
-            }
-          ],
-          "resultChars": 18408
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "grok-4.7",
-        "inputTokens": 628162,
-        "cacheReadInputTokens": 442752,
-        "cacheWriteInputTokens": 0,
-        "outputTokens": 3460
-      }
-    ],
-    "stepCount": 15,
-    "toolCallCount": 29,
-    "agentRunDurationMs": 135519,
-    "agentRunStartedAt": 1790897179691,
-    "agentPromptAt": 1790897180416,
-    "agentRunEndedAt": 1790897315379,
-    "scoringEndedAt": 1790897319362,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 336622,
-      "duration": 313661,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 1540755069,
-        "egress": 8497880
-      }
-    },
-    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
-    "promptSourcePath": "evals/benchmark/build-auth-001-email-password-flow/PROMPT.md",
-    "run": 1,
-    "sourcePath": "grok-4.7/build-auth-001-email-password-flow/run-1/result.json"
-  },
-  {
-    "experiment": "grok-4.7",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "grok",
-      "modelProvider": "spacexai",
-      "modelId": "grok-4.7",
-      "reasoningEffort": "high"
-    },
-    "eval": "resolve-dataapi-001-empty-results",
-    "stage": "resolve",
-    "product": [
-      "data-api",
-      "database",
-      "auth"
-    ],
-    "topic": [
-      "rls",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "mcp",
-    "passed": true,
-    "checks": [
-      {
-        "name": "RLS still enabled on bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A reads own bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user B cannot read user A bookmarks",
-        "passed": true
-      },
-      {
-        "name": "anon reads no bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A can save a new bookmark",
-        "passed": true
-      },
-      {
-        "name": "user B cannot insert a bookmark as user A",
-        "passed": true
-      },
-      {
-        "name": "diagnosed RLS and added owner-scoped policies",
-        "passed": true,
-        "judgeNotes": "Created authenticated-only SELECT and INSERT policies scoped to user_id = auth.uid(), kept RLS enabled, and verified owner-only access."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Data API returns empty results RLS grants exposing table\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            }
-          ],
-          "resultChars": 20379
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"monitoring and debugging empty results RLS\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            }
-          ],
-          "resultChars": 20379
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"monitoring and debugging database api empty results\", limit: 2) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/performance",
-              "title": "Performance Tuning"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/audit-logs",
-              "title": "Auth Audit Logs"
-            }
-          ],
-          "resultChars": 7018
-        },
-        {
-          "source": "web_search",
-          "query": "supabase monitoring and debugging empty data api results RLS site:supabase.com/docs",
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/row-level-security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/discovering-and-interpreting-api-errors-in-the-logs-7xREI9"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/monitoring-and-debugging/debugging"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/inspect"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/realtime/reports"
-            }
-          ],
-          "resultChars": 6004
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"why is my select returning an empty data array and I have data in the table\", limit: 1) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx",
-              "title": "Why is my select returning an empty data array and I have data in the table?"
-            }
-          ],
-          "resultChars": 1813
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"breaking change row level security create policy authenticated 2026\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
-              "title": "Multi-Factor Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
-            }
-          ],
-          "resultChars": 20379
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "grok-4.7",
-        "inputTokens": 1038149,
-        "cacheReadInputTokens": 903936,
-        "cacheWriteInputTokens": 0,
-        "outputTokens": 6948
-      }
-    ],
-    "stepCount": 23,
-    "toolCallCount": 63,
-    "agentRunDurationMs": 281584,
-    "agentRunStartedAt": 1790897120422,
-    "agentPromptAt": 1790897121276,
-    "agentRunEndedAt": 1790897402237,
-    "scoringEndedAt": 1790897405686,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 177399,
-      "duration": 397014,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 653775226,
-        "egress": 7441171
-      }
-    },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
-    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
-    "run": 1,
-    "sourcePath": "grok-4.7/resolve-dataapi-001-empty-results/run-1/result.json"
-  },
-  {
-    "experiment": "opencode-kimi-k3",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "opencode",
-      "modelProvider": "moonshotai",
-      "modelId": "moonshotai/kimi-k3"
-    },
-    "eval": "build-auth-001-email-password-flow",
-    "stage": "build",
-    "product": [
-      "auth",
-      "database"
-    ],
-    "topic": [
-      "sdk",
-      "rls"
-    ],
-    "suite": "benchmark",
-    "interface": "cli",
-    "cliVersion": "2.117.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "auth module loads and the driver completes",
-        "passed": true,
-        "notes": "driver produced a result"
-      },
-      {
-        "name": "signUp creates the account and returns its user id",
-        "passed": true,
-        "notes": "db user 2d6126f1-1d2e-4dfa-a0dd-8cd723b8f4fd, signUp returned {\"userId\":\"2d6126f1-1d2e-4dfa-a0dd-8cd723b8f4fd\"}"
-      },
-      {
-        "name": "signup metadata reaches the profile (display name)",
-        "passed": true,
-        "notes": "profiles.display_name = \"Alex Doe\""
-      },
-      {
-        "name": "wrong password is rejected gracefully (no throw, no session)",
-        "passed": true,
-        "notes": "{\"error\":\"Invalid login credentials\"}"
-      },
-      {
-        "name": "signIn with the right password returns the user id",
-        "passed": true,
-        "notes": "{\"userId\":\"2d6126f1-1d2e-4dfa-a0dd-8cd723b8f4fd\"}"
-      },
-      {
-        "name": "getMyProfile returns the signed-in user's profile",
-        "passed": true,
-        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
-      },
-      {
-        "name": "app code does not use the secret / service-role key",
-        "passed": true,
-        "notes": "no secret-key references found"
-      },
-      {
-        "name": "implementation uses @supabase/supabase-js",
-        "passed": true,
-        "notes": "imports found in: app/src/auth.mjs"
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "web_fetch",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 97503
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"supabase-js auth signUp email password signInWithPassword user metadata display name\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
-              "title": "Customizing Emails by Language"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passwords",
-              "title": "Password-based Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passkeys",
-              "title": "Passkey authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            }
-          ],
-          "resultChars": 79557
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "moonshotai/kimi-k3",
-        "inputTokens": 322715,
-        "cacheReadInputTokens": 284864,
-        "cacheWriteInputTokens": 0,
-        "outputTokens": 5769
-      }
-    ],
-    "stepCount": 14,
-    "toolCallCount": 22,
-    "agentRunDurationMs": 71433,
-    "agentRunStartedAt": 1790897196583,
-    "agentPromptAt": 1790897199063,
-    "agentRunEndedAt": 1790897268209,
-    "scoringEndedAt": 1790897272513,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 422750,
-      "duration": 267431,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 1671918110,
-        "egress": 8124692
-      }
-    },
-    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
-    "promptSourcePath": "evals/benchmark/build-auth-001-email-password-flow/PROMPT.md",
-    "run": 1,
-    "sourcePath": "opencode-kimi-k3/build-auth-001-email-password-flow/run-1/result.json"
-  },
-  {
-    "experiment": "opencode-kimi-k3",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "opencode",
-      "modelProvider": "moonshotai",
-      "modelId": "moonshotai/kimi-k3"
-    },
-    "eval": "resolve-dataapi-001-empty-results",
-    "stage": "resolve",
-    "product": [
-      "data-api",
-      "database",
-      "auth"
-    ],
-    "topic": [
-      "rls",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "mcp",
-    "passed": true,
-    "checks": [
-      {
-        "name": "RLS still enabled on bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A reads own bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user B cannot read user A bookmarks",
-        "passed": true
-      },
-      {
-        "name": "anon reads no bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A can save a new bookmark",
-        "passed": true
-      },
-      {
-        "name": "user B cannot insert a bookmark as user A",
-        "passed": true
-      },
-      {
-        "name": "diagnosed RLS and added owner-scoped policies",
-        "passed": true,
-        "judgeNotes": "Diagnosed default-deny RLS and created authenticated, owner-scoped SELECT and INSERT policies without disabling RLS."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": []
-    },
-    "usage": [
-      {
-        "model": "moonshotai/kimi-k3",
-        "inputTokens": 321475,
-        "cacheReadInputTokens": 286848,
-        "cacheWriteInputTokens": 0,
-        "outputTokens": 9088
-      }
-    ],
-    "stepCount": 15,
-    "toolCallCount": 21,
-    "agentRunDurationMs": 96315,
-    "agentRunStartedAt": 1790897109594,
-    "agentPromptAt": 1790897111382,
-    "agentRunEndedAt": 1790897206085,
-    "scoringEndedAt": 1790897208716,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 203287,
-      "duration": 199308,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 784851333,
-        "egress": 4592294
-      }
-    },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
-    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
-    "run": 1,
-    "sourcePath": "opencode-kimi-k3/resolve-dataapi-001-empty-results/run-1/result.json"
   }
 ]
