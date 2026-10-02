@@ -44,9 +44,10 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
   let steps = 0;
 
   for (const event of events) {
-    if (event.type === 'message' && event.role && event.content) {
-      const content = event.content.trim();
-      if (!content) continue;
+    if (event.type === 'message' && event.role) {
+      const content = event.content?.trim() ?? '';
+      // An empty message still marks a model request that emitted nothing.
+      if (!content && !event.requestId) continue;
       transcript.push({
         type: 'message',
         role: event.role,
@@ -55,7 +56,7 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         ...(event.requestId ? { requestId: event.requestId } : {}),
         ...(event.usage ? { usage: event.usage } : {}),
       });
-      if (event.role === 'assistant') {
+      if (event.role === 'assistant' && content) {
         agentReport = content;
         steps += 1;
       }

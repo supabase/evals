@@ -20,9 +20,9 @@
 
 // opencode's own config schema (type-only; pinned to the installed CLI version
 // via the catalog). The transcript stream is deliberately NOT typed from this
-// SDK: `run --format json` emits a reduced, differently-shaped record than the
-// SDK's server-API `Part`/`Event` entities (no id/sessionID/messageID; different
-// discriminants), so the parser stays schema-defensive — see ./parser.ts.
+// SDK: `run --format json` emits differently shaped records than the SDK's
+// server-API `Part`/`Event` entities, so the parser stays schema-defensive.
+// See ./parser.ts.
 import type { Config, McpLocalConfig } from '@opencode-ai/sdk';
 import type { McpServerConfig } from '../../index.js';
 import type { ModelProvider } from '../../eval-metadata.js';
