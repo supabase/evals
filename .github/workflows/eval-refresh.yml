@@ -16,7 +16,7 @@ on:
         required: true
         default: "benchmark"
       experiment_suite:
-        description: "Comma-separated experiment suites to run"
+        description: "Comma-separated experiment suites to run (ignored when experiments is set)"
         required: true
         default: "benchmark,no-skills"
       runs:
@@ -235,7 +235,7 @@ jobs:
           fi
 
           pairs='[]'
-          experiments_override="${{ steps.inputs.outputs.experiments_override }}"
+          experiments_override="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "${{ steps.inputs.outputs.experiments_override }}")"
           for id in "${matching[@]}"; do
             eval_suite=$(basename "$(dirname "$(compgen -G "evals/*/$id")")")
             case "$eval_suite" in
@@ -247,15 +247,16 @@ jobs:
             esac
 
             for experiment_suite in "${experiment_suites[@]}"; do
-              if ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
+              # experiment_suite only narrows auto-discovery. An explicit list
+              # runs each experiment in whichever of these suites it belongs to.
+              if [ "$experiments_override" = "[]" ] && ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
                 <<< '${{ steps.inputs.outputs.experiment_suite }}' > /dev/null; then
                 continue
               fi
 
-              if [ -n "$experiments_override" ]; then
-                experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
-              else
-                experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite" --eval "$id")"
+              experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite" --eval "$id")"
+              if [ "$experiments_override" != "[]" ]; then
+                experiments_json="$(jq -c --argjson want "$experiments_override" 'map(select(IN($want[])))' <<< "$experiments_json")"
               fi
 
               while IFS= read -r experiment; do
@@ -269,6 +270,12 @@ jobs:
               done < <(jq -r '.[]' <<< "$experiments_json")
             done
           done
+
+          unmatched="$(jq -r --argjson pairs "$pairs" '. - ($pairs | map(.experiment)) | join(",")' <<< "$experiments_override")"
+          if [ -n "$unmatched" ]; then
+            echo "Experiments not in any suite for the selected evals: $unmatched" >&2
+            exit 1
+          fi
 
           if [ "$(jq 'length' <<< "$pairs")" -eq 0 ]; then
             echo "No experiment and eval pairs matched" >&2
