@@ -291,4 +291,21 @@ describe('opencode request timing and usage', () => {
       outputTokens: 3,
     });
   });
+
+  it('emits an empty message for a step with no parts', () => {
+    const stream = JSON.stringify({
+      type: 'step_finish',
+      timestamp: 2000,
+      part: { type: 'step-finish', messageID: 'm2', tokens: { output: 4 } },
+    });
+    const [event] = opencodeParser.parseTranscript(stream).events;
+    expect(event).toMatchObject({
+      type: 'message',
+      role: 'assistant',
+      content: '',
+      requestId: 'm2',
+      timestamp: new Date(2000).toISOString(),
+      usage: { outputTokens: 4 },
+    });
+  });
 });

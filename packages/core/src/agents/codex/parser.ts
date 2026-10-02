@@ -241,17 +241,6 @@ export const codexParser: AgentTranscriptParser = {
 };
 
 /**
- * Fills in event times, model requests, and per-request usage from the session
- * rollout, which the `--json` stream lacks. The two streams list tool items and
- * assistant messages in the same order but under different ids, so they're
- * paired by position. Tool pairs must also agree on the command or MCP tool,
- * and any count or content mismatch leaves that kind of event untouched.
- *
- *   rollout: reasoning → message → function_call(c1) → token_usage_record(r1)
- *            → function_call_output(c1)
- *   events:  message → tool_call → tool_result, each tagged requestId r1
- */
-/**
  * Rollout names for the stdout items that `itemToEvents` makes tool calls from.
  * Counting any other rollout item would shift the pairing.
  * https://github.com/openai/codex/blob/rust-v0.154.0/codex-rs/protocol/src/items.rs#L45-L77
@@ -263,6 +252,18 @@ const ROLLOUT_TOOL_ITEMS = new Set([
   'WebSearch',
 ]);
 
+/**
+ * Fills in event times, model requests, and per-request usage from the session
+ * rollout, which the `--json` stream lacks. The two streams list tool items and
+ * assistant messages in the same order but under different ids, so they're
+ * paired by position. Tool pairs must also agree on the command or MCP tool,
+ * and any count or content mismatch leaves that kind of event untouched.
+ * A request no event came from, like a compaction call, gets an empty message.
+ *
+ *   rollout: reasoning → message → function_call(c1) → token_usage_record(r1)
+ *            → function_call_output(c1)
+ *   events:  message → tool_call → tool_result, each tagged requestId r1
+ */
 export function enrichFromRollout(
   events: TranscriptEvent[],
   rollout: string
@@ -275,16 +276,17 @@ export function enrichFromRollout(
   const callEnds = new Map<string, string | undefined>();
   const messages: { at?: string; request: Request }[] = [];
   const toolItems: Record<string, unknown>[] = [];
+  const requests: { at?: string; request: Request }[] = [];
   let open: Request | undefined;
 
   for (const record of parseJsonlRecords(rollout).records) {
     const at = str(record.timestamp);
     const payload = isRecord(record.payload) ? record.payload : {};
     if (record.type === 'token_usage_record') {
-      if (open) {
-        open.id = str(payload.response_id);
-        open.usage = rolloutUsage(payload.usage);
-      }
+      const request = open ?? {};
+      request.id = str(payload.response_id);
+      request.usage = rolloutUsage(payload.usage);
+      requests.push({ at, request });
       open = undefined;
     } else if (record.type === 'response_item') {
       const callId = str(payload.call_id);
@@ -345,6 +347,20 @@ export function enrichFromRollout(
     const callId = callIdByItem.get(event.tool.id);
     const end = callId ? callEnds.get(callId) : undefined;
     if (end) event.timestamp = end;
+  }
+  const tagged = new Set(events.map((e) => e.requestId));
+  for (const { at, request } of requests) {
+    if (!request.id || tagged.has(request.id)) continue;
+    const silent: TranscriptEvent = {
+      type: 'message',
+      role: 'assistant',
+      content: '',
+      timestamp: at,
+    };
+    tag(silent, request);
+    // Rollout timestamps share one ISO format, so they sort as strings.
+    const next = events.findIndex((e) => at && e.timestamp && e.timestamp > at);
+    events.splice(next === -1 ? events.length : next, 0, silent);
   }
 }
 

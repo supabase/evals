@@ -313,7 +313,19 @@ export const opencodeParser: AgentTranscriptParser = {
       const part = isRecord(record.part) ? record.part : undefined;
       const messageId = str(part?.messageID);
       const usage = stepUsage(record);
-      if (messageId && usage) usageByMessage.set(messageId, usage);
+      if (messageId && usage) {
+        usageByMessage.set(messageId, usage);
+        // A step that emitted no text or tool part still gets an LLM span.
+        if (!events.some((e) => e.requestId === messageId)) {
+          events.push({
+            timestamp: toISO(record.timestamp),
+            requestId: messageId,
+            type: 'message',
+            role: 'assistant',
+            content: '',
+          });
+        }
+      }
       try {
         events.push(...recordToEvents(record, mcpServerNames));
       } catch (e) {

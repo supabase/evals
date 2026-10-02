@@ -337,6 +337,31 @@ describe('enrichFromRollout', () => {
       ['t5', undefined, undefined],
     ]);
   });
+
+  it('adds an empty message for a request with no events', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t2', 'r1'),
+      // A compaction call, which leaves no response item.
+      usageRecord('t3', 'r2'),
+      line('t4', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t5', 'r3'),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'a' },
+      { type: 'message', role: 'assistant', content: 'b' },
+    ];
+    enrichFromRollout(events, rollout);
+    expect(events.map((e) => [e.content, e.timestamp, e.requestId])).toEqual([
+      ['a', 't1', 'r1'],
+      ['', 't3', 'r2'],
+      ['b', 't4', 'r3'],
+    ]);
+  });
 });
 
 describe('enrichFromRollout tool pairing', () => {
