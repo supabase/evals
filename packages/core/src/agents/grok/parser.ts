@@ -303,6 +303,8 @@ export const grokParser: AgentTranscriptParser = {
     let step = 0;
     const stepUsages = new Map<string, RequestUsage>();
     const requestId = () => `step-${step}`;
+    // Grok emits a request's tool calls after its `usage` event.
+    const toolRequestId = () => `step-${Math.max(step - 1, 0)}`;
 
     // Join the adjacent events of one type into one event.
     let textBuffer = '';
@@ -393,7 +395,7 @@ export const grokParser: AgentTranscriptParser = {
             const skills = loadedSkills(args, normalized);
             if (skills.length > 0) tool.loadedSkills = skills;
 
-            events.push({ type: 'tool_call', tool, requestId: requestId() });
+            events.push({ type: 'tool_call', tool, requestId: toolRequestId() });
             pending.set(id, { id, originalName, call, args });
             break;
           }

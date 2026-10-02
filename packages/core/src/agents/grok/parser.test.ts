@@ -411,13 +411,8 @@ describe('grok request timing and usage', () => {
   it('numbers steps by usage events and times events from updates.jsonl', () => {
     const { events } = grokParser.parseTranscript(
       [
+        // Tool calls follow `usage`, as in Grok's real stdout.
         JSON.stringify({ type: 'text', data: 'Looking.' }),
-        JSON.stringify({
-          type: 'tool_call',
-          toolCallId: 'c1',
-          toolName: 'read_file',
-          rawInput: {},
-        }),
         JSON.stringify({
           type: 'usage',
           usage: {
@@ -425,6 +420,12 @@ describe('grok request timing and usage', () => {
             cache_read_input_tokens: 3,
             output_tokens: 1,
           },
+        }),
+        JSON.stringify({
+          type: 'tool_call',
+          toolCallId: 'c1',
+          toolName: 'read_file',
+          rawInput: {},
         }),
         JSON.stringify({
           type: 'tool_call_update',
