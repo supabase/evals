@@ -395,7 +395,11 @@ export const grokParser: AgentTranscriptParser = {
             const skills = loadedSkills(args, normalized);
             if (skills.length > 0) tool.loadedSkills = skills;
 
-            events.push({ type: 'tool_call', tool, requestId: toolRequestId() });
+            events.push({
+              type: 'tool_call',
+              tool,
+              requestId: toolRequestId(),
+            });
             pending.set(id, { id, originalName, call, args });
             break;
           }
