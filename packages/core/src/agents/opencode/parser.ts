@@ -13,9 +13,9 @@
  *   {"type":"step_finish","part":{"type":"step-finish","reason":"stop","tokens":{…}}}
  *
  * A `tool_use` record is self-contained (input + output + status), so it yields
- * a paired tool_call + tool_result correlated by `part.callID`. Step records
- * carry token/finish info and produce no transcript event (the runner reads the
- * terminal `step_finish` reason for the stop reason).
+ * a paired tool_call + tool_result correlated by `part.callID`. A `step_finish`
+ * gives its step's events their usage, or an empty message when the step had
+ * no other parts. The runner reads the last one's reason for the stop reason.
  *
  * Adapted from `@supabase/agent-evals` (packages/agent-eval/src/parsers).
  */
