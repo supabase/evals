@@ -177,6 +177,8 @@ export function createCliAgent<M extends string = string>(
           (enriched ? enriched.stepCount : undefined) ??
           runner.extractStepCount?.(raw),
         durationMs,
+        startedAt: start,
+        promptAt: enriched ? enriched.promptAt : undefined,
       };
     },
   };

@@ -108,10 +108,10 @@ export const codexRunner: AgentRunner<CodexModel> = {
       `cat "$(ls -t "$HOME"/.codex/sessions/*/*/*/rollout-*.jsonl 2>/dev/null | head -1)"`
     );
     if (!rollout.ok) return;
-    enrichFromRollout(events, rollout.stdout);
+    const promptAt = enrichFromRollout(events, rollout.stdout);
     // The --json stream has no per-response boundary, but the rollout logs one
     // token_count event per model response.
-    return { stepCount: countModelResponses(rollout.stdout) };
+    return { stepCount: countModelResponses(rollout.stdout), promptAt };
   },
 
   deriveStopReason(raw, command) {

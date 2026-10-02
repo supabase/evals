@@ -424,6 +424,12 @@ const evalResultShape = {
   toolCallCount: z.number().optional(),
   // Wall-clock time of the agent run only. Sandbox boot and scoring are excluded.
   agentRunDurationMs: z.number().optional(),
+  // Host epoch ms. The run ends when `agent.run()` returns; scoring starts then.
+  agentRunStartedAt: z.number().optional(),
+  // When the CLI recorded the prompt, from its session files (sandbox clock).
+  agentPromptAt: z.number().optional(),
+  agentRunEndedAt: z.number().optional(),
+  scoringEndedAt: z.number().optional(),
   sandboxUsage: sandboxUsageSchema.optional(),
 };
 

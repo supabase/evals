@@ -84,6 +84,11 @@ interface PendingRow {
   /** Unix seconds. */
   startTime?: number;
   endTime?: number;
+  /** When the CLI recorded the prompt; absent on older results. */
+  promptTime?: number;
+  /** When `agent.run()` returned and scoring began; absent on older results. */
+  agentEndTime?: number;
+  scoringEndTime?: number;
 }
 
 function git(...args: string[]): string | undefined {
@@ -267,11 +272,11 @@ async function collectRows(
     const durationMs =
       result.agentRunDurationMs ??
       (typeof result.durationMs === 'number' ? result.durationMs : undefined);
-    // Results record duration but no start time, so derive it from file mtime.
     const { mtimeMs } = await stat(absolutePath);
     if (mtimeMs < SINCE) {
       continue;
     }
+    // Older results record only a duration, so derive the window from mtime.
     const endTime = durationMs ? mtimeMs / 1000 : undefined;
     const transcript = transcriptSchema.parse(result.transcript);
     const sessionArchivePath = join(
@@ -323,11 +328,19 @@ async function collectRows(
           ? { tool_call_count: result.toolCallCount }
           : {}),
       },
+      promptTime: sec(result.agentPromptAt),
+      agentEndTime: sec(result.agentRunEndedAt),
+      scoringEndTime: sec(result.scoringEndedAt),
       ...runWindow(
         transcript,
-        endTime && durationMs
-          ? { startTime: endTime - durationMs / 1000, endTime }
-          : {}
+        result.agentRunStartedAt && result.scoringEndedAt
+          ? {
+              startTime: result.agentRunStartedAt / 1000,
+              endTime: result.scoringEndedAt / 1000,
+            }
+          : endTime && durationMs
+            ? { startTime: endTime - durationMs / 1000, endTime }
+            : {}
       ),
     };
 
@@ -339,8 +352,10 @@ async function collectRows(
 }
 
 /**
- * Widens the mtime-derived window to cover transcript timestamps, since mtime
- * lands after scoring and the agent clock can drift from the host's.
+ * Widens the run window to cover transcript timestamps, since the mtime
+ * fallback lands after scoring. Transcript times come from the sandbox clock,
+ * which Docker shares with the host (<300ms apart on Docker Desktop), so skew
+ * is absorbed by widening and clamping rather than corrected.
  */
 function runWindow(
   transcript: TranscriptPart[],
@@ -385,15 +400,21 @@ export interface SpanSink {
  * generation time as a gap. Their Codex translator does what we do.
  * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/codex.rs#L929-L932
  *
- *   task                    0s → 38s
- *   ├─ llm (text + Skill)   0s → 4s
- *   ├─ Skill                4s → 5s
- *   ├─ llm (Bash only)      5s → 8s
- *   ├─ Bash                 8s → 31s
- *   └─ llm (text)          31s → 38s
+ *   eval                      0s → 50s
+ *   ├─ setup                  0s → 2s   CLI boot until it records the prompt
+ *   ├─ task                   2s → 38s
+ *   │  ├─ llm (text + Skill)  2s → 4s
+ *   │  ├─ Skill               4s → 5s
+ *   │  ├─ llm (Bash only)     5s → 8s
+ *   │  ├─ Bash                8s → 31s
+ *   │  └─ llm (text)         31s → 38s
+ *   ├─ teardown              38s → 40s  CLI exit until `agent.run()` returns
+ *   └─ passed (score)        40s → 50s  workspace export, checks, judges
  *
- * Parts without a `requestId` each get their own LLM span. Transcripts without
- * timestamps collapse every span to the run start.
+ * Without a prompt time or a leading non-assistant message there is no setup
+ * span, and the first LLM span starts at the run start. Parts without a
+ * `requestId` each get their own LLM span. Transcripts without timestamps
+ * collapse every span to the run start.
  */
 export function logTranscript(
   parent: SpanSink,
@@ -409,16 +430,42 @@ export function logTranscript(
     | 'toolLabels'
     | 'startTime'
     | 'endTime'
+    | 'promptTime'
+    | 'agentEndTime'
+    | 'scoringEndTime'
   >
 ): void {
-  const sec = (ms: number | undefined) => (ms ? ms / 1000 : undefined);
+  const [first] = row.transcript;
+  const promptTime =
+    row.promptTime ??
+    (first?.type === 'message' && first.role !== 'assistant'
+      ? sec(first.ts)
+      : undefined);
+  const firstTime = sec(row.transcript.find((part) => part.ts)?.ts);
+  // The prompt time is on the sandbox clock, so keep it inside the run.
+  const setupEnd =
+    promptTime === undefined
+      ? undefined
+      : Math.min(
+          Math.max(row.startTime ?? promptTime, promptTime),
+          firstTime ?? Infinity
+        );
+  if (row.startTime !== undefined && setupEnd !== undefined) {
+    const setup = parent.startSpan({
+      name: 'setup',
+      type: 'task',
+      startTime: row.startTime,
+    });
+    setup.end({ endTime: setupEnd });
+  }
+  const taskStart = setupEnd ?? row.startTime;
   const task = parent.startSpan({
     name: 'task',
     type: 'task',
-    startTime: row.startTime,
+    startTime: taskStart,
   });
   task.log({ input: row.prompt, output: row.agentReport });
-  let latestTime = row.startTime;
+  let latestTime = taskStart;
   let toolIndex = 0;
   // Seeded with the prompt, which the transcript omits.
   const history: Record<string, unknown>[] = row.prompt
@@ -548,17 +595,31 @@ export function logTranscript(
   }
   task.end({ endTime: latestTime });
 
-  const scoredAt = row.endTime ?? latestTime;
+  const agentEnd = latest(latestTime, row.agentEndTime);
+  if (row.agentEndTime !== undefined) {
+    const teardown = parent.startSpan({
+      name: 'teardown',
+      type: 'task',
+      startTime: latestTime,
+    });
+    teardown.end({ endTime: agentEnd });
+  }
+  const scoreStart =
+    row.agentEndTime === undefined ? (row.endTime ?? latestTime) : agentEnd;
   const scorer = parent.startSpan({
     name: 'passed',
     type: 'score',
-    startTime: scoredAt,
+    startTime: scoreStart,
   });
   scorer.log({
     output: row.checks,
     scores: { passed: row.passed ? 1 : 0 },
   });
-  scorer.end({ endTime: scoredAt });
+  scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
+}
+
+function sec(ms: number | undefined) {
+  return ms ? ms / 1000 : undefined;
 }
 
 function latest(a: number | undefined, b: number | undefined) {

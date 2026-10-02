@@ -225,6 +225,14 @@ export function sessionRequestUsage(jsonl: string): Map<string, RequestUsage> {
   return byRequest;
 }
 
+/** When the session recorded its first user record, in epoch ms. */
+export function sessionPromptAt(jsonl: string): number | undefined {
+  const prompt = parseJsonlRecords(jsonl).records.find(
+    (record) => record.type === 'user' && typeof record.timestamp === 'string'
+  );
+  return prompt ? Date.parse(String(prompt.timestamp)) : undefined;
+}
+
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   const events: TranscriptEvent[] = [];
   const timestamp =
