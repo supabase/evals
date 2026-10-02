@@ -251,6 +251,18 @@ export const codexParser: AgentTranscriptParser = {
  *            → function_call_output(c1)
  *   events:  message → tool_call → tool_result, each tagged requestId r1
  */
+/**
+ * Rollout names for the stdout items that `itemToEvents` makes tool calls from.
+ * Counting any other rollout item would shift the pairing.
+ * https://github.com/openai/codex/blob/rust-v0.154.0/codex-rs/protocol/src/items.rs#L45-L77
+ */
+const ROLLOUT_TOOL_ITEMS = new Set([
+  'CommandExecution',
+  'FileChange',
+  'McpToolCall',
+  'WebSearch',
+]);
+
 export function enrichFromRollout(
   events: TranscriptEvent[],
   rollout: string
@@ -293,10 +305,7 @@ export function enrichFromRollout(
       isRecord(payload.item)
     ) {
       const { type, id } = payload.item;
-      if (
-        typeof id === 'string' &&
-        !['UserMessage', 'Reasoning', 'AgentMessage'].includes(String(type))
-      ) {
+      if (typeof id === 'string' && ROLLOUT_TOOL_ITEMS.has(String(type))) {
         toolItems.push(payload.item);
       }
     }

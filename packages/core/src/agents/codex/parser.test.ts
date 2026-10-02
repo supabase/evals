@@ -434,6 +434,20 @@ describe('enrichFromRollout tool pairing', () => {
     ).toEqual([undefined, undefined, undefined, undefined]);
   });
 
+  it('ignores non-tool rollout items', () => {
+    expect(
+      times(call('item_1', '/bin/bash -lc pwd'), [
+        issued('c1', 't1'),
+        line('', 'event_msg', {
+          type: 'item_completed',
+          item: { type: 'ContextCompaction', id: 'cc_1' },
+        }),
+        completed('c1', 'pwd'),
+        finished('c1', 't2'),
+      ])
+    ).toEqual(['t1', 't2']);
+  });
+
   it('pairs repeated commands in order', () => {
     const command = `/bin/bash -lc 'supabase status'`;
     expect(
