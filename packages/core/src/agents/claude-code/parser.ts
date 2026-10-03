@@ -13,6 +13,7 @@
 
 import type {
   ParsedTranscript,
+  RequestUsage,
   ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
@@ -192,6 +193,38 @@ function loadedSkillsFromClaudeCodeCall(
   return [];
 }
 
+// Claude Code writes one line per content block, all sharing `message.id`.
+function assistantRequestId(data: Record<string, unknown>): string | undefined {
+  const id = isRecord(data.message) ? data.message.id : undefined;
+  if (typeof id === 'string') return id;
+  return typeof data.requestId === 'string' ? data.requestId : undefined;
+}
+
+/**
+ * Final usage per request from Claude Code's session JSONL. Stream-json stdout
+ * repeats each request's `message_start` usage, so its output count stays at
+ * the first few tokens. Anthropic's input count excludes both cache buckets,
+ * so they're added back to match `ModelUsage`.
+ */
+export function sessionRequestUsage(jsonl: string): Map<string, RequestUsage> {
+  const byRequest = new Map<string, RequestUsage>();
+  for (const record of parseJsonlRecords(jsonl).records) {
+    if (record.type !== 'assistant') continue;
+    const id = assistantRequestId(record);
+    const usage = isRecord(record.message) ? record.message.usage : undefined;
+    if (!id || !isRecord(usage)) continue;
+    const cacheRead = Number(usage.cache_read_input_tokens) || 0;
+    const cacheWrite = Number(usage.cache_creation_input_tokens) || 0;
+    byRequest.set(id, {
+      inputTokens: (Number(usage.input_tokens) || 0) + cacheRead + cacheWrite,
+      cacheReadInputTokens: cacheRead,
+      cacheWriteInputTokens: cacheWrite,
+      outputTokens: Number(usage.output_tokens) || 0,
+    });
+  }
+  return byRequest;
+}
+
 function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
   const events: TranscriptEvent[] = [];
   const timestamp =
@@ -232,10 +265,12 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
       }
     }
   } else if (type === 'assistant' || data.role === 'assistant') {
+    const requestId = assistantRequestId(data);
     const content = extractText(data);
     if (content) {
       events.push({
         timestamp,
+        requestId,
         type: 'message',
         role: 'assistant',
         content,
@@ -255,6 +290,7 @@ function recordToEvents(data: Record<string, unknown>): TranscriptEvent[] {
       events.push(
         enrich({
           timestamp,
+          requestId,
           type: 'tool_call',
           tool: {
             name: normalizeToolName(use.name, CLAUDE_CODE_TOOLS),

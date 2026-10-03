@@ -20,15 +20,16 @@
 
 // opencode's own config schema (type-only; pinned to the installed CLI version
 // via the catalog). The transcript stream is deliberately NOT typed from this
-// SDK: `run --format json` emits a reduced, differently-shaped record than the
-// SDK's server-API `Part`/`Event` entities (no id/sessionID/messageID; different
-// discriminants), so the parser stays schema-defensive — see ./parser.ts.
+// SDK: `run --format json` emits differently shaped records than the SDK's
+// server-API `Part`/`Event` entities, so the parser stays schema-defensive.
+// See ./parser.ts.
 import type { Config, McpLocalConfig } from '@opencode-ai/sdk';
 import type { McpServerConfig } from '../../index.js';
 import type { ModelProvider } from '../../eval-metadata.js';
 import { modelProviderSchema } from '../../eval-metadata.js';
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
+import { stepUsage } from './parser.js';
 import {
   SCRATCH,
   npmGlobalBin,
@@ -193,10 +194,7 @@ export function createOpencodeRunner(
     },
 
     extractUsage(raw, model) {
-      // opencode keeps cache out of `input` and reasoning out of `output`.
-      // https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/acp/usage.ts
       if (!raw) return undefined;
-      const { records } = parseJsonlRecords(raw);
       let sawUsage = false;
       const usage = {
         model,
@@ -205,20 +203,14 @@ export function createOpencodeRunner(
         cacheWriteInputTokens: 0,
         outputTokens: 0,
       };
-      for (const record of records) {
-        if (record.type !== 'step_finish' || !isRecord(record.part)) continue;
-        const tokens = record.part.tokens;
-        if (!isRecord(tokens)) continue;
+      for (const record of parseJsonlRecords(raw).records) {
+        const step = stepUsage(record);
+        if (!step) continue;
         sawUsage = true;
-        const cache = isRecord(tokens.cache) ? tokens.cache : undefined;
-        const cacheRead = Number(cache?.read) || 0;
-        const cacheWrite = Number(cache?.write) || 0;
-        usage.inputTokens +=
-          (Number(tokens.input) || 0) + cacheRead + cacheWrite;
-        usage.cacheReadInputTokens += cacheRead;
-        usage.cacheWriteInputTokens += cacheWrite;
-        usage.outputTokens +=
-          (Number(tokens.output) || 0) + (Number(tokens.reasoning) || 0);
+        usage.inputTokens += step.inputTokens;
+        usage.cacheReadInputTokens += step.cacheReadInputTokens;
+        usage.cacheWriteInputTokens += step.cacheWriteInputTokens;
+        usage.outputTokens += step.outputTokens;
       }
       return sawUsage ? [usage] : undefined;
     },

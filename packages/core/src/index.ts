@@ -14,7 +14,7 @@ import {
 import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import type { ToolCall, ToolName } from './transcript/types.js';
+import type { RequestUsage, ToolCall, ToolName } from './transcript/types.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
@@ -159,11 +159,19 @@ export interface ScoreResult {
   checks?: CheckResult[];
 }
 
+/**
+ * `ts` and `resultTs` are epoch ms, set when the agent records event times.
+ * `requestId` groups the parts one model request emitted, and `usage` is that
+ * request's tokens (see `TranscriptEvent`).
+ */
 export type TranscriptPart =
   | {
       type: 'message';
       role: 'system' | 'user' | 'assistant';
       content: string;
+      ts?: number;
+      requestId?: string;
+      usage?: RequestUsage;
     }
   | {
       type: 'tool_call';
@@ -171,6 +179,12 @@ export type TranscriptPart =
       input: Record<string, unknown>;
       output?: unknown;
       error?: string;
+      ts?: number;
+      resultTs?: number;
+      /** Correlates the call with its result, as `TranscriptEvent.tool.id`. */
+      id?: string;
+      requestId?: string;
+      usage?: RequestUsage;
     };
 
 export type TranscriptSerializationOptions = {
