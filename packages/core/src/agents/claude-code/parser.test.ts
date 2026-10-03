@@ -152,6 +152,42 @@ describe('claudeCodeParser', () => {
     ]);
   });
 
+  it('normalizes current and legacy subagent tool names', () => {
+    const transcript = JSON.stringify({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_agent',
+            name: 'Agent',
+            input: { description: 'Inspect the parser' },
+          },
+          {
+            type: 'tool_use',
+            id: 'toolu_task',
+            name: 'Task',
+            input: { description: 'Inspect the runner' },
+          },
+        ],
+      },
+    });
+
+    const { events, errors } = claudeCodeParser.parseTranscript(transcript);
+    expect(errors).toEqual([]);
+
+    const toolCalls = events.filter((event) => event.type === 'tool_call');
+    expect(toolCalls.map((event) => event.tool?.name)).toEqual([
+      'agent_task',
+      'agent_task',
+    ]);
+    expect(toolCalls.map((event) => event.tool?.originalName)).toEqual([
+      'Agent',
+      'Task',
+    ]);
+  });
+
   it('still emits the result text when it was never streamed as a message', () => {
     // Plain `--print` (no stream-json) yields only the terminal result line.
     const transcript = JSON.stringify({
