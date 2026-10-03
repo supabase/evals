@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { CommandResult } from '../index.js';
-import type { AgentTranscriptParser } from '../parsers/types.js';
+import type { AgentTranscriptParser, ParseContext } from '../parsers/types.js';
 import { createCliAgent } from './engine.js';
 import { USER_PROMPT_PATH } from './shared.js';
 import type { AgentRunner } from './types.js';
@@ -88,6 +88,44 @@ describe('createCliAgent prompt staging', () => {
     ).rejects.toThrow(/runs with its own system prompt/);
     expect(effects.commands).toEqual([]);
     expect(effects.installed).toBe(false);
+  });
+});
+
+describe('createCliAgent session log', () => {
+  beforeEach(() => {
+    process.env[API_KEY_ENV_VAR] = 'k';
+  });
+
+  it("hands the runner's session log to the parser", async () => {
+    const contexts: (ParseContext | undefined)[] = [];
+    const runner: AgentRunner = {
+      id: 'claude-code',
+      displayName: 'Fake CLI',
+      apiKeyEnvVar: API_KEY_ENV_VAR,
+      cliPackage: 'fake-cli',
+      defaultCliVersion: '1.0.0',
+      defaultModel: 'fake-model',
+      install: async () => {},
+      exec: async () => ({ command: ok, raw: '{}', sessionLog: 'rollout' }),
+    };
+    const recordingParser: AgentTranscriptParser = {
+      parseTranscript: (raw, ctx) => {
+        contexts.push(ctx);
+        return parser.parseTranscript(raw, ctx);
+      },
+    };
+    await createCliAgent(runner, recordingParser, { model: 'fake-model' }).run({
+      systemPrompt: '',
+      userPrompt: 'the task',
+      timeoutSec: 1,
+      sandbox: {
+        workspace: '/w',
+        exec: async () => ok,
+        readFile: async () => '',
+        copyToHost: async () => {},
+      },
+    });
+    expect(contexts).toEqual([{ mcpServerNames: [], sessionLog: 'rollout' }]);
   });
 });
 

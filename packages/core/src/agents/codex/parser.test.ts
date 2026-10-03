@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codexParser } from './parser.js';
+import { codexParser, extractCommandExecutions } from './parser.js';
 import { codexRunner } from './runner.js';
 import { adaptTranscript } from '../../parsers/adapt.js';
 
@@ -246,6 +246,207 @@ describe('codexParser', () => {
     );
     expect(events).toEqual([]);
     expect(errors.length).toBe(1);
+  });
+});
+
+function commandItem(id: string, command: string): string {
+  return JSON.stringify({
+    type: 'item.completed',
+    item: {
+      id,
+      type: 'command_execution',
+      command,
+      aggregated_output: '',
+      exit_code: 0,
+      status: 'completed',
+    },
+  });
+}
+
+/** A session-rollout `CommandExecution` completion, as Codex writes it to disk. */
+function rolloutCommand(
+  script: string,
+  cwd?: string,
+  timestamp?: unknown
+): string {
+  return JSON.stringify({
+    timestamp,
+    type: 'event_msg',
+    payload: {
+      type: 'item_completed',
+      item: {
+        type: 'CommandExecution',
+        id: 'call_1',
+        command: ['/bin/bash', '-lc', script],
+        cwd,
+      },
+    },
+  });
+}
+
+describe('codexParser command cwd', () => {
+  it('joins each command to its rollout cwd by order', () => {
+    const stream = [
+      commandItem('c1', "/bin/bash -lc 'supabase start'"),
+      JSON.stringify({
+        type: 'item.completed',
+        item: {
+          id: 'f1',
+          type: 'file_change',
+          changes: [],
+          status: 'completed',
+        },
+      }),
+      commandItem('c2', "/bin/bash -lc 'supabase stop --no-backup'"),
+    ].join('\n');
+    const sessionLog = [
+      rolloutCommand('supabase start', 'file:///tmp/s/client-a'),
+      'not json',
+      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count' } }),
+      rolloutCommand('supabase stop --no-backup', 'file:///tmp/s'),
+    ].join('\n');
+
+    const parsed = codexParser.parseTranscript(stream, { sessionLog });
+    expect(parsed.errors).toEqual([]);
+    const { toolCalls } = adaptTranscript(parsed.events);
+    expect(toolCalls.map((t) => t.cwd)).toEqual([
+      '/tmp/s/client-a',
+      undefined,
+      '/tmp/s',
+    ]);
+  });
+
+  it('leaves cwd unset when the rollout command does not match', () => {
+    const stream = [
+      commandItem('c1', "/bin/bash -lc 'ls'"),
+      commandItem('c2', "/bin/bash -lc 'pwd'"),
+    ].join('\n');
+    const sessionLog = [
+      rolloutCommand('ls', 'file:///tmp/s'),
+      rolloutCommand('whoami', 'file:///tmp/s'),
+    ].join('\n');
+
+    const { toolCalls } = adaptTranscript(
+      codexParser.parseTranscript(stream, { sessionLog }).events
+    );
+    expect(toolCalls.map((t) => t.cwd)).toEqual(['/tmp/s', undefined]);
+  });
+
+  it('matches shell-quoted commands against the rollout argv', () => {
+    const stream = commandItem(
+      'c1',
+      String.raw`/bin/bash -lc "printf '%s\\n' \"\$HOME\"; echo 'it'\''s'"`
+    );
+    const sessionLog = rolloutCommand(
+      String.raw`printf '%s\n' "$HOME"; echo 'it'\''s'`,
+      'file:///tmp/s/client-b'
+    );
+
+    const { toolCalls } = adaptTranscript(
+      codexParser.parseTranscript(stream, { sessionLog }).events
+    );
+    expect(toolCalls[0].cwd).toBe('/tmp/s/client-b');
+  });
+
+  it('records no cwd without a session log', () => {
+    const { toolCalls } = adaptTranscript(
+      codexParser.parseTranscript(commandItem('c1', "/bin/bash -lc 'ls'"))
+        .events
+    );
+    expect(toolCalls[0].cwd).toBeUndefined();
+  });
+});
+
+describe('codexParser command completion time', () => {
+  it('sets endedAt from the matched rollout line timestamp', () => {
+    const stream = [
+      commandItem('c1', "/bin/bash -lc 'supabase start'"),
+      commandItem('c2', "/bin/bash -lc 'supabase status'"),
+    ].join('\n');
+    const sessionLog = [
+      rolloutCommand(
+        'supabase start',
+        'file:///tmp/s',
+        '2026-10-01T11:48:01.731Z'
+      ),
+      rolloutCommand('supabase status', undefined, '2026-10-01T11:48:09.002Z'),
+    ].join('\n');
+
+    const { toolCalls } = adaptTranscript(
+      codexParser.parseTranscript(stream, { sessionLog }).events
+    );
+    expect(toolCalls.map((t) => t.endedAt)).toEqual([
+      Date.parse('2026-10-01T11:48:01.731Z'),
+      Date.parse('2026-10-01T11:48:09.002Z'),
+    ]);
+    expect(toolCalls.map((t) => t.cwd)).toEqual(['/tmp/s', undefined]);
+  });
+
+  it('leaves endedAt unset when the rollout command does not match', () => {
+    const stream = commandItem('c1', "/bin/bash -lc 'pwd'");
+    const sessionLog = rolloutCommand(
+      'whoami',
+      'file:///tmp/s',
+      '2026-10-01T11:48:01.731Z'
+    );
+
+    const { toolCalls } = adaptTranscript(
+      codexParser.parseTranscript(stream, { sessionLog }).events
+    );
+    expect(toolCalls[0].endedAt).toBeUndefined();
+    expect(toolCalls[0].cwd).toBeUndefined();
+  });
+
+  it('leaves endedAt unset when the rollout timestamp is missing or invalid', () => {
+    const stream = [
+      commandItem('c1', "/bin/bash -lc 'ls'"),
+      commandItem('c2', "/bin/bash -lc 'pwd'"),
+      commandItem('c3', "/bin/bash -lc 'whoami'"),
+    ].join('\n');
+    const sessionLog = [
+      rolloutCommand('ls', 'file:///tmp/s'),
+      rolloutCommand('pwd', 'file:///tmp/s', 'not a date'),
+      rolloutCommand('whoami', 'file:///tmp/s', 1759319281731),
+    ].join('\n');
+
+    const parsed = codexParser.parseTranscript(stream, { sessionLog });
+    expect(parsed.errors).toEqual([]);
+    const { toolCalls } = adaptTranscript(parsed.events);
+    expect(toolCalls.map((t) => t.endedAt)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(toolCalls.map((t) => t.cwd)).toEqual(['/tmp/s', '/tmp/s', '/tmp/s']);
+  });
+});
+
+describe('extractCommandExecutions', () => {
+  it('lists rollout commands in order with normalized cwds and completion times', () => {
+    const rollout = [
+      rolloutCommand(
+        'ls',
+        'file:///tmp/s/client-a',
+        '2026-10-01T11:48:01.731Z'
+      ),
+      '{"truncated":',
+      rolloutCommand('pwd', '/tmp/s'),
+      rolloutCommand('whoami'),
+      JSON.stringify({
+        type: 'response_item',
+        payload: { type: 'function_call', name: 'exec_command' },
+      }),
+    ].join('\n');
+    expect(extractCommandExecutions(rollout)).toEqual([
+      {
+        argv: ['/bin/bash', '-lc', 'ls'],
+        cwd: '/tmp/s/client-a',
+        endedAt: Date.parse('2026-10-01T11:48:01.731Z'),
+      },
+      { argv: ['/bin/bash', '-lc', 'pwd'], cwd: '/tmp/s' },
+      { argv: ['/bin/bash', '-lc', 'whoami'], cwd: undefined },
+    ]);
+    expect(extractCommandExecutions('')).toEqual([]);
   });
 });
 

@@ -110,7 +110,7 @@ export function createCliAgent<M extends string = string>(
       await writeSandboxFile(sandbox, USER_PROMPT_PATH, args.userPrompt);
 
       const start = Date.now();
-      const { command, raw, stepCount } = await runner.exec({
+      const { command, raw, stepCount, sessionLog } = await runner.exec({
         sandbox,
         model: options.model,
         apiKey,
@@ -126,6 +126,7 @@ export function createCliAgent<M extends string = string>(
       const { events } = raw
         ? parser.parseTranscript(raw, {
             mcpServerNames: Object.keys(args.mcpServers ?? {}),
+            sessionLog,
           })
         : { events: [] };
       const adapted = adaptTranscript(events);

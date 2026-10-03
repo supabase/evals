@@ -38,6 +38,31 @@ describe('codexRunner.exec', () => {
   });
 });
 
+describe('codexRunner.exec session log', () => {
+  it('returns the session rollout for the parser', async () => {
+    const rollout = JSON.stringify({
+      type: 'event_msg',
+      payload: { type: 'token_count' },
+    });
+    const result = await codexRunner.exec({
+      sandbox: {
+        workspace: '/w',
+        exec: async (cmd) =>
+          cmd.includes('rollout-*.jsonl') ? { ...ok, stdout: rollout } : ok,
+        readFile: async () => '',
+        copyToHost: async () => {},
+      },
+      model: 'gpt-5.4',
+      apiKey: 'k',
+      userPromptPath: '"$HOME/.eval/user-prompt.txt"',
+      mcpServers: {},
+      timeoutSec: 1,
+    });
+    expect(result.sessionLog).toBe(rollout);
+    expect(result.stepCount).toBe(1);
+  });
+});
+
 describe('codexRunner.extractUsage', () => {
   const extract = codexRunner.extractUsage!;
 

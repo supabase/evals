@@ -206,6 +206,10 @@ export interface ToolCallRecord {
   path?: string;
   command?: string;
   url?: string;
+  /** Absolute directory the agent ran the call in, when its harness records one per call. */
+  cwd?: string;
+  /** Epoch ms the call completed, when its harness records it per call. */
+  endedAt?: number;
   /** Canonical tool category, set by CLI agent parsers; unset for ai-sdk tools which have no normalization layer. */
   name?: ToolName;
   /** Skill names loaded by this call, when the harness can identify any. */
