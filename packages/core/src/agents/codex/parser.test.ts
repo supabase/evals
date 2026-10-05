@@ -362,6 +362,28 @@ describe('enrichFromRollout', () => {
       ['b', 't4', 'r3'],
     ]);
   });
+
+  it('adds only itemless empty messages when messages do not pair', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t2', 'r1'),
+      usageRecord('t3', 'r2'),
+      line('t4', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t5', 'r3'),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'a' },
+    ];
+    enrichFromRollout(events, rollout);
+    expect(events.map((e) => [e.content, e.timestamp, e.requestId])).toEqual([
+      ['a', undefined, undefined],
+      ['', 't3', 'r2'],
+    ]);
+  });
 });
 
 describe('enrichFromRollout tool pairing', () => {
@@ -457,6 +479,32 @@ describe('enrichFromRollout tool pairing', () => {
         [issued('c1', 't1'), completed('c1', 'pwd'), finished('c1', 't2')]
       )
     ).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('adds only itemless empty messages when tools do not pair', () => {
+    const events = [
+      ...call('item_1', '/bin/bash -lc pwd'),
+      ...call('item_2', '/bin/bash -lc ls'),
+    ];
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    enrichFromRollout(
+      events,
+      [
+        issued('c1', 't1'),
+        completed('c1', 'pwd'),
+        usageRecord('t2', 'r1'),
+        finished('c1', 't3'),
+        usageRecord('t4', 'r2'),
+      ].join('\n')
+    );
+    expect(events.map((e) => [e.type, e.requestId])).toEqual([
+      ['tool_call', undefined],
+      ['tool_result', undefined],
+      ['tool_call', undefined],
+      ['tool_result', undefined],
+      ['message', 'r2'],
+    ]);
   });
 
   it('ignores non-tool rollout items', () => {

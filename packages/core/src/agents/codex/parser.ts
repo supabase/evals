@@ -257,8 +257,11 @@ const ROLLOUT_TOOL_ITEMS = new Set([
  * rollout, which the `--json` stream lacks. The two streams list tool items and
  * assistant messages in the same order but under different ids, so they're
  * paired by position. Tool pairs must also agree on the command or MCP tool,
- * and any count or content mismatch leaves that kind of event untouched.
- * A request no event came from, like a compaction call, gets an empty message.
+ * and any count or content mismatch leaves those messages or tool calls
+ * untouched. A request no event came from, like a compaction call, gets an
+ * empty message. If the messages or tool calls didn't pair, only a request with
+ * no `response_item` records gets one, since the others may just be missing
+ * their requestId.
  *
  *   rollout: reasoning → message → function_call(c1) → token_usage_record(r1)
  *            → function_call_output(c1)
@@ -271,6 +274,8 @@ export function enrichFromRollout(
   interface Request {
     id?: string;
     usage?: RequestUsage;
+    /** No response item before its usage record, like a compaction call. */
+    itemless?: boolean;
   }
   const callStarts = new Map<string, { at?: string; request: Request }>();
   const callEnds = new Map<string, string | undefined>();
@@ -283,7 +288,7 @@ export function enrichFromRollout(
     const at = str(record.timestamp);
     const payload = isRecord(record.payload) ? record.payload : {};
     if (record.type === 'token_usage_record') {
-      const request = open ?? {};
+      const request = open ?? { itemless: true };
       request.id = str(payload.response_id);
       request.usage = rolloutUsage(payload.usage);
       requests.push({ at, request });
@@ -320,37 +325,39 @@ export function enrichFromRollout(
   const assistant = events.filter(
     (e) => e.type === 'message' && e.role === 'assistant'
   );
-  if (assistant.length === messages.length) {
+  const messagesPaired = assistant.length === messages.length;
+  if (messagesPaired) {
     assistant.forEach((event, i) => {
       event.timestamp = messages[i].at ?? event.timestamp;
       tag(event, messages[i].request);
     });
   }
   const calls = events.filter((e) => e.type === 'tool_call');
-  if (
-    calls.length !== toolItems.length ||
-    calls.some((event, i) => !sameCall(event, toolItems[i]))
-  ) {
-    return;
-  }
-  const callIdByItem = new Map<string, string>();
-  calls.forEach((event, i) => {
-    const itemId = String(toolItems[i].id);
-    const start = callStarts.get(itemId);
-    if (event.tool?.id) callIdByItem.set(event.tool.id, itemId);
-    if (!start) return;
-    event.timestamp = start.at ?? event.timestamp;
-    tag(event, start.request);
-  });
-  for (const event of events) {
-    if (event.type !== 'tool_result' || !event.tool?.id) continue;
-    const callId = callIdByItem.get(event.tool.id);
-    const end = callId ? callEnds.get(callId) : undefined;
-    if (end) event.timestamp = end;
+  const toolsPaired =
+    calls.length === toolItems.length &&
+    calls.every((event, i) => sameCall(event, toolItems[i]));
+  if (toolsPaired) {
+    const callIdByItem = new Map<string, string>();
+    calls.forEach((event, i) => {
+      const itemId = String(toolItems[i].id);
+      const start = callStarts.get(itemId);
+      if (event.tool?.id) callIdByItem.set(event.tool.id, itemId);
+      if (!start) return;
+      event.timestamp = start.at ?? event.timestamp;
+      tag(event, start.request);
+    });
+    for (const event of events) {
+      if (event.type !== 'tool_result' || !event.tool?.id) continue;
+      const callId = callIdByItem.get(event.tool.id);
+      const end = callId ? callEnds.get(callId) : undefined;
+      if (end) event.timestamp = end;
+    }
   }
   const tagged = new Set(events.map((e) => e.requestId));
   for (const { at, request } of requests) {
     if (!request.id || tagged.has(request.id)) continue;
+    // Unpaired events have no requestId, so their requests only look silent.
+    if (!(messagesPaired && toolsPaired) && !request.itemless) continue;
     const silent: TranscriptEvent = {
       type: 'message',
       role: 'assistant',
