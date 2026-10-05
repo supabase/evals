@@ -229,10 +229,12 @@ describe('codexParser', () => {
     });
 
     const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
-    expect(adapted.transcript[0]).toMatchObject({
+    expect(adapted.transcript[0]).toEqual({
+      type: 'tool_call',
       name: 'execute_sql',
       input: args,
       output: toolResult,
+      error: undefined,
     });
     expect(adapted.toolCalls[0].body).toEqual(args);
     expect(adapted.toolCalls[0].result).toEqual(toolResult);

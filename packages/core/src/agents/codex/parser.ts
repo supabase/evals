@@ -192,7 +192,7 @@ function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
           item.output ??
           (isRecord(item.error) ? str(item.error.message) : undefined),
         statusSuccess(item.status),
-        extractArgs(args, CODEX_ARG_FIELDS),
+        {},
         server
           ? { kind: 'mcp', server, toolName: bare }
           : { kind: 'other', toolName: bare }
