@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       experiments:
-        description: "Comma-separated experiment names to run (blank to auto-discover from experiment_suite)"
+        description: "Comma-separated experiment names to run (or set experiment_suite)"
         required: false
         default: ""
       eval:
@@ -12,13 +12,13 @@ on:
         required: false
         default: ""
       suite:
-        description: "Comma-separated eval suites to run"
-        required: true
-        default: "benchmark"
+        description: "Comma-separated eval suites to run (or set eval)"
+        required: false
+        default: ""
       experiment_suite:
-        description: "Comma-separated experiment suites to run (ignored when experiments is set)"
-        required: true
-        default: "benchmark,no-skills"
+        description: "Comma-separated experiment suites to auto-discover from (ignored when experiments is set)"
+        required: false
+        default: ""
       runs:
         description: "Independent scored runs per experiment/eval pair"
         required: true
@@ -107,6 +107,15 @@ jobs:
             sandbox_concurrency="${{ inputs.sandbox_concurrency }}"
             cli_stable_version="${{ inputs.cli_stable_version }}"
             cli_beta_version="${{ inputs.cli_beta_version }}"
+
+            if [ -z "$suite" ] && [ -z "$eval_id" ]; then
+              echo "::error::Set suite or eval to choose which evals to run."
+              exit 1
+            fi
+            if [ -z "$experiment_suite" ] && [ -z "$experiments_override" ]; then
+              echo "::error::Set experiment_suite or experiments to choose which experiments to run."
+              exit 1
+            fi
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             experiments_override=""
             eval_id=""
