@@ -422,7 +422,8 @@ const evalResultShape = {
   //   stepCount 5, toolCallCount 3
   stepCount: z.number().optional(),
   toolCallCount: z.number().optional(),
-  // Wall-clock time of the agent run only. Sandbox boot and scoring are excluded.
+  // Agent time only, from the prompt to the last transcript event (the `task`
+  // span). Falls back to the CLI process time when the transcript has no times.
   agentRunDurationMs: z.number().optional(),
   // Host epoch ms. The run ends when `agent.run()` returns; scoring starts then.
   agentRunStartedAt: z.number().optional(),

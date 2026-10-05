@@ -455,6 +455,7 @@ export type AgentRunResult = {
   stoppedReason: string;
   usage?: AgentUsage;
   stepCount?: number;
+  /** Task time, prompt to last transcript event; see `agentRunDurationMs`. */
   durationMs: number;
   /** Host epoch ms the agent process or model loop started. */
   startedAt: number;
