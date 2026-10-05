@@ -207,6 +207,94 @@ describe('codexParser', () => {
     });
   });
 
+  it("gives an mcp_tool_call's arguments as its input, keeping the result off it", () => {
+    // Shape from a real CLI run: the result can be far larger than the call.
+    const args = { project_id: 'p1', query: 'select 1' };
+    const toolResult = {
+      content: [{ type: 'text', text: '[{"?column?":1}]' }],
+      structured_content: null,
+    };
+    const stream = JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'item_7',
+        type: 'mcp_tool_call',
+        server: 'supabase-mcp',
+        tool: 'execute_sql',
+        arguments: args,
+        result: toolResult,
+        error: null,
+        status: 'completed',
+      },
+    });
+
+    const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
+    expect(adapted.transcript[0]).toEqual({
+      type: 'tool_call',
+      name: 'execute_sql',
+      input: args,
+      output: toolResult,
+      error: undefined,
+    });
+    expect(adapted.toolCalls[0].body).toEqual(args);
+    expect(adapted.toolCalls[0].result).toEqual(toolResult);
+  });
+
+  it('gives an mcp_tool_call with no argument object an empty input', () => {
+    const stream = JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'item_8',
+        type: 'mcp_tool_call',
+        server: 'supabase-mcp',
+        tool: 'list_tables',
+        arguments: null,
+        result: { content: [] },
+        status: 'completed',
+      },
+    });
+    const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
+    expect(adapted.toolCalls[0].body).toEqual({});
+  });
+
+  it.each([
+    {
+      failure: 'an error the MCP tool returned',
+      result: { content: [{ type: 'text', text: 'column does not exist' }] },
+      error: null,
+    },
+    {
+      failure: 'an error Codex raised with no tool result',
+      result: null,
+      error: { message: 'column does not exist' },
+    },
+  ])(
+    'surfaces $failure as the failed call error, not as input',
+    ({ result, error }) => {
+      const stream = JSON.stringify({
+        type: 'item.completed',
+        item: {
+          id: 'item_9',
+          type: 'mcp_tool_call',
+          server: 'supabase-mcp',
+          tool: 'execute_sql',
+          arguments: { query: 'select child_table' },
+          result,
+          error,
+          status: 'failed',
+        },
+      });
+      const adapted = adaptTranscript(
+        codexParser.parseTranscript(stream).events
+      );
+      expect(adapted.toolCalls[0].body).toEqual({
+        query: 'select child_table',
+      });
+      expect(adapted.toolCalls[0].result).toBeUndefined();
+      expect(adapted.toolCalls[0].error).toContain('column does not exist');
+    }
+  );
+
   it("keeps a web_search item's action, which says what the hosted tool did", () => {
     const url = 'https://supabase.com/changelog.md';
     const stream = JSON.stringify({
