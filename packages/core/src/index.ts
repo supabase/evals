@@ -455,7 +455,12 @@ export type AgentRunResult = {
   stoppedReason: string;
   usage?: AgentUsage;
   stepCount?: number;
+  /** Task time, prompt to last transcript event; see `agentRunDurationMs`. */
   durationMs: number;
+  /** Host epoch ms the agent process or model loop started. */
+  startedAt: number;
+  /** Epoch ms the CLI recorded the user prompt, from its session files. */
+  promptAt?: number;
 };
 
 export type AgentHarness = {
@@ -882,6 +887,7 @@ export function aiSdkAgent(options: {
           usage,
           stepCount: result.steps.length,
           durationMs: Date.now() - start,
+          startedAt: start,
         };
       } finally {
         await closeMcpHandles(mcpHandles);

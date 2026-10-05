@@ -60,7 +60,8 @@ export const grokRunner: AgentRunner<GrokModel> = {
     const updates = await sandbox.exec(
       `cat ${this.sessionDir}/*/*/updates.jsonl`
     );
-    if (updates.ok) enrichFromUpdates(events, updates.stdout);
+    if (!updates.ok) return;
+    return { promptAt: enrichFromUpdates(events, updates.stdout) };
   },
 
   async install(sandbox, version, apiKey) {

@@ -21,7 +21,7 @@
 
 import { rmSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
-import type { AgentHarness, AgentRunResult } from '../index.js';
+import type { AgentHarness, AgentRunResult, TranscriptPart } from '../index.js';
 import type { ModelProvider, ReasoningEffortLevel } from '../eval-metadata.js';
 import { adaptTranscript } from '../parsers/adapt.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
@@ -121,8 +121,6 @@ export function createCliAgent<M extends string = string>(
         reasoningEffort: options.reasoningEffort,
         timeoutSec: args.timeoutSec,
       });
-      const durationMs = Date.now() - start;
-
       const { events } = raw
         ? parser.parseTranscript(raw, {
             mcpServerNames: Object.keys(args.mcpServers ?? {}),
@@ -176,10 +174,29 @@ export function createCliAgent<M extends string = string>(
         stepCount:
           (enriched ? enriched.stepCount : undefined) ??
           runner.extractStepCount?.(raw),
-        durationMs,
+        // 0 when the task's time is unknown or it never ran.
+        durationMs: taskDurationMs(adapted.transcript, enriched?.promptAt) ?? 0,
+        startedAt: start,
+        promptAt: enriched ? enriched.promptAt : undefined,
       };
     },
   };
+}
+
+/**
+ * Time from the prompt to the last transcript event, the same window as the
+ * `task` span. Both ends come from the sandbox clock.
+ */
+export function taskDurationMs(
+  transcript: TranscriptPart[],
+  promptAt: number | undefined
+): number | undefined {
+  const times = transcript.flatMap((part) => [
+    part.ts ?? 0,
+    part.type === 'tool_call' ? (part.resultTs ?? 0) : 0,
+  ]);
+  const lastAt = Math.max(0, ...times);
+  return promptAt && lastAt > promptAt ? lastAt - promptAt : undefined;
 }
 
 function requireApiKey(runner: AgentRunner): string {
