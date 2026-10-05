@@ -121,8 +121,6 @@ export function createCliAgent<M extends string = string>(
         reasoningEffort: options.reasoningEffort,
         timeoutSec: args.timeoutSec,
       });
-      const processMs = Date.now() - start;
-
       const { events } = raw
         ? parser.parseTranscript(raw, {
             mcpServerNames: Object.keys(args.mcpServers ?? {}),
@@ -176,8 +174,8 @@ export function createCliAgent<M extends string = string>(
         stepCount:
           (enriched ? enriched.stepCount : undefined) ??
           runner.extractStepCount?.(raw),
-        durationMs:
-          taskDurationMs(adapted.transcript, enriched?.promptAt) ?? processMs,
+        // 0 when the task's time is unknown or it never ran.
+        durationMs: taskDurationMs(adapted.transcript, enriched?.promptAt) ?? 0,
         startedAt: start,
         promptAt: enriched ? enriched.promptAt : undefined,
       };

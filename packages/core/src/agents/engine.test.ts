@@ -205,4 +205,32 @@ describe('taskDurationMs', () => {
       )
     ).toBeUndefined();
   });
+
+  it('reports 0 for a run whose task time is unknown', async () => {
+    process.env[API_KEY_ENV_VAR] = 'k';
+    const runner: AgentRunner = {
+      id: 'claude-code',
+      displayName: 'Fake CLI',
+      apiKeyEnvVar: API_KEY_ENV_VAR,
+      cliPackage: 'fake-cli',
+      defaultCliVersion: '1.0.0',
+      defaultModel: 'fake-model',
+      install: async () => {},
+      exec: async () => ({ command: ok, raw: 'x' }),
+    };
+    const run = await createCliAgent(runner, parser, {
+      model: 'fake-model',
+    }).run({
+      systemPrompt: '',
+      userPrompt: 'the task',
+      timeoutSec: 1,
+      sandbox: {
+        workspace: '/w',
+        exec: async () => ok,
+        readFile: async () => '',
+        copyToHost: async () => {},
+      },
+    });
+    expect(run.durationMs).toBe(0);
+  });
 });
