@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createJudgeRecorder } from '@supabase-evals/core';
 import { bootPlatformBackend } from '../harness/platform-backend.js';
 import { viteBuild, vitestRun } from '../harness/project-runner.js';
 import type {
@@ -51,6 +52,7 @@ function scorerCtx(
     toolCalls: [],
     transcript: extra?.transcript ?? [],
     agentReport: extra?.agentReport,
+    judge: createJudgeRecorder().judge,
   };
 }
 
@@ -191,6 +193,7 @@ function serviceRoleBypassCtx(
     },
     toolCalls: [],
     transcript: [],
+    judge: createJudgeRecorder().judge,
   };
 }
 

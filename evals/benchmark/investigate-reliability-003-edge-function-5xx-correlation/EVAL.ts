@@ -1,5 +1,4 @@
 import {
-  judge,
   serializeTranscript,
   type CheckResult,
   type ToolScorer,
@@ -10,7 +9,7 @@ const scorer: ToolScorer = async (ctx) => {
   const input = serializeTranscript(ctx.transcript);
 
   const [signalFound, correlationMade, nextStepGiven] = await Promise.all([
-    judge({
+    ctx.judge({
       input,
       rubric: stripIndent`
         Pass if the assistant identified image-transform as the affected function and recognized the recurring pattern of HTTP 503 responses throughout the morning of 2026-04-28 (covering most or all of the 8 gateway failures spread across 07:00Z-12:00Z).
@@ -18,7 +17,7 @@ const scorer: ToolScorer = async (ctx) => {
         Fail if the assistant missed image-transform entirely, flagged only the old billing-webhook 503s from 2026-04-26 as the main issue, or gave only a vague description of errors without naming the function and the recurring pattern.
       `,
     }),
-    judge({
+    ctx.judge({
       input,
       rubric: stripIndent`
         The failing image-transform 503s originate at the gateway / Edge Functions platform layer (in front of the function), not from the function's own code.
@@ -30,7 +29,7 @@ const scorer: ToolScorer = async (ctx) => {
         Fail if the assistant: blames the image-transform function code or runtime as the primary cause, recommends fixing or redeploying the function as the remediation, treats the gateway 503s as equivalent to function-level errors, or gives no layer attribution at all.
       `,
     }),
-    judge({
+    ctx.judge({
       input,
       rubric: stripIndent`
         Pass if the assistant recommended a concrete next step, such as escalating or opening an incident with the gateway request IDs and time window, checking Edge Function platform or runtime health, reviewing deployment or routing configuration, or investigating correlated infrastructure logs.

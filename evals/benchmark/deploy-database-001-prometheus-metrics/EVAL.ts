@@ -1,10 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  judge,
-  type CheckResult,
-  type LocalStackScorer,
-} from '@supabase-evals/core';
+import { type CheckResult, type LocalStackScorer } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 
 const PROMETHEUS_PATH = 'observability/prometheus.yml';
@@ -33,7 +29,7 @@ const scorer: LocalStackScorer = async (ctx) => {
   `;
 
   const [prometheusConfig, deploymentDocs] = await Promise.all([
-    judge({
+    ctx.judge({
       input,
       rubric: stripIndent`
         Pass if prometheus.yml adds a deployable Supabase Metrics API scrape for <project-ref>.supabase.co or <project-ref>.supabase.red.
@@ -41,7 +37,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         Fail for bearer auth, hardcoded Secret API keys, missing/mismatched secret wiring, wrong endpoint, missing project target, or removing the app job.
       `,
     }),
-    judge({
+    ctx.judge({
       input,
       rubric: stripIndent`
         Pass if README.md explains how to make the integration live and verify it.

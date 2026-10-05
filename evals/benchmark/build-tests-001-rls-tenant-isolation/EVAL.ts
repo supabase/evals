@@ -1,5 +1,4 @@
 import {
-  judge,
   serializeTranscript,
   type CheckResult,
   type LocalStackEvalContext,
@@ -49,7 +48,7 @@ async function checkTestFilesExist(
 async function checkAgentDiagnosis(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: serializeTranscript(ctx.transcript, { includeToolCallInputs: true }),
     rubric: stripIndent`
       Pass if the agent correctly identifies that the \`posts\` table has a broken
