@@ -108,6 +108,19 @@ export {
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';
 export type { DocsResultSandbox } from './docs-results.js';
+export {
+  docsPath,
+  fetchLinksFromNetwork,
+  linkedPaths,
+  scoreWayfinding,
+} from './wayfinding.js';
+export type {
+  FetchLinks,
+  WayfindingEntrySurface,
+  WayfindingFetch,
+  WayfindingProvenance,
+  WayfindingResult,
+} from './wayfinding.js';
 // CLI agent harnesses (Claude Code, Codex, OpenCode, and the framework for adding more).
 export { createCliAgent } from './agents/engine.js';
 export { claudeCodeAgent } from './agents/claude-code/index.js';
