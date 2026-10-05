@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   experimentName,
+  judgeMetrics,
   logTranscript,
   runViewUrl,
   unwrapShell,
@@ -365,13 +366,8 @@ describe('judge spans', () => {
           system: 'sys',
           prompt: 'Rubric:\nr',
           output: { passed: true, notes: 'ok' },
-          usage: {
-            model: 'gpt-6-sol',
-            inputTokens: 100,
-            cacheReadInputTokens: 0,
-            cacheWriteInputTokens: 0,
-            outputTokens: 7,
-          },
+          model: 'gpt-6-sol',
+          usage: { inputTokens: 100, outputTokens: 7, reasoningTokens: 5 },
           startedAt: 120_000,
           durationMs: 4000,
         },
@@ -392,8 +388,19 @@ describe('judge spans', () => {
         { role: 'user', content: 'Rubric:\nr' },
       ],
       output: { passed: true, notes: 'ok' },
-      metrics: { prompt_tokens: 100, completion_tokens: 7, tokens: 107 },
+      metrics: {
+        prompt_tokens: 100,
+        completion_tokens: 7,
+        completion_reasoning_tokens: 5,
+        tokens: 107,
+      },
       metadata: { model: 'gpt-6-sol', provider: 'openai' },
+    });
+  });
+
+  it('omits unreported judge token counts', () => {
+    expect(judgeMetrics({ outputTokens: 12 })).toEqual({
+      completion_tokens: 12,
     });
   });
 });

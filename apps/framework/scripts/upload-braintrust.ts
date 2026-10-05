@@ -204,6 +204,28 @@ export function tokenMetrics(
   return metrics;
 }
 
+/**
+ * Maps only the counts the provider reported, so missing usage stays missing.
+ * https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/token-and-cost-metrics.md#canonical-metrics
+ */
+export function judgeMetrics(
+  usage: JudgeCall['usage']
+): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  const set = (key: string, value: number | undefined) => {
+    if (value !== undefined) metrics[key] = value;
+  };
+  set('prompt_tokens', usage.inputTokens);
+  set('prompt_cached_tokens', usage.cacheReadInputTokens);
+  set('prompt_cache_creation_tokens', usage.cacheWriteInputTokens);
+  set('completion_tokens', usage.outputTokens);
+  set('completion_reasoning_tokens', usage.reasoningTokens);
+  if (usage.inputTokens !== undefined && usage.outputTokens !== undefined) {
+    metrics.tokens = usage.inputTokens + usage.outputTokens;
+  }
+  return metrics;
+}
+
 function toolLabels(toolCalls: unknown): (string | undefined)[] {
   if (!Array.isArray(toolCalls)) {
     return [];
@@ -629,7 +651,7 @@ export function logTranscript(
   });
   for (const call of row.judgeCalls) {
     const span = scorer.startSpan({
-      name: call.usage.model,
+      name: call.model,
       type: 'llm',
       spanAttributes: { purpose: 'scorer' },
       startTime: call.startedAt / 1000,
@@ -640,8 +662,8 @@ export function logTranscript(
         { role: 'user', content: call.prompt },
       ],
       output: call.output,
-      metrics: tokenMetrics([call.usage]),
-      metadata: { model: call.usage.model, provider: call.provider },
+      metrics: judgeMetrics(call.usage),
+      metadata: { model: call.model, provider: call.provider },
     });
     span.end({ endTime: (call.startedAt + call.durationMs) / 1000 });
   }

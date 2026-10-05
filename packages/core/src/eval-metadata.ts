@@ -333,7 +333,17 @@ export const judgeCallSchema = z.object({
   system: z.string(),
   prompt: z.string(),
   output: z.object({ passed: z.boolean(), notes: z.string() }),
-  usage: modelUsageSchema,
+  model: z.string(),
+  /** Each count is absent when the provider didn't report it. */
+  usage: z
+    .object({
+      inputTokens: z.number(),
+      cacheReadInputTokens: z.number(),
+      cacheWriteInputTokens: z.number(),
+      outputTokens: z.number(),
+      reasoningTokens: z.number(),
+    })
+    .partial(),
   /** Host epoch ms. */
   startedAt: z.number(),
   durationMs: z.number(),

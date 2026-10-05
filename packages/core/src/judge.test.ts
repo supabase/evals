@@ -1,3 +1,4 @@
+import { MockLanguageModelV3 } from 'ai/test';
 import { describe, expect, it } from 'vitest';
 import { createJudgeRecorder, type JudgeInput } from './index.js';
 
@@ -12,13 +13,8 @@ const fakeJudge: Parameters<typeof createJudgeRecorder>[0] = async ({
       system: 'sys',
       prompt: rubric,
       output: { passed: rubric === 'a', notes: rubric },
-      usage: {
-        model: 'gpt-6-sol',
-        inputTokens: 1,
-        cacheReadInputTokens: 0,
-        cacheWriteInputTokens: 0,
-        outputTokens: 1,
-      },
+      model: 'gpt-6-sol',
+      usage: { inputTokens: 1, outputTokens: 1 },
       startedAt: 0,
       durationMs: 0,
     },
@@ -47,5 +43,33 @@ describe('createJudgeRecorder', () => {
       'rate limited'
     );
     expect(recorder.finish()).toEqual([]);
+  });
+
+  it('records reported usage and leaves unreported counts out', async () => {
+    const model = new MockLanguageModelV3({
+      modelId: 'judge-model',
+      doGenerate: {
+        content: [{ type: 'text', text: '{"passed":true,"notes":"ok"}' }],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        usage: {
+          inputTokens: {
+            total: undefined,
+            noCache: undefined,
+            cacheRead: undefined,
+            cacheWrite: undefined,
+          },
+          outputTokens: { total: 12, text: 2, reasoning: 10 },
+        },
+        warnings: [],
+      },
+    });
+    const recorder = createJudgeRecorder();
+    await recorder.judge({ model, input: 'x', rubric: 'r' });
+    const [call] = recorder.finish();
+    expect(call?.model).toBe('judge-model');
+    expect(JSON.parse(JSON.stringify(call?.usage))).toEqual({
+      outputTokens: 12,
+      reasoningTokens: 10,
+    });
   });
 });
