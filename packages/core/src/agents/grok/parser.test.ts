@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { grokParser } from './parser.js';
+import { enrichFromUpdates, grokParser } from './parser.js';
 import { buildGrokConfig, grokRunner } from './runner.js';
 import type { AgentSandbox } from '../types.js';
 
@@ -404,5 +404,63 @@ describe('grok runner: GROK_HOME', () => {
     const warmup = calls.at(-1)!;
     expect(warmup.command).toContain(EXPANDS);
     expect(warmup.env).not.toHaveProperty('GROK_HOME');
+  });
+});
+
+describe('grok request timing and usage', () => {
+  it('numbers steps by usage events and times events from updates.jsonl', () => {
+    const { events } = grokParser.parseTranscript(
+      [
+        // Tool calls follow `usage`, as in Grok's real stdout.
+        JSON.stringify({ type: 'text', data: 'Looking.' }),
+        JSON.stringify({
+          type: 'usage',
+          usage: {
+            input_tokens: 5,
+            cache_read_input_tokens: 3,
+            output_tokens: 1,
+          },
+        }),
+        JSON.stringify({
+          type: 'tool_call',
+          toolCallId: 'c1',
+          toolName: 'read_file',
+          rawInput: {},
+        }),
+        JSON.stringify({
+          type: 'tool_call_update',
+          toolCallId: 'c1',
+          status: 'completed',
+          rawOutput: {},
+        }),
+      ].join('\n')
+    );
+    const update = (ms: number, update: object) =>
+      JSON.stringify({ params: { _meta: { agentTimestampMs: ms }, update } });
+    enrichFromUpdates(
+      events,
+      [
+        update(1000, { sessionUpdate: 'agent_message_chunk' }),
+        update(1500, { sessionUpdate: 'agent_message_chunk' }),
+        update(2000, { sessionUpdate: 'tool_call', toolCallId: 'c1' }),
+        update(3000, {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'c1',
+          status: 'completed',
+        }),
+      ].join('\n')
+    );
+    const iso = (ms: number) => new Date(ms).toISOString();
+    expect(events.map((e) => [e.type, e.timestamp, e.requestId])).toEqual([
+      ['message', iso(1500), 'step-0'],
+      ['tool_call', iso(2000), 'step-0'],
+      ['tool_result', iso(3000), undefined],
+    ]);
+    expect(events[0].usage).toEqual({
+      inputTokens: 8,
+      cacheReadInputTokens: 3,
+      cacheWriteInputTokens: 0,
+      outputTokens: 1,
+    });
   });
 });

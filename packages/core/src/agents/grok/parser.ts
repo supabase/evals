@@ -36,6 +36,7 @@
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  RequestUsage,
   ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
@@ -227,10 +228,83 @@ function loadedSkills(
   return inline ? extractLoadedSkillsFromText(inline) : [];
 }
 
+/** Grok counts cache reads out of `input_tokens`, so they're added back. */
+function stepUsage(usage: unknown): RequestUsage | undefined {
+  if (!isRecord(usage)) return undefined;
+  const cacheRead = Number(usage.cache_read_input_tokens) || 0;
+  const cacheWrite = Number(usage.cache_creation_input_tokens) || 0;
+  return {
+    inputTokens: (Number(usage.input_tokens) || 0) + cacheRead + cacheWrite,
+    cacheReadInputTokens: cacheRead,
+    cacheWriteInputTokens: cacheWrite,
+    outputTokens: Number(usage.output_tokens) || 0,
+  };
+}
+
+/**
+ * Fills in event times from the session's `updates.jsonl`, which the stdout
+ * stream lacks. Tool calls match by `toolCallId`. Assistant messages pair by
+ * position with runs of `agent_message_chunk`, and take the run's last time.
+ */
+export function enrichFromUpdates(
+  events: TranscriptEvent[],
+  updates: string
+): void {
+  const callStarts = new Map<string, number>();
+  const callEnds = new Map<string, number>();
+  const messageEnds: number[] = [];
+  let inMessage = false;
+  for (const record of parseJsonlRecords(updates).records) {
+    const params = isRecord(record.params) ? record.params : {};
+    const meta = isRecord(params._meta) ? params._meta : {};
+    const update = isRecord(params.update) ? params.update : {};
+    const at = Number(meta.agentTimestampMs) || undefined;
+    const kind = update.sessionUpdate;
+    const id = str(update.toolCallId);
+    if (kind === 'agent_message_chunk') {
+      if (!inMessage) messageEnds.push(0);
+      if (at) messageEnds[messageEnds.length - 1] = at;
+      inMessage = true;
+      continue;
+    }
+    inMessage = false;
+    if (!id || !at) continue;
+    if (kind === 'tool_call') callStarts.set(id, at);
+    if (
+      kind === 'tool_call_update' &&
+      statusSuccess(update.status) !== undefined
+    ) {
+      callEnds.set(id, at);
+    }
+  }
+  const iso = (ms: number | undefined) =>
+    ms ? new Date(ms).toISOString() : undefined;
+  for (const event of events) {
+    const id = event.tool?.id;
+    if (!id) continue;
+    const at =
+      event.type === 'tool_call' ? callStarts.get(id) : callEnds.get(id);
+    event.timestamp = iso(at) ?? event.timestamp;
+  }
+  const messages = events.filter(
+    (e) => e.type === 'message' && e.role === 'assistant'
+  );
+  if (messages.length !== messageEnds.length) return;
+  messages.forEach((event, i) => {
+    event.timestamp = iso(messageEnds[i]) ?? event.timestamp;
+  });
+}
+
 export const grokParser: AgentTranscriptParser = {
   parseTranscript(raw: string): ParsedTranscript {
     const { records, errors } = parseJsonlRecords(raw);
     const events: TranscriptEvent[] = [];
+    // Each model call ends with a `usage` event, so steps number the requests.
+    let step = 0;
+    const stepUsages = new Map<string, RequestUsage>();
+    const requestId = () => `step-${step}`;
+    // Grok emits a request's tool calls after its `usage` event.
+    const toolRequestId = () => `step-${Math.max(step - 1, 0)}`;
 
     // Join the adjacent events of one type into one event.
     let textBuffer = '';
@@ -239,7 +313,12 @@ export const grokParser: AgentTranscriptParser = {
       const content = textBuffer.trim();
       textBuffer = '';
       if (content) {
-        events.push({ type: 'message', role: 'assistant', content });
+        events.push({
+          type: 'message',
+          role: 'assistant',
+          content,
+          requestId: requestId(),
+        });
       }
     };
     const flushThought = () => {
@@ -316,7 +395,11 @@ export const grokParser: AgentTranscriptParser = {
             const skills = loadedSkills(args, normalized);
             if (skills.length > 0) tool.loadedSkills = skills;
 
-            events.push({ type: 'tool_call', tool });
+            events.push({
+              type: 'tool_call',
+              tool,
+              requestId: toolRequestId(),
+            });
             pending.set(id, { id, originalName, call, args });
             break;
           }
@@ -347,9 +430,14 @@ export const grokParser: AgentTranscriptParser = {
             flushAll();
             break;
           }
-          // The `available_commands` and `usage` events make no transcript
-          // event. The `extractUsage` function in the runner reads the token
-          // data directly from the stream.
+          case 'usage': {
+            flushAll();
+            const usage = stepUsage(record.usage);
+            if (usage) stepUsages.set(requestId(), usage);
+            step += 1;
+            break;
+          }
+          // The `available_commands` event makes no transcript event.
           default:
             break;
         }
@@ -362,6 +450,10 @@ export const grokParser: AgentTranscriptParser = {
     // A run that stops early can leave a call with no last update. Send these
     // calls with no status, thus the record contains them.
     for (const call of pending.values()) emitResult(call);
+    for (const event of events) {
+      const usage = event.requestId && stepUsages.get(event.requestId);
+      if (usage) event.usage = usage;
+    }
 
     return { events, errors };
   },

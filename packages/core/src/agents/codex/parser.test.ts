@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { codexParser } from './parser.js';
+import { codexParser, enrichFromRollout } from './parser.js';
 import { codexRunner } from './runner.js';
 import { adaptTranscript } from '../../parsers/adapt.js';
+import type { TranscriptEvent } from '../../transcript/types.js';
 
 /** A representative `codex exec --json` stream (shapes captured from CLI 0.138). */
 const SESSION = [
@@ -368,5 +369,280 @@ describe('codexRunner.deriveStopReason', () => {
       stderr: 'timed out',
     };
     expect(codexRunner.deriveStopReason!('', timedOut)).toBe('timeout');
+  });
+});
+
+describe('enrichFromRollout', () => {
+  it('pairs stdout events with rollout records by position', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      line('t2', 'response_item', { type: 'function_call', call_id: 'c1' }),
+      line('t3', 'token_usage_record', {
+        response_id: 'r1',
+        usage: { input_tokens: 10, cached_input_tokens: 4, output_tokens: 2 },
+      }),
+      line('t4', 'event_msg', {
+        type: 'item_completed',
+        item: {
+          type: 'CommandExecution',
+          id: 'c1',
+          command: ['/bin/bash', '-lc', 'ls'],
+        },
+      }),
+      line('t5', 'response_item', {
+        type: 'function_call_output',
+        call_id: 'c1',
+      }),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'hi' },
+      {
+        type: 'tool_call',
+        tool: {
+          name: 'shell',
+          originalName: 'x',
+          id: 'item_1',
+          command: '/bin/bash -lc ls',
+        },
+      },
+      {
+        type: 'tool_result',
+        tool: { name: 'shell', originalName: 'x', id: 'item_1' },
+      },
+    ];
+    enrichFromRollout(events, rollout);
+    const usage = {
+      inputTokens: 10,
+      cacheReadInputTokens: 4,
+      cacheWriteInputTokens: 0,
+      outputTokens: 2,
+    };
+    expect(events.map((e) => [e.timestamp, e.requestId, e.usage])).toEqual([
+      ['t1', 'r1', usage],
+      ['t2', 'r1', usage],
+      ['t5', undefined, undefined],
+    ]);
+  });
+
+  it('adds an empty message for a request with no events', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t2', 'r1'),
+      // A compaction call, which leaves no response item.
+      usageRecord('t3', 'r2'),
+      line('t4', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t5', 'r3'),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'a' },
+      { type: 'message', role: 'assistant', content: 'b' },
+    ];
+    enrichFromRollout(events, rollout);
+    expect(events.map((e) => [e.content, e.timestamp, e.requestId])).toEqual([
+      ['a', 't1', 'r1'],
+      ['', 't3', 'r2'],
+      ['b', 't4', 'r3'],
+    ]);
+  });
+
+  it('adds only itemless empty messages when messages do not pair', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t2', 'r1'),
+      usageRecord('t3', 'r2'),
+      line('t4', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t5', 'r3'),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'a' },
+    ];
+    enrichFromRollout(events, rollout);
+    expect(events.map((e) => [e.content, e.timestamp, e.requestId])).toEqual([
+      ['a', undefined, undefined],
+      ['', 't3', 'r2'],
+    ]);
+  });
+});
+
+describe('enrichFromRollout tool pairing', () => {
+  const line = (timestamp: string, type: string, payload: object) =>
+    JSON.stringify({ timestamp, type, payload });
+  const issued = (id: string, at: string) =>
+    line(at, 'response_item', { type: 'function_call', call_id: id });
+  const completed = (id: string, script: string) =>
+    line('', 'event_msg', {
+      type: 'item_completed',
+      item: {
+        type: 'CommandExecution',
+        id,
+        command: ['/bin/bash', '-lc', script],
+      },
+    });
+  const finished = (id: string, at: string) =>
+    line(at, 'response_item', { type: 'function_call_output', call_id: id });
+  const call = (id: string, command: string): TranscriptEvent[] => [
+    {
+      type: 'tool_call',
+      tool: { name: 'shell', originalName: 'x', id, command },
+    },
+    { type: 'tool_result', tool: { name: 'shell', originalName: 'x', id } },
+  ];
+  const times = (events: TranscriptEvent[], rollout: string[]) => {
+    enrichFromRollout(events, rollout.join('\n'));
+    return events.map((e) => e.timestamp);
+  };
+
+  it('matches shell-quoted commands to the argv', () => {
+    expect(
+      times(call('item_1', `/bin/bash -lc 'cat "a b.txt"'`), [
+        issued('c1', 't1'),
+        completed('c1', 'cat "a b.txt"'),
+        finished('c1', 't2'),
+      ])
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('skips all pairing when one command has extra arguments', () => {
+    expect(
+      times(
+        [
+          ...call('item_1', '/bin/bash -lc pwd'),
+          ...call('item_2', '/bin/bash -lc ls -la'),
+        ],
+        [
+          issued('c1', 't1'),
+          completed('c1', 'pwd'),
+          finished('c1', 't2'),
+          issued('c2', 't3'),
+          completed('c2', 'ls'),
+          finished('c2', 't4'),
+        ]
+      )
+    ).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('matches a redacted secret', () => {
+    expect(
+      times(
+        call('item_1', `/bin/bash -lc 'login --password [REDACTED_SECRET]'`),
+        [
+          issued('c1', 't1'),
+          completed('c1', 'login --password hunter2'),
+          finished('c1', 't2'),
+        ]
+      )
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('rejects different text around a redacted secret', () => {
+    expect(
+      times(
+        call('item_1', `/bin/bash -lc 'logout --password [REDACTED_SECRET]'`),
+        [
+          issued('c1', 't1'),
+          completed('c1', 'login --password hunter2'),
+          finished('c1', 't2'),
+        ]
+      )
+    ).toEqual([undefined, undefined]);
+  });
+
+  it('skips all pairing when the rollout is missing a command', () => {
+    expect(
+      times(
+        [
+          ...call('item_1', '/bin/bash -lc pwd'),
+          ...call('item_2', '/bin/bash -lc ls'),
+        ],
+        [issued('c1', 't1'), completed('c1', 'pwd'), finished('c1', 't2')]
+      )
+    ).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('adds only itemless empty messages when tools do not pair', () => {
+    const events = [
+      ...call('item_1', '/bin/bash -lc pwd'),
+      ...call('item_2', '/bin/bash -lc ls'),
+    ];
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    enrichFromRollout(
+      events,
+      [
+        issued('c1', 't1'),
+        completed('c1', 'pwd'),
+        usageRecord('t2', 'r1'),
+        finished('c1', 't3'),
+        usageRecord('t4', 'r2'),
+      ].join('\n')
+    );
+    expect(events.map((e) => [e.type, e.requestId])).toEqual([
+      ['tool_call', undefined],
+      ['tool_result', undefined],
+      ['tool_call', undefined],
+      ['tool_result', undefined],
+      ['message', 'r2'],
+    ]);
+  });
+
+  it('ignores non-tool rollout items', () => {
+    expect(
+      times(call('item_1', '/bin/bash -lc pwd'), [
+        issued('c1', 't1'),
+        line('', 'event_msg', {
+          type: 'item_completed',
+          item: { type: 'ContextCompaction', id: 'cc_1' },
+        }),
+        completed('c1', 'pwd'),
+        finished('c1', 't2'),
+      ])
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('pairs repeated commands in order', () => {
+    const command = `/bin/bash -lc 'supabase status'`;
+    expect(
+      times(
+        [...call('item_1', command), ...call('item_2', command)],
+        [
+          issued('c1', 't1'),
+          completed('c1', 'supabase status'),
+          finished('c1', 't2'),
+          issued('c2', 't3'),
+          completed('c2', 'supabase status'),
+          finished('c2', 't4'),
+        ]
+      )
+    ).toEqual(['t1', 't2', 't3', 't4']);
+  });
+
+  it('pairs parallel calls in completion order', () => {
+    // c1 starts first, but both streams list c2 first because it finished first.
+    expect(
+      times(
+        [
+          ...call('item_2', `/bin/bash -lc 'echo hi'`),
+          ...call('item_1', `/bin/bash -lc 'sleep 2'`),
+        ],
+        [
+          issued('c1', 't1'),
+          issued('c2', 't2'),
+          completed('c2', 'echo hi'),
+          finished('c2', 't3'),
+          completed('c1', 'sleep 2'),
+          finished('c1', 't4'),
+        ]
+      )
+    ).toEqual(['t2', 't3', 't1', 't4']);
   });
 });
