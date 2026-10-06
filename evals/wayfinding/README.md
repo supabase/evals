@@ -3,8 +3,10 @@
 These evals measure how an agent finds its way through the Supabase docs, not
 what a single page teaches. Each prompt is a developer's question with no docs
 URL. The agent gets the docs root and has only `WebFetch` and the Supabase MCP
-`search_docs` tool, plus `Read` and `Grep` to open a search result the CLI saved
-to a file for being too large. Use the `claude-code-sonnet-5-wayfinding` experiment.
+`search_docs` tool, plus `Read`, `Grep`, and `Bash` to open a search result the CLI
+saved to a file for being too large. That file is one long JSON line, so in
+practice only a shell tool like `jq` can read it. A `curl` of a docs page
+counts as a fetch. Use the `claude-code-sonnet-5-wayfinding` experiment.
 
 Each `EVAL.ts` names the target pages that answer the question, any
 `ALTERNATES` that duplicate a target, and the facts a correct answer covers.

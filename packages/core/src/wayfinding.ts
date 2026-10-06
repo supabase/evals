@@ -69,7 +69,12 @@ const LINK_PATTERNS = [
 // Same stub shapes docs-results.ts rehydrates from.
 const PERSISTED_PATH_PATTERN =
   /(?:Output has been saved to|Full output saved to:)\s*(\S+)/;
-const RESULT_HREF_PATTERN = /"href":"(https:\/\/supabase\.com\/[^"]+)"/g;
+// A search result's page url, as an `href` field (raw or pretty-printed, as
+// `jq` prints it) or alone on a line (`jq -r`).
+const RESULT_HREF_PATTERNS = [
+  /"href"\s*:\s*"(https:\/\/supabase\.com\/[^"]+)"/g,
+  /^\s*(https:\/\/supabase\.com\/\S+)\s*$/gm,
+];
 
 /**
  * A supabase.com url as a comparable path: `docs/` and `.md` dropped, no
@@ -132,12 +137,15 @@ function isNotFound(call: ToolCallRecord): boolean {
 }
 
 /** The file a Read or Grep call opened, if any. */
-function openedPath(call: ToolCallRecord): string | undefined {
-  if (call.name !== 'file_read' && call.name !== 'grep') return undefined;
-  if (call.path) return call.path;
+/** Whether a Read, Grep, or shell call opened the file at `saved`. */
+function opens(call: ToolCallRecord, saved: string): boolean {
+  if (call.name === 'shell') {
+    const command = call.command ?? call.body.command;
+    return typeof command === 'string' && command.includes(saved);
+  }
+  if (call.name !== 'file_read' && call.name !== 'grep') return false;
   const { file_path, path } = call.body;
-  if (typeof file_path === 'string') return file_path;
-  return typeof path === 'string' ? path : undefined;
+  return [call.path, file_path, path].includes(saved);
 }
 
 /** Extracts every supabase.com docs path linked from a page's raw text. */
@@ -216,16 +224,19 @@ export async function scoreWayfinding({
   };
 
   for (const toolCall of toolCalls) {
-    const opened = openedPath(toolCall);
-    const saved = opened ? persisted.get(opened) : undefined;
+    const saved = [...persisted].find(([file]) => opens(toolCall, file))?.[1];
     if (saved) {
-      const paths = [...resultText(toolCall).matchAll(RESULT_HREF_PATTERN)]
+      const text = resultText(toolCall);
+      const paths = RESULT_HREF_PATTERNS.flatMap((pattern) => [
+        ...text.matchAll(pattern),
+      ])
         .map((match) => docsPath(match[1]))
         .filter((path): path is string => path !== null);
       saved.search.opened = true;
       saved.search.targetHit ||= paths.some(isWanted);
       for (const path of paths) searchedPaths.add(path);
-      reach(saved.hop, paths);
+      // A list of urls is a search hit, not a read of the page.
+      if (/"content"\s*:/.test(text)) reach(saved.hop, paths);
       continue;
     }
 

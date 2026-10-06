@@ -213,6 +213,44 @@ describe('scoreWayfinding with truncated search results', () => {
   });
 });
 
+describe('scoreWayfinding with a shell read of a saved result', () => {
+  it('records a hit, not a read, when jq prints only urls', async () => {
+    const saved = '/home/node/.claude/projects/x/tool-results/toolu_2.json';
+    const SEED = 'guides/local-development/seeding-your-database';
+    const result = await scoreWayfinding({
+      toolCalls: [
+        {
+          tool: parseClaudeCodeToolCall('mcp__supabase-mcp__search_docs'),
+          body: {
+            graphql_query:
+              '{ searchDocs(query: "seed") { nodes { href content } } }',
+          },
+          result: `<persisted-output>\nOutput too large (60KB). Full output saved to: ${saved}`,
+          ts: 0,
+        },
+        {
+          tool: parseClaudeCodeToolCall('Bash'),
+          body: {
+            command: `jq -r '.[0].text | fromjson | .result.searchDocs.nodes[].href' ${saved}`,
+          },
+          name: 'shell',
+          command: `jq -r '.[0].text | fromjson | .result.searchDocs.nodes[].href' ${saved}`,
+          result: `${DOCS}/guides/local-development/cli-workflows\n${DOCS}/${SEED}\n`,
+          ts: 0,
+        },
+      ],
+      targets: [SEED],
+      fetchLinks: noLinks,
+    });
+    expect(result.searches[0]).toMatchObject({
+      truncated: true,
+      opened: true,
+      targetHit: true,
+    });
+    expect(result.hopsToTarget).toBeNull();
+  });
+});
+
 describe('scoreWayfinding with alternates', () => {
   it('reaches a duplicate page and says so', async () => {
     const result = await scoreWayfinding({
