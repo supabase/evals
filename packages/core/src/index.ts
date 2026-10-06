@@ -47,6 +47,7 @@ import type {
   EvalSuite,
   ExperimentDisplayMetadata,
   ExperimentSuite,
+  JudgeCall,
   ModelProvider,
   ReasoningEffortLevel,
 } from './eval-metadata.js';
@@ -303,6 +304,8 @@ export interface ToolEvalContext extends ToolScoringContext {
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   agentReport?: string;
+  /** Ask an LLM judge whether `input` meets `rubric`. Each call shows up in the run's trace. */
+  judge: (args: JudgeInput) => Promise<JudgeResult>;
 }
 
 /**
@@ -410,6 +413,8 @@ export interface LocalStackEvalContext extends LocalStackScoringContext {
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   agentReport?: string;
+  /** See {@link ToolEvalContext.judge}. */
+  judge: (args: JudgeInput) => Promise<JudgeResult>;
   /**
    * Host-side copy of the agent's workspace, exported from the sandbox after
    * the run. Lets scorers run host tooling (vite/vitest from the repo root)
@@ -697,24 +702,60 @@ const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   },
 };
 
-export async function judge(args: JudgeInput): Promise<JudgeResult> {
+const JUDGE_SYSTEM =
+  'You are a strict eval judge. Return only the requested structured judgment.';
+
+async function judge(
+  args: JudgeInput
+): Promise<{ verdict: JudgeResult; call: JudgeCall }> {
   const model = args.model ?? DEFAULT_JUDGE_MODEL;
   const providerOptions =
     args.providerOptions ?? DEFAULT_JUDGE_PROVIDER_OPTIONS;
   assertProviderReady(model.provider);
-  const { output } = await generateText({
+  const prompt = ['Rubric:', args.rubric, '', 'Input:', args.input].join('\n');
+  const startedAt = Date.now();
+  const { output, totalUsage } = await generateText({
     model,
-    system:
-      'You are a strict eval judge. Return only the requested structured judgment.',
-    prompt: ['Rubric:', args.rubric, '', 'Input:', args.input].join('\n'),
+    system: JUDGE_SYSTEM,
+    prompt,
     output: Output.object({ schema: judgeOutputSchema }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     providerOptions: withProviderDefaults(model.provider, providerOptions),
   });
 
   return {
-    passed: output.passed,
-    notes: output.notes,
+    verdict: { passed: output.passed, notes: output.notes },
+    call: {
+      // AI SDK reports `openai.responses`, so keep the vendor like agent spans do.
+      // https://github.com/vercel/ai/blob/f6e588173713842794c619f9554a4b341c6e97f5/packages/openai/src/openai-provider.ts#L231
+      provider: model.provider.split('.')[0] ?? model.provider,
+      system: JUDGE_SYSTEM,
+      prompt,
+      output,
+      model: model.modelId,
+      usage: {
+        inputTokens: totalUsage.inputTokens,
+        cacheReadInputTokens: totalUsage.inputTokenDetails.cacheReadTokens,
+        cacheWriteInputTokens: totalUsage.inputTokenDetails.cacheWriteTokens,
+        outputTokens: totalUsage.outputTokens,
+        reasoningTokens: totalUsage.outputTokenDetails.reasoningTokens,
+      },
+      startedAt,
+      durationMs: Date.now() - startedAt,
+    },
+  };
+}
+
+/** Records one run's successful `judge` calls. Read them back with `finish()`. */
+export function createJudgeRecorder(run: typeof judge = judge) {
+  const calls: JudgeCall[] = [];
+  return {
+    judge: async (args: JudgeInput): Promise<JudgeResult> => {
+      const { verdict, call } = await run(args);
+      calls.push(call);
+      return verdict;
+    },
+    finish: (): readonly JudgeCall[] => [...calls],
   };
 }
 
