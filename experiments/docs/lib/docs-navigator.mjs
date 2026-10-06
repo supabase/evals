@@ -9,7 +9,11 @@
  * DOCS_NAVIGATOR_SERVE=1, so its functions can also be imported and tested.
  */
 
-export const DOCS_ROOT = 'https://supabase.com/docs';
+// Serves the docs from another host, such as a deploy preview, when set.
+const ORIGIN = process.env.DOCS_NAVIGATOR_ORIGIN ?? 'https://supabase.com';
+const DOCS_HOSTS = new Set(['supabase.com', new URL(ORIGIN).hostname]);
+
+export const DOCS_ROOT = `${ORIGIN}/docs`;
 export const BLOCKED_PREFIX = 'Not opened:';
 
 const MAX_CONTENT_CHARS = 40_000;
@@ -17,7 +21,10 @@ const MAX_LINKS = 250;
 const ASSET_PATTERN =
   /\.(png|jpe?g|gif|svg|webp|ico|css|js|xml|json|txt|pdf)$/i;
 
-/** A supabase.com url without query, anchor, `.md`, or trailing slash; null for other hosts. */
+/**
+ * A supabase.com url without query, anchor, `.md`, or trailing slash; null for
+ * other hosts. Docs urls point at the docs origin.
+ */
 export function normalizeUrl(url, base) {
   let parsed;
   try {
@@ -25,10 +32,11 @@ export function normalizeUrl(url, base) {
   } catch {
     return null;
   }
-  if (parsed.hostname !== 'supabase.com') return null;
+  if (!DOCS_HOSTS.has(parsed.hostname)) return null;
   const path = parsed.pathname.replace(/\.md$/, '').replace(/\/+$/, '');
   if (ASSET_PATTERN.test(path)) return null;
-  return `https://supabase.com${path}`;
+  const isDocs = path === '/docs' || path.startsWith('/docs/');
+  return `${isDocs ? ORIGIN : 'https://supabase.com'}${path}`;
 }
 
 function decodeEntities(text) {
@@ -121,8 +129,7 @@ export async function renderPage(url, overlay = {}) {
 
 const TOOL = {
   name: 'open_page',
-  description:
-    'Open a Supabase docs page and read it. You can open https://supabase.com/docs, or any link listed on a page you have already opened. Each page lists its links at the end.',
+  description: `Open a Supabase docs page and read it. You can open ${DOCS_ROOT}, or any link listed on a page you have already opened. Each page lists its links at the end.`,
   inputSchema: {
     type: 'object',
     properties: {

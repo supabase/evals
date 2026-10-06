@@ -15,7 +15,8 @@ const NAVIGATOR_SOURCE = readFileSync(
 
 /** The link-only docs navigator, run inside the sandbox from its source. */
 function docsNavigatorMcpServer(
-  overlay: typeof PROPOSED_LINKS
+  overlay: typeof PROPOSED_LINKS,
+  docsOrigin?: string
 ): McpServerDefinition {
   return {
     name: 'docs-navigator',
@@ -27,6 +28,7 @@ function docsNavigatorMcpServer(
           env: {
             DOCS_NAVIGATOR_SERVE: '1',
             DOCS_NAVIGATOR_OVERLAY: JSON.stringify(overlay),
+            ...(docsOrigin ? { DOCS_NAVIGATOR_ORIGIN: docsOrigin } : {}),
           },
         },
       };
@@ -39,12 +41,15 @@ function docsNavigatorMcpServer(
  * `open_page` from the docs navigator, so it reaches a page by following
  * links from the docs root and never from a url it remembers. With
  * `proposedLinks`, the navigator adds the links in `PROPOSED_LINKS`, to
- * measure an IA fix before it ships.
+ * measure an IA fix before it ships. With `docsOrigin`, it serves the docs
+ * from another host, such as a deploy preview.
  */
 export function wayfindingExperiment({
   proposedLinks,
+  docsOrigin,
 }: {
   proposedLinks: boolean;
+  docsOrigin?: string;
 }): ExperimentConfig {
   return defineExperiment({
     agent: claudeCodeAgent({
@@ -53,7 +58,9 @@ export function wayfindingExperiment({
       tools: [],
     }),
     runtime: platformLiteRuntime({
-      mcpServers: [docsNavigatorMcpServer(proposedLinks ? PROPOSED_LINKS : {})],
+      mcpServers: [
+        docsNavigatorMcpServer(proposedLinks ? PROPOSED_LINKS : {}, docsOrigin),
+      ],
     }),
     suite: ['wayfinding'],
     skills: [],

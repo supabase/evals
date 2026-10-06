@@ -9,7 +9,7 @@ export const REACHED_TARGET_CHECK = 'reached a target page in under 10 hops';
 
 const NAVIGATOR_TOOL = 'open_page';
 // The docs navigator's replies, from experiments/docs/lib/docs-navigator.mjs.
-const OPENED_PATTERN = /Opened: (https:\/\/supabase\.com[^\s"\\]*)/;
+const OPENED_PATTERN = /Opened: (https:\/\/[^\s"\\]*)/;
 const BLOCKED_PREFIX = 'Not opened:';
 
 /**
