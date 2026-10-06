@@ -9,7 +9,7 @@
  * transcript: saved results have truncated search output rehydrated.
  *
  * Usage: pnpm wayfinding-report [--experiment <name>]...
- * Defaults to both arms, with and without the docs search tool.
+ * Defaults to the navigation, counterfactual, memory, and closed-book arms.
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -27,9 +27,10 @@ import { collectResultFiles, readPrompt, ROOT } from '../lib/result-files.js';
 
 const FACTS_CHECK = 'answer covers the key facts';
 const ARMS = [
-  'claude-code-sonnet-5-wayfinding-search',
-  'claude-code-sonnet-5-wayfinding-browse',
   'claude-code-sonnet-5-wayfinding-navigate',
+  'claude-code-sonnet-5-wayfinding-navigate-linked',
+  'claude-code-sonnet-5-wayfinding-browse',
+  'claude-code-sonnet-5-wayfinding-closed-book',
 ];
 const flagged = readRepeatedFlag(process.argv.slice(2), 'experiment');
 const experiments = flagged.length > 0 ? flagged : ARMS;
@@ -111,6 +112,8 @@ function summarize(runs: Run[]): string[] {
       : '–',
     `${reached.length}/${runs.length}${viaAlternate ? ` (${viaAlternate} via duplicate)` : ''}`,
     spread(reached.map((run) => run.wayfinding.hopsToTarget as number)),
+    tally(runs.map((run) => run.wayfinding.severity)),
+    `${runs.reduce((sum, run) => sum + run.wayfinding.blockedFetches.length, 0)}`,
     spread(runs.map((run) => run.wayfinding.otherPages.length)),
     `${runs.reduce((sum, run) => sum + run.wayfinding.notFound.length, 0)}`,
     searched
@@ -129,6 +132,8 @@ const HEADER = [
   'Search returned target',
   'Reached target',
   'Hops to target',
+  'Severity',
+  'Blocked memory jumps',
   'Other pages',
   '404s',
   'Searches truncated (opened)',
@@ -212,7 +217,7 @@ function comparison(arms: Array<[string, Map<string, Run[]>]>): string {
       return [
         `${arm}: reached`,
         `${arm}: hops`,
-        `${arm}: guessed fetches`,
+        `${arm}: big failures`,
         `${arm}: facts`,
       ];
     }),
@@ -227,11 +232,7 @@ function comparison(arms: Array<[string, Map<string, Run[]>]>): string {
       return [
         `${reached.length}/${runs.length}`,
         spread(reached.map((run) => run.wayfinding.hopsToTarget as number)),
-        (() => {
-          const fetches = runs.flatMap((run) => run.wayfinding.fetches);
-          const guesses = fetches.filter((f) => f.provenance === 'guess');
-          return `${guesses.length}/${fetches.length}`;
-        })(),
+        `${runs.filter((run) => run.wayfinding.severity === 'big failure').length}/${runs.length}`,
         `${runs.filter((run) => run.factsPassed).length}/${runs.length}`,
       ];
     }),

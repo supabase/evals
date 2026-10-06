@@ -1,3 +1,3 @@
 import { wayfindingExperiment } from './lib/wayfinding.js';
 
-export default wayfindingExperiment('browse');
+export default wayfindingExperiment('navigate-linked');

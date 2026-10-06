@@ -7,6 +7,7 @@ import {
   linkedPaths,
   pageFingerprints,
   scoreWayfinding,
+  severityOf,
 } from './wayfinding.js';
 
 const RLS = 'guides/database/postgres/row-level-security';
@@ -424,5 +425,60 @@ describe('scoreWayfinding redirects', () => {
       isTarget: true,
     });
     expect(result.otherPages).toEqual([]);
+  });
+});
+
+describe('scoreWayfinding with the docs navigator', () => {
+  const open = (url: string, result: string): ToolCallRecord => ({
+    tool: parseClaudeCodeToolCall('mcp__docs-navigator__open_page'),
+    body: { url },
+    result,
+    ts: 0,
+  });
+
+  it('reads open_page calls as fetches and counts blocked memory jumps', async () => {
+    const result = await scoreWayfinding({
+      toolCalls: [
+        open(
+          `${DOCS}/guides/platform/sso`,
+          'Not opened: that url isn’t linked'
+        ),
+        open(DOCS, `Opened: ${DOCS}\n\nLinks on this page`),
+        open(`${DOCS}/guides/platform`, 'Opened: platform hub'),
+        open(`${DOCS}/guides/platform/sso`, 'Opened: SSO'),
+      ],
+      targets: ['guides/platform/sso'],
+      fetchLinks: async (url) =>
+        url === DOCS ? ['guides/platform'] : ['guides/platform/sso'],
+      fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
+    });
+    expect(result.blockedFetches).toEqual(['guides/platform/sso']);
+    expect(result.hopsToTarget).toBe(3);
+    expect(result.severity).toBe('clean');
+    expect(result.fetches.slice(1).map((f) => f.provenance)).toEqual([
+      'prompt',
+      'link',
+      'link',
+    ]);
+    expect(result.notFound).toEqual([]);
+  });
+});
+
+describe('severityOf', () => {
+  it('bands hops, with ten or more and never reached as big failures', () => {
+    expect(
+      [0, 3, 4, 6, 7, 9, 10, 15, null].map((hops) => severityOf(hops))
+    ).toEqual([
+      'clean',
+      'clean',
+      'friction',
+      'friction',
+      'failure',
+      'failure',
+      'big failure',
+      'big failure',
+      'big failure',
+    ]);
   });
 });

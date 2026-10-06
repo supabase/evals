@@ -26,6 +26,8 @@ export type WayfindingProvenance =
 export interface WayfindingFetch {
   url: string;
   path: string;
+  /** The navigator refused it: the url wasn't linked from a page the agent had opened. */
+  blocked?: boolean;
   /** Where the url redirected, when it did. */
   redirectedTo?: string;
   provenance: WayfindingProvenance;
@@ -62,6 +64,54 @@ export interface WayfindingResult {
    * experiment that withholds the search tool.
    */
   searchApiFetches: string[];
+  /**
+   * Urls the docs navigator refused because no opened page linked them: the
+   * agent reaching for a page it remembers instead of navigating to it.
+   */
+  blockedFetches: string[];
+  severity: WayfindingSeverity;
+}
+
+/**
+ * How bad a run's wayfinding was, by hops to the target. Ten hops or more, or
+ * never reaching it, is a big failure.
+ */
+export type WayfindingSeverity =
+  | 'clean'
+  | 'friction'
+  | 'failure'
+  | 'big failure';
+
+export const SEVERITY_HOPS = {
+  friction: 4,
+  failure: 7,
+  bigFailure: 10,
+} as const;
+
+export function severityOf(hopsToTarget: number | null): WayfindingSeverity {
+  if (hopsToTarget === null || hopsToTarget >= SEVERITY_HOPS.bigFailure)
+    return 'big failure';
+  if (hopsToTarget >= SEVERITY_HOPS.failure) return 'failure';
+  if (hopsToTarget >= SEVERITY_HOPS.friction) return 'friction';
+  return 'clean';
+}
+
+const NAVIGATOR_TOOL = 'open_page';
+// The docs navigator's refusal, from experiments/docs/lib/docs-navigator.mjs.
+const NAVIGATOR_BLOCKED_PREFIX = 'Not opened:';
+
+/** A docs navigator `open_page` call, read as the page fetch it is. */
+function asPageFetch(call: ToolCallRecord): ToolCallRecord {
+  if (call.tool.toolName !== NAVIGATOR_TOOL) return call;
+  const url = typeof call.body.url === 'string' ? call.body.url : undefined;
+  return url ? { ...call, name: 'web_fetch', url } : call;
+}
+
+function isBlocked(call: ToolCallRecord): boolean {
+  return (
+    call.tool.toolName === NAVIGATOR_TOOL &&
+    `${call.error ?? ''}${resultText(call)}`.includes(NAVIGATOR_BLOCKED_PREFIX)
+  );
 }
 
 /** Returns every url linked from the page at `url`, as the agent's fetch would have seen it. */
@@ -381,7 +431,9 @@ export async function scoreWayfinding({
     reachedTarget = path;
   };
 
-  for (const toolCall of toolCalls) {
+  for (const original of toolCalls) {
+    const toolCall = asPageFetch(original);
+    const blocked = isBlocked(original);
     const call = buildDocsResult([toolCall]).calls[0];
     if (!call) {
       // Not a docs call: a Read, Grep, or script, often over a saved search
@@ -404,14 +456,19 @@ export async function scoreWayfinding({
     const isFetch =
       call.source === 'web_fetch' || call.source === 'shell_fetch';
     const notFound =
-      isFetch && toolCall.name === 'web_fetch' && isNotFound(toolCall);
+      isFetch &&
+      toolCall.name === 'web_fetch' &&
+      !blocked &&
+      isNotFound(toolCall);
+    // The agent read nothing from a missing or refused page.
+    const unread = notFound || blocked;
     const pages: Array<{ url: string; path: string; landed: string }> = [];
     for (const page of call.pages) {
       const path = docsPath(page.url);
       if (path === null) continue;
       // Only a fetch follows a redirect; a search result names its own page.
       const landed =
-        isFetch && !notFound && !isWanted(path)
+        isFetch && !unread && !isWanted(path)
           ? await resolveRedirect(path)
           : path;
       pages.push({ url: page.url, path, landed });
@@ -456,13 +513,14 @@ export async function scoreWayfinding({
           isTarget: targetSet.has(landed),
           isAlternate: alternateSet.has(landed),
           notFound,
+          ...(blocked ? { blocked } : {}),
         });
-        fetchedUrls.push(url);
+        if (!blocked) fetchedUrls.push(url);
       }
     }
 
     // A truncated result's preview is a sliver of one page, not a read.
-    if (call.hasContent === true && !notFound && !truncatedTo) {
+    if (call.hasContent === true && !unread && !truncatedTo) {
       reach(
         hop,
         pages.map(({ landed }) => landed)
@@ -486,6 +544,7 @@ export async function scoreWayfinding({
               !f.isTarget &&
               !f.isAlternate &&
               !f.notFound &&
+              !f.blocked &&
               f.path !== DOCS_ROOT &&
               !isLlmsPath(f.path)
           )
@@ -496,6 +555,10 @@ export async function scoreWayfinding({
       ...new Set(fetches.filter((f) => f.notFound).map((f) => f.path)),
     ],
     searches,
+    blockedFetches: [
+      ...new Set(fetches.filter((f) => f.blocked).map((f) => f.path)),
+    ],
+    severity: severityOf(hopsToTarget),
     searchApiFetches: [
       ...new Set(
         fetches.filter((f) => f.path.startsWith('api/')).map((f) => f.path)

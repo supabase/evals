@@ -116,6 +116,8 @@ export {
   pageFingerprints,
   resolveRedirectFromNetwork,
   scoreWayfinding,
+  SEVERITY_HOPS,
+  severityOf,
 } from './wayfinding.js';
 export type {
   FetchLinks,
@@ -125,6 +127,7 @@ export type {
   WayfindingFetch,
   WayfindingProvenance,
   WayfindingResult,
+  WayfindingSeverity,
 } from './wayfinding.js';
 // CLI agent harnesses (Claude Code, Codex, OpenCode, and the framework for adding more).
 export { createCliAgent } from './agents/engine.js';
