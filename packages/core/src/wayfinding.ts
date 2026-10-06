@@ -26,6 +26,8 @@ export type WayfindingProvenance =
 export interface WayfindingFetch {
   url: string;
   path: string;
+  /** Where the url redirected, when it did. */
+  redirectedTo?: string;
   provenance: WayfindingProvenance;
   isTarget: boolean;
   isAlternate: boolean;
@@ -70,6 +72,9 @@ export type FetchLinks = (url: string) => Promise<string[]>;
  * path: the published page, and the copy in the search index, which can lag.
  */
 export type FetchPageVersions = (path: string) => Promise<string[]>;
+
+/** Returns the docs path a path redirects to, or the path itself. */
+export type ResolveRedirect = (path: string) => Promise<string>;
 
 const DOCS_ROOT = 'docs';
 const LINK_PATTERNS = [
@@ -273,6 +278,23 @@ async function fetchIndexedPage(path: string, title: string): Promise<string> {
   }
 }
 
+const redirectCache = new Map<string, Promise<string>>();
+
+/** Follows a docs path's redirects on supabase.com. Cached per path. */
+export const resolveRedirectFromNetwork: ResolveRedirect = (path) => {
+  let resolved = redirectCache.get(path);
+  if (!resolved) {
+    resolved = fetch(`https://supabase.com/docs/${path}`, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(15_000),
+    })
+      .then((res) => (res.redirected ? (docsPath(res.url) ?? path) : path))
+      .catch(() => path);
+    redirectCache.set(path, resolved);
+  }
+  return resolved;
+};
+
 const pageVersionsCache = new Map<string, Promise<string[]>>();
 
 /** Fetches a page's published markdown and its search index copy. Cached per path. */
@@ -308,6 +330,7 @@ export async function scoreWayfinding({
   alternates = [],
   fetchLinks = fetchLinksFromNetwork,
   fetchPageVersions = fetchPageVersionsFromNetwork,
+  resolveRedirect = resolveRedirectFromNetwork,
 }: {
   toolCalls: ToolCallRecord[];
   /** Target pages as docs paths, e.g. `guides/database/postgres/row-level-security`. */
@@ -316,6 +339,7 @@ export async function scoreWayfinding({
   alternates?: string[];
   fetchLinks?: FetchLinks;
   fetchPageVersions?: FetchPageVersions;
+  resolveRedirect?: ResolveRedirect;
 }): Promise<WayfindingResult> {
   const targetSet = new Set(targets);
   const alternateSet = new Set(alternates);
@@ -381,10 +405,17 @@ export async function scoreWayfinding({
       call.source === 'web_fetch' || call.source === 'shell_fetch';
     const notFound =
       isFetch && toolCall.name === 'web_fetch' && isNotFound(toolCall);
-    const pages = call.pages.flatMap((page) => {
+    const pages: Array<{ url: string; path: string; landed: string }> = [];
+    for (const page of call.pages) {
       const path = docsPath(page.url);
-      return path === null ? [] : [{ url: page.url, path }];
-    });
+      if (path === null) continue;
+      // Only a fetch follows a redirect; a search result names its own page.
+      const landed =
+        isFetch && !notFound && !isWanted(path)
+          ? await resolveRedirect(path)
+          : path;
+      pages.push({ url: page.url, path, landed });
+    }
 
     if (hop === 0) {
       entrySurface = entrySurfaceOf(
@@ -411,18 +442,19 @@ export async function scoreWayfinding({
     }
 
     if (isFetch) {
-      for (const { url, path } of pages) {
+      for (const { url, path, landed } of pages) {
         fetches.push({
           url,
           path,
+          ...(landed !== path ? { redirectedTo: landed } : {}),
           provenance: await provenanceOf(
             path,
             searchedPaths,
             fetchedUrls,
             fetchLinks
           ),
-          isTarget: targetSet.has(path),
-          isAlternate: alternateSet.has(path),
+          isTarget: targetSet.has(landed),
+          isAlternate: alternateSet.has(landed),
           notFound,
         });
         fetchedUrls.push(url);
@@ -433,7 +465,7 @@ export async function scoreWayfinding({
     if (call.hasContent === true && !notFound && !truncatedTo) {
       reach(
         hop,
-        pages.map(({ path }) => path)
+        pages.map(({ landed }) => landed)
       );
     }
     if (!isFetch) for (const { path } of pages) searchedPaths.add(path);

@@ -380,10 +380,12 @@ async function runOne(
     cliVersion?: string;
   }
 > {
-  const prompt = parseEvalMarkdown(
-    readFileSync(ev.promptPath, 'utf8'),
-    ev.promptPath
-  ).body;
+  const prompt = [
+    parseEvalMarkdown(readFileSync(ev.promptPath, 'utf8'), ev.promptPath).body,
+    exp.promptSuffix,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
   // A CLI agent always runs in a sandbox and reads skills from disk with its
   // file tools (both modes). An in-process (ai-sdk) agent has no sandbox, so in
   // tools mode its skills are advertised in the prompt and loaded via the

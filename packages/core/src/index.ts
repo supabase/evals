@@ -114,11 +114,13 @@ export {
   fetchPageVersionsFromNetwork,
   linkedPaths,
   pageFingerprints,
+  resolveRedirectFromNetwork,
   scoreWayfinding,
 } from './wayfinding.js';
 export type {
   FetchLinks,
   FetchPageVersions,
+  ResolveRedirect,
   WayfindingEntrySurface,
   WayfindingFetch,
   WayfindingProvenance,
@@ -659,6 +661,12 @@ export type ExperimentConfig = {
    * empty skill list already covers.
    */
   skipEval?: (ev: { id: string; metadata: EvalMetadata }) => boolean;
+  /**
+   * Text appended to every eval's user prompt, for an experiment that varies
+   * how the agent is asked to work rather than what it's asked to do. A CLI
+   * agent takes no system prompt, so the user prompt is the only place for it.
+   */
+  promptSuffix?: string;
 };
 
 export function getExperimentDisplayMetadata(

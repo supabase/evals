@@ -47,6 +47,7 @@ function searchDocs(
 }
 
 const noLinks = async () => [];
+const noRedirect = async (path: string) => path;
 const SEED_PATH = 'guides/local-development/seeding-your-database';
 const pageVersions = async (path: string) =>
   path === SEED_PATH ? [`# Seeding\n\n${SEED_CONTENT}\n`] : [];
@@ -90,6 +91,7 @@ describe('scoreWayfinding', () => {
       targets: [RLS],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result).toMatchObject({
       entrySurface: 'none',
@@ -130,6 +132,7 @@ describe('scoreWayfinding', () => {
       targets: [RLS],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.entrySurface).toBe('search_docs');
     expect(result.searches).toEqual([
@@ -153,6 +156,7 @@ describe('scoreWayfinding', () => {
       targets: [RLS],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.hopsToTarget).toBe(0);
   });
@@ -168,6 +172,7 @@ describe('scoreWayfinding', () => {
       targets: [RLS],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.entrySurface).toBe('html_page');
     expect(result.fetches.map((f) => f.provenance)).toEqual([
@@ -200,6 +205,7 @@ describe('scoreWayfinding with truncated search results', () => {
       targets: [SEED],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.hopsToTarget).toBeNull();
     expect(result.searches).toEqual([
@@ -221,6 +227,7 @@ describe('scoreWayfinding with truncated search results', () => {
       targets: [SEED],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.hopsToTarget).toBe(0);
     expect(result.docsCalls).toBe(2);
@@ -257,6 +264,7 @@ describe('scoreWayfinding with a shell read of a saved result', () => {
       targets: [SEED],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.hopsToTarget).toBe(0);
     expect(result.reachedTarget).toBe(SEED);
@@ -290,6 +298,7 @@ describe('scoreWayfinding with a shell read of a saved result', () => {
       targets: [SEED],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.searches[0]).toMatchObject({
       truncated: true,
@@ -308,6 +317,7 @@ describe('scoreWayfinding with alternates', () => {
       alternates: ['guides/auth/quickstarts/nextjs'],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result).toMatchObject({
       hopsToTarget: 0,
@@ -353,6 +363,7 @@ describe('scoreWayfinding reads by content', () => {
       targets: [SEED_PATH],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.hopsToTarget).toBeNull();
     expect(result.searches[0]).toMatchObject({
@@ -375,6 +386,7 @@ describe('scoreWayfinding reads by content', () => {
       targets: [SEED_PATH],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.hopsToTarget).toBe(0);
     expect(result.searches[0].opened).toBe(true);
@@ -388,7 +400,29 @@ describe('scoreWayfinding search api fetches', () => {
       targets: [SEED_PATH],
       fetchLinks: noLinks,
       fetchPageVersions: pageVersions,
+      resolveRedirect: noRedirect,
     });
     expect(result.searchApiFetches).toEqual(['api/search']);
+  });
+});
+
+describe('scoreWayfinding redirects', () => {
+  it('reaches a target through an old url that redirects to it', async () => {
+    const result = await scoreWayfinding({
+      toolCalls: [webFetch(`${DOCS}/guides/platform/going-into-prod`)],
+      targets: ['guides/deployment/going-into-prod'],
+      fetchLinks: noLinks,
+      fetchPageVersions: pageVersions,
+      resolveRedirect: async (path) =>
+        path === 'guides/platform/going-into-prod'
+          ? 'guides/deployment/going-into-prod'
+          : path,
+    });
+    expect(result.hopsToTarget).toBe(0);
+    expect(result.fetches[0]).toMatchObject({
+      redirectedTo: 'guides/deployment/going-into-prod',
+      isTarget: true,
+    });
+    expect(result.otherPages).toEqual([]);
   });
 });

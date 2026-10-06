@@ -29,6 +29,7 @@ const FACTS_CHECK = 'answer covers the key facts';
 const ARMS = [
   'claude-code-sonnet-5-wayfinding-search',
   'claude-code-sonnet-5-wayfinding-browse',
+  'claude-code-sonnet-5-wayfinding-navigate',
 ];
 const flagged = readRepeatedFlag(process.argv.slice(2), 'experiment');
 const experiments = flagged.length > 0 ? flagged : ARMS;
@@ -208,7 +209,12 @@ function comparison(arms: Array<[string, Map<string, Run[]>]>): string {
     'Area',
     ...arms.flatMap(([name]) => {
       const arm = name.replace(/^.*-wayfinding-/, '');
-      return [`${arm}: reached`, `${arm}: hops`, `${arm}: facts`];
+      return [
+        `${arm}: reached`,
+        `${arm}: hops`,
+        `${arm}: guessed fetches`,
+        `${arm}: facts`,
+      ];
     }),
   ];
   const rows = areas.map((area) => [
@@ -221,6 +227,11 @@ function comparison(arms: Array<[string, Map<string, Run[]>]>): string {
       return [
         `${reached.length}/${runs.length}`,
         spread(reached.map((run) => run.wayfinding.hopsToTarget as number)),
+        (() => {
+          const fetches = runs.flatMap((run) => run.wayfinding.fetches);
+          const guesses = fetches.filter((f) => f.provenance === 'guess');
+          return `${guesses.length}/${fetches.length}`;
+        })(),
         `${runs.filter((run) => run.factsPassed).length}/${runs.length}`,
       ];
     }),

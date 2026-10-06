@@ -16,8 +16,11 @@ import {
  */
 export function wayfindingExperiment({
   search,
+  promptSuffix,
 }: {
   search: boolean;
+  /** An instruction on how to work, appended to every prompt. */
+  promptSuffix?: string;
 }): ExperimentConfig {
   return defineExperiment({
     agent: claudeCodeAgent({
@@ -31,5 +34,6 @@ export function wayfindingExperiment({
     suite: ['wayfinding'],
     skills: [],
     skipEval: (ev) => !ev.id.includes('-wayfinding-'),
+    promptSuffix,
   });
 }
