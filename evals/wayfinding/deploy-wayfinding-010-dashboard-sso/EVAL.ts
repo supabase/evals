@@ -1,7 +1,7 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = ['guides/platform/sso', 'guides/platform/sso/gsuite'];
+export const TARGETS = ['guides/platform/sso', 'guides/platform/sso/gsuite'];
 
 const FACTS = [
   'Sets up SSO at the organization level for signing in to the Supabase dashboard (not Supabase Auth SSO for an app’s own users).',

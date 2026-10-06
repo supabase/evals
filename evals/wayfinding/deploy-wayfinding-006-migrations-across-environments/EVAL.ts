@@ -1,13 +1,13 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = [
+export const TARGETS = [
   'guides/deployment/database-migrations',
   'guides/local-development/database-migrations',
   'guides/deployment/managing-environments',
 ];
 
-const ALTERNATES = ['guides/local-development/cli-workflows'];
+export const ALTERNATES = ['guides/local-development/cli-workflows'];
 
 const FACTS = [
   'Track schema changes as migration files with the Supabase CLI (`supabase migration new` or `supabase db diff`).',

@@ -1,9 +1,9 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = ['guides/getting-started/quickstarts/nextjs'];
+export const TARGETS = ['guides/getting-started/quickstarts/nextjs'];
 
-const ALTERNATES = [
+export const ALTERNATES = [
   'guides/auth/quickstarts/nextjs',
   'guides/auth/server-side/nextjs',
 ];

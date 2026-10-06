@@ -1,7 +1,7 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = ['guides/platform/network-restrictions'];
+export const TARGETS = ['guides/platform/network-restrictions'];
 
 const FACTS = [
   'Uses Network Restrictions, from the dashboard database settings or the Supabase CLI.',

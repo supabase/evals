@@ -1,7 +1,7 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = [
+export const TARGETS = [
   'guides/auth/auth-email-passwordless',
   'guides/auth/server-side/creating-a-client',
 ];

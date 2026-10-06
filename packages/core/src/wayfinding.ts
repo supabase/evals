@@ -55,10 +55,21 @@ export interface WayfindingResult {
   otherPages: string[];
   notFound: string[];
   searches: WayfindingSearch[];
+  /**
+   * Fetches of a docs search endpoint (`/docs/api/...`), a workaround in an
+   * experiment that withholds the search tool.
+   */
+  searchApiFetches: string[];
 }
 
 /** Returns every url linked from the page at `url`, as the agent's fetch would have seen it. */
 export type FetchLinks = (url: string) => Promise<string[]>;
+
+/**
+ * Returns every version of a docs page's markdown an agent could read, by docs
+ * path: the published page, and the copy in the search index, which can lag.
+ */
+export type FetchPageVersions = (path: string) => Promise<string[]>;
 
 const DOCS_ROOT = 'docs';
 const LINK_PATTERNS = [
@@ -69,12 +80,59 @@ const LINK_PATTERNS = [
 // Same stub shapes docs-results.ts rehydrates from.
 const PERSISTED_PATH_PATTERN =
   /(?:Output has been saved to|Full output saved to:)\s*(\S+)/;
-// A search result's page url, as an `href` field (raw or pretty-printed, as
-// `jq` prints it) or alone on a line (`jq -r`).
-const RESULT_HREF_PATTERNS = [
-  /"href"\s*:\s*"(https:\/\/supabase\.com\/[^"]+)"/g,
-  /^\s*(https:\/\/supabase\.com\/\S+)\s*$/gm,
-];
+// Agents print a saved search result in their own format (jq, a node or
+// python script), so a result's url is any supabase.com url in the output.
+const OUTPUT_URL_PATTERN = /https:\/\/supabase\.com\/[^\s"'`)<>\]\\]+/g;
+// A page counts as read when this many of its fingerprints show up in what
+// the agent saw, or all of them for a page with fewer.
+const FINGERPRINTS_PER_PAGE = 8;
+const FINGERPRINTS_TO_READ = 2;
+const FINGERPRINT_CHARS = 60;
+
+/** Every docs path a tool output names by url. */
+function urlPaths(text: string): string[] {
+  return [...text.matchAll(OUTPUT_URL_PATTERN)]
+    .map((match) => docsPath(match[0]))
+    .filter((path): path is string => path !== null);
+}
+
+/** Lowercase words only, so markdown, JSON escaping, and spacing don't matter. */
+function normalize(text: string): string {
+  return text
+    .replace(/\\[nrt]/g, ' ')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Distinctive snippets of a page's prose: the start of its longest plain
+ * paragraphs lines, skipping headings, code, tables, lists, and components.
+ */
+export function pageFingerprints(markdown: string): string[] {
+  let inCode = false;
+  const lines: string[] = [];
+  for (const raw of markdown.split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('```')) inCode = !inCode;
+    if (inCode || !/^[A-Za-z]/.test(line)) continue;
+    const words = normalize(line);
+    if (words.length >= FINGERPRINT_CHARS) lines.push(words);
+  }
+  return [...new Set(lines)]
+    .sort((a, b) => b.length - a.length)
+    .slice(0, FINGERPRINTS_PER_PAGE)
+    .map((words) => words.slice(0, FINGERPRINT_CHARS));
+}
+
+/** Whether a tool output contains enough of a page's fingerprints to count as reading it. */
+function showsPage(normalizedOutput: string, fingerprints: string[]): boolean {
+  if (fingerprints.length === 0) return false;
+  const needed = Math.min(FINGERPRINTS_TO_READ, fingerprints.length);
+  return (
+    fingerprints.filter((fp) => normalizedOutput.includes(fp)).length >= needed
+  );
+}
 
 /**
  * A supabase.com url as a comparable path: `docs/` and `.md` dropped, no
@@ -175,21 +233,81 @@ export const fetchLinksFromNetwork: FetchLinks = (url) => {
   return links;
 };
 
+const SEARCH_INDEX_QUERY = `query ($query: String!) {
+  searchDocs(query: $query, limit: 10) { nodes { href ... on Guide { content } } }
+}`;
+
+async function fetchPublishedPage(path: string): Promise<string> {
+  try {
+    const res = await fetch(`https://supabase.com/docs/${path}.md`, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    return res.ok ? await res.text() : '';
+  } catch {
+    return '';
+  }
+}
+
+/** The search index's copy of a page, found by searching for its title. */
+async function fetchIndexedPage(path: string, title: string): Promise<string> {
+  try {
+    const res = await fetch('https://supabase.com/docs/api/graphql', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        query: SEARCH_INDEX_QUERY,
+        variables: { query: title },
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return '';
+    const body = await res.json();
+    const nodes: Array<{ href?: string; content?: string }> =
+      body?.data?.searchDocs?.nodes ?? [];
+    return (
+      nodes.find((node) => node.href && docsPath(node.href) === path)
+        ?.content ?? ''
+    );
+  } catch {
+    return '';
+  }
+}
+
+const pageVersionsCache = new Map<string, Promise<string[]>>();
+
+/** Fetches a page's published markdown and its search index copy. Cached per path. */
+export const fetchPageVersionsFromNetwork: FetchPageVersions = (path) => {
+  let versions = pageVersionsCache.get(path);
+  if (!versions) {
+    versions = fetchPublishedPage(path).then(async (published) => {
+      const title =
+        published.match(/^# (.+)$/m)?.[1] ?? path.split('/').at(-1) ?? path;
+      const indexed = await fetchIndexedPage(path, title);
+      return [published, indexed].filter(Boolean);
+    });
+    pageVersionsCache.set(path, versions);
+  }
+  return versions;
+};
+
 /**
  * Scores how an agent found its way to the docs pages a task needs: where it
  * entered, how many docs calls it took to reach a target, which pages it
  * fetched on the way, and whether each fetched url came from search, a link,
  * or a guess.
  *
- * Runs on the tool calls as the agent saw them. When the CLI cut a search
- * result down to a preview, only the preview counts until the agent opens the
- * saved file with Read or Grep.
+ * Runs on the tool calls as the agent saw them. A truncated search result
+ * shows only its preview. Any later tool output, such as a script the agent
+ * ran over the saved file, reads a target page when it contains that page's
+ * own prose, matched by fingerprints of the published markdown or of the
+ * search index's copy.
  */
 export async function scoreWayfinding({
   toolCalls,
   targets,
   alternates = [],
   fetchLinks = fetchLinksFromNetwork,
+  fetchPageVersions = fetchPageVersionsFromNetwork,
 }: {
   toolCalls: ToolCallRecord[];
   /** Target pages as docs paths, e.g. `guides/database/postgres/row-level-security`. */
@@ -197,11 +315,26 @@ export async function scoreWayfinding({
   /** Duplicates of a target that answer the task just as well. */
   alternates?: string[];
   fetchLinks?: FetchLinks;
+  fetchPageVersions?: FetchPageVersions;
 }): Promise<WayfindingResult> {
   const targetSet = new Set(targets);
   const alternateSet = new Set(alternates);
   const isWanted = (path: string) =>
     targetSet.has(path) || alternateSet.has(path);
+  const fingerprints = await Promise.all(
+    [...targetSet, ...alternateSet].map(
+      async (path) =>
+        [path, (await fetchPageVersions(path)).map(pageFingerprints)] as const
+    )
+  );
+  const pagesShownBy = (text: string) => {
+    const words = normalize(text);
+    return fingerprints
+      .filter(([, versions]) =>
+        versions.some((prints) => showsPage(words, prints))
+      )
+      .map(([path]) => path);
+  };
 
   const searchedPaths = new Set<string>();
   const fetchedUrls: string[] = [];
@@ -211,6 +344,7 @@ export async function scoreWayfinding({
     string,
     { hop: number; search: WayfindingSearch }
   >();
+  let lastTruncated: { hop: number; search: WayfindingSearch } | undefined;
   let docsCalls = 0;
   let entrySurface: WayfindingEntrySurface = 'none';
   let hopsToTarget: number | null = null;
@@ -224,24 +358,24 @@ export async function scoreWayfinding({
   };
 
   for (const toolCall of toolCalls) {
-    const saved = [...persisted].find(([file]) => opens(toolCall, file))?.[1];
-    if (saved) {
+    const call = buildDocsResult([toolCall]).calls[0];
+    if (!call) {
+      // Not a docs call: a Read, Grep, or script, often over a saved search
+      // result. Credit what it shows to the most recent truncated search.
       const text = resultText(toolCall);
-      const paths = RESULT_HREF_PATTERNS.flatMap((pattern) => [
-        ...text.matchAll(pattern),
-      ])
-        .map((match) => docsPath(match[1]))
-        .filter((path): path is string => path !== null);
-      saved.search.opened = true;
-      saved.search.targetHit ||= paths.some(isWanted);
-      for (const path of paths) searchedPaths.add(path);
-      // A list of urls is a search hit, not a read of the page.
-      if (/"content"\s*:/.test(text)) reach(saved.hop, paths);
+      const read = pagesShownBy(text);
+      const saved =
+        [...persisted].find(([file]) => opens(toolCall, file))?.[1] ??
+        (read.length > 0 ? lastTruncated : undefined);
+      if (saved) {
+        const seen = urlPaths(text);
+        saved.search.opened = true;
+        saved.search.targetHit ||= [...seen, ...read].some(isWanted);
+        for (const path of seen) searchedPaths.add(path);
+      }
+      if (docsCalls > 0) reach(saved?.hop ?? docsCalls - 1, read);
       continue;
     }
-
-    const call = buildDocsResult([toolCall]).calls[0];
-    if (!call) continue;
     const hop = docsCalls++;
     const isFetch =
       call.source === 'web_fetch' || call.source === 'shell_fetch';
@@ -259,10 +393,10 @@ export async function scoreWayfinding({
       );
     }
 
+    const truncatedTo = isFetch
+      ? undefined
+      : resultText(toolCall).match(PERSISTED_PATH_PATTERN)?.[1];
     if (!isFetch) {
-      const truncatedTo = resultText(toolCall).match(
-        PERSISTED_PATH_PATTERN
-      )?.[1];
       const search: WayfindingSearch = {
         query: searchTerm(call.query),
         targetHit: pages.some(({ path }) => isWanted(path)),
@@ -270,8 +404,10 @@ export async function scoreWayfinding({
         opened: false,
       };
       searches.push(search);
-      if (truncatedTo)
-        persisted.set(truncatedTo.replace(/\.+$/, ''), { hop, search });
+      if (truncatedTo) {
+        lastTruncated = { hop, search };
+        persisted.set(truncatedTo.replace(/\.+$/, ''), lastTruncated);
+      }
     }
 
     if (isFetch) {
@@ -293,7 +429,8 @@ export async function scoreWayfinding({
       }
     }
 
-    if (call.hasContent === true && !notFound) {
+    // A truncated result's preview is a sliver of one page, not a read.
+    if (call.hasContent === true && !notFound && !truncatedTo) {
       reach(
         hop,
         pages.map(({ path }) => path)
@@ -327,6 +464,11 @@ export async function scoreWayfinding({
       ...new Set(fetches.filter((f) => f.notFound).map((f) => f.path)),
     ],
     searches,
+    searchApiFetches: [
+      ...new Set(
+        fetches.filter((f) => f.path.startsWith('api/')).map((f) => f.path)
+      ),
+    ],
   };
 }
 

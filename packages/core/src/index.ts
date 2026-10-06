@@ -111,11 +111,14 @@ export type { DocsResultSandbox } from './docs-results.js';
 export {
   docsPath,
   fetchLinksFromNetwork,
+  fetchPageVersionsFromNetwork,
   linkedPaths,
+  pageFingerprints,
   scoreWayfinding,
 } from './wayfinding.js';
 export type {
   FetchLinks,
+  FetchPageVersions,
   WayfindingEntrySurface,
   WayfindingFetch,
   WayfindingProvenance,

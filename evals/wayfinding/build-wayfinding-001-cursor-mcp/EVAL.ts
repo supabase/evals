@@ -1,7 +1,7 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = ['guides/getting-started/mcp', 'guides/ai-tools/mcp'];
+export const TARGETS = ['guides/getting-started/mcp', 'guides/ai-tools/mcp'];
 
 const FACTS = [
   "Adds Supabase's MCP server to Cursor's MCP configuration (for example `.cursor/mcp.json`).",

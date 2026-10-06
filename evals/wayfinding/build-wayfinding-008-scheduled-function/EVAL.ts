@@ -1,13 +1,13 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = [
+export const TARGETS = [
   'guides/functions/schedule-functions',
   'guides/cron/quickstart',
   'guides/cron',
 ];
 
-const ALTERNATES = ['guides/database/extensions/pg_cron'];
+export const ALTERNATES = ['guides/database/extensions/pg_cron'];
 
 const FACTS = [
   'Uses `pg_cron` to schedule the job, with `cron.schedule` and a cron expression for 2am.',

@@ -1,7 +1,7 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = ['guides/local-development/seeding-your-database'];
+export const TARGETS = ['guides/local-development/seeding-your-database'];
 
 const FACTS = [
   'Puts the sample data in a seed file, `supabase/seed.sql` by default.',

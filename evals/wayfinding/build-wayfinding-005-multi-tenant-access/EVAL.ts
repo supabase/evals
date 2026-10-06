@@ -1,7 +1,7 @@
 import { judge, type CheckResult, type ToolScorer } from '@supabase-evals/core';
 import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
-const TARGETS = ['guides/database/postgres/row-level-security'];
+export const TARGETS = ['guides/database/postgres/row-level-security'];
 
 const FACTS = [
   'Enable Row Level Security on the tables.',
