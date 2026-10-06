@@ -469,6 +469,7 @@ describe('Vercel eval controller', () => {
       );
       expect(readdirSync(runDirectory).sort()).toEqual([
         'result.json.partial',
+        'session-archive.tar.gz',
         'workspace.tgz',
       ]);
       expect(
@@ -479,6 +480,7 @@ describe('Vercel eval controller', () => {
       finalizeResult(pendingResult, sandboxUsage);
       expect(readdirSync(runDirectory).sort()).toEqual([
         'result.json',
+        'session-archive.tar.gz',
         'workspace.tgz',
       ]);
       expect(

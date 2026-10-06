@@ -15,6 +15,7 @@ async function captureRunCommand(): Promise<string> {
         return ok;
       },
       readFile: async () => '',
+      copyToHost: async () => {},
     },
     model: 'gpt-5.4',
     apiKey: 'k',

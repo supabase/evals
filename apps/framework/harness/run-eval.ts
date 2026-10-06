@@ -304,6 +304,10 @@ function resultPath(modelName: string, evalId: string, run: number) {
   return join(runDir(modelName, evalId, run), 'result.json');
 }
 
+function sessionArchivePath(modelName: string, evalId: string, run: number) {
+  return join(runDir(modelName, evalId, run), 'session-archive.tar.gz');
+}
+
 function workspacePath(modelName: string, evalId: string, run: number) {
   return join(runDir(modelName, evalId, run), 'workspace');
 }
@@ -369,6 +373,10 @@ async function runOne(
     stepCount?: number;
     toolCallCount: number;
     agentRunDurationMs: number;
+    agentRunStartedAt: number;
+    agentPromptAt?: number;
+    agentRunEndedAt: number;
+    scoringEndedAt: number;
     cliVersion?: string;
   }
 > {
@@ -450,7 +458,9 @@ async function runOne(
       sandbox: session.sandbox,
       mcpServers: session.mcpServers,
       timeoutSec: TIMEOUT_SEC,
+      sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
     });
+    const agentRunEndedAt = Date.now();
     await session.ensureReady?.();
     // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
     // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
@@ -476,6 +486,7 @@ async function runOne(
         return vitestRun(hostWorkspace);
       },
     });
+    const scoringEndedAt = Date.now();
 
     // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
     await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
@@ -498,6 +509,10 @@ async function runOne(
       stepCount: run.stepCount,
       toolCallCount: run.toolCalls.length,
       agentRunDurationMs: run.durationMs,
+      agentRunStartedAt: run.startedAt,
+      agentPromptAt: run.promptAt,
+      agentRunEndedAt,
+      scoringEndedAt,
       cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
     };
   }
@@ -536,13 +551,16 @@ async function runOne(
     mcpServers: session.mcpServers,
     sandbox: cliSandbox?.sandbox,
     timeoutSec: TIMEOUT_SEC,
+    sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
   });
+  const agentRunEndedAt = Date.now();
   const last = await (scorer as ToolScorer)({
     ...session.scoringContext,
     toolCalls: run.toolCalls,
     transcript: run.transcript,
     agentReport: run.agentReport,
   });
+  const scoringEndedAt = Date.now();
 
   // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
   if (cliSandbox)
@@ -562,6 +580,10 @@ async function runOne(
     stepCount: run.stepCount,
     toolCallCount: run.toolCalls.length,
     agentRunDurationMs: run.durationMs,
+    agentRunStartedAt: run.startedAt,
+    agentPromptAt: run.promptAt,
+    agentRunEndedAt,
+    scoringEndedAt,
     // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.
     cliVersion: ev.metadata.cliVersion,
   };
