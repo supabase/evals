@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { codexParser, extractCommandExecutions } from './parser.js';
+import { codexParser, enrichFromRollout } from './parser.js';
 import { codexRunner } from './runner.js';
 import { adaptTranscript } from '../../parsers/adapt.js';
+import type { TranscriptEvent } from '../../transcript/types.js';
 
 /** A representative `codex exec --json` stream (shapes captured from CLI 0.138). */
 const SESSION = [
@@ -207,6 +208,94 @@ describe('codexParser', () => {
     });
   });
 
+  it("gives an mcp_tool_call's arguments as its input, keeping the result off it", () => {
+    // Shape from a real CLI run: the result can be far larger than the call.
+    const args = { project_id: 'p1', query: 'select 1' };
+    const toolResult = {
+      content: [{ type: 'text', text: '[{"?column?":1}]' }],
+      structured_content: null,
+    };
+    const stream = JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'item_7',
+        type: 'mcp_tool_call',
+        server: 'supabase-mcp',
+        tool: 'execute_sql',
+        arguments: args,
+        result: toolResult,
+        error: null,
+        status: 'completed',
+      },
+    });
+
+    const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
+    expect(adapted.transcript[0]).toEqual({
+      type: 'tool_call',
+      name: 'execute_sql',
+      input: args,
+      output: toolResult,
+      error: undefined,
+    });
+    expect(adapted.toolCalls[0].body).toEqual(args);
+    expect(adapted.toolCalls[0].result).toEqual(toolResult);
+  });
+
+  it('gives an mcp_tool_call with no argument object an empty input', () => {
+    const stream = JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'item_8',
+        type: 'mcp_tool_call',
+        server: 'supabase-mcp',
+        tool: 'list_tables',
+        arguments: null,
+        result: { content: [] },
+        status: 'completed',
+      },
+    });
+    const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
+    expect(adapted.toolCalls[0].body).toEqual({});
+  });
+
+  it.each([
+    {
+      failure: 'an error the MCP tool returned',
+      result: { content: [{ type: 'text', text: 'column does not exist' }] },
+      error: null,
+    },
+    {
+      failure: 'an error Codex raised with no tool result',
+      result: null,
+      error: { message: 'column does not exist' },
+    },
+  ])(
+    'surfaces $failure as the failed call error, not as input',
+    ({ result, error }) => {
+      const stream = JSON.stringify({
+        type: 'item.completed',
+        item: {
+          id: 'item_9',
+          type: 'mcp_tool_call',
+          server: 'supabase-mcp',
+          tool: 'execute_sql',
+          arguments: { query: 'select child_table' },
+          result,
+          error,
+          status: 'failed',
+        },
+      });
+      const adapted = adaptTranscript(
+        codexParser.parseTranscript(stream).events
+      );
+      expect(adapted.toolCalls[0].body).toEqual({
+        query: 'select child_table',
+      });
+      expect(adapted.toolCalls[0].result).toBeUndefined();
+      expect(adapted.toolCalls[0].error).toContain('column does not exist');
+    }
+  );
+
   it("keeps a web_search item's action, which says what the hosted tool did", () => {
     const url = 'https://supabase.com/changelog.md';
     const stream = JSON.stringify({
@@ -249,207 +338,6 @@ describe('codexParser', () => {
   });
 });
 
-function commandItem(id: string, command: string): string {
-  return JSON.stringify({
-    type: 'item.completed',
-    item: {
-      id,
-      type: 'command_execution',
-      command,
-      aggregated_output: '',
-      exit_code: 0,
-      status: 'completed',
-    },
-  });
-}
-
-/** A session-rollout `CommandExecution` completion, as Codex writes it to disk. */
-function rolloutCommand(
-  script: string,
-  cwd?: string,
-  timestamp?: unknown
-): string {
-  return JSON.stringify({
-    timestamp,
-    type: 'event_msg',
-    payload: {
-      type: 'item_completed',
-      item: {
-        type: 'CommandExecution',
-        id: 'call_1',
-        command: ['/bin/bash', '-lc', script],
-        cwd,
-      },
-    },
-  });
-}
-
-describe('codexParser command cwd', () => {
-  it('joins each command to its rollout cwd by order', () => {
-    const stream = [
-      commandItem('c1', "/bin/bash -lc 'supabase start'"),
-      JSON.stringify({
-        type: 'item.completed',
-        item: {
-          id: 'f1',
-          type: 'file_change',
-          changes: [],
-          status: 'completed',
-        },
-      }),
-      commandItem('c2', "/bin/bash -lc 'supabase stop --no-backup'"),
-    ].join('\n');
-    const sessionLog = [
-      rolloutCommand('supabase start', 'file:///tmp/s/client-a'),
-      'not json',
-      JSON.stringify({ type: 'event_msg', payload: { type: 'token_count' } }),
-      rolloutCommand('supabase stop --no-backup', 'file:///tmp/s'),
-    ].join('\n');
-
-    const parsed = codexParser.parseTranscript(stream, { sessionLog });
-    expect(parsed.errors).toEqual([]);
-    const { toolCalls } = adaptTranscript(parsed.events);
-    expect(toolCalls.map((t) => t.cwd)).toEqual([
-      '/tmp/s/client-a',
-      undefined,
-      '/tmp/s',
-    ]);
-  });
-
-  it('leaves cwd unset when the rollout command does not match', () => {
-    const stream = [
-      commandItem('c1', "/bin/bash -lc 'ls'"),
-      commandItem('c2', "/bin/bash -lc 'pwd'"),
-    ].join('\n');
-    const sessionLog = [
-      rolloutCommand('ls', 'file:///tmp/s'),
-      rolloutCommand('whoami', 'file:///tmp/s'),
-    ].join('\n');
-
-    const { toolCalls } = adaptTranscript(
-      codexParser.parseTranscript(stream, { sessionLog }).events
-    );
-    expect(toolCalls.map((t) => t.cwd)).toEqual(['/tmp/s', undefined]);
-  });
-
-  it('matches shell-quoted commands against the rollout argv', () => {
-    const stream = commandItem(
-      'c1',
-      String.raw`/bin/bash -lc "printf '%s\\n' \"\$HOME\"; echo 'it'\''s'"`
-    );
-    const sessionLog = rolloutCommand(
-      String.raw`printf '%s\n' "$HOME"; echo 'it'\''s'`,
-      'file:///tmp/s/client-b'
-    );
-
-    const { toolCalls } = adaptTranscript(
-      codexParser.parseTranscript(stream, { sessionLog }).events
-    );
-    expect(toolCalls[0].cwd).toBe('/tmp/s/client-b');
-  });
-
-  it('records no cwd without a session log', () => {
-    const { toolCalls } = adaptTranscript(
-      codexParser.parseTranscript(commandItem('c1', "/bin/bash -lc 'ls'"))
-        .events
-    );
-    expect(toolCalls[0].cwd).toBeUndefined();
-  });
-});
-
-describe('codexParser command completion time', () => {
-  it('sets endedAt from the matched rollout line timestamp', () => {
-    const stream = [
-      commandItem('c1', "/bin/bash -lc 'supabase start'"),
-      commandItem('c2', "/bin/bash -lc 'supabase status'"),
-    ].join('\n');
-    const sessionLog = [
-      rolloutCommand(
-        'supabase start',
-        'file:///tmp/s',
-        '2026-10-01T11:48:01.731Z'
-      ),
-      rolloutCommand('supabase status', undefined, '2026-10-01T11:48:09.002Z'),
-    ].join('\n');
-
-    const { toolCalls } = adaptTranscript(
-      codexParser.parseTranscript(stream, { sessionLog }).events
-    );
-    expect(toolCalls.map((t) => t.endedAt)).toEqual([
-      Date.parse('2026-10-01T11:48:01.731Z'),
-      Date.parse('2026-10-01T11:48:09.002Z'),
-    ]);
-    expect(toolCalls.map((t) => t.cwd)).toEqual(['/tmp/s', undefined]);
-  });
-
-  it('leaves endedAt unset when the rollout command does not match', () => {
-    const stream = commandItem('c1', "/bin/bash -lc 'pwd'");
-    const sessionLog = rolloutCommand(
-      'whoami',
-      'file:///tmp/s',
-      '2026-10-01T11:48:01.731Z'
-    );
-
-    const { toolCalls } = adaptTranscript(
-      codexParser.parseTranscript(stream, { sessionLog }).events
-    );
-    expect(toolCalls[0].endedAt).toBeUndefined();
-    expect(toolCalls[0].cwd).toBeUndefined();
-  });
-
-  it('leaves endedAt unset when the rollout timestamp is missing or invalid', () => {
-    const stream = [
-      commandItem('c1', "/bin/bash -lc 'ls'"),
-      commandItem('c2', "/bin/bash -lc 'pwd'"),
-      commandItem('c3', "/bin/bash -lc 'whoami'"),
-    ].join('\n');
-    const sessionLog = [
-      rolloutCommand('ls', 'file:///tmp/s'),
-      rolloutCommand('pwd', 'file:///tmp/s', 'not a date'),
-      rolloutCommand('whoami', 'file:///tmp/s', 1759319281731),
-    ].join('\n');
-
-    const parsed = codexParser.parseTranscript(stream, { sessionLog });
-    expect(parsed.errors).toEqual([]);
-    const { toolCalls } = adaptTranscript(parsed.events);
-    expect(toolCalls.map((t) => t.endedAt)).toEqual([
-      undefined,
-      undefined,
-      undefined,
-    ]);
-    expect(toolCalls.map((t) => t.cwd)).toEqual(['/tmp/s', '/tmp/s', '/tmp/s']);
-  });
-});
-
-describe('extractCommandExecutions', () => {
-  it('lists rollout commands in order with normalized cwds and completion times', () => {
-    const rollout = [
-      rolloutCommand(
-        'ls',
-        'file:///tmp/s/client-a',
-        '2026-10-01T11:48:01.731Z'
-      ),
-      '{"truncated":',
-      rolloutCommand('pwd', '/tmp/s'),
-      rolloutCommand('whoami'),
-      JSON.stringify({
-        type: 'response_item',
-        payload: { type: 'function_call', name: 'exec_command' },
-      }),
-    ].join('\n');
-    expect(extractCommandExecutions(rollout)).toEqual([
-      {
-        argv: ['/bin/bash', '-lc', 'ls'],
-        cwd: '/tmp/s/client-a',
-        endedAt: Date.parse('2026-10-01T11:48:01.731Z'),
-      },
-      { argv: ['/bin/bash', '-lc', 'pwd'], cwd: '/tmp/s' },
-      { argv: ['/bin/bash', '-lc', 'whoami'], cwd: undefined },
-    ]);
-    expect(extractCommandExecutions('')).toEqual([]);
-  });
-});
-
 describe('codexRunner.deriveStopReason', () => {
   const ok: Parameters<NonNullable<typeof codexRunner.deriveStopReason>>[1] = {
     ok: true,
@@ -481,5 +369,298 @@ describe('codexRunner.deriveStopReason', () => {
       stderr: 'timed out',
     };
     expect(codexRunner.deriveStopReason!('', timedOut)).toBe('timeout');
+  });
+});
+
+describe('enrichFromRollout', () => {
+  it('pairs stdout events with rollout records by position', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      line('t2', 'response_item', { type: 'function_call', call_id: 'c1' }),
+      line('t3', 'token_usage_record', {
+        response_id: 'r1',
+        usage: { input_tokens: 10, cached_input_tokens: 4, output_tokens: 2 },
+      }),
+      line('t4', 'event_msg', {
+        type: 'item_completed',
+        item: {
+          type: 'CommandExecution',
+          id: 'c1',
+          command: ['/bin/bash', '-lc', 'ls'],
+        },
+      }),
+      line('t5', 'response_item', {
+        type: 'function_call_output',
+        call_id: 'c1',
+      }),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'hi' },
+      {
+        type: 'tool_call',
+        tool: {
+          name: 'shell',
+          originalName: 'x',
+          id: 'item_1',
+          command: '/bin/bash -lc ls',
+        },
+      },
+      {
+        type: 'tool_result',
+        tool: { name: 'shell', originalName: 'x', id: 'item_1' },
+      },
+    ];
+    enrichFromRollout(events, rollout);
+    const usage = {
+      inputTokens: 10,
+      cacheReadInputTokens: 4,
+      cacheWriteInputTokens: 0,
+      outputTokens: 2,
+    };
+    expect(events.map((e) => [e.timestamp, e.requestId, e.usage])).toEqual([
+      ['t1', 'r1', usage],
+      ['t2', 'r1', usage],
+      ['t5', undefined, undefined],
+    ]);
+  });
+
+  it('adds an empty message for a request with no events', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t2', 'r1'),
+      // A compaction call, which leaves no response item.
+      usageRecord('t3', 'r2'),
+      line('t4', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t5', 'r3'),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'a' },
+      { type: 'message', role: 'assistant', content: 'b' },
+    ];
+    enrichFromRollout(events, rollout);
+    expect(events.map((e) => [e.content, e.timestamp, e.requestId])).toEqual([
+      ['a', 't1', 'r1'],
+      ['', 't3', 'r2'],
+      ['b', 't4', 'r3'],
+    ]);
+  });
+
+  it('adds only itemless empty messages when messages do not pair', () => {
+    const line = (timestamp: string, type: string, payload: object) =>
+      JSON.stringify({ timestamp, type, payload });
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    const rollout = [
+      line('t1', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t2', 'r1'),
+      usageRecord('t3', 'r2'),
+      line('t4', 'response_item', { type: 'message', role: 'assistant' }),
+      usageRecord('t5', 'r3'),
+    ].join('\n');
+    const events: TranscriptEvent[] = [
+      { type: 'message', role: 'assistant', content: 'a' },
+    ];
+    enrichFromRollout(events, rollout);
+    expect(events.map((e) => [e.content, e.timestamp, e.requestId])).toEqual([
+      ['a', undefined, undefined],
+      ['', 't3', 'r2'],
+    ]);
+  });
+
+  it('returns the first user message time as the prompt time', () => {
+    const line = (timestamp: string, role: string) =>
+      JSON.stringify({
+        timestamp,
+        type: 'response_item',
+        payload: { type: 'message', role },
+      });
+    const rollout = [
+      line('2026-10-01T17:43:08.454Z', 'developer'),
+      line('2026-10-01T17:43:08.454Z', 'user'),
+      line('2026-10-01T17:43:08.473Z', 'user'),
+      line('2026-10-01T17:43:18.250Z', 'assistant'),
+    ].join('\n');
+    expect(enrichFromRollout([], rollout)).toBe(
+      Date.parse('2026-10-01T17:43:08.454Z')
+    );
+  });
+});
+
+describe('enrichFromRollout tool pairing', () => {
+  const line = (timestamp: string, type: string, payload: object) =>
+    JSON.stringify({ timestamp, type, payload });
+  const issued = (id: string, at: string) =>
+    line(at, 'response_item', { type: 'function_call', call_id: id });
+  const completed = (id: string, script: string) =>
+    line('', 'event_msg', {
+      type: 'item_completed',
+      item: {
+        type: 'CommandExecution',
+        id,
+        command: ['/bin/bash', '-lc', script],
+      },
+    });
+  const finished = (id: string, at: string) =>
+    line(at, 'response_item', { type: 'function_call_output', call_id: id });
+  const call = (id: string, command: string): TranscriptEvent[] => [
+    {
+      type: 'tool_call',
+      tool: { name: 'shell', originalName: 'x', id, command },
+    },
+    { type: 'tool_result', tool: { name: 'shell', originalName: 'x', id } },
+  ];
+  const times = (events: TranscriptEvent[], rollout: string[]) => {
+    enrichFromRollout(events, rollout.join('\n'));
+    return events.map((e) => e.timestamp);
+  };
+
+  it('matches shell-quoted commands to the argv', () => {
+    expect(
+      times(call('item_1', `/bin/bash -lc 'cat "a b.txt"'`), [
+        issued('c1', 't1'),
+        completed('c1', 'cat "a b.txt"'),
+        finished('c1', 't2'),
+      ])
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('skips all pairing when one command has extra arguments', () => {
+    expect(
+      times(
+        [
+          ...call('item_1', '/bin/bash -lc pwd'),
+          ...call('item_2', '/bin/bash -lc ls -la'),
+        ],
+        [
+          issued('c1', 't1'),
+          completed('c1', 'pwd'),
+          finished('c1', 't2'),
+          issued('c2', 't3'),
+          completed('c2', 'ls'),
+          finished('c2', 't4'),
+        ]
+      )
+    ).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('matches a redacted secret', () => {
+    expect(
+      times(
+        call('item_1', `/bin/bash -lc 'login --password [REDACTED_SECRET]'`),
+        [
+          issued('c1', 't1'),
+          completed('c1', 'login --password hunter2'),
+          finished('c1', 't2'),
+        ]
+      )
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('rejects different text around a redacted secret', () => {
+    expect(
+      times(
+        call('item_1', `/bin/bash -lc 'logout --password [REDACTED_SECRET]'`),
+        [
+          issued('c1', 't1'),
+          completed('c1', 'login --password hunter2'),
+          finished('c1', 't2'),
+        ]
+      )
+    ).toEqual([undefined, undefined]);
+  });
+
+  it('skips all pairing when the rollout is missing a command', () => {
+    expect(
+      times(
+        [
+          ...call('item_1', '/bin/bash -lc pwd'),
+          ...call('item_2', '/bin/bash -lc ls'),
+        ],
+        [issued('c1', 't1'), completed('c1', 'pwd'), finished('c1', 't2')]
+      )
+    ).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('adds only itemless empty messages when tools do not pair', () => {
+    const events = [
+      ...call('item_1', '/bin/bash -lc pwd'),
+      ...call('item_2', '/bin/bash -lc ls'),
+    ];
+    const usageRecord = (at: string, id: string) =>
+      line(at, 'token_usage_record', { response_id: id, usage: {} });
+    enrichFromRollout(
+      events,
+      [
+        issued('c1', 't1'),
+        completed('c1', 'pwd'),
+        usageRecord('t2', 'r1'),
+        finished('c1', 't3'),
+        usageRecord('t4', 'r2'),
+      ].join('\n')
+    );
+    expect(events.map((e) => [e.type, e.requestId])).toEqual([
+      ['tool_call', undefined],
+      ['tool_result', undefined],
+      ['tool_call', undefined],
+      ['tool_result', undefined],
+      ['message', 'r2'],
+    ]);
+  });
+
+  it('ignores non-tool rollout items', () => {
+    expect(
+      times(call('item_1', '/bin/bash -lc pwd'), [
+        issued('c1', 't1'),
+        line('', 'event_msg', {
+          type: 'item_completed',
+          item: { type: 'ContextCompaction', id: 'cc_1' },
+        }),
+        completed('c1', 'pwd'),
+        finished('c1', 't2'),
+      ])
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('pairs repeated commands in order', () => {
+    const command = `/bin/bash -lc 'supabase status'`;
+    expect(
+      times(
+        [...call('item_1', command), ...call('item_2', command)],
+        [
+          issued('c1', 't1'),
+          completed('c1', 'supabase status'),
+          finished('c1', 't2'),
+          issued('c2', 't3'),
+          completed('c2', 'supabase status'),
+          finished('c2', 't4'),
+        ]
+      )
+    ).toEqual(['t1', 't2', 't3', 't4']);
+  });
+
+  it('pairs parallel calls in completion order', () => {
+    // c1 starts first, but both streams list c2 first because it finished first.
+    expect(
+      times(
+        [
+          ...call('item_2', `/bin/bash -lc 'echo hi'`),
+          ...call('item_1', `/bin/bash -lc 'sleep 2'`),
+        ],
+        [
+          issued('c1', 't1'),
+          issued('c2', 't2'),
+          completed('c2', 'echo hi'),
+          finished('c2', 't3'),
+          completed('c1', 'sleep 2'),
+          finished('c1', 't4'),
+        ]
+      )
+    ).toEqual(['t2', 't3', 't1', 't4']);
   });
 });

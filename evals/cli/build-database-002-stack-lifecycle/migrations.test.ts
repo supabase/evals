@@ -11,7 +11,7 @@ import {
   stripSqlComments,
   type NotesMigrationProbe,
 } from './migrations.js';
-import type { StackProbe } from './stack.js';
+import type { StackProbe } from '../lib/stack.js';
 
 // Minimal fake of LocalStackEvalContext — only the methods
 // findNotesMigration/checkMigrationApplied actually call. Routes `exec` by

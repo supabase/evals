@@ -23,6 +23,7 @@ export interface AdaptedTranscript {
 interface ResolvedResult {
   result?: unknown;
   error?: string;
+  ts?: number;
 }
 
 export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
@@ -31,10 +32,10 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
   const resultsById = new Map<string, ResolvedResult>();
   for (const event of events) {
     if (event.type !== 'tool_result' || !event.tool?.id) continue;
-    resultsById.set(
-      event.tool.id,
-      toResolved(event.tool.result, event.tool.success)
-    );
+    resultsById.set(event.tool.id, {
+      ...toResolved(event.tool.result, event.tool.success),
+      ...timed(event.timestamp),
+    });
   }
 
   const transcript: TranscriptPart[] = [];
@@ -43,11 +44,19 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
   let steps = 0;
 
   for (const event of events) {
-    if (event.type === 'message' && event.role && event.content) {
-      const content = event.content.trim();
-      if (!content) continue;
-      transcript.push({ type: 'message', role: event.role, content });
-      if (event.role === 'assistant') {
+    if (event.type === 'message' && event.role) {
+      const content = event.content?.trim() ?? '';
+      // An empty message still marks a model request that emitted nothing.
+      if (!content && !event.requestId) continue;
+      transcript.push({
+        type: 'message',
+        role: event.role,
+        content,
+        ...timed(event.timestamp),
+        ...(event.requestId ? { requestId: event.requestId } : {}),
+        ...(event.usage ? { usage: event.usage } : {}),
+      });
+      if (event.role === 'assistant' && content) {
         agentReport = content;
         steps += 1;
       }
@@ -67,6 +76,11 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         input: body,
         output: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
+        ...timed(event.timestamp),
+        ...(resolved?.ts ? { resultTs: resolved.ts } : {}),
+        ...(event.tool.id ? { id: event.tool.id } : {}),
+        ...(event.requestId ? { requestId: event.requestId } : {}),
+        ...(event.usage ? { usage: event.usage } : {}),
       });
       toolCalls.push({
         tool: call,
@@ -76,8 +90,6 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         path: event.tool.path,
         command: event.tool.command,
         url: event.tool.url,
-        cwd: event.tool.cwd,
-        endedAt: event.tool.endedAt,
         loadedSkills: event.tool.loadedSkills,
         result: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
@@ -99,6 +111,11 @@ function toResolved(
     };
   }
   return { result };
+}
+
+function timed(timestamp: string | undefined): { ts?: number } {
+  const ts = parseTs(timestamp);
+  return ts ? { ts } : {};
 }
 
 function parseTs(timestamp: string | undefined): number {

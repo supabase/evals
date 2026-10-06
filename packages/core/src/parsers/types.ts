@@ -21,8 +21,6 @@ import type { ParsedTranscript } from '../transcript/types.js';
 export interface ParseContext {
   /** Names of the MCP servers configured for this run. */
   mcpServerNames?: string[];
-  /** The CLI's on-disk session log, for details its transcript stream omits (Codex's rollout). */
-  sessionLog?: string;
 }
 
 export interface AgentTranscriptParser {

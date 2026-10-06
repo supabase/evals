@@ -10,7 +10,10 @@ import { appendFile, stat } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import type { AgentUsage } from '@supabase-evals/core/eval-metadata';
+import {
+  modelUsageSchema,
+  type AgentUsage,
+} from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
   readFlag,
@@ -37,11 +40,15 @@ const DRY = rawArgs.includes('--dry');
 // `eval:upload` passes this cutoff to select files written by its run.
 const SINCE = Number(readFlag(rawArgs, 'since') ?? 0);
 
+const requestUsageSchema = modelUsageSchema.omit({ model: true });
 const transcriptPartSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('message'),
     role: z.enum(['system', 'user', 'assistant']),
     content: z.string(),
+    ts: z.number().optional(),
+    requestId: z.string().optional(),
+    usage: requestUsageSchema.optional(),
   }),
   z.object({
     type: z.literal('tool_call'),
@@ -49,6 +56,11 @@ const transcriptPartSchema = z.discriminatedUnion('type', [
     input: z.record(z.string(), z.unknown()).default({}),
     output: z.unknown().optional(),
     error: z.string().optional(),
+    ts: z.number().optional(),
+    resultTs: z.number().optional(),
+    id: z.string().optional(),
+    requestId: z.string().optional(),
+    usage: requestUsageSchema.optional(),
   }),
 ]);
 const transcriptSchema = z.array(transcriptPartSchema).catch([]);
@@ -61,6 +73,7 @@ interface PendingRow {
   passed: boolean;
   checks: unknown;
   modelId?: string;
+  modelProvider?: string;
   transcript: TranscriptPart[];
   toolLabels: (string | undefined)[];
   metadata: Record<string, unknown>;
@@ -71,6 +84,11 @@ interface PendingRow {
   /** Unix seconds. */
   startTime?: number;
   endTime?: number;
+  /** When the CLI recorded the prompt; absent on older results. */
+  promptTime?: number;
+  /** When `agent.run()` returned and scoring began; absent on older results. */
+  agentEndTime?: number;
+  scoringEndTime?: number;
 }
 
 function git(...args: string[]): string | undefined {
@@ -198,8 +216,16 @@ function toolLabels(toolCalls: unknown): (string | undefined)[] {
     if (path) {
       return basename(path);
     }
-    return command ? summarize(command) : url;
+    return command ? summarize(unwrapShell(command)) : url;
   });
+}
+
+// Codex runs every command as `/bin/bash -lc "<command>"`, sometimes joining
+// mixed quote segments (`"apply_patch <<'PATCH' … PATCH'`), so only the outer
+// quote on each side is dropped.
+export function unwrapShell(command: string): string {
+  const match = command.match(/^\/bin\/(?:ba|z)?sh -lc ([\s\S]*)$/);
+  return match ? match[1].replace(/^["']|["']$/g, '') : command;
 }
 
 function summarize(command: string): string {
@@ -246,12 +272,13 @@ async function collectRows(
     const durationMs =
       result.agentRunDurationMs ??
       (typeof result.durationMs === 'number' ? result.durationMs : undefined);
-    // Results record duration but no start time, so derive it from file mtime.
     const { mtimeMs } = await stat(absolutePath);
     if (mtimeMs < SINCE) {
       continue;
     }
+    // Older results record only a duration, so derive the window from mtime.
     const endTime = durationMs ? mtimeMs / 1000 : undefined;
+    const transcript = transcriptSchema.parse(result.transcript);
     const sessionArchivePath = join(
       dirname(absolutePath),
       'session-archive.tar.gz'
@@ -265,7 +292,8 @@ async function collectRows(
       passed: result.passed === true,
       checks: result.checks,
       modelId: display?.modelId,
-      transcript: transcriptSchema.parse(result.transcript),
+      modelProvider: display?.modelProvider,
+      transcript,
       toolLabels: toolLabels(result.toolCalls),
       sessionArchivePath: existsSync(sessionArchivePath)
         ? sessionArchivePath
@@ -300,9 +328,20 @@ async function collectRows(
           ? { tool_call_count: result.toolCallCount }
           : {}),
       },
-      ...(endTime && durationMs
-        ? { startTime: endTime - durationMs / 1000, endTime }
-        : {}),
+      promptTime: sec(result.agentPromptAt),
+      agentEndTime: sec(result.agentRunEndedAt),
+      scoringEndTime: sec(result.scoringEndedAt),
+      ...runWindow(
+        transcript,
+        result.agentRunStartedAt && result.scoringEndedAt
+          ? {
+              startTime: result.agentRunStartedAt / 1000,
+              endTime: result.scoringEndedAt / 1000,
+            }
+          : endTime && durationMs
+            ? { startTime: endTime - durationMs / 1000, endTime }
+            : {}
+      ),
     };
 
     const rows = byExperiment.get(result.experiment) ?? [];
@@ -312,67 +351,279 @@ async function collectRows(
   return byExperiment;
 }
 
-function logTranscript(parent: Span, row: PendingRow): void {
-  // Parsers lack per-entry timestamps, so keep child spans at the run start.
-  const at = row.startTime ? { startTime: row.startTime } : {};
-  const ended = row.startTime ? { endTime: row.startTime } : undefined;
-  let toolIndex = 0;
-  // Seed the next assistant input with the prompt omitted from the transcript.
-  let pendingInput = row.prompt ? [{ role: 'user', content: row.prompt }] : [];
+/**
+ * Widens the run window to cover transcript timestamps, since the mtime
+ * fallback lands after scoring. Transcript times come from the sandbox clock,
+ * which Docker shares with the host (<300ms apart on Docker Desktop), so skew
+ * is absorbed by widening and clamping rather than corrected.
+ */
+function runWindow(
+  transcript: TranscriptPart[],
+  derived: { startTime?: number; endTime?: number }
+): { startTime?: number; endTime?: number } {
+  const times = transcript
+    .flatMap((part) => [
+      part.ts,
+      part.type === 'tool_call' ? part.resultTs : undefined,
+    ])
+    .filter((ms) => ms !== undefined)
+    .map((ms) => ms / 1000);
+  if (!times.length) {
+    return derived;
+  }
+  return {
+    startTime: Math.min(...times, derived.startTime ?? Infinity),
+    endTime: Math.max(...times, derived.endTime ?? -Infinity),
+  };
+}
 
-  for (const part of row.transcript) {
-    if (part.type === 'message') {
-      if (part.role === 'user') {
-        pendingInput.push({ role: 'user', content: part.content });
-        continue;
-      }
-      if (part.role === 'system') {
-        const span = parent.startSpan({ name: 'system', type: 'task', ...at });
-        span.log({ output: part.content });
-        span.end(ended);
-        continue;
-      }
-      const span = parent.startSpan({
+type StartSpanArgs = Parameters<Span['startSpan']>[0];
+type LogEvent = Parameters<Span['log']>[0];
+/** The slice of `Span` we use, so tests can record spans. */
+export interface SpanSink {
+  startSpan(args: StartSpanArgs): SpanSink;
+  log(event: LogEvent): void;
+  end(args?: { endTime?: number }): unknown;
+}
+
+/**
+ * Mirrors Braintrust's Claude Code tracing under the Eval() `task` span: one
+ * LLM span per model request, with its tool calls as siblings, and the score
+ * span as a sibling of `task`. Each LLM span's input is the conversation so
+ * far, which is what the Thread view renders.
+ * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/claude.rs#L1173-L1300
+ * https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/eval-spans.md#trace-shape
+ *
+ * An LLM span starts where the previous span ended, since the agent only
+ * writes a request's timestamps once its blocks finish generating. Braintrust's
+ * Claude Code translator starts it at the first block instead, which leaves the
+ * generation time as a gap. Their Codex translator does what we do.
+ * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/codex.rs#L929-L932
+ *
+ *   eval                      0s → 50s
+ *   ├─ setup                  0s → 2s   CLI boot until it records the prompt
+ *   ├─ task                   2s → 38s
+ *   │  ├─ llm (text + Skill)  2s → 4s
+ *   │  ├─ Skill               4s → 5s
+ *   │  ├─ llm (Bash only)     5s → 8s
+ *   │  ├─ Bash                8s → 31s
+ *   │  └─ llm (text)         31s → 38s
+ *   ├─ teardown              38s → 40s  CLI exit until `agent.run()` returns
+ *   └─ passed (score)        40s → 50s  workspace export, checks, judges
+ *
+ * Without a prompt time or a leading non-assistant message there is no setup
+ * span, and the first LLM span starts at the run start. Parts without a
+ * `requestId` each get their own LLM span. Transcripts without timestamps
+ * collapse every span to the run start.
+ */
+export function logTranscript(
+  parent: SpanSink,
+  row: Pick<
+    PendingRow,
+    | 'prompt'
+    | 'agentReport'
+    | 'checks'
+    | 'passed'
+    | 'modelId'
+    | 'modelProvider'
+    | 'transcript'
+    | 'toolLabels'
+    | 'startTime'
+    | 'endTime'
+    | 'promptTime'
+    | 'agentEndTime'
+    | 'scoringEndTime'
+  >
+): void {
+  const [first] = row.transcript;
+  const promptTime =
+    row.promptTime ??
+    (first?.type === 'message' && first.role !== 'assistant'
+      ? sec(first.ts)
+      : undefined);
+  const firstTime = sec(row.transcript.find((part) => part.ts)?.ts);
+  // The prompt time is on the sandbox clock, so keep it inside the run.
+  const setupEnd =
+    promptTime === undefined
+      ? undefined
+      : Math.min(
+          Math.max(row.startTime ?? promptTime, promptTime),
+          firstTime ?? Infinity
+        );
+  if (row.startTime !== undefined && setupEnd !== undefined) {
+    const setup = parent.startSpan({
+      name: 'setup',
+      type: 'task',
+      startTime: row.startTime,
+    });
+    setup.end({ endTime: setupEnd });
+  }
+  const taskStart = setupEnd ?? row.startTime;
+  const task = parent.startSpan({
+    name: 'task',
+    type: 'task',
+    startTime: taskStart,
+  });
+  task.log({ input: row.prompt, output: row.agentReport });
+  let latestTime = taskStart;
+  let toolIndex = 0;
+  // Seeded with the prompt, which the transcript omits.
+  const history: Record<string, unknown>[] = row.prompt
+    ? [{ role: 'user', content: row.prompt }]
+    : [];
+  let trailingUser: Record<string, unknown>[] = [];
+  interface Request {
+    id?: string;
+    span: SpanSink;
+    endTime?: number;
+    inputLength: number;
+    message: { role: 'assistant'; content: string; tool_calls?: unknown[] };
+    usage?: z.infer<typeof requestUsageSchema>;
+  }
+  const requests: Request[] = [];
+
+  const requestFor = (part: TranscriptPart, at: number | undefined) => {
+    const id = part.requestId;
+    const open = id ? requests.find((r) => r.id === id) : undefined;
+    if (open) {
+      open.endTime = latest(open.endTime, at);
+      open.usage ??= part.usage;
+      return open;
+    }
+    const startTime =
+      latestTime === undefined || at === undefined
+        ? (latestTime ?? at)
+        : Math.min(latestTime, at);
+    const request: Request = {
+      id,
+      span: task.startSpan({
         name: row.modelId ?? 'assistant',
         type: 'llm',
-        ...at,
-      });
-      span.log({
-        ...(pendingInput.length ? { input: pendingInput } : {}),
-        output: [{ role: 'assistant', content: part.content }],
-        ...(row.modelId ? { metadata: { model: row.modelId } } : {}),
-      });
-      span.end(ended);
-      pendingInput = [];
+        startTime,
+      }),
+      endTime: at,
+      inputLength: history.length,
+      message: { role: 'assistant', content: '' },
+      usage: part.usage,
+    };
+    history.push(request.message);
+    trailingUser = [];
+    requests.push(request);
+    return request;
+  };
+
+  for (const part of row.transcript) {
+    const at = sec(part.ts) ?? latestTime;
+    if (part.type === 'message') {
+      if (part.role === 'user') {
+        const message = { role: 'user', content: part.content };
+        history.push(message);
+        trailingUser.push(message);
+      } else if (part.role === 'system') {
+        const span = task.startSpan({
+          name: 'system',
+          type: 'task',
+          startTime: at,
+        });
+        span.log({ output: part.content });
+        span.end({ endTime: at });
+      } else {
+        const { message } = requestFor(part, at);
+        message.content = message.content
+          ? `${message.content}\n${part.content}`
+          : part.content;
+      }
+      latestTime = latest(latestTime, at);
       continue;
     }
+    if (part.requestId) {
+      const { message } = requestFor(part, at);
+      message.tool_calls = [
+        ...(message.tool_calls ?? []),
+        {
+          id: part.id,
+          type: 'function',
+          function: { name: part.name, arguments: JSON.stringify(part.input) },
+        },
+      ];
+      history.push({
+        role: 'tool',
+        tool_call_id: part.id,
+        content: part.error ?? part.output ?? null,
+      });
+    }
     const label = row.toolLabels[toolIndex++];
-    const span = parent.startSpan({
+    const endTime = sec(part.resultTs) ?? at;
+    latestTime = latest(latestTime, endTime);
+    const span = task.startSpan({
       name: label ? `${part.name}: ${label}` : part.name,
       type: 'tool',
-      ...at,
+      startTime: at,
     });
     span.log({
       input: part.input,
+      // The span name adds a label, so keep the raw name filterable.
+      // https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/skill-load-metadata.md
+      metadata: { tool_name: part.name },
       ...(part.output !== undefined ? { output: part.output } : {}),
       ...(part.error ? { error: part.error } : {}),
     });
-    span.end(ended);
+    span.end({ endTime });
+  }
+
+  for (const { span, endTime, inputLength, message, usage } of requests) {
+    span.log({
+      input: history.slice(0, inputLength),
+      output: [message],
+      ...(usage
+        ? { metrics: tokenMetrics([{ model: row.modelId ?? '', ...usage }]) }
+        : {}),
+      metadata: { model: row.modelId, provider: row.modelProvider },
+    });
+    span.end({ endTime });
   }
 
   // Preserve a trailing user message with no assistant response.
-  if (pendingInput.length) {
-    const span = parent.startSpan({ name: 'user', type: 'task', ...at });
-    span.log({ output: pendingInput });
-    span.end(ended);
+  if (trailingUser.length) {
+    const span = task.startSpan({
+      name: 'user',
+      type: 'task',
+      startTime: latestTime,
+    });
+    span.log({ output: trailingUser });
+    span.end({ endTime: latestTime });
   }
+  task.end({ endTime: latestTime });
 
-  const scorer = parent.startSpan({ name: 'passed', type: 'score', ...at });
+  const agentEnd = latest(latestTime, row.agentEndTime);
+  if (row.agentEndTime !== undefined) {
+    const teardown = parent.startSpan({
+      name: 'teardown',
+      type: 'task',
+      startTime: latestTime,
+    });
+    teardown.end({ endTime: agentEnd });
+  }
+  const scoreStart =
+    row.agentEndTime === undefined ? (row.endTime ?? latestTime) : agentEnd;
+  const scorer = parent.startSpan({
+    name: 'passed',
+    type: 'score',
+    startTime: scoreStart,
+  });
   scorer.log({
     output: row.checks,
     scores: { passed: row.passed ? 1 : 0 },
   });
-  scorer.end(ended);
+  scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
+}
+
+function sec(ms: number | undefined) {
+  return ms ? ms / 1000 : undefined;
+}
+
+function latest(a: number | undefined, b: number | undefined) {
+  return a === undefined || b === undefined ? (a ?? b) : Math.max(a, b);
 }
 
 async function main() {

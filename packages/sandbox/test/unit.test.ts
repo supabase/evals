@@ -16,7 +16,11 @@ import {
   computeExcludedServices,
   startSupabaseProject,
 } from '../src/supabase.js';
-import { type DockerSandbox, proxyCaArgs } from '../src/docker-sandbox.js';
+import {
+  type DockerSandbox,
+  assertAgentResolves,
+  proxyCaArgs,
+} from '../src/docker-sandbox.js';
 import {
   SKILLS_CLI_VERSION,
   SKILLS_INSTALL_AGENTS,
@@ -819,5 +823,73 @@ describe('proxyCaArgs', () => {
 
   it('adds nothing when CA vars are unset', () => {
     expect(proxyCaArgs({})).toEqual([]);
+  });
+});
+
+describe('assertAgentResolves', () => {
+  /** Answers `command -v` with a fixed path per shell kind and records commands. */
+  function fakeSandbox(resolved: { plain: string; login: string }) {
+    const commands: string[] = [];
+    const sandbox = {
+      runShell: async (command: string) => {
+        commands.push(command);
+        const stdout = command.startsWith('bash -lc ')
+          ? resolved.login
+          : resolved.plain;
+        return {
+          ok: stdout !== '',
+          exitCode: stdout ? 0 : 1,
+          stdout,
+          stderr: '',
+        };
+      },
+    };
+    return { sandbox, commands };
+  }
+
+  it('probes both a plain and a login shell as the agent', async () => {
+    const shim = '/usr/local/sbin/supabase';
+    const { sandbox, commands } = fakeSandbox({ plain: shim, login: shim });
+    await assertAgentResolves(sandbox, 'supabase', shim);
+    expect(commands).toEqual([
+      'command -v supabase',
+      "bash -lc 'command -v supabase'",
+    ]);
+  });
+
+  it('fails when a login shell resolves past the shim', async () => {
+    const { sandbox } = fakeSandbox({
+      plain: '/usr/local/sbin/supabase\n',
+      login: '/usr/bin/supabase\n',
+    });
+    await expect(
+      assertAgentResolves(sandbox, 'supabase', '/usr/local/sbin/supabase')
+    ).rejects.toThrow(
+      '`supabase` resolves to "/usr/bin/supabase" in the agent\'s login shell; expected "/usr/local/sbin/supabase"'
+    );
+  });
+
+  it('fails when a login shell cannot find the shim at all', async () => {
+    const { sandbox } = fakeSandbox({
+      plain: '/usr/local/sbin/docker',
+      login: '',
+    });
+    await expect(
+      assertAgentResolves(sandbox, 'docker', '/usr/local/sbin/docker')
+    ).rejects.toThrow(/resolves to "" in the agent's login shell/);
+  });
+
+  it('accepts an absent binary when expecting nothing', async () => {
+    const { sandbox } = fakeSandbox({ plain: '', login: '' });
+    await expect(
+      assertAgentResolves(sandbox, 'docker', null)
+    ).resolves.toBeUndefined();
+  });
+
+  it('fails when a binary expected absent is found', async () => {
+    const { sandbox } = fakeSandbox({ plain: '', login: '/usr/bin/docker' });
+    await expect(assertAgentResolves(sandbox, 'docker', null)).rejects.toThrow(
+      '`docker` resolves to "/usr/bin/docker" in the agent\'s login shell; expected nothing'
+    );
   });
 });

@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   SANDBOX_CONTAINER_LABEL,
+  assertAgentResolves,
   dockerCli,
   type DockerSandbox,
 } from './docker-sandbox.js';
@@ -640,6 +641,7 @@ async function installSupabaseCliWrapper(
     buildServiceWrapperScript(real, excluded, poolerUrlPath, hosted),
     '0755'
   );
+  await assertAgentResolves(sandbox, 'supabase', SUPABASE_SHIM_PATH);
 }
 
 async function runOrThrow(

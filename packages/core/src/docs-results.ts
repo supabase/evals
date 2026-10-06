@@ -51,19 +51,6 @@ const STDOUT_REDIRECT_PATTERN = /(?:^|[^2])>/;
 // legally follow one (`|`, `>`, quotes, backslash-escapes).
 const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
 
-/** The search_docs query arg, flat on `body` or nested under `body.arguments` (Codex's shape). */
-function extractGraphqlQuery(
-  body: Record<string, unknown>
-): string | undefined {
-  if (typeof body.graphql_query === 'string') return body.graphql_query;
-  const args = body.arguments;
-  if (args && typeof args === 'object' && 'graphql_query' in args) {
-    const value = (args as Record<string, unknown>).graphql_query;
-    if (typeof value === 'string') return value;
-  }
-  return undefined;
-}
-
 /**
  * True for the apex supabase.com host. Docs, changelog, and blog all live
  * there. Subdomains like `api.` and `mcp.` are service endpoints, so they
@@ -242,8 +229,8 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
     const { tool, body, result } = call;
 
     if (tool.toolName === 'search_docs') {
-      const graphqlQuery = extractGraphqlQuery(body);
-      if (!graphqlQuery) continue;
+      const graphqlQuery = body.graphql_query;
+      if (typeof graphqlQuery !== 'string' || !graphqlQuery) continue;
       calls.push({
         source: 'search_docs',
         query: graphqlQuery,
