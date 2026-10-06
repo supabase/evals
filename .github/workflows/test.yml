@@ -28,6 +28,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run checks
+        # The framework smoke test calls the default LLM judge. Fork PRs get no secrets, so it fails there.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: pnpm check
 
   # Own job since it's the slowest suite. Every test boots fresh PGlite databases.
