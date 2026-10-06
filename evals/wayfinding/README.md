@@ -4,25 +4,23 @@ These evals measure how an agent finds its way through the Supabase docs, not
 what a single page teaches. Each prompt is a developer's question with no docs
 URL, only the docs root.
 
-## Two paths
+## Arms
 
-Every eval runs in two experiments that differ only in the docs search tool:
+Every eval runs in experiments that differ only in how the agent may reach the docs:
 
-| Experiment | Docs search | What it measures |
+| Experiment | Access | What it measures |
 | --- | --- | --- |
-| `claude-code-sonnet-5-wayfinding-search` | Supabase MCP `search_docs` | Wayfinding as most agents do it, search first |
-| `claude-code-sonnet-5-wayfinding-browse` | None | The information architecture alone: `llms.txt`, navigation, and links |
+| `claude-code-sonnet-5-wayfinding-navigate` | Only `open_page` from the docs navigator | The information architecture: links only, from the docs root |
+| `claude-code-sonnet-5-wayfinding-navigate-linked` | `navigate`, plus the proposed links in `PROPOSED_LINKS` | A proposed IA fix, before it ships |
+| `claude-code-sonnet-5-wayfinding-browse` | `WebFetch`, `Read`, `Grep`, `Bash` | The model's memory of docs URLs, which it types directly |
+| `claude-code-sonnet-5-wayfinding-closed-book` | No tools | Which answers the model knows without the docs |
+| `claude-code-sonnet-5-wayfinding-search` | `browse`, plus the Supabase MCP `search_docs` tool | Search-first wayfinding |
 
-Both arms get the same agent and the same built-in tools: `WebFetch` to read
-pages, and `Read`, `Grep`, and `Bash`. The last three let the search arm open a
-result the CLI saved to a file for being too large. That file is one long JSON
-line, so in practice only a shell tool like `jq` can read it. A `curl` of a docs
-page counts as a fetch. In the browse arm, a fetch of a docs search endpoint
-(`/docs/api/...`) is a workaround, and the summary counts it.
+The docs navigator, `experiments/docs/lib/docs-navigator.mjs`, opens the docs root and any link listed on a page the agent has already opened, and refuses anything else. The navigate arms have no other tools, so a result can't come from a remembered URL. Each refused URL is a blocked memory jump, and the summary counts it.
 
-The gap between the arms, task by task, is what search contributes. A task the
-browse arm fails and the search arm passes is one where the IA leaves the
-agent stuck without search.
+Runs are banded by hops to the target: 0 to 3 is clean, 4 to 6 friction, 7 to 9 failure, and 10 or more, or never reaching the target, a big failure.
+
+`pnpm wayfinding-click-depth` crawls the same links the navigator shows, with no model, for the fewest clicks to each target, with and without the proposed links.
 
 ## Scoring
 
@@ -60,10 +58,10 @@ each `PROMPT.md` names the problem.
 ## Running
 
 ```bash
-pnpm eval -- --suite wayfinding --experiment-suite wayfinding --runs 3
+pnpm eval -- --suite wayfinding --experiment claude-code-sonnet-5-wayfinding-navigate,claude-code-sonnet-5-wayfinding-navigate-linked --runs 3
 ```
 
-Then summarize both arms as markdown tables, per eval and per IA problem, with
+Then summarize the arms as markdown tables, per eval and per IA problem, with
 the arms side by side:
 
 ```bash

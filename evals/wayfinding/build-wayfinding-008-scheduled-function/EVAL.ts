@@ -12,7 +12,7 @@ export const ALTERNATES = ['guides/database/extensions/pg_cron'];
 const FACTS = [
   'Uses `pg_cron` to schedule the job, with `cron.schedule` and a cron expression for 2am.',
   'Calls the function over HTTP with `pg_net` (`net.http_post`) at its URL.',
-  'Passes an authorization key, ideally stored in Vault rather than in plain SQL.',
+  'Stores the project URL and key the job sends in Supabase Vault, rather than in plain SQL.',
 ];
 
 const scorer: ToolScorer = async (ctx) => {
