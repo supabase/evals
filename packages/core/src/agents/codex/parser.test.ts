@@ -571,12 +571,13 @@ describe('enrichFromRollout tool pairing', () => {
     ).toEqual(['t1', 't2']);
   });
 
-  it('skips all pairing when one command has extra arguments', () => {
+  it('leaves a command with extra arguments unpaired and pairs the rest', () => {
     expect(
       times(
         [
           ...call('item_1', '/bin/bash -lc pwd'),
           ...call('item_2', '/bin/bash -lc ls -la'),
+          ...call('item_3', '/bin/bash -lc date'),
         ],
         [
           issued('c1', 't1'),
@@ -585,9 +586,12 @@ describe('enrichFromRollout tool pairing', () => {
           issued('c2', 't3'),
           completed('c2', 'ls'),
           finished('c2', 't4'),
+          issued('c3', 't5'),
+          completed('c3', 'date'),
+          finished('c3', 't6'),
         ]
       )
-    ).toEqual([undefined, undefined, undefined, undefined]);
+    ).toEqual(['t1', 't2', undefined, undefined, 't5', 't6']);
   });
 
   it('matches a redacted secret', () => {
@@ -616,7 +620,7 @@ describe('enrichFromRollout tool pairing', () => {
     ).toEqual([undefined, undefined]);
   });
 
-  it('skips all pairing when the rollout is missing a command', () => {
+  it('pairs what it can when the rollout has fewer commands', () => {
     expect(
       times(
         [
@@ -625,10 +629,66 @@ describe('enrichFromRollout tool pairing', () => {
         ],
         [issued('c1', 't1'), completed('c1', 'pwd'), finished('c1', 't2')]
       )
-    ).toEqual([undefined, undefined, undefined, undefined]);
+    ).toEqual(['t1', 't2', undefined, undefined]);
   });
 
-  it('adds only itemless empty messages when tools do not pair', () => {
+  it('skips a rollout command the stream never listed', () => {
+    const events = [
+      ...call('item_1', '/bin/bash -lc pwd'),
+      ...call('item_2', '/bin/bash -lc ls'),
+    ];
+    const withCwd = (id: string, script: string, cwd: string) =>
+      line('', 'event_msg', {
+        type: 'item_completed',
+        item: {
+          type: 'CommandExecution',
+          id,
+          cwd,
+          command: ['/bin/bash', '-lc', script],
+        },
+      });
+    enrichFromRollout(
+      events,
+      [
+        issued('c1', 't1'),
+        withCwd('c1', 'pwd', '/a'),
+        finished('c1', 't2'),
+        issued('c2', 't3'),
+        withCwd('c2', 'supabase functions serve', '/killed'),
+        finished('c2', 't4'),
+        issued('c3', 't5'),
+        withCwd('c3', 'ls', '/b'),
+        finished('c3', 't6'),
+      ].join('\n')
+    );
+    expect(events.map((e) => [e.timestamp, e.tool?.cwd])).toEqual([
+      ['t1', '/a'],
+      ['t2', undefined],
+      ['t5', '/b'],
+      ['t6', undefined],
+    ]);
+  });
+
+  it('never pairs out of order, even when a later item matches an earlier call', () => {
+    expect(
+      times(
+        [
+          ...call('item_1', '/bin/bash -lc ls'),
+          ...call('item_2', '/bin/bash -lc pwd'),
+        ],
+        [
+          issued('c1', 't1'),
+          completed('c1', 'pwd'),
+          finished('c1', 't2'),
+          issued('c2', 't3'),
+          completed('c2', 'ls'),
+          finished('c2', 't4'),
+        ]
+      )
+    ).toEqual(['t3', 't4', undefined, undefined]);
+  });
+
+  it('adds only itemless empty messages when a tool call does not pair', () => {
     const events = [
       ...call('item_1', '/bin/bash -lc pwd'),
       ...call('item_2', '/bin/bash -lc ls'),
@@ -646,7 +706,7 @@ describe('enrichFromRollout tool pairing', () => {
       ].join('\n')
     );
     expect(events.map((e) => [e.type, e.requestId])).toEqual([
-      ['tool_call', undefined],
+      ['tool_call', 'r1'],
       ['tool_result', undefined],
       ['tool_call', undefined],
       ['tool_result', undefined],
