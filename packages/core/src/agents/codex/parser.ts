@@ -21,6 +21,7 @@
  * format (event_msg/response_item) that older parsers targeted.
  */
 
+import { fileURLToPath } from 'node:url';
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
@@ -356,6 +357,8 @@ export function enrichFromRollout(
       const itemId = String(toolItems[i].id);
       const start = callStarts.get(itemId);
       if (event.tool?.id) callIdByItem.set(event.tool.id, itemId);
+      const cwd = directoryPath(toolItems[i].cwd);
+      if (cwd && event.tool) event.tool.cwd = cwd;
       if (!start) return;
       event.timestamp = start.at ?? event.timestamp;
       tag(event, start.request);
@@ -410,6 +413,17 @@ function sameCall(event: TranscriptEvent, item: Record<string, unknown>) {
     return event.tool?.call?.toolName === item.tool;
   }
   return true;
+}
+
+/** A rollout `cwd` is a plain path or, for some Codex versions, a `file://` URL. */
+function directoryPath(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value) return undefined;
+  if (!value.startsWith('file:')) return value;
+  try {
+    return fileURLToPath(value);
+  } catch {
+    return undefined;
+  }
 }
 
 const REDACTED = '[REDACTED_SECRET]';

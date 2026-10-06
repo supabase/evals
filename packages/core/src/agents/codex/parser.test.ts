@@ -233,6 +233,7 @@ describe('codexParser', () => {
     expect(adapted.transcript[0]).toEqual({
       type: 'tool_call',
       name: 'execute_sql',
+      id: 'item_7',
       input: args,
       output: toolResult,
       error: undefined,
@@ -423,6 +424,46 @@ describe('enrichFromRollout', () => {
       ['t1', 'r1', usage],
       ['t2', 'r1', usage],
       ['t5', undefined, undefined],
+    ]);
+  });
+
+  it("sets a paired tool call's cwd from the rollout item, resolving file:// URLs", () => {
+    const item = (id: string, command: string, cwd?: string) =>
+      JSON.stringify({
+        timestamp: 't',
+        type: 'event_msg',
+        payload: {
+          type: 'item_completed',
+          item: {
+            type: 'CommandExecution',
+            id,
+            command: ['/bin/bash', '-lc', command],
+            ...(cwd === undefined ? {} : { cwd }),
+          },
+        },
+      });
+    const call = (id: string, command: string): TranscriptEvent => ({
+      type: 'tool_call',
+      tool: {
+        name: 'shell',
+        originalName: 'command_execution',
+        id,
+        command: `/bin/bash -lc ${command}`,
+      },
+    });
+    const events = [call('i1', 'a'), call('i2', 'b'), call('i3', 'c')];
+    enrichFromRollout(
+      events,
+      [
+        item('c1', 'a', '/work/client-a'),
+        item('c2', 'b', 'file:///work/my%20app'),
+        item('c3', 'c'),
+      ].join('\n')
+    );
+    expect(events.map((e) => e.tool?.cwd)).toEqual([
+      '/work/client-a',
+      '/work/my app',
+      undefined,
     ]);
   });
 
