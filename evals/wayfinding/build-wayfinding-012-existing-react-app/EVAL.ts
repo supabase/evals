@@ -3,6 +3,11 @@ import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
 const TARGETS = ['guides/getting-started/quickstarts/reactjs'];
 
+const ALTERNATES = [
+  'guides/getting-started/tutorials/with-react',
+  'guides/auth/quickstarts/react',
+];
+
 const FACTS = [
   'Installs `@supabase/supabase-js`.',
   'Sets `VITE_SUPABASE_URL` and the publishable or anon key as environment variables.',
@@ -15,7 +20,7 @@ const scorer: ToolScorer = async (ctx) => {
     rubric: factsRubric(FACTS),
   });
   const checks: CheckResult[] = [
-    await checkReachedTarget(ctx, TARGETS),
+    await checkReachedTarget(ctx, TARGETS, ALTERNATES),
     {
       name: 'answer covers the key facts',
       passed: verdict.passed,

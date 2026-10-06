@@ -4,8 +4,8 @@ import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 const TARGETS = ['guides/platform/sso', 'guides/platform/sso/gsuite'];
 
 const FACTS = [
-  'This is organization SSO for the Supabase dashboard, not Auth SSO for the app users.',
-  'Configured with SAML 2.0 under Organization Settings, SSO, using Google Workspace as the identity provider.',
+  'Sets up SSO at the organization level for signing in to the Supabase dashboard (not Supabase Auth SSO for an app’s own users).',
+  'Configured with SAML in the organization’s SSO settings, with Google Workspace as the identity provider.',
   'Requires the Team or Enterprise plan.',
 ];
 

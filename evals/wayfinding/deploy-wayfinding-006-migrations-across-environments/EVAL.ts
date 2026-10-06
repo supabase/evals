@@ -7,6 +7,8 @@ const TARGETS = [
   'guides/deployment/managing-environments',
 ];
 
+const ALTERNATES = ['guides/local-development/cli-workflows'];
+
 const FACTS = [
   'Track schema changes as migration files with the Supabase CLI (`supabase migration new` or `supabase db diff`).',
   'Apply them to a remote project with `supabase link` and `supabase db push`.',
@@ -19,7 +21,7 @@ const scorer: ToolScorer = async (ctx) => {
     rubric: factsRubric(FACTS),
   });
   const checks: CheckResult[] = [
-    await checkReachedTarget(ctx, TARGETS),
+    await checkReachedTarget(ctx, TARGETS, ALTERNATES),
     {
       name: 'answer covers the key facts',
       passed: verdict.passed,

@@ -107,7 +107,7 @@ describe('scoreWayfinding', () => {
       'link',
       'link',
     ]);
-    expect(result.wrongPages).toEqual(['guides/database/overview']);
+    expect(result.otherPages).toEqual(['guides/database/overview']);
   });
 
   it('attributes a fetch to search when an earlier search returned it', async () => {
@@ -121,7 +121,12 @@ describe('scoreWayfinding', () => {
     });
     expect(result.entrySurface).toBe('search_docs');
     expect(result.searches).toEqual([
-      { query: 'row level security', targetHit: true },
+      {
+        query: 'row level security',
+        targetHit: true,
+        truncated: false,
+        opened: false,
+      },
     ]);
     expect(result.fetches[0]).toMatchObject({
       provenance: 'search',
@@ -156,7 +161,71 @@ describe('scoreWayfinding', () => {
       'prompt',
     ]);
     expect(result.notFound).toEqual(['guides/database/rls']);
-    expect(result.wrongPages).toEqual([]);
+    expect(result.otherPages).toEqual([]);
     expect(result.hopsToTarget).toBeNull();
+  });
+});
+
+describe('scoreWayfinding with truncated search results', () => {
+  const saved = '/home/node/.claude/projects/x/tool-results/toolu_1.json';
+  const stub = `<persisted-output>\nOutput too large (59.6KB). Full output saved to: ${saved}\n\nPreview (first 2KB):\n{"title":"Local workflow","href":"${DOCS}/guides/local-development/cli-workflows"`;
+  const truncatedSearch: ToolCallRecord = {
+    tool: parseClaudeCodeToolCall('mcp__supabase-mcp__search_docs'),
+    body: {
+      graphql_query:
+        '{ searchDocs(query: "seed data") { nodes { title href content } } }',
+    },
+    result: stub,
+    ts: 0,
+  };
+  const SEED = 'guides/local-development/seeding-your-database';
+
+  it('counts only the preview when the agent never opens the saved file', async () => {
+    const result = await scoreWayfinding({
+      toolCalls: [truncatedSearch],
+      targets: [SEED],
+      fetchLinks: noLinks,
+    });
+    expect(result.hopsToTarget).toBeNull();
+    expect(result.searches).toEqual([
+      { query: 'seed data', targetHit: false, truncated: true, opened: false },
+    ]);
+  });
+
+  it('credits the search once the agent reads the saved file', async () => {
+    const read: ToolCallRecord = {
+      tool: parseClaudeCodeToolCall('Read'),
+      body: { file_path: saved },
+      name: 'file_read',
+      path: saved,
+      result: `{"title":"Seeding","href":"${DOCS}/${SEED}","content":"seed.sql"}`,
+      ts: 0,
+    };
+    const result = await scoreWayfinding({
+      toolCalls: [truncatedSearch, read, webFetch(`${DOCS}/${SEED}`)],
+      targets: [SEED],
+      fetchLinks: noLinks,
+    });
+    expect(result.hopsToTarget).toBe(0);
+    expect(result.docsCalls).toBe(2);
+    expect(result.searches[0]).toMatchObject({ targetHit: true, opened: true });
+    expect(result.fetches[0].provenance).toBe('search');
+  });
+});
+
+describe('scoreWayfinding with alternates', () => {
+  it('reaches a duplicate page and says so', async () => {
+    const result = await scoreWayfinding({
+      toolCalls: [webFetch(`${DOCS}/guides/auth/quickstarts/nextjs`)],
+      targets: ['guides/getting-started/quickstarts/nextjs'],
+      alternates: ['guides/auth/quickstarts/nextjs'],
+      fetchLinks: noLinks,
+    });
+    expect(result).toMatchObject({
+      hopsToTarget: 0,
+      reachedTarget: 'guides/auth/quickstarts/nextjs',
+      viaAlternate: true,
+      otherPages: [],
+    });
   });
 });

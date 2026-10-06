@@ -7,9 +7,9 @@ const TARGETS = [
 ];
 
 const FACTS = [
-  'Supabase handles infrastructure, operating system maintenance, and Postgres backups.',
-  'The customer is responsible for their data, schema, access control such as RLS, and keeping API keys and secrets safe.',
-  'Some responsibilities are shared, such as upgrades, performance tuning, or resource allocation.',
+  'Supabase handles the infrastructure and Postgres backups.',
+  'The customer is responsible for their data and who can access it (for example through RLS, API keys, or secrets).',
+  'Some responsibilities are shared (for example upgrades, performance tuning, or resource allocation).',
 ];
 
 const scorer: ToolScorer = async (ctx) => {

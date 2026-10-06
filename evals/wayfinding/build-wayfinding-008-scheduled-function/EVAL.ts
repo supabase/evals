@@ -7,6 +7,8 @@ const TARGETS = [
   'guides/cron',
 ];
 
+const ALTERNATES = ['guides/database/extensions/pg_cron'];
+
 const FACTS = [
   'Uses `pg_cron` to schedule the job, with `cron.schedule` and a cron expression for 2am.',
   'Calls the function over HTTP with `pg_net` (`net.http_post`) at its URL.',
@@ -19,7 +21,7 @@ const scorer: ToolScorer = async (ctx) => {
     rubric: factsRubric(FACTS),
   });
   const checks: CheckResult[] = [
-    await checkReachedTarget(ctx, TARGETS),
+    await checkReachedTarget(ctx, TARGETS, ALTERNATES),
     {
       name: 'answer covers the key facts',
       passed: verdict.passed,

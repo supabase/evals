@@ -47,11 +47,17 @@ function tally(values: string[]): string {
 
 function summarize(runs: Run[]): string[] {
   const reached = runs.filter((run) => run.wayfinding.hopsToTarget !== null);
+  const viaAlternate = reached.filter(
+    (run) => run.wayfinding.viaAlternate
+  ).length;
+  const searches = runs.flatMap((run) => run.wayfinding.searches);
+  const truncated = searches.filter((search) => search.truncated);
   return [
-    `${reached.length}/${runs.length}`,
+    `${reached.length}/${runs.length}${viaAlternate ? ` (${viaAlternate} via duplicate)` : ''}`,
     spread(reached.map((run) => run.wayfinding.hopsToTarget as number)),
-    spread(runs.map((run) => run.wayfinding.wrongPages.length)),
+    spread(runs.map((run) => run.wayfinding.otherPages.length)),
     `${runs.reduce((sum, run) => sum + run.wayfinding.notFound.length, 0)}`,
+    `${truncated.length}/${searches.length} (${truncated.filter((search) => search.opened).length})`,
     tally(runs.map((run) => run.wayfinding.entrySurface)),
     tally(
       runs.flatMap((run) => run.wayfinding.fetches.map((f) => f.provenance))
@@ -63,8 +69,9 @@ function summarize(runs: Run[]): string[] {
 const HEADER = [
   'Reached target',
   'Hops to target',
-  'Wrong pages',
+  'Other pages',
   '404s',
+  'Searches truncated (opened)',
   'Entry surface',
   'How fetched urls were found',
   'Facts covered',
@@ -125,7 +132,7 @@ const evalRows = [...byEval].sort(([a], [b]) =>
 );
 console.log(`## Wayfinding: ${experiment}\n`);
 console.log(
-  'Hops and wrong pages are the median, with the range in parentheses.\n'
+  'Hops and other pages are the median, with the range in parentheses.\n'
 );
 console.log(`${table('Area', [...byArea])}\n`);
 console.log(table('Eval', evalRows));

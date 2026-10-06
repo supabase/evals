@@ -3,10 +3,15 @@ import { checkReachedTarget, factsRubric } from '../lib/wayfinding.js';
 
 const TARGETS = ['guides/getting-started/quickstarts/nextjs'];
 
+const ALTERNATES = [
+  'guides/auth/quickstarts/nextjs',
+  'guides/auth/server-side/nextjs',
+];
+
 const FACTS = [
   'Scaffolds the app, for example `npx create-next-app -e with-supabase`.',
   'Sets `NEXT_PUBLIC_SUPABASE_URL` and the publishable or anon key in the environment.',
-  'Uses `@supabase/ssr` and `@supabase/supabase-js` for the clients.',
+  'Creates Supabase clients with the Supabase client libraries (for example `@supabase/ssr`).',
 ];
 
 const scorer: ToolScorer = async (ctx) => {
@@ -15,7 +20,7 @@ const scorer: ToolScorer = async (ctx) => {
     rubric: factsRubric(FACTS),
   });
   const checks: CheckResult[] = [
-    await checkReachedTarget(ctx, TARGETS),
+    await checkReachedTarget(ctx, TARGETS, ALTERNATES),
     {
       name: 'answer covers the key facts',
       passed: verdict.passed,
