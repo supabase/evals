@@ -232,6 +232,7 @@ describe('codexParser', () => {
     const adapted = adaptTranscript(codexParser.parseTranscript(stream).events);
     expect(adapted.transcript[0]).toEqual({
       type: 'tool_call',
+      id: 'item_7',
       name: 'execute_sql',
       input: args,
       output: toolResult,
