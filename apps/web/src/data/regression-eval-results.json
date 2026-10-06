@@ -5132,7 +5132,7 @@
       {
         "name": "answered unhealthy project recovery question safely",
         "passed": true,
-        "judgeNotes": "Recommends a database restart as the concrete first step and rejects pause/restore as an unhealthy-project workaround. It could more clearly explain that backup restore is data recovery and advise contacting support if the project remains unhealthy."
+        "judgeNotes": "Recommends a restart as the first recovery step, distinguishes it from backup restoration, and warns against pause/resume for an unhealthy project. It also points to incident checks and resource-pressure investigation."
       }
     ],
     "skills": {
@@ -5149,22 +5149,26 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase project unhealthy project dashboard\", limit: 5) { nodes { title href content } }",
+          "query": "query { searchDocs(query: \"Supabase project restart pause restore project dashboard unavailable troubleshooting monitoring debugging\", limit: 5) { nodes { title href content } }",
           "hasContent": true,
           "pages": []
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"project unhealthy restart pause restore project dashboard project recovery\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"project unhealthy restart pause restore project recovery dashboard unhealthy\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/platform/free-project-pausing",
-              "title": "Project Pausing"
+              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
+              "title": "Project Status reports unhealthy services"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/delete-project",
               "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/free-project-pausing",
+              "title": "Project Pausing"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/upgrading",
@@ -5173,79 +5177,46 @@
             {
               "url": "https://supabase.com/docs/guides/platform/backups",
               "title": "Database Backups"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/restoring-downloaded-backup",
-              "title": "Restoring a downloaded backup locally"
             }
           ],
-          "resultChars": 32742
+          "resultChars": 32572
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase projects unhealthy status\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services restart database unhealthy services",
           "pages": []
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"restart project dashboard unhealthy restart project Supabase\", limit: 5) { nodes { title href content } } }",
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/local-development/restoring-downloaded-backup",
-              "title": "Restoring a downloaded backup locally"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/examples/nextjs-vector-search",
-              "title": "Vector search with Next.js and OpenAI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/remove-superuser-access",
-              "title": "Remove Superuser Access from Studio"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native",
-              "title": "Build a User Management App with Expo React Native"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-vue",
-              "title": "Build a User Management App with Ionic Vue"
+              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services"
             }
-          ],
-          "resultChars": 89339
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs project unhealthy restart project Supabase restart",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "Supabase status current incidents status.supabase.com October 6 2026",
-          "pages": []
+          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 87152,
-        "cacheReadInputTokens": 36795,
-        "cacheWriteInputTokens": 35584,
-        "outputTokens": 1566
+        "inputTokens": 69751,
+        "cacheReadInputTokens": 16870,
+        "cacheWriteInputTokens": 32169,
+        "outputTokens": 2232
       }
     ],
-    "stepCount": 4,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 29124,
+    "stepCount": 3,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 44205,
     "sandboxUsage": {
-      "activeCpuDurationMs": 130367,
-      "duration": 130067,
+      "activeCpuDurationMs": 182017,
+      "duration": 172392,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 764300671,
-        "egress": 3850265
+        "ingress": 762143255,
+        "egress": 1795863
       }
     },
     "prompt": "My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
@@ -5277,7 +5248,7 @@
       {
         "name": "answered unhealthy project recovery question safely",
         "passed": true,
-        "judgeNotes": "Recommends restarting the database first, rejects pause/restore as a troubleshooting workaround, distinguishes it from a routine restart, cites Supabase’s unhealthy-services guidance, and advises contacting support if restarting fails."
+        "judgeNotes": "Recommends restarting rather than pause/restore, distinguishes the operations, cites Supabase’s unhealthy-services guidance, and directs the user to support if the controls are unavailable. It could more clearly describe restore as data recovery and mention checking logs and resource pressure."
       }
     ],
     "skills": {
@@ -5293,73 +5264,47 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"restore paused project Supabase dashboard restart project\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Monitoring and Debugging project unhealthy restart project pause restore project\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase project unhealthy restart pause restore project dashboard recovery\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/platform/upgrading",
-              "title": "Upgrading"
-            },
-            {
               "url": "https://supabase.com/docs/guides/platform/free-project-pausing",
               "title": "Project Pausing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/upgrading",
+              "title": "Upgrading"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/restoring-downloaded-backup",
               "title": "Restoring a downloaded backup locally"
             },
             {
+              "url": "https://supabase.com/docs/guides/troubleshooting/restore-project-after-90-days-pause",
+              "title": "How To Restore a Project Paused for More Than 1 Year"
+            },
+            {
               "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
               "title": "Project Status reports unhealthy services"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/pausing-pro-projects-vNL-2a",
+              "title": "Pausing Pro-Projects"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/delete-project",
               "title": "Deleting Your Project"
-            }
-          ],
-          "resultChars": 24720
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"project unhealthy status health check logs restart database Supabase\", limit: 3) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"pause restore project database backup limitations downtime Supabase\", limit: 3) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Monitoring and Debugging unhealthy project restart database health checks\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
-              "title": "Project Status reports unhealthy services"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/detecting",
-              "title": "Detection checks"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/failed-to-run-sql-query-connection-terminated-due-to-connection-timeout",
-              "title": "Error: Failed to run sql query: Connection terminated due to connection timeout"
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
             }
           ],
-          "resultChars": 14753
+          "resultChars": 51101
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services restart database unhealthy",
+          "query": "site:supabase.com/docs restart project Supabase dashboard restart project unhealthy",
           "pages": []
         }
       ]
@@ -5367,22 +5312,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 77010,
-        "cacheReadInputTokens": 36918,
-        "cacheWriteInputTokens": 35659,
-        "outputTokens": 1703
+        "inputTokens": 57617,
+        "cacheReadInputTokens": 16916,
+        "cacheWriteInputTokens": 32169,
+        "outputTokens": 1268
       }
     ],
-    "stepCount": 4,
-    "toolCallCount": 7,
-    "agentRunDurationMs": 30142,
+    "stepCount": 3,
+    "toolCallCount": 3,
+    "agentRunDurationMs": 29120,
     "sandboxUsage": {
-      "activeCpuDurationMs": 129484,
-      "duration": 128214,
+      "activeCpuDurationMs": 185218,
+      "duration": 160268,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 764832046,
-        "egress": 3719151
+        "ingress": 762731208,
+        "egress": 1934399
       }
     },
     "prompt": "My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
@@ -5414,7 +5359,7 @@
       {
         "name": "answered unhealthy project recovery question safely",
         "passed": true,
-        "judgeNotes": "Rejects pause/restore as a health reset, distinguishes backup restore from a database restart, recommends a conditional restart for unhealthy services, and advises contacting support if access remains unavailable."
+        "judgeNotes": "Recommends restart as the first recovery step, warns against pause/restore as a shortcut, and points to workload checks, troubleshooting guidance, and support. It could more clearly explain that backup restore is separate from restart."
       }
     ],
     "skills": {
@@ -5423,74 +5368,130 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase project troubleshooting unhealthy\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"project unhealthy restart pause restore project dashboard inaccessible\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"restart project pause restore unhealthy project dashboard recovery\", limit: 10) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/platform/upgrading",
-              "title": "Upgrading"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/delete-project",
-              "title": "Deleting Your Project"
-            },
-            {
               "url": "https://supabase.com/docs/guides/platform/free-project-pausing",
               "title": "Project Pausing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/upgrading",
+              "title": "Upgrading"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/restoring-downloaded-backup",
               "title": "Restoring a downloaded backup locally"
             },
             {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
               "url": "https://supabase.com/docs/guides/platform/backups",
               "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
+              "title": "Project Status reports unhealthy services"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/replication/pipelines-faq",
+              "title": "Pipelines FAQ"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/restore-project-after-90-days-pause",
+              "title": "How To Restore a Project Paused for More Than 1 Year"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
             }
           ],
-          "resultChars": 32742
+          "resultChars": 70668
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"restart project Supabase dashboard restart unhealthy project\", limit: 5) { nodes { title href content } }",
+          "query": "query { searchDocs(query: \"monitoring debugging project unhealthy database unavailable dashboard troubleshooting\", limit: 8) { nodes { title href content } }",
           "hasContent": true,
           "pages": []
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Monitoring and Debugging\", limit: 3) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase changelog breaking change project restart pause restore\", limit: 5) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"restart a Supabase project dashboard unhealthy status\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/observability/reports",
-              "title": "Reports"
+              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
+              "title": "Project Status reports unhealthy services"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
-              "title": "Deleting data and dropping objects safely"
+              "url": "https://supabase.com/docs/guides/local-development/restoring-downloaded-backup",
+              "title": "Restoring a downloaded backup locally"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/replication/pipelines-monitoring",
-              "title": "Monitor pipeline status"
+              "url": "https://supabase.com/docs/guides/troubleshooting/supabase-dashboard-not-loading-project-not-loading-on-dashboard-LfMq9F",
+              "title": "Supabase dashboard not loading/ Project not loading on dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/remove-superuser-access",
+              "title": "Remove Superuser Access from Studio"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-do-i-see-auth--api-requests-in-the-dashboard-my-app-has-no-users-CyadiO",
+              "title": "Why do I see Auth & API requests in the dashboard? My app has no users"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/free-project-pausing",
+              "title": "Project Pausing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/timeouts",
+              "title": "Timeouts"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/failed-to-run-sql-query-connection-terminated-due-to-connection-timeout",
+              "title": "Error: Failed to run sql query: Connection terminated due to connection timeout"
             }
           ],
-          "resultChars": 64530
+          "resultChars": 19697
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs project restart pause restore unhealthy Supabase project",
+          "query": "site:status.supabase.com Supabase status incidents October 2026 dashboard projects",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/troubleshooting \"Dashboard not loading\" Supabase project not loading",
           "pages": []
         }
       ]
@@ -5498,22 +5499,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 89426,
-        "cacheReadInputTokens": 36830,
-        "cacheWriteInputTokens": 34964,
-        "outputTokens": 2150
+        "inputTokens": 89176,
+        "cacheReadInputTokens": 36235,
+        "cacheWriteInputTokens": 34715,
+        "outputTokens": 2191
       }
     ],
     "stepCount": 4,
     "toolCallCount": 8,
-    "agentRunDurationMs": 43337,
+    "agentRunDurationMs": 40696,
     "sandboxUsage": {
-      "activeCpuDurationMs": 138379,
-      "duration": 145354,
+      "activeCpuDurationMs": 208252,
+      "duration": 189359,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 764119563,
-        "egress": 3675212
+        "ingress": 764133561,
+        "egress": 2803766
       }
     },
     "prompt": "My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
@@ -9921,12 +9922,12 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "answered unhealthy project recovery question safely",
-        "passed": false,
-        "judgeNotes": "The answer gives a safe first step and rejects pause/restore, but it describes restore as resuming a paused project rather than distinguishing backup/data restore from a restart."
+        "passed": true,
+        "judgeNotes": "Recommends restarting first, warns against pause/restore for an unhealthy active project, and advises investigating recurring issues and contacting support."
       }
     ],
     "skills": {
@@ -9937,35 +9938,40 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs restart project pause restore unhealthy project dashboard",
+          "query": "site:supabase.com/docs project unhealthy restart pause restore Supabase dashboard",
           "pages": []
         },
         {
           "source": "web_search",
-          "query": "Supabase status dashboard incidents October 6 2026 Supabase status",
-          "pages": []
+          "query": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services"
+            }
+          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 26524,
+        "inputTokens": 29261,
         "cacheReadInputTokens": 0,
-        "cacheWriteInputTokens": 11850,
-        "outputTokens": 794
+        "cacheWriteInputTokens": 11846,
+        "outputTokens": 661
       }
     ],
     "stepCount": 1,
     "toolCallCount": 2,
-    "agentRunDurationMs": 20788,
+    "agentRunDurationMs": 18209,
     "sandboxUsage": {
-      "activeCpuDurationMs": 135693,
-      "duration": 127165,
+      "activeCpuDurationMs": 160462,
+      "duration": 132854,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 763231852,
-        "egress": 2866165
+        "ingress": 763059113,
+        "egress": 2150001
       }
     },
     "prompt": "My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
@@ -9997,7 +10003,7 @@
       {
         "name": "answered unhealthy project recovery question safely",
         "passed": true,
-        "judgeNotes": "Recommends restarting rather than pausing or restoring, gives a concrete first step, and directs the user to support if the dashboard remains unusable. It could clarify that restore means backup/data recovery, not restart."
+        "judgeNotes": "Recommends a restart as a concrete first recovery step, warns against pause/restore for unhealthy services, and advises contacting support if the problem persists. It could more clearly distinguish backup restore from restart."
       }
     ],
     "skills": {
@@ -10008,12 +10014,12 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs project unhealthy restart pause restore dashboard unusable",
+          "query": "site:supabase.com/docs project unhealthy restart pause restore Supabase project dashboard",
           "pages": []
         },
         {
           "source": "web_search",
-          "query": "Supabase status current incidents dashboard status page",
+          "query": "Supabase status current incidents dashboard project unhealthy October 6 2026",
           "pages": []
         }
       ]
@@ -10021,22 +10027,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 28334,
+        "inputTokens": 26583,
         "cacheReadInputTokens": 0,
-        "cacheWriteInputTokens": 11852,
-        "outputTokens": 951
+        "cacheWriteInputTokens": 11850,
+        "outputTokens": 868
       }
     ],
     "stepCount": 1,
     "toolCallCount": 2,
-    "agentRunDurationMs": 20659,
+    "agentRunDurationMs": 20266,
     "sandboxUsage": {
-      "activeCpuDurationMs": 172888,
-      "duration": 149310,
+      "activeCpuDurationMs": 218585,
+      "duration": 174567,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 761747055,
-        "egress": 1668150
+        "ingress": 761492012,
+        "egress": 1449966
       }
     },
     "prompt": "My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
@@ -10068,7 +10074,7 @@
       {
         "name": "answered unhealthy project recovery question safely",
         "passed": true,
-        "judgeNotes": "Rejects pause/restore as an unhealthy-project fix, recommends a restart as the first recovery step, notes overload may persist, and advises contacting support if the project remains unhealthy."
+        "judgeNotes": "Recommends restarting the database first, clearly distinguishes restart from backup restore, and warns against pausing an unhealthy project. It links Supabase’s unhealthy-services guidance and gives a support escalation path."
       }
     ],
     "skills": {
@@ -10079,35 +10085,40 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs project unhealthy restart pause restore dashboard unhealthy",
+          "query": "site:supabase.com/docs project unhealthy restart pause restore Supabase dashboard",
           "pages": []
         },
         {
           "source": "web_search",
-          "query": "Supabase status page current incident October 6 2026 dashboard unhealthy",
-          "pages": []
+          "query": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/project-status-reports-unhealthy-services"
+            }
+          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 24510,
+        "inputTokens": 29424,
         "cacheReadInputTokens": 0,
         "cacheWriteInputTokens": 11846,
-        "outputTokens": 1013
+        "outputTokens": 893
       }
     ],
     "stepCount": 1,
     "toolCallCount": 2,
-    "agentRunDurationMs": 23500,
+    "agentRunDurationMs": 23075,
     "sandboxUsage": {
-      "activeCpuDurationMs": 122650,
-      "duration": 120449,
+      "activeCpuDurationMs": 118932,
+      "duration": 115334,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 763542280,
-        "egress": 3064143
+        "ingress": 764640332,
+        "egress": 2934504
       }
     },
     "prompt": "My Supabase dashboard says my project is unhealthy, and the dashboard is unusable.\n\nWould restart or pause/restore be better?",
