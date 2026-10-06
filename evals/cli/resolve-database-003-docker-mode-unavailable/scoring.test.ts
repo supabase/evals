@@ -4,9 +4,10 @@ import type {
   LocalStackEvalContext,
   ToolCallRecord,
 } from '@supabase-evals/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   checkMetrics,
+  checkReportIsTruthful,
   classifyStackCommand,
   classifyStartCommand,
   commandSegments,
@@ -27,6 +28,12 @@ import {
   urlPort,
   type StackProbe,
 } from './scoring.js';
+
+const judgeMock = vi.hoisted(() => vi.fn());
+vi.mock('@supabase-evals/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@supabase-evals/core')>()),
+  judge: judgeMock,
+}));
 
 function commandResult(stdout: string, ok = true, stderr = ''): CommandResult {
   return {
@@ -86,6 +93,17 @@ describe('classifyStartCommand', () => {
     ['SUPABASE_EXPERIMENTAL_STACK=1 supabase start', 'managed', 'default'],
     ['supabase start', 'legacy', 'docker'],
     ['supabase start --runtime native', 'legacy', 'invalid'],
+    ['env -u DOCKER_HOST supabase start', 'legacy', 'docker'],
+    ['env --unset=DOCKER_HOST supabase start', 'legacy', 'docker'],
+    ['env --unset DOCKER_HOST supabase start', 'legacy', 'docker'],
+    ['env -i PATH=/usr/bin supabase start', 'legacy', 'docker'],
+    ['env -C /tmp supabase start', 'legacy', 'docker'],
+    ['env -u X -- supabase start', 'legacy', 'docker'],
+    [
+      'env -u X SUPABASE_EXPERIMENTAL_STACK=1 supabase start --runtime native',
+      'managed',
+      'native',
+    ],
   ] as const)('classifies %s as %s/%s', (command, backend, runtime) => {
     expect(classifyStartCommand(command, false)).toEqual({ backend, runtime });
   });
@@ -338,6 +356,19 @@ describe('findDetours', () => {
     const labels = findDetours(command);
     expect(labels.length).toBeGreaterThan(0);
     if (expected) expect(labels).toEqual(expect.arrayContaining(expected));
+  });
+
+  it.each([
+    'env -u DOCKER_HOST supabase start',
+    'env --unset=DOCKER_HOST supabase start',
+    'env --unset DOCKER_HOST supabase start',
+    "/bin/bash -lc 'env -u DOCKER_HOST supabase start'",
+  ])('flags clearing DOCKER_HOST on a start: %s', (command) => {
+    expect(findDetours(command)).toContain('docker-host-override');
+  });
+
+  it('does not flag clearing DOCKER_HOST on a probe (env -u DOCKER_HOST docker info)', () => {
+    expect(findDetours('env -u DOCKER_HOST docker info')).toEqual([]);
   });
 
   it('flags unset DOCKER_HOST as a detour', () => {
@@ -741,5 +772,46 @@ describe('commandSegments / leadingWord', () => {
       'supabase'
     );
     expect(leadingWord('sudo dockerd')).toBe('sudo');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkReportIsTruthful
+// ---------------------------------------------------------------------------
+
+describe('checkReportIsTruthful', () => {
+  const ctx = {
+    exec: async (command: string) =>
+      command.startsWith('docker info')
+        ? commandResult('0\n')
+        : commandResult('0\n'),
+    transcript: [],
+  } as unknown as LocalStackEvalContext;
+
+  it('gives the judge the docker daemon probe and no managed-stack line', async () => {
+    judgeMock.mockResolvedValueOnce({ passed: true, notes: 'ok' });
+    await checkReportIsTruthful(
+      ctx,
+      { ok: true },
+      { ok: true, backend: 'legacy', recordedRuntime: 'docker' } as StackProbe,
+      'docker',
+      [{ runtime: 'docker', ok: true }] as never
+    );
+    const { input } = judgeMock.mock.calls.at(-1)![0] as { input: string };
+    expect(input).toContain('- docker daemon reachable: true');
+    expect(input).not.toContain('managed stack reached');
+  });
+
+  it('accepts a truthful report of a Docker start on the legacy stack (rubric (b))', async () => {
+    judgeMock.mockResolvedValueOnce({ passed: true, notes: 'ok' });
+    await checkReportIsTruthful(
+      ctx,
+      { ok: true },
+      { ok: true, backend: 'legacy', recordedRuntime: 'docker' } as StackProbe,
+      'docker',
+      [{ runtime: 'docker', ok: true }] as never
+    );
+    const { rubric } = judgeMock.mock.calls.at(-1)![0] as { rubric: string };
+    expect(rubric).toMatch(/legacy or the managed stack/);
   });
 });
