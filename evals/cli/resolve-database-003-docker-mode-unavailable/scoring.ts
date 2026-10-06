@@ -585,11 +585,14 @@ export interface StartClassification {
  * stack start` attempt, or undefined if it isn't one. `experimentalOnFromContext`
  * carries whether an earlier segment of the *same* command already exported
  * `SUPABASE_EXPERIMENTAL_STACK=1` (each tool call is a fresh shell, so this
- * never crosses commands).
+ * never crosses commands). `experimentalOnFromOutput` covers an opt-in the
+ * command string can't show (e.g. `[experimental] stack = true` in config.toml):
+ * the caller passes true when the call's own output proves the managed backend ran.
  */
 export function classifyStartCommand(
   rawSegment: string,
-  experimentalOnFromContext: boolean
+  experimentalOnFromContext: boolean,
+  experimentalOnFromOutput = false
 ): StartClassification | undefined {
   const tokens = tokenizeSegment(rawSegment);
   if (!tokens) return undefined;
@@ -625,7 +628,10 @@ export function classifyStartCommand(
   }
 
   const experimentalOn =
-    isStackStart || stripped.experimentalOn || experimentalOnFromContext;
+    isStackStart ||
+    stripped.experimentalOn ||
+    experimentalOnFromContext ||
+    experimentalOnFromOutput;
 
   if (!experimentalOn) {
     return runtimeArg !== undefined
@@ -686,6 +692,13 @@ export function classifyStackCommand(
 export const DOCKER_UNAVAILABLE_RE =
   /Cannot connect to the Docker daemon|docker:\s*command not found|Executable not found in \$PATH:\s*"?docker"?|docker daemon.*not running/i;
 
+// Only the managed (experimental) backend emits these; legacy `supabase start`
+// never does. The task line is printed before the outcome is known, so it
+// appears on both success and failure. Used to recognise a managed start whose
+// opt-in lives in config.toml rather than in the command string.
+export const MANAGED_BACKEND_OUTPUT_RE =
+  /"code"\s*:\s*"ExperimentalStack[A-Za-z]*"|^\[task\] start: Starting local Supabase stack/m;
+
 // From supabase/cli#6825's own description; confirmed present in the
 // beta.4 binary via `does not match existing stack runtime` (Update, plan §CLI-2500).
 export const RUNTIME_MISMATCH_RE = /does not match existing stack runtime/i;
@@ -735,9 +748,13 @@ export function startTimeline(
     const segments = unmaskedCommandSegments(raw);
     let experimentalCarried = false;
     const segmentAttempts: StartClassification[] = [];
+    const segmentInputs: { segment: string; carried: boolean }[] = [];
     for (const segment of segments) {
       const classification = classifyStartCommand(segment, experimentalCarried);
-      if (classification) segmentAttempts.push(classification);
+      if (classification) {
+        segmentAttempts.push(classification);
+        segmentInputs.push({ segment, carried: experimentalCarried });
+      }
       if (/export\s+SUPABASE_EXPERIMENTAL_STACK=1\b/.test(segment)) {
         experimentalCarried = true;
       }
@@ -748,9 +765,19 @@ export function startTimeline(
     const fullText = record.error ?? String(record.result ?? '');
     const dockerUnavailable = DOCKER_UNAVAILABLE_RE.test(fullText);
     const runtimeMismatch = RUNTIME_MISMATCH_RE.test(fullText);
+    const managedByOutput = MANAGED_BACKEND_OUTPUT_RE.test(fullText);
 
-    segmentAttempts.forEach((classification, idx) => {
+    segmentAttempts.forEach((initial, idx) => {
       const isLast = idx === segmentAttempts.length - 1;
+      // The output can only be attributed to the last attempt in the call.
+      const classification =
+        isLast && managedByOutput && initial.backend === 'legacy'
+          ? (classifyStartCommand(
+              segmentInputs[idx].segment,
+              segmentInputs[idx].carried,
+              true
+            ) ?? initial)
+          : initial;
       const ok = isLast ? recordOk : dockerUnavailable ? false : undefined;
       attempts.push({
         callIndex,

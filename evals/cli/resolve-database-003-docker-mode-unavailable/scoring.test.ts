@@ -17,6 +17,7 @@ import {
   isDockerAttempt,
   isRecoveryStateEdit,
   leadingWord,
+  MANAGED_BACKEND_OUTPUT_RE,
   maskUrlCredentials,
   parseJsonObject,
   readApiUrl,
@@ -208,6 +209,108 @@ describe('startTimeline', () => {
     expect(timeline).toHaveLength(2);
     expect(timeline[0].ok).toBeUndefined();
     expect(timeline[1].ok).toBe(true);
+  });
+});
+
+describe('startTimeline: managed backend recognised from output', () => {
+  const managedStart = '[task] start: Starting local Supabase stack...';
+  const managedFailure = `${managedStart}\n{"code":"ExperimentalStackStartError","message":"ContainerLaunchError: bind source path does not exist"}`;
+
+  it('treats a config.toml opt-in start that fails as {managed, docker}, not invalid', () => {
+    const timeline = startTimeline([
+      fakeCall('supabase start --runtime docker --eager', {
+        error: managedFailure,
+      }),
+    ]);
+    expect(timeline).toEqual([
+      {
+        callIndex: 0,
+        backend: 'managed',
+        runtime: 'docker',
+        ok: false,
+        runtimeMismatch: false,
+      },
+    ]);
+    // Check 2 takes the first non-invalid attempt: it is docker.
+    expect(timeline.find((a) => a.runtime !== 'invalid')?.runtime).toBe(
+      'docker'
+    );
+    // Check 4: no successful non-docker start, so no recovery.
+    expect(recoverySteps(timeline)).toBeNull();
+  });
+
+  it('treats a config.toml opt-in native start that succeeds as {managed, native, ok}', () => {
+    const timeline = startTimeline([
+      fakeCall('supabase start --runtime native', { result: managedStart }),
+    ]);
+    expect(timeline[0]).toMatchObject({
+      backend: 'managed',
+      runtime: 'native',
+      ok: true,
+    });
+  });
+
+  it('keeps a legacy docker start legacy when the output has no managed marker', () => {
+    const timeline = startTimeline([
+      fakeCall('supabase start', {
+        error:
+          'failed to inspect docker image: Cannot connect to the Docker daemon at unix:///var/run/docker.sock.',
+      }),
+    ]);
+    expect(timeline[0]).toMatchObject({ backend: 'legacy', runtime: 'docker' });
+  });
+
+  it('keeps --runtime without a managed marker as {legacy, invalid}', () => {
+    const timeline = startTimeline([
+      fakeCall('supabase start --runtime docker', {
+        error: 'unknown flag: --runtime',
+      }),
+    ]);
+    expect(timeline[0]).toMatchObject({
+      backend: 'legacy',
+      runtime: 'invalid',
+    });
+  });
+
+  it('upgrades only the last start attempt in a chained command', () => {
+    const timeline = startTimeline([
+      fakeCall(
+        'supabase start --runtime docker; supabase start --runtime native',
+        { result: managedStart }
+      ),
+    ]);
+    expect(timeline).toHaveLength(2);
+    expect(timeline[0]).toMatchObject({
+      backend: 'legacy',
+      runtime: 'invalid',
+    });
+    expect(timeline[1]).toMatchObject({
+      backend: 'managed',
+      runtime: 'native',
+    });
+  });
+
+  it('does not change classifyStartCommand unless the output evidence is passed', () => {
+    expect(
+      classifyStartCommand('supabase start --runtime native', false)
+    ).toEqual({
+      backend: 'legacy',
+      runtime: 'invalid',
+    });
+    expect(
+      classifyStartCommand('supabase start --runtime native', false, true)
+    ).toEqual({ backend: 'managed', runtime: 'native' });
+  });
+
+  it('MANAGED_BACKEND_OUTPUT_RE matches only managed-backend output', () => {
+    expect(MANAGED_BACKEND_OUTPUT_RE.test(managedStart)).toBe(true);
+    expect(MANAGED_BACKEND_OUTPUT_RE.test(managedFailure)).toBe(true);
+    expect(
+      MANAGED_BACKEND_OUTPUT_RE.test('Pulling image supabase/postgres:17...')
+    ).toBe(false);
+    expect(
+      MANAGED_BACKEND_OUTPUT_RE.test('DockerLifecycleInspectError: no docker')
+    ).toBe(false);
   });
 });
 
