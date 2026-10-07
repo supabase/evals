@@ -21,6 +21,34 @@ export async function readCliVersion(ctx: ExecContext): Promise<string | null> {
   });
 }
 
+/** The CLI version the session staged (from the marker), else the version `supabase --version` reports now. */
+export async function readStagedCliVersion(
+  ctx: ExecContext,
+  marker: LocalStackEnvironmentMarker | undefined
+): Promise<string | null> {
+  return marker?.cliVersion || readCliVersion(ctx);
+}
+
+/**
+ * The staged CLI version, plus the post-run `supabase --version` when it
+ * differs — an agent's global reinstall can shadow the staged binary on PATH.
+ */
+export async function readCliVersions(
+  ctx: ExecContext,
+  marker: LocalStackEnvironmentMarker | undefined
+): Promise<{ cliVersion: string | null; cliVersionAfterRun?: string }> {
+  const afterRun = await readCliVersion(ctx);
+  const staged = marker?.cliVersion || afterRun;
+  const normalise = (version: string | null) =>
+    version?.trim().replace(/^v/, '') ?? null;
+  return {
+    cliVersion: staged,
+    ...(afterRun !== null && normalise(afterRun) !== normalise(staged)
+      ? { cliVersionAfterRun: afterRun }
+      : {}),
+  };
+}
+
 /** Agent session start in epoch milliseconds, from the marker or the sandbox's PID 1. */
 export async function readSessionStartMs(
   ctx: ExecContext,

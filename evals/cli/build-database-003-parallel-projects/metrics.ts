@@ -14,7 +14,7 @@ import {
 import { countRawDockerSocketProbes } from '../lib/detours.js';
 import {
   countClearedDockerHost,
-  readCliVersion,
+  readCliVersions,
   readSessionStartMs,
   safely,
 } from '../lib/metrics.js';
@@ -70,7 +70,7 @@ export async function checkMetrics(
     typeof entry === 'string' ? entry : entry.command
   );
 
-  const cliVersion = await readCliVersion(ctx);
+  const { cliVersion, cliVersionAfterRun } = await readCliVersions(ctx, marker);
   const startAttempts = findStartAttempts(commandEntries);
   const cliRunnerUnverified = listUnverifiedRunners(
     findSupabaseInvocations(commandEntries)
@@ -105,6 +105,7 @@ export async function checkMetrics(
 
   const metrics = {
     cliVersion,
+    ...(cliVersionAfterRun === undefined ? {} : { cliVersionAfterRun }),
     cliOverride,
     cliRunnerUnverified,
     projects,

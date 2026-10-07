@@ -127,7 +127,13 @@ outcome checks fail. Recognised runners are `npx`/`bunx` (including
 `-p`/`--package`), `npm exec`, `pnpm dlx` and `yarn dlx` with an explicit
 `supabase@<version>`, and a global reinstall (`npm i -g`, `pnpm add -g`,
 `bun add -g`, `yarn global add` of `supabase@<version>`), which counts for every
-later invocation in the run. The runner spec is recorded in
+later invocation in the run until a global uninstall (`npm uninstall -g`,
+`pnpm remove -g`, `bun remove -g`, `yarn global remove`); an install whose tool
+call errored is ignored. A runner is compared against the CLI version the
+session staged (the environment marker), not the post-run `supabase --version`,
+which a global reinstall changes; `metrics.cliVersion` is the staged version and
+`metrics.cliVersionAfterRun` appears when the post-run version differs. The
+runner spec is recorded in
 `metrics.cliOverride` (empty when none), the `both stacks reach ready` notes
 lead with `agent ran <runner>; scorer uses the installed CLI`, and the judge's
 ground truth carries that note only on projects whose latest start used an

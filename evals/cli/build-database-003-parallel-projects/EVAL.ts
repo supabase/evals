@@ -18,7 +18,7 @@ import {
   formatDetourJudgeInput,
 } from '../lib/detours.js';
 import { checkMarkerIsolation } from '../lib/markers.js';
-import { readCliVersion } from '../lib/metrics.js';
+import { readStagedCliVersion } from '../lib/metrics.js';
 import { findProjectDirs } from '../lib/projects.js';
 import { checkMetrics } from './metrics.js';
 import { CLIENTS, checkProjectsInitialised } from './projects.js';
@@ -54,7 +54,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const invocations = findSupabaseInvocations(commandEntries);
     const cliOverride = listCliOverrides(
       invocations,
-      await readCliVersion(ctx)
+      await readStagedCliVersion(ctx, marker)
     );
     const stacks = await resolveClientStacks(ctx, projectDirs, invocations);
     const rows = await readClientRows(ctx, stacks);

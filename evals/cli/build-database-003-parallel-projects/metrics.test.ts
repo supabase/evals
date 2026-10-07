@@ -97,6 +97,28 @@ describe('checkMetrics', () => {
     });
   });
 
+  it('reports the staged version and the post-run version when a reinstall shadows it', async () => {
+    const ctx = fakeCtx({});
+    const result = await checkMetrics(
+      {
+        exec: async (command: string) =>
+          command === 'supabase --version'
+            ? commandResult('2.120.0\n')
+            : ctx.exec(command),
+      },
+      { ...MARKER, cliVersion: '2.119.0' },
+      [],
+      [{ command: 'npm i -g supabase@2.120.0' }, { command: 'supabase start' }],
+      STACKS,
+      ['npm i -g supabase@2.120.0']
+    );
+    expect(JSON.parse(result.notes as string)).toMatchObject({
+      cliVersion: '2.119.0',
+      cliVersionAfterRun: '2.120.0',
+      cliOverride: ['npm i -g supabase@2.120.0'],
+    });
+  });
+
   it('reports a null timeToReadyMs and "none" when a stack never resolved', async () => {
     const result = await checkMetrics(
       fakeCtx({ [DB_A]: 5_000 }),
