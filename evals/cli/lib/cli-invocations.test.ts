@@ -770,6 +770,53 @@ describe('directory attribution', () => {
     expect(invocationDirectory(start('supabase start'))).toBeUndefined();
   });
 
+  it('expands a leading $PWD in --workdir, SUPABASE_WORKDIR and env -C values', () => {
+    const codex = start(
+      'supabase start --workdir "$PWD"',
+      '/tmp/sbx/checkout-service'
+    );
+    expect(invocationDirectory(codex)).toBe('/tmp/sbx/checkout-service');
+    expect(invocationTargets(codex, 'checkout-service')).toBe(true);
+    expect(invocationTargetUnresolved(codex)).toBe(false);
+
+    for (const command of [
+      'supabase start --workdir "$PWD/legacy-import"',
+      'supabase start --workdir="$PWD/legacy-import"',
+      'supabase start --workdir ${PWD}/legacy-import',
+      'SUPABASE_WORKDIR="$PWD/legacy-import" supabase start',
+      'env -C "$PWD/legacy-import" supabase start',
+      'env --chdir=${PWD}/legacy-import supabase start',
+    ]) {
+      const found = start(command, '/tmp/sbx');
+      expect(invocationDirectory(found), command).toBe(
+        '/tmp/sbx/legacy-import'
+      );
+      expect(invocationTargetUnresolved(found), command).toBe(false);
+    }
+
+    const afterCd = start(
+      'cd payments-api && supabase stop --workdir "$PWD"',
+      '/tmp/sbx'
+    );
+    expect(invocationDirectory(afterCd)).toBe('/tmp/sbx/payments-api');
+    expect(invocationTargets(afterCd, 'payments-api')).toBe(true);
+  });
+
+  it('keeps $PWD and other variables in a workdir unresolved', () => {
+    for (const command of [
+      'supabase start --workdir "$PWD"',
+      'SUPABASE_WORKDIR="$PWD" supabase start',
+      'env -C "$PWD" supabase start',
+    ]) {
+      expect(invocationTargetUnresolved(start(command)), command).toBe(true);
+    }
+    expect(
+      invocationTargetUnresolved(
+        start('supabase start --workdir "$OTHER"', '/tmp/sbx')
+      )
+    ).toBe(true);
+  });
+
   it('matches a directory by normalised path, or by basename when relative', () => {
     const inDir = start('supabase start', `${S}/client-a/`);
     expect(invocationTargetsDir(inDir, `${S}/client-a`)).toBe(true);
