@@ -11,7 +11,7 @@ import {
   loadTree,
   routePage,
 } from '../../../experiments/docs/lib/docs-tree.js';
-import { type Severity, severityOf } from '../../wayfinding/lib/wayfinding.js';
+import { type Severity, severityOf } from '../../docs-wayfinding/lib/wayfinding.js';
 
 export const FOUND_CHECK = 'chose a target page in under 10 clicks';
 

@@ -3,7 +3,7 @@
 These evals are tree tests of the docs navigation. Each prompt is a developer's
 goal in plain words. The agent finds the page that answers it using only the
 navigation's labels, with no page content, no search, and no urls. It's the
-navigate eval in `evals/wayfinding/` run against a tree file instead of live
+navigate eval in `evals/docs-wayfinding/` run against a tree file instead of live
 HTML, so a proposed navigation can be measured before anyone builds it.
 
 ## How it works

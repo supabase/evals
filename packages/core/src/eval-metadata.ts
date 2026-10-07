@@ -45,7 +45,7 @@ export const evalSuiteSchema = z.enum([
   'regression',
   'docs',
   'cli',
-  'wayfinding',
+  'docs-wayfinding',
   'docs-tree-tests',
   'other',
 ]);
@@ -58,7 +58,7 @@ export const experimentSuiteSchema = z.enum([
   'regression',
   'docs',
   'cli',
-  'wayfinding',
+  'docs-wayfinding',
   'docs-tree-tests',
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;

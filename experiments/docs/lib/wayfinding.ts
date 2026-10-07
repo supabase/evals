@@ -55,7 +55,7 @@ export function wayfindingExperiment({
     runtime: platformLiteRuntime({
       mcpServers: [docsNavigatorMcpServer(proposedLinks ? PROPOSED_LINKS : {})],
     }),
-    suite: ['wayfinding'],
+    suite: ['docs-wayfinding'],
     skills: [],
     skipEval: (ev) => !ev.id.includes('-wayfinding-'),
   });

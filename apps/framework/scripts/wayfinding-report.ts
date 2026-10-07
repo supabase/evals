@@ -8,7 +8,7 @@
 import {
   type Navigation,
   REACHED_TARGET_CHECK,
-} from '../../../evals/wayfinding/lib/wayfinding.js';
+} from '../../../evals/docs-wayfinding/lib/wayfinding.js';
 import { collectResultFiles } from '../lib/result-files.js';
 
 const ARMS = {

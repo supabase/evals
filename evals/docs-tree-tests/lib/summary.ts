@@ -2,7 +2,7 @@ import {
   indexTree,
   loadTree,
 } from '../../../experiments/docs/lib/docs-tree.js';
-import type { Severity } from '../../wayfinding/lib/wayfinding.js';
+import type { Severity } from '../../docs-wayfinding/lib/wayfinding.js';
 import type { TreeTestRun } from './tree-test.js';
 
 /** Docs sections the wayfinding evals found weakest: operator territory. */
