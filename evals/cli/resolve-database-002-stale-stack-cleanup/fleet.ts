@@ -358,8 +358,27 @@ function compareToSetup(
 }
 
 /**
- * The setup and postmaster times state evidence compares, or why it can't
- * decide: either time is missing, setup rests on a loop start whose
+ * Splits the post-setup invocations at the first stop, restart or destroy of
+ * any service: `db reset`s before it are seeding, part of setup.
+ */
+function splitPhase(phase: readonly FleetInvocation[]): {
+  seeding: FleetInvocation[];
+  change: FleetInvocation[];
+} {
+  const start = phase.findIndex((inv) => {
+    const kind = lifecycleKind(inv);
+    return kind === 'teardown' || kind === 'restart';
+  });
+  return start < 0
+    ? { seeding: [...phase], change: [] }
+    : { seeding: phase.slice(0, start), change: phase.slice(start) };
+}
+
+/**
+ * The reference time state evidence compares a postmaster start with (setup
+ * completion, or the service's last seeding `db reset` when later, since a
+ * reset recreates the database) and the postmaster start time, or why it
+ * can't decide: either time is missing, setup rests on a loop start whose
  * completion can't be attributed to one service, or the service was stopped
  * or restarted in the same tool call as setup, which one completion time can't
  * order.
@@ -390,8 +409,22 @@ function stateTimes(
       unusable: `setup and ${touch} ran in one call (cmd #${anchor.commandIndex + 1}); timing can't order them`,
     };
   }
-  const anchorAt = anchor.at;
-  const from = `setup completed ${iso(anchor.at)} (${describeInvocation(anchor)})`;
+  const seeding = splitPhase(phase)
+    .seeding.filter(
+      (inv) =>
+        lifecycleKind(inv) === 'reset' && targetsService(inv, 'reset', service)
+    )
+    .at(-1);
+  if (seeding && seeding.at === undefined) {
+    return {
+      unusable: `seeding ${describeInvocation(seeding)} has no recorded time`,
+    };
+  }
+  const anchorAt = Math.max(anchor.at, seeding?.at ?? anchor.at);
+  const from =
+    seeding?.at !== undefined && seeding.at > anchor.at
+      ? `seeding ${describeInvocation(seeding)} completed ${iso(seeding.at)}`
+      : `setup completed ${iso(anchor.at)} (${describeInvocation(anchor)})`;
   return { anchorAt, startMs: postmasterStartMs, from };
 }
 
@@ -462,7 +495,9 @@ function findCheckoutRestart(
 /**
  * Whether checkout-service was restarted after setup: by its postmaster start
  * time when `stateTimes` can compare it with setup, else by a change-phase
- * restart, or stop then start, that didn't fail.
+ * restart, or stop then start, that didn't fail. A `db reset` recreates the
+ * database, so under state evidence one targeting it in the change phase
+ * doesn't count unless a restart command ran too.
  */
 export function decideCheckoutRestart(
   invocations: readonly FleetInvocation[],
@@ -471,17 +506,28 @@ export function decideCheckoutRestart(
   const setup = findSetup(invocations);
   if (!setup) return UNAVAILABLE;
   const { anchor, phase } = setup;
+  const { change } = splitPhase(phase);
   const times = stateTimes(setup, 'checkout-service', postmasterStartMs);
+  const restart = findCheckoutRestart(phase);
   if (!('unusable' in times)) {
+    const resets = lifecycleEvents(change, 'checkout-service').filter(
+      (event) => event.kind === 'reset'
+    );
     const { after, notes } = compareToSetup(
       'checkout',
       times.startMs,
       times.anchorAt,
       times.from
     );
-    return { passed: after, evidence: 'state', notes };
+    return {
+      passed: after && (resets.length === 0 || restart !== undefined),
+      evidence: 'state',
+      notes:
+        resets.length === 0
+          ? notes
+          : `${notes}; db reset by ${resets.map((event) => event.label).join(', ')} recreates the database, so a restart command must also have run (${restart ? restart.map((event) => event.label).join(' then ') : 'none did without failing'})`,
+    };
   }
-  const restart = findCheckoutRestart(phase);
   const suffix = `after setup (${describeInvocation(anchor)}); ${times.unusable}`;
   return {
     passed: restart !== undefined,
@@ -494,7 +540,7 @@ export function decideCheckoutRestart(
 
 /**
  * Whether payments-api was left alone after setup. A change-phase `db reset`
- * always counts against it, failed or not, since Postgres survives one.
+ * always counts against it, failed or not, since it recreates the database.
  * Otherwise its postmaster start time decides when `stateTimes` can compare
  * it with setup, else any change-phase stop, restart or destroy targeting it,
  * failed or not, counts against it.
@@ -506,9 +552,10 @@ export function decidePaymentsUntouched(
   const setup = findSetup(invocations);
   if (!setup) return UNAVAILABLE;
   const { anchor, phase } = setup;
-  const touches = lifecycleEvents(phase, 'payments-api').filter(
-    (event) => event.kind !== 'start'
-  );
+  const touches = lifecycleEvents(
+    splitPhase(phase).change,
+    'payments-api'
+  ).filter((event) => event.kind !== 'start');
   const labels = (events: readonly LifecycleEvent[]) =>
     events.map((event) => event.label).join(', ');
   const times = stateTimes(setup, 'payments-api', postmasterStartMs);

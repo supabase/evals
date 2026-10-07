@@ -76,7 +76,9 @@ all three services have had a start that didn't fail and that names them (a
 start in the service's directory, or by `--workdir`, `--stack` or a mapped
 `--stack-id`). Restarts and touches are only read from the
 change phase, so stopping and retrying a stack during setup (for example to
-clear a port clash) is neither a restart nor a touch. If that point never
+clear a port clash) is neither a restart nor a touch. The change phase itself
+begins at the first stop, restart or destroy of any service after setup; a
+`db reset` before it is seeding, part of setup. If that point never
 comes, `checkout-service was restarted` and `payments-api left untouched`
 fail, and the notes say there was no change phase.
 
@@ -101,12 +103,15 @@ fail, and the notes say there was no change phase.
   skipped, saying so, only when `stack list` fails as an unknown subcommand;
   any other unreadable output fails the check.
 - `checkout-service was restarted` — with state evidence, its Postgres
-  postmaster started after setup completed; otherwise, in the change phase, a
+  postmaster started after setup completed (and after its last seeding `db
+  reset`), and, if a `db reset` targeted it in the change phase, a restart
+  command (`stack restart`, or a stop then start) also ran without failing,
+  since the reset alone recreates the database; otherwise, in the change phase, a
   `stack restart` targeting it, or a teardown followed by a start. Neither
   CLI has a top-level `supabase restart`, so it never counts.
 - `payments-api left untouched` — no `db reset` targeted it in the change
   phase, failed or not; with state evidence, its postmaster started before
-  setup completed; otherwise nothing stopped, restarted or destroyed it in the
+  setup completed (or its last seeding `db reset`); otherwise nothing stopped, restarted or destroyed it in the
   change phase, failed or not. It must also still resolve holding its own
   marker row (whole value, case-insensitive).
 
@@ -134,8 +139,14 @@ with `pg_postmaster_start_time()`.
   consulted, so a restart the parser can't attribute still counts, and a
   "successful" restart that left Postgres running doesn't.
 - Command evidence applies otherwise: the change-phase rules above.
-- A `db reset` always counts against payments-api, even under state
-  evidence, because Postgres keeps running through one.
+- A local `db reset` recreates the database container (Postgres 15+) or
+  restarts it (Postgres 14), so it moves the postmaster start time. A `db reset` in the
+  change phase always counts against payments-api, even under state evidence,
+  and never counts as restarting checkout-service on its own. A `db reset`
+  during setup (seeding every service before any stop or restart) isn't a
+  change: the reference time for a service is the later of setup completion and
+  its last seeding reset's completion, so seeding neither fails payments-api
+  nor reads as a checkout-service restart.
 
 The setup time is the tool call's recorded completion time (`resultTs`), never
 its issue time. Only agents that record it provide it (Codex does, from its

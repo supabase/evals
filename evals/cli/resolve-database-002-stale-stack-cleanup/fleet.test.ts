@@ -1052,11 +1052,12 @@ describe('payments-api db reset', () => {
   it('counts as a touch after all three started', () => {
     const result = untouched([
       ...START_ALL,
+      'supabase stop --workdir legacy-import',
       'supabase db reset --workdir payments-api',
     ]);
     expect(result.passed).toBe(false);
     expect(result.notes).toContain(
-      'commands: touched by cmd #4 "supabase db reset --workdir payments-api"'
+      'commands: touched by cmd #5 "supabase db reset --workdir payments-api"'
     );
   });
 
@@ -1506,14 +1507,18 @@ describe('evidence from database start times', () => {
 
   it('fails untouched on a db reset whatever the payments postmaster says', () => {
     const result = untouched(
-      [...TIMED_START_ALL, 'supabase db reset --workdir payments-api'],
+      [
+        ...TIMED_START_ALL,
+        'supabase stop --workdir legacy-import',
+        'supabase db reset --workdir payments-api',
+      ],
       REACHABLE,
       PAYMENTS_ROWS,
       T - 60_000
     );
     expect(result.passed).toBe(false);
     expect(result.notes).toContain(
-      'db reset by cmd #4 "supabase db reset --workdir payments-api"'
+      'db reset by cmd #5 "supabase db reset --workdir payments-api"'
     );
   });
 
@@ -1864,5 +1869,114 @@ describe('replaying a run that started each service with --workdir "$PWD"', () =
   it('passes both on commands when the postmaster times are unreadable', () => {
     expect(restarted(CALLS, null).passed).toBe(true);
     expect(untouched(CALLS).passed).toBe(true);
+  });
+});
+
+describe('db reset recreates the database', () => {
+  const T = Date.parse('2026-10-01T11:50:42.000Z');
+  const TIMED: Call[] = [
+    ['cd checkout-service && supabase start', { resultTs: T - 20_000 }],
+    ['cd payments-api && supabase start', { resultTs: T - 10_000 }],
+    ['cd legacy-import && supabase start', { resultTs: T }],
+  ];
+  const timed = (command: string, resultTs: number): Call => [
+    command,
+    { resultTs },
+  ];
+  const STOP_LEGACY = timed(
+    'supabase stop --workdir legacy-import',
+    T + 10_000
+  );
+
+  it('does not count a checkout db reset in the change phase as a restart', () => {
+    const result = restarted(
+      [
+        ...TIMED,
+        STOP_LEGACY,
+        timed('supabase db reset --workdir checkout-service', T + 20_000),
+      ],
+      T + 19_000
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      'db reset by cmd #5 "supabase db reset --workdir checkout-service" recreates the database'
+    );
+    expect(result.notes).toContain('none did without failing');
+  });
+
+  it('still counts a real restart after setup, with or without a reset', () => {
+    const restart = timed(
+      'supabase stack restart --stack checkout-service',
+      T + 30_000
+    );
+    expect(restarted([...TIMED, STOP_LEGACY, restart], T + 29_000).passed).toBe(
+      true
+    );
+    const withReset = restarted(
+      [
+        ...TIMED,
+        STOP_LEGACY,
+        timed('supabase db reset --workdir checkout-service', T + 20_000),
+        restart,
+      ],
+      T + 29_000
+    );
+    expect(withReset.passed).toBe(true);
+    expect(withReset.notes).toContain('recreates the database');
+  });
+
+  describe('seeding every service before any change', () => {
+    const SEEDED: Call[] = [
+      ...TIMED,
+      timed('supabase db reset --workdir checkout-service', T + 10_000),
+      timed('supabase db reset --workdir payments-api', T + 20_000),
+      timed('supabase stop --workdir legacy-import', T + 30_000),
+    ];
+    const CHECKOUT_SEED_POSTMASTER = T + 9_000;
+    const PAYMENTS_SEED_POSTMASTER = T + 19_000;
+
+    it('leaves payments untouched, anchoring on its seeding reset', () => {
+      const result = untouched(
+        SEEDED,
+        REACHABLE,
+        PAYMENTS_ROWS,
+        PAYMENTS_SEED_POSTMASTER
+      );
+      expect(result.passed).toBe(true);
+      expect(result.notes).toContain(
+        `before seeding cmd #5 "supabase db reset --workdir payments-api" completed ${new Date(T + 20_000).toISOString()}; no db reset`
+      );
+    });
+
+    it('does not read a seeding reset as a checkout restart', () => {
+      const result = restarted(SEEDED, CHECKOUT_SEED_POSTMASTER);
+      expect(result.passed).toBe(false);
+      expect(result.notes).toContain('before seeding cmd #4');
+    });
+
+    it('counts a restart after the seeding resets', () => {
+      const result = restarted(
+        [
+          ...SEEDED,
+          timed('supabase stack restart --stack checkout-service', T + 40_000),
+        ],
+        T + 39_000
+      );
+      expect(result.passed).toBe(true);
+    });
+
+    it('fails payments untouched on a reset after the change began', () => {
+      const result = untouched(
+        [
+          ...SEEDED,
+          timed('supabase db reset --workdir payments-api', T + 40_000),
+        ],
+        REACHABLE,
+        PAYMENTS_ROWS,
+        PAYMENTS_SEED_POSTMASTER
+      );
+      expect(result.passed).toBe(false);
+      expect(result.notes).toContain('db reset by cmd #7');
+    });
   });
 });
