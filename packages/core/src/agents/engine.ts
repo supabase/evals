@@ -46,6 +46,8 @@ function modelProviderForAgent(id: AgentRunner['id']): ModelProvider {
       return 'openai';
     case 'grok':
       return 'spacexai';
+    case 'muse':
+      return 'meta';
     case 'opencode':
       throw new Error(
         'opencode is multi-provider; its runner sets `modelProvider` from the model id'

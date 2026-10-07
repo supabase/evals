@@ -11,7 +11,7 @@
  * into every project scope the CLI harnesses discover natively:
  *
  *   - `.claude/skills/`  — Claude Code's project scope.
- *   - `.agents/skills/`  — Codex's and OpenCode's project scope.
+ *   - `.agents/skills/`  — Codex's, OpenCode's, and Muse Code's project scope.
  *   - `.grok/skills/`    — Grok Build's project scope.
  *
  * Each CLI then discovers, advertises and loads the skills itself, in its own
@@ -31,7 +31,7 @@ export const SKILLS_CLI_VERSION = '1.7.0';
 
 /** Claude Code's project scope. */
 const CLAUDE_CODE_SKILLS_DIR = '.claude/skills';
-/** Codex's and OpenCode's shared project scope. */
+/** Codex's, OpenCode's, and Muse Code's shared project scope. */
 const AGENTS_SKILLS_DIR = '.agents/skills';
 /** Grok Build's project scope. */
 const GROK_SKILLS_DIR = '.grok/skills';
@@ -51,6 +51,9 @@ const SKILLS_DIR_BY_AGENT: Record<AgentHarnessId, string | null> = {
   'claude-code': CLAUDE_CODE_SKILLS_DIR,
   codex: AGENTS_SKILLS_DIR,
   grok: GROK_SKILLS_DIR,
+  // Muse also reads .claude/skills, but .agents/skills wins when both define
+  // a skill, so this is the scope that counts.
+  muse: AGENTS_SKILLS_DIR,
   opencode: AGENTS_SKILLS_DIR,
 };
 
@@ -108,7 +111,7 @@ export const SKILLS_INSTALL_AGENTS: readonly SkillsCliAgentId[] = installAgents;
 
 /**
  * Every workspace-relative directory a harness discovers skills in, deduped
- * (`codex` and `opencode` share `.agents/skills`). Verified after install.
+ * (`codex`, `muse`, and `opencode` share `.agents/skills`). Verified after install.
  */
 export const SKILLS_INSTALL_DIRS: readonly string[] = installDirs;
 
