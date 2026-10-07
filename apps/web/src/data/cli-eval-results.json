@@ -1874,6 +1874,439 @@
     "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-002-stale-stack-cleanup/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; stack list: no named stacks for this project; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — install Docker Desktop or Podman and ensure it is on PATH\nTry rerunning the command with --debug to troubles..."
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": false,
+        "notes": "managed stack never reached: no managed start attempted"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": false,
+        "notes": "no stack running"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime. The agent ran read-only probes and Supabase CLI commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The report correctly says the project was initialized but the stack did not start because Docker was not available on PATH; Podman was also unavailable."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15929
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development Supabase CLI init start Docker runtime\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 62842
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development getting started init start Docker Engine requirement\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 56999
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 129564,
+        "cacheReadInputTokens": 89903,
+        "cacheWriteInputTokens": 39253,
+        "outputTokens": 1623
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 33039,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 130831,
+      "duration": 133632,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830035034,
+        "egress": 4807861
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-003-docker-mode-unavailable/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; stack list: no named stacks for this project; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — install Docker Desktop or Podman and ensure it is on PATH\nTry rerunning the command with --debug to troubles..."
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": false,
+        "notes": "managed stack never reached: no managed start attempted"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": false,
+        "notes": "no stack running"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The agent used read-only probes and Supabase CLI commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The report correctly says the project was initialized but the stack did not start because Docker was not installed and Podman was unavailable."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4241
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development supabase init start Docker runtime\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 72085
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 135836,
+        "cacheReadInputTokens": 100465,
+        "cacheWriteInputTokens": 34895,
+        "outputTokens": 1709
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 33399,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 128405,
+      "duration": 129398,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 829928585,
+        "egress": 4498204
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-003-docker-mode-unavailable/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; stack list: no named stacks for this project; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — install Docker Desktop or Podman and ensure it is on PATH\nTry rerunning the command with --debug to troubles..."
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": false,
+        "notes": "managed stack never reached: no managed start attempted"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": false,
+        "notes": "no stack running"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour. The agent used read-only probes and Supabase CLI commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "Correctly reported that initialization succeeded but the stack did not start because Docker and Podman were not installed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 7000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6988
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development initialize project supabase init start Docker runtime\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/vecs-python-client",
+              "title": "Python client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 65512
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 118278,
+        "cacheReadInputTokens": 82031,
+        "cacheWriteInputTokens": 35839,
+        "outputTokens": 1615
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 31822,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 136319,
+      "duration": 134069,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830374407,
+        "egress": 4951839
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-003-docker-mode-unavailable/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-beta",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -3667,6 +4100,446 @@
     "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-002-stale-stack-cleanup/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": true,
+        "notes": "Docker reachable; no recovery needed"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. Docker commands were read-only probes; Supabase CLI commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":74351,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The project was initialized and the stack started on Docker. The report correctly identifies Docker as the runtime and does not claim a switch."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5079
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development supabase init supabase start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 72085
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 415243,
+        "cacheReadInputTokens": 370453,
+        "cacheWriteInputTokens": 43702,
+        "outputTokens": 2971
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 103433,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 302048,
+      "duration": 213073,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2697204625,
+        "egress": 12689449
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-003-docker-mode-unavailable/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": true,
+        "notes": "Docker reachable; no recovery needed"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The Docker commands were read-only probes; Supabase CLI commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":85864,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The stack started on Docker, and the report accurately says it is running on Docker."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development Supabase CLI init start Docker local services\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            }
+          ],
+          "resultChars": 62845
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Docker and native runtimes supabase local project runtime docker start --runtime\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/docker-and-native-runtimes",
+              "title": "Docker and native runtimes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            }
+          ],
+          "resultChars": 49860
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 547290,
+        "cacheReadInputTokens": 495187,
+        "cacheWriteInputTokens": 50879,
+        "outputTokens": 3859
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 121285,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 319677,
+      "duration": 233656,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2696768159,
+        "egress": 12934383
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-003-docker-mode-unavailable/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": true,
+        "notes": "Docker reachable; no recovery needed"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime outside the permitted Supabase CLI commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":104069,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The stack started successfully on Docker, and the report accurately says it is running on Docker."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 72085
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4241
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 516583,
+        "cacheReadInputTokens": 470157,
+        "cacheWriteInputTokens": 44951,
+        "outputTokens": 2472
+      }
+    ],
+    "stepCount": 19,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 125035,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 434366,
+      "duration": 266312,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2688998355,
+        "egress": 6988670
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-003-docker-mode-unavailable/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-nodaemon",
@@ -5982,6 +6855,421 @@
     "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-002-stale-stack-cleanup/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; stack list: no named stacks for this project; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1. Is the docker daemon running?\nTry rerunning the command with --debug to troubleshoot the error."
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": false,
+        "notes": "managed stack never reached: no managed start attempted"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": false,
+        "notes": "no stack running"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime. The Docker commands were read-only probes; Supabase init and start are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that the Docker daemon was unreachable and the Supabase stack did not start."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -100; printf '\\\\n---SKILL REMAINDER---\\\\n'; sed -n '55,180p' .agents/skills/supabase/SKILL.md\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11912
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI initialize local project supabase init and start Docker\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/vecs-python-client",
+              "title": "Python client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 65512
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 120245,
+        "cacheReadInputTokens": 83102,
+        "cacheWriteInputTokens": 36735,
+        "outputTokens": 2332
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 37093,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 130241,
+      "duration": 135423,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830304105,
+        "egress": 4987049
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-003-docker-mode-unavailable/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; stack list: no named stacks for this project; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1. Is the docker daemon running?\nTry rerunning the command with --debug to troubleshoot the error."
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": false,
+        "notes": "managed stack never reached: no managed start attempted"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": false,
+        "notes": "no stack running"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The commands used read-only probes and Supabase CLI commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The project was initialized, but no stack started. The report correctly identifies the unreachable Docker daemon and does not claim success."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- CLI ---'; if command -v supabase >/dev/null 2>&1; then supabase --version; else echo 'supabase CLI not found'; fi; printf '%s\\\\n' '--- Docker ---'; if command -v docker >/dev/null 2>&1; then docker --version; docker info --format '{{.ServerVersion}}' 2>&1; else echo 'docker not found'; fi; printf '%s\\\\n' '--- Changelog breaking changes ---'; curl -fsSL https://supabase.com/changelog.md | rg -n -i 'breaking-change|breaking change' | head -40\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 8144
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development supabase init supabase start Docker\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-start",
+              "title": "Start containers for Supabase local development"
+            }
+          ],
+          "resultChars": 65021
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 115293,
+        "cacheReadInputTokens": 80041,
+        "cacheWriteInputTokens": 34844,
+        "outputTokens": 2315
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 39589,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 132207,
+      "duration": 142586,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 829473306,
+        "egress": 3880952
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-003-docker-mode-unavailable/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0-beta.9",
+    "passed": false,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; stack list: no named stacks for this project; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1. Is the docker daemon running?\nTry rerunning the command with --debug to troubleshoot the error."
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": false,
+        "notes": "managed stack never reached: no managed start attempted"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": false,
+        "notes": "no stack running"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime. The agent used read-only probes and allowed Supabase commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0-beta.9\",\"channel\":\"beta\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The report correctly says no stack started because the Docker daemon was unreachable at the configured endpoint. It does not claim success or say Docker was missing."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5079
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 72085
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 119736,
+        "cacheReadInputTokens": 82455,
+        "cacheWriteInputTokens": 36873,
+        "outputTokens": 2449
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 37007,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 140649,
+      "duration": 142645,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 829192124,
+        "egress": 3837379
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-003-docker-mode-unavailable/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-pinned",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -8115,6 +9403,418 @@
     "promptSourcePath": "evals/cli/resolve-database-002-stale-stack-cleanup/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-002-stale-stack-cleanup/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": true,
+        "notes": "Docker reachable; no recovery needed"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime, escalate privileges, or change socket permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":88964,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The report correctly says the stack started on Docker, matching the observed runtime and successful start."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4241
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Local development Supabase CLI init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 72085
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 346187,
+        "cacheReadInputTokens": 299013,
+        "cacheWriteInputTokens": 46290,
+        "outputTokens": 2442
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 120965,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 349542,
+      "duration": 224135,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2833814605,
+        "egress": 8969016
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-003-docker-mode-unavailable/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": true,
+        "notes": "Docker reachable; no recovery needed"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour. The agent used Supabase CLI commands and read-only Docker probes."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":83341,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The stack started on Docker, and the report correctly identifies Docker as the runtime."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 72085
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- tooling ---'; command -v supabase || true; supabase --version 2>/dev/null || true; command -v docker || true; docker --version 2>&1 || true; docker info --format '{{.ServerVersion}}' 2>&1 || true; printf '%s\\\\n' '--- changelog ---'; curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -50\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2707
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 424532,
+        "cacheReadInputTokens": 381372,
+        "cacheWriteInputTokens": 42004,
+        "outputTokens": 2085
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 106142,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 333775,
+      "duration": 225979,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2835015034,
+        "egress": 10157016
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-003-docker-mode-unavailable/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": true,
+        "notes": "Docker reachable; no recovery needed"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime outside the permitted Supabase CLI commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"channel\":\"pinned\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":80562,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The stack started on Docker, and the report correctly says it is running on Docker."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'supabase --version && curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4476
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 72085
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 434941,
+        "cacheReadInputTokens": 389403,
+        "cacheWriteInputTokens": 44382,
+        "outputTokens": 2620
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 101371,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 314817,
+      "duration": 211674,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2840315851,
+        "egress": 11390018
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-003-docker-mode-unavailable/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
@@ -10462,1716 +12162,6 @@
     "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-002-stale-stack-cleanup/run-3/result.json"
   },
   {
-    "experiment": "codex-gpt-6-luna-cli-absent",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": false,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": false,
-        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": false,
-        "notes": "managed stack never reached: no --runtime start attempted"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": false,
-        "notes": "no stack running"
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report correctly says initialization succeeded, the stack did not start, and Docker/Podman was unavailable."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 10000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 9970
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 72085
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 122594,
-        "cacheReadInputTokens": 85279,
-        "cacheWriteInputTokens": 36907,
-        "outputTokens": 1281
-      }
-    ],
-    "stepCount": 6,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 32588,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 135357,
-      "duration": 130520,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 829035355,
-        "egress": 4256764
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-003-docker-mode-unavailable/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-absent",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": false,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": false,
-        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": false,
-        "notes": "managed stack never reached: no --runtime start attempted"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": false,
-        "notes": "no stack running"
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report correctly says initialization succeeded but the stack did not start, and identifies the missing Docker client reported by the tools."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- tools ---'; command -v supabase || true; supabase --version 2>/dev/null || true; command -v docker || true; docker --version 2>/dev/null || true; docker info --format '{{.ServerVersion}}' 2>&1 || true; printf '%s\\\\n' '--- changelog ---'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -80\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4264
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development supabase init supabase start Docker runtime\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 72085
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 111831,
-        "cacheReadInputTokens": 77153,
-        "cacheWriteInputTokens": 34270,
-        "outputTokens": 1589
-      }
-    ],
-    "stepCount": 6,
-    "toolCallCount": 6,
-    "agentRunDurationMs": 37233,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 131335,
-      "duration": 133954,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 829183364,
-        "egress": 4180086
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-003-docker-mode-unavailable/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-absent",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": false,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": false,
-        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": false,
-        "notes": "managed stack never reached: no --runtime start attempted"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": false,
-        "notes": "no stack running"
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report correctly says initialization succeeded but the stack did not start because Docker was not installed (`docker: command not found`); Podman was also unavailable."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4185
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Local development Supabase CLI init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 72085
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development Docker runtime supabase init start Docker installed runtime\", limit: 3) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            }
-          ],
-          "resultChars": 56999
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 150092,
-        "cacheReadInputTokens": 111692,
-        "cacheWriteInputTokens": 37924,
-        "outputTokens": 1408
-      }
-    ],
-    "stepCount": 7,
-    "toolCallCount": 11,
-    "agentRunDurationMs": 39202,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 143090,
-      "duration": 141493,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 829736402,
-        "egress": 4796183
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 3,
-    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-003-docker-mode-unavailable/run-3/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-beta",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": true,
-        "notes": "Docker reachable; no recovery needed"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": true
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":87680,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report accurately states that the Supabase stack started on Docker and was verified."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 5042
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 72085
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 280882,
-        "cacheReadInputTokens": 232913,
-        "cacheWriteInputTokens": 47221,
-        "outputTokens": 3822
-      }
-    ],
-    "stepCount": 11,
-    "toolCallCount": 17,
-    "agentRunDurationMs": 135417,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 336936,
-      "duration": 248486,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2846722260,
-        "egress": 13397500
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-003-docker-mode-unavailable/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-beta",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": true,
-        "notes": "Docker reachable; no recovery needed"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": true
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":86238,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The stack started on Docker, and the report correctly says it is running in Docker."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL --max-time 15 https://supabase.com/changelog.md | sed -n '1,100p'\"",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4993
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development Supabase CLI init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 72085
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase CLI supabase start --runtime docker local development startup\", limit: 3) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/docker-and-native-runtimes",
-              "title": "Docker and native runtimes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            }
-          ],
-          "resultChars": 48357
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 422379,
-        "cacheReadInputTokens": 371972,
-        "cacheWriteInputTokens": 49455,
-        "outputTokens": 2409
-      }
-    ],
-    "stepCount": 14,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 108415,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 312932,
-      "duration": 218815,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2845956397,
-        "egress": 12785515
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-003-docker-mode-unavailable/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-beta",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": true,
-        "notes": "Docker reachable; no recovery needed"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": true
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":89284,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report correctly states that the stack started on Docker, matching the observed runtime and successful start."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": []
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 11956
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development Supabase CLI init start Docker runtime\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 72085
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 556857,
-        "cacheReadInputTokens": 507739,
-        "cacheWriteInputTokens": 47826,
-        "outputTokens": 2679
-      }
-    ],
-    "stepCount": 19,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 121820,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 348382,
-      "duration": 232017,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2846012476,
-        "egress": 12571363
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 3,
-    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-003-docker-mode-unavailable/run-3/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-nodaemon",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": false,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": false,
-        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": false,
-        "notes": "managed stack never reached: no --runtime start attempted"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": false,
-        "notes": "no stack running"
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The agent correctly reported that initialization succeeded but the stack did not start because the Docker daemon was unreachable. It did not claim Docker was missing or that the stack was running."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4185
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development supabase init start Docker\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-start",
-              "title": "Start containers for Supabase local development"
-            }
-          ],
-          "resultChars": 65021
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI Docker runtime Docker host environment SUPABASE Docker daemon local start\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } ... on TroubleshootingGuide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/docker-and-native-runtimes",
-              "title": "Docker and native runtimes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            }
-          ],
-          "resultChars": 67036
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 156059,
-        "cacheReadInputTokens": 115869,
-        "cacheWriteInputTokens": 39714,
-        "outputTokens": 1796
-      }
-    ],
-    "stepCount": 7,
-    "toolCallCount": 8,
-    "agentRunDurationMs": 47693,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 128117,
-      "duration": 141287,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 829716656,
-        "egress": 4728291
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-003-docker-mode-unavailable/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-nodaemon",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": false,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": false,
-        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": false,
-        "notes": "managed stack never reached: no --runtime start attempted"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": false,
-        "notes": "no stack running"
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "Correctly reports that the project was initialized but the stack did not start because the Docker daemon was unreachable."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 72085
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- tools ---'; command -v supabase || true; command -v docker || true; docker info --format '{{.ServerVersion}}' 2>&1 || true; printf '%s\\\\n' '--- supabase ---'; if command -v supabase >/dev/null; then supabase --version; supabase --help; fi; printf '%s\\\\n' '--- changelog ---'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -60\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 7394
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 139340,
-        "cacheReadInputTokens": 102863,
-        "cacheWriteInputTokens": 36001,
-        "outputTokens": 2202
-      }
-    ],
-    "stepCount": 7,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 48151,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 149252,
-      "duration": 153183,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 829477463,
-        "egress": 4352985
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-003-docker-mode-unavailable/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-nodaemon",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.120.0-beta.12",
-    "passed": false,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": false,
-        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": false,
-        "notes": "managed stack never reached: no --runtime start attempted"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": false,
-        "notes": "no stack running"
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.120.0-beta.12\",\"resolvedRuntime\":\"none\",\"actualRuntime\":\"none\",\"timeToReadyMs\":null,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"beta\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report correctly says the stack did not start because the Docker daemon was unreachable. It does not claim success."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/quickstart",
-              "title": "Getting Started with Edge Functions"
-            }
-          ],
-          "resultChars": 72085
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 19905
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 146229,
-        "cacheReadInputTokens": 108661,
-        "cacheWriteInputTokens": 37092,
-        "outputTokens": 2417
-      }
-    ],
-    "stepCount": 7,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 47183,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 174266,
-      "duration": 168453,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 827525719,
-        "egress": 2883452
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 3,
-    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-003-docker-mode-unavailable/run-3/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-pinned",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.117.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": true,
-        "notes": "Docker reachable; no recovery needed"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": true
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":82087,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"pinned\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The agent correctly reported that the Supabase stack started on Docker, matching the observed runtime and successful start."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/vecs-python-client",
-              "title": "Python client"
-            }
-          ],
-          "resultChars": 65512
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 8000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 7982
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 453630,
-        "cacheReadInputTokens": 407298,
-        "cacheWriteInputTokens": 45176,
-        "outputTokens": 2714
-      }
-    ],
-    "stepCount": 17,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 107365,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 312229,
-      "duration": 208378,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2834522163,
-        "egress": 9828760
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-003-docker-mode-unavailable/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-pinned",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.117.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": true,
-        "notes": "Docker reachable; no recovery needed"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": true
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":94896,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"pinned\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report matches the observed outcome: the project was initialized and the stack started on Docker."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -80'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4185
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development initialize Supabase CLI start Docker local stack\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cli",
-              "title": "Local Dev with CLI"
-            }
-          ],
-          "resultChars": 64284
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 472757,
-        "cacheReadInputTokens": 425995,
-        "cacheWriteInputTokens": 45538,
-        "outputTokens": 2709
-      }
-    ],
-    "stepCount": 18,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 131427,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 334207,
-      "duration": 239868,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2835577694,
-        "egress": 10510484
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-003-docker-mode-unavailable/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-pinned",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.117.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": true,
-        "notes": "Docker reachable; no recovery needed"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": true
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":89814,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"pinned\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report correctly says the Supabase stack started on Docker, matching the observed runtime and successful start."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4185
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development initialize project supabase init start Docker containers\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/vecs-python-client",
-              "title": "Python client"
-            }
-          ],
-          "resultChars": 65512
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 487829,
-        "cacheReadInputTokens": 440281,
-        "cacheWriteInputTokens": 46324,
-        "outputTokens": 3101
-      }
-    ],
-    "stepCount": 18,
-    "toolCallCount": 13,
-    "agentRunDurationMs": 127383,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 333087,
-      "duration": 237226,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2835791968,
-        "egress": 9714622
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 3,
-    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-003-docker-mode-unavailable/run-3/result.json"
-  },
-  {
     "experiment": "codex-gpt-6-luna-cli-stable",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -12190,7 +12180,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.119.0",
+    "cliVersion": "2.120.0",
     "passed": true,
     "checks": [
       {
@@ -12204,7 +12194,7 @@
       {
         "name": "stack is running",
         "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
+        "notes": "legacy (docker), select 1 ok"
       },
       {
         "name": "recovered via a non-docker runtime",
@@ -12216,18 +12206,19 @@
         "passed": true
       },
       {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.119.0\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":200141,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\",\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"stable\"}"
+        "notes": "{\"cliVersion\":\"2.120.0\",\"channel\":\"stable\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":77473,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
       },
       {
         "name": "explains the runtime outcome truthfully",
         "passed": true,
-        "judgeNotes": "The report truthfully says the Supabase stack started on Docker, matching the observed runtime and successful starts."
+        "judgeNotes": "The project was initialized and the stack started on Docker. The report correctly identifies Docker as the runtime and claims no switch."
       }
     ],
     "skills": {
@@ -12242,27 +12233,17 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- directory ---'; ls -la; printf '%s\\\\n' '--- runtime ---'; docker info --format 'server={{.ServerVersion}} os={{.OperatingSystem}}' 2>&1; printf '%s\\\\n' '--- available installers ---'; command -v npm || true; command -v npx || true; command -v brew || true; command -v go || true; printf '%s\\\\n' '--- Supabase changelog ---'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -100\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 5510
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime install CLI\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
               "url": "https://supabase.com/docs/guides/local-development",
               "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
@@ -12273,53 +12254,43 @@
               "title": "Supabase CLI"
             },
             {
-              "url": "https://supabase.com/docs/guides/cli",
-              "title": "Local Dev with CLI"
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
             }
           ],
-          "resultChars": 64284
+          "resultChars": 72085
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Install and run the Supabase CLI npx npm local development\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- repo ---'; ls -la; printf '%s\\\\n' '--- tracked/untracked files ---'; git status --short --branch 2>/dev/null || true; printf '%s\\\\n' '--- cli help ---'; supabase --help; printf '%s\\\\n' '--- init help ---'; supabase init --help; printf '%s\\\\n' '--- start help ---'; supabase start --help; printf '%s\\\\n' '--- docker daemon ---'; docker info --format '{{.ServerVersion}}' 2>&1; printf '%s\\\\n' '--- changelog breaking tags ---'; curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -100\"",
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
+              "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 44163
+          "resultChars": 14375
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 467061,
-        "cacheReadInputTokens": 415989,
-        "cacheWriteInputTokens": 49984,
-        "outputTokens": 5350
+        "inputTokens": 470911,
+        "cacheReadInputTokens": 424021,
+        "cacheWriteInputTokens": 45666,
+        "outputTokens": 3244
       }
     ],
-    "stepCount": 16,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 211926,
+    "stepCount": 18,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 110110,
     "sandboxUsage": {
-      "activeCpuDurationMs": 428192,
-      "duration": 326049,
+      "activeCpuDurationMs": 325680,
+      "duration": 221741,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2912271784,
-        "egress": 9697595
+        "ingress": 2696025622,
+        "egress": 10701078
       }
     },
     "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
@@ -12346,7 +12317,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.119.0",
+    "cliVersion": "2.120.0",
     "passed": true,
     "checks": [
       {
@@ -12360,7 +12331,7 @@
       {
         "name": "stack is running",
         "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
+        "notes": "legacy (docker), select 1 ok"
       },
       {
         "name": "recovered via a non-docker runtime",
@@ -12372,183 +12343,19 @@
         "passed": true
       },
       {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The agent used Supabase CLI commands and read-only checks."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.119.0\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":92424,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"stable\"}"
+        "notes": "{\"cliVersion\":\"2.120.0\",\"channel\":\"stable\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":111633,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
       },
       {
         "name": "explains the runtime outcome truthfully",
         "passed": true,
-        "judgeNotes": "The report accurately says the initialized stack started on Docker, matching the observed successful Docker start."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker runtime\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/vecs-python-client",
-              "title": "Python client"
-            }
-          ],
-          "resultChars": 65512
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4185
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI init command start command flags network-id\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/cli",
-              "title": "Local Dev with CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/development-environment",
-              "title": "Development Environment"
-            }
-          ],
-          "resultChars": 46466
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 579515,
-        "cacheReadInputTokens": 528763,
-        "cacheWriteInputTokens": 49392,
-        "outputTokens": 3571
-      }
-    ],
-    "stepCount": 20,
-    "toolCallCount": 16,
-    "agentRunDurationMs": 141109,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 328705,
-      "duration": 243850,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2914830735,
-        "egress": 12490124
-      }
-    },
-    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
-    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-003-docker-mode-unavailable/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-stable",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-003-docker-mode-unavailable",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.119.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "supabase project initialised (supabase/config.toml exists)",
-        "passed": true
-      },
-      {
-        "name": "docker runtime was attempted first",
-        "passed": true
-      },
-      {
-        "name": "stack is running",
-        "passed": true,
-        "notes": "probe: legacy (docker), select 1 ok"
-      },
-      {
-        "name": "recovered via a non-docker runtime",
-        "passed": true,
-        "notes": "Docker reachable; no recovery needed"
-      },
-      {
-        "name": "recorded runtime matches what started",
-        "passed": true
-      },
-      {
-        "name": "no container-runtime detours (cliDetours = 0)",
-        "passed": true
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.119.0\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":80153,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":{\"recovery\":0,\"detour\":0},\"leftoverDockerRegistrations\":null,\"channel\":\"stable\"}"
-      },
-      {
-        "name": "explains the runtime outcome truthfully",
-        "passed": true,
-        "judgeNotes": "The report correctly states that the Supabase stack started on Docker, matching the observed runtime and successful start."
+        "judgeNotes": "The report accurately states that the stack started on Docker, matching the observed runtime and successful start."
       }
     ],
     "skills": {
@@ -12564,18 +12371,18 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -100'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 5042
+          "resultChars": 5003
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development Supabase CLI init supabase start Docker\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI local development supabase init start Docker\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -12602,22 +12409,160 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 476434,
-        "cacheReadInputTokens": 430206,
-        "cacheWriteInputTokens": 45004,
-        "outputTokens": 2919
+        "inputTokens": 558567,
+        "cacheReadInputTokens": 513190,
+        "cacheWriteInputTokens": 43949,
+        "outputTokens": 2607
       }
     ],
-    "stepCount": 18,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 123187,
+    "stepCount": 21,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 130797,
     "sandboxUsage": {
-      "activeCpuDurationMs": 354446,
-      "duration": 227620,
+      "activeCpuDurationMs": 480434,
+      "duration": 276755,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2844391664,
-        "egress": 10197786
+        "ingress": 2689485302,
+        "egress": 7139905
+      }
+    },
+    "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
+    "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-003-docker-mode-unavailable/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-003-docker-mode-unavailable",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.120.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "supabase project initialised (supabase/config.toml exists)",
+        "passed": true
+      },
+      {
+        "name": "docker runtime was attempted first",
+        "passed": true
+      },
+      {
+        "name": "stack is running",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "recovered via a non-docker runtime",
+        "passed": true,
+        "notes": "Docker reachable; no recovery needed"
+      },
+      {
+        "name": "recorded runtime matches what started",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or to change privileges or permissions to get one working."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.120.0\",\"channel\":\"stable\",\"resolvedRuntime\":\"docker\",\"actualRuntime\":\"docker\",\"timeToReadyMs\":80833,\"cliDetours\":0,\"recoverySteps\":null,\"startAttempts\":[\"docker→docker\"],\"managedStackReached\":false,\"rawDockerSocketProbes\":0,\"clearedDockerHost\":0,\"dockerHostOverrides\":0,\"runtimeMismatchErrors\":0,\"stackDestroyUsed\":false,\"manualStackStateEdits\":0,\"leftoverDockerRegistrations\":null,\"cliOverride\":[],\"cliRunnerUnverified\":[]}"
+      },
+      {
+        "name": "explains the runtime outcome truthfully",
+        "passed": true,
+        "judgeNotes": "The report correctly says the Supabase stack started on Docker, matching the observed runtime and successful start."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,100p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5030
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development init start Docker\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-start",
+              "title": "Start containers for Supabase local development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            }
+          ],
+          "resultChars": 65021
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 283338,
+        "cacheReadInputTokens": 237396,
+        "cacheWriteInputTokens": 45194,
+        "outputTokens": 2387
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 99749,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 307638,
+      "duration": 205276,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2694683488,
+        "egress": 9908145
       }
     },
     "prompt": "Set up a local Supabase project in this directory and start it using the Docker runtime.",
