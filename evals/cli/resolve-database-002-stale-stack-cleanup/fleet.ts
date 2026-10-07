@@ -228,6 +228,11 @@ function describeInvocation(inv: SupabaseInvocation): string {
   return `cmd #${inv.commandIndex + 1} "${truncate(inv.argv.join(' '), 120)}"${where}`;
 }
 
+function targetsResolved(inv: FleetInvocation, service: Service): boolean {
+  if (inv.stackIdService !== undefined) return inv.stackIdService === service;
+  return invocationTargets(inv, service, SERVICES);
+}
+
 function targetsService(
   inv: FleetInvocation,
   kind: LifecycleKind,
@@ -243,7 +248,7 @@ function targetsService(
 /**
  * Start/teardown/restart/reset invocations targeting `service`, in execution
  * order. A start whose target is a shell expansion (a loop) counts for every
- * service, since start evidence only guards against a vacuous teardown.
+ * service as start evidence; `findSetup` doesn't let it anchor setup.
  */
 export function lifecycleEvents(
   invocations: readonly FleetInvocation[],
@@ -264,40 +269,64 @@ export function lifecycleEvents(
   });
 }
 
+export type Setup = {
+  anchor: FleetInvocation;
+  phase: FleetInvocation[];
+  /** Whether every service's setup start named it; false when a loop start covered one. */
+  resolved: boolean;
+};
+
+const latestByTime = (starts: readonly FleetInvocation[]): FleetInvocation => {
+  const timed = starts.filter(
+    (start): start is FleetInvocation & { at: number } => start.at !== undefined
+  );
+  return timed.length === starts.length
+    ? timed.reduce((latest, start) => (start.at >= latest.at ? start : latest))
+    : starts[starts.length - 1];
+};
+
 /**
- * The start completing setup — the first point where every service has had a
- * start that didn't fail — and the change-phase invocations after it, so
- * setup-phase stops and retries never read as changes; undefined when that
- * point never comes. Parallel starts finish in any order, so when every
- * service's first start has a completion time the latest one is the anchor.
+ * The start completing setup and the invocations after it, so setup-phase
+ * stops and retries never read as changes; undefined when setup never
+ * completes. Setup completes once every service has a start that didn't fail
+ * and named it; parallel starts finish in any order, so the latest completion
+ * time among each service's first such start is the anchor. A start whose
+ * target is a shell expansion never completes setup while every service has a
+ * start that named it; only when some service has none does setup complete on
+ * the first point all three are covered, anchored on the latest loop start,
+ * and `resolved` is false.
  */
 export function findSetup(
   invocations: readonly FleetInvocation[]
-): { anchor: FleetInvocation; phase: FleetInvocation[] } | undefined {
-  const firstStart = new Map<Service, number>();
-  for (const [i, inv] of invocations.entries()) {
-    const kind = lifecycleKind(inv);
-    if (inv.failed || kind !== 'start') continue;
-    for (const service of SERVICES) {
-      if (!firstStart.has(service) && targetsService(inv, kind, service)) {
-        firstStart.set(service, i);
-      }
-    }
-    if (firstStart.size < SERVICES.length) continue;
-    const starts = [...new Set(firstStart.values())].map((n) => invocations[n]);
-    const timed = starts.filter(
-      (start): start is FleetInvocation & { at: number } =>
-        start.at !== undefined
-    );
-    const anchor =
-      timed.length === starts.length
-        ? timed.reduce((latest, start) =>
-            start.at >= latest.at ? start : latest
-          )
-        : inv;
-    return { anchor, phase: invocations.slice(i + 1) };
+): Setup | undefined {
+  const starts = invocations.flatMap((inv, i) =>
+    !inv.failed && lifecycleKind(inv) === 'start' ? [{ inv, i }] : []
+  );
+  const firstResolved = SERVICES.map((service) =>
+    starts.find(({ inv }) => targetsResolved(inv, service))
+  );
+  if (firstResolved.every((start) => start !== undefined)) {
+    const setupStarts = [...new Set(firstResolved)];
+    const last = Math.max(...setupStarts.map((start) => start.i));
+    return {
+      anchor: latestByTime(setupStarts.map(({ inv }) => inv)),
+      phase: invocations.slice(last + 1),
+      resolved: true,
+    };
   }
-  return undefined;
+  const first = SERVICES.map((service) =>
+    starts.find(({ inv }) => targetsService(inv, 'start', service))
+  );
+  if (first.some((start) => start === undefined)) return undefined;
+  const last = Math.max(...first.map((start) => start!.i));
+  const loops = starts.filter(
+    ({ inv, i }) => i <= last && invocationTargetUnresolved(inv)
+  );
+  return {
+    anchor: loops[loops.length - 1].inv,
+    phase: invocations.slice(last + 1),
+    resolved: false,
+  };
 }
 
 const NO_CHANGE_PHASE =
@@ -313,8 +342,8 @@ const iso = (ms: number) => new Date(ms).toISOString();
 function compareToSetup(
   label: string,
   startMs: number,
-  anchor: FleetInvocation,
-  anchorAt: number
+  anchorAt: number,
+  from: string
 ): { after: boolean; notes: string } {
   const after = startMs > anchorAt + CLOCK_TOLERANCE_MS;
   const relation = after
@@ -324,21 +353,28 @@ function compareToSetup(
       : `within ${CLOCK_TOLERANCE_MS}ms of`;
   return {
     after,
-    notes: `state: ${label} postmaster started ${iso(startMs)}, ${relation} setup completed ${iso(anchorAt)} (${describeInvocation(anchor)})`,
+    notes: `state: ${label} postmaster started ${iso(startMs)}, ${relation} ${from}`,
   };
 }
 
 /**
  * The setup and postmaster times state evidence compares, or why it can't
- * decide: either time is missing, or the service was stopped or restarted in
- * the same tool call as setup, which one completion time can't order.
+ * decide: either time is missing, setup rests on a loop start whose
+ * completion can't be attributed to one service, or the service was stopped
+ * or restarted in the same tool call as setup, which one completion time can't
+ * order.
  */
 function stateTimes(
-  anchor: FleetInvocation,
-  phase: readonly FleetInvocation[],
+  setup: Setup,
   service: SurvivingService,
   postmasterStartMs: number | null
-): { anchorAt: number; startMs: number } | { unusable: string } {
+): { anchorAt: number; startMs: number; from: string } | { unusable: string } {
+  const { anchor, phase } = setup;
+  if (!setup.resolved) {
+    return {
+      unusable: `setup rests on a start whose target is a shell expansion (cmd #${anchor.commandIndex + 1}), so its completion can't be attributed to ${service}`,
+    };
+  }
   if (anchor.at === undefined) return { unusable: 'no timing recorded' };
   if (postmasterStartMs === null) {
     return { unusable: `${service} postmaster start time unavailable` };
@@ -349,11 +385,14 @@ function stateTimes(
       event.commandIndex === anchor.commandIndex
   );
   const touch = service === 'checkout-service' ? 'restart' : 'touch';
-  return sameCall
-    ? {
-        unusable: `setup and ${touch} ran in one call (cmd #${anchor.commandIndex + 1}); timing can't order them`,
-      }
-    : { anchorAt: anchor.at, startMs: postmasterStartMs };
+  if (sameCall) {
+    return {
+      unusable: `setup and ${touch} ran in one call (cmd #${anchor.commandIndex + 1}); timing can't order them`,
+    };
+  }
+  const anchorAt = anchor.at;
+  const from = `setup completed ${iso(anchor.at)} (${describeInvocation(anchor)})`;
+  return { anchorAt, startMs: postmasterStartMs, from };
 }
 
 export type LegacyTeardownOutcome = 'succeeded' | 'failed' | 'none';
@@ -432,18 +471,13 @@ export function decideCheckoutRestart(
   const setup = findSetup(invocations);
   if (!setup) return UNAVAILABLE;
   const { anchor, phase } = setup;
-  const times = stateTimes(
-    anchor,
-    phase,
-    'checkout-service',
-    postmasterStartMs
-  );
+  const times = stateTimes(setup, 'checkout-service', postmasterStartMs);
   if (!('unusable' in times)) {
     const { after, notes } = compareToSetup(
       'checkout',
       times.startMs,
-      anchor,
-      times.anchorAt
+      times.anchorAt,
+      times.from
     );
     return { passed: after, evidence: 'state', notes };
   }
@@ -477,14 +511,14 @@ export function decidePaymentsUntouched(
   );
   const labels = (events: readonly LifecycleEvent[]) =>
     events.map((event) => event.label).join(', ');
-  const times = stateTimes(anchor, phase, 'payments-api', postmasterStartMs);
+  const times = stateTimes(setup, 'payments-api', postmasterStartMs);
   if (!('unusable' in times)) {
     const resets = touches.filter((event) => event.kind === 'reset');
     const { after, notes } = compareToSetup(
       'payments',
       times.startMs,
-      anchor,
-      times.anchorAt
+      times.anchorAt,
+      times.from
     );
     return {
       passed: !after && resets.length === 0,

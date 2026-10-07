@@ -58,7 +58,9 @@ const START_ALL = [
   'cd legacy-import && supabase start',
 ];
 
-type Outcome = Partial<Pick<ToolCallRecord, 'result' | 'error' | 'resultTs'>>;
+type Outcome = Partial<
+  Pick<ToolCallRecord, 'result' | 'error' | 'resultTs' | 'cwd'>
+>;
 type Call = string | [command: string, outcome: Outcome];
 
 function toolCall([command, outcome]: [string, Outcome?]): ToolCallRecord {
@@ -1736,5 +1738,131 @@ describe('setup anchor with parallel starts', () => {
       ])
     );
     expect(setup?.anchor.commandIndex).toBe(2);
+  });
+});
+
+describe('setup anchored on starts that name their service', () => {
+  const T = Date.parse('2026-10-01T11:50:42.000Z');
+  const named = (service: string, at: number): Call => [
+    `supabase start --workdir ${service}`,
+    { resultTs: at },
+  ];
+  const CALLS: Call[] = [
+    [LOOP_START, { resultTs: T - 60_000 }],
+    named('checkout-service', T - 30_000),
+    named('payments-api', T - 20_000),
+    named('legacy-import', T - 40_000),
+  ];
+
+  it('anchors on the latest per-service start, not the earlier loop start', () => {
+    const setup = findSetup(invocationsOf(CALLS));
+    expect(setup?.resolved).toBe(true);
+    expect(setup?.anchor.commandIndex).toBe(2);
+    expect(setup?.anchor.at).toBe(T - 20_000);
+  });
+
+  it('reads a payments postmaster between the loop and its own start as untouched', () => {
+    const result = untouched(CALLS, REACHABLE, PAYMENTS_ROWS, T - 40_000);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toMatch(/^state: /);
+  });
+
+  it('keeps change-phase commands after the loop start out of setup', () => {
+    const result = restarted(
+      [
+        [LOOP_START, { resultTs: T - 60_000 }],
+        'supabase stop --workdir legacy-import',
+        'supabase stop --workdir checkout-service',
+        'supabase start --workdir checkout-service',
+      ],
+      T
+    );
+    expect(result.passed).toBe(true);
+    expect(result.notes).toMatch(/^commands: /);
+  });
+
+  describe('with only loop starts', () => {
+    const LOOP_ONLY: Call[] = [[LOOP_START, { resultTs: T }]];
+
+    it('falls back to commands for restart and untouched, saying why', () => {
+      const calls = [
+        ...LOOP_ONLY,
+        'supabase stack restart --stack checkout-service',
+      ];
+      const restart = restarted(calls, T + 60_000);
+      expect(restart.passed).toBe(true);
+      expect(restart.notes).toMatch(/^commands: /);
+      expect(restart.notes).toContain(
+        'setup rests on a start whose target is a shell expansion (cmd #1)'
+      );
+      const payments = untouched(calls, REACHABLE, PAYMENTS_ROWS, T - 60_000);
+      expect(payments.passed).toBe(true);
+      expect(payments.notes).toMatch(/^commands: /);
+      const touched = untouched(
+        [...calls, 'supabase stack restart --stack payments-api'],
+        REACHABLE,
+        PAYMENTS_ROWS,
+        T - 60_000
+      );
+      expect(touched.passed).toBe(false);
+    });
+
+    it('still counts as the legacy-import start', () => {
+      const result = gone([
+        ...LOOP_ONLY,
+        'supabase stop --workdir legacy-import',
+      ]);
+      expect(result.passed).toBe(true);
+      expect(result.notes).toContain('started by cmd #1');
+    });
+  });
+});
+
+describe('replaying a run that started each service with --workdir "$PWD"', () => {
+  const at = (iso: string) => Date.parse(iso);
+  const SANDBOX = '/tmp/sandbox-bf05ea9a';
+  const call = (command: string, service: string, resultTs: number): Call => [
+    `/bin/bash -lc '${command}'`,
+    { result: 'ok', cwd: `${SANDBOX}/${service}`, resultTs },
+  ];
+  const CALLS: Call[] = [
+    call('supabase start --workdir "$PWD"', 'checkout-service', 1791378395144),
+    call('supabase start --workdir "$PWD"', 'payments-api', 1791378444149),
+    call('supabase start --workdir "$PWD"', 'legacy-import', 1791378485462),
+    call('supabase stop --workdir "$PWD"', 'checkout-service', 1791378500605),
+    call('supabase stop --workdir "$PWD"', 'legacy-import', 1791378508038),
+    call('supabase start --workdir "$PWD"', 'checkout-service', 1791378538203),
+  ];
+  const CHECKOUT_POSTMASTER = at('2026-10-07T13:08:33.744Z');
+  const PAYMENTS_POSTMASTER = at('2026-10-07T13:06:48.422Z');
+
+  it('anchors setup on the last service start and attributes the teardown', () => {
+    const setup = findSetup(invocationsOf(CALLS));
+    expect(setup?.resolved).toBe(true);
+    expect(setup?.anchor.at).toBe(1791378485462);
+    const result = gone(CALLS);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toContain(
+      'teardown cmd #5 "supabase stop --workdir $PWD"'
+    );
+  });
+
+  it('passes checkout restarted and payments untouched on state evidence', () => {
+    const checkout = restarted(CALLS, CHECKOUT_POSTMASTER);
+    expect(checkout.passed).toBe(true);
+    expect(checkout.notes).toMatch(/^state: /);
+    const payments = untouched(
+      CALLS,
+      REACHABLE,
+      PAYMENTS_ROWS,
+      PAYMENTS_POSTMASTER
+    );
+    expect(payments.passed).toBe(true);
+    expect(payments.notes).toMatch(/^state: /);
+  });
+
+  it('passes both on commands when the postmaster times are unreadable', () => {
+    expect(restarted(CALLS, null).passed).toBe(true);
+    expect(untouched(CALLS).passed).toBe(true);
   });
 });

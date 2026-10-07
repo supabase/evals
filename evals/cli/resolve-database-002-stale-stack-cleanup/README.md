@@ -60,8 +60,10 @@ or `--project-id <name>` decide, so `cd legacy-import && supabase stack destroy
 --stack payments-api` targets legacy-import. `--all` targets every service.
 `--help`/`-h` invocations never count.
 A start whose target is a shell expansion (`cd "$s"` in a loop) counts as
-starting every service, since start evidence only rules out tearing down a
-stack that never ran. Order is execution order across all commands.
+start evidence for every service (it is `legacy-import`'s required start, and
+a later restart is a stop then a start), but it only anchors setup when some
+service has no start that names it; see [Evidence model](#evidence-model).
+Order is execution order across all commands.
 
 A command counts as failed when its tool call exited non-zero, or its output
 holds a CLI error (`"_tag":"Error"`, `Unknown subcommand`, `UnknownSubcommand`,
@@ -69,8 +71,10 @@ holds a CLI error (`"_tag":"Error"`, `Unknown subcommand`, `UnknownSubcommand`,
 failed teardown never decides `legacy-import stack is gone`.
 A call that recorded neither an exit status nor output counts as succeeded.
 
-The change phase begins right after the first point where all three services
-have had a start that didn't fail. Restarts and touches are only read from the
+The change phase begins right after setup completes: the first point where
+all three services have had a start that didn't fail and that names them (a
+start in the service's directory, or by `--workdir`, `--stack` or a mapped
+`--stack-id`). Restarts and touches are only read from the
 change phase, so stopping and retrying a stack during setup (for example to
 clear a port clash) is neither a restart nor a touch. If that point never
 comes, `checkout-service was restarted` and `payments-api left untouched`
@@ -108,9 +112,17 @@ fail, and the notes say there was no change phase.
 
 ### Evidence model
 
-The setup point is the start that completes setup (the first moment all
-three services have had a start that didn't fail), and its time is that tool
-call's recorded completion time. Each survivor's postmaster start time is read
+The setup point is the start that completes setup, and its time is that tool
+call's recorded completion time. Setup completes when every service has had a
+start that didn't fail and that names it; the anchor is the latest completion
+time among each service's first such start (parallel starts finish out of
+order). A loop start (`cd "$s"`) never completes setup or becomes the anchor
+while every service has a start that names it, so a fan-out followed by
+per-service starts anchors on the per-service starts. Only when some service
+has no start that names it does setup complete at the first point all three
+are covered, anchored on the latest loop start; that completion time belongs
+to no one service, so state evidence isn't used and restart and untouched
+fall back to commands, saying so. Each survivor's postmaster start time is read
 with `pg_postmaster_start_time()`.
 
 - State evidence applies when both the setup time and the service's
@@ -292,8 +304,8 @@ not a CLI gap.
   `project_root` basename equal to a service). An unknown id, or one the agent
   never saw printed, is attributed to no service.
 - Setup is anchored on the latest completion time among each service's first
-  successful start when all of them are recorded (parallel starts finish out
-  of order), else on the last start in command order.
+  successful start that names it when all of them are recorded (parallel
+  starts finish out of order), else on the last of them in command order.
 - The shape of a `stack list` entry is unverified; names are matched against
   every string anywhere in an entry.
 - A legacy `supabase stop` keeps a data-volume backup; it isn't inspected.
