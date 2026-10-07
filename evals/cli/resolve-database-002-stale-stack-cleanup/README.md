@@ -108,9 +108,9 @@ with `pg_postmaster_start_time()`.
 - A `db reset` always counts against payments-api, even under state
   evidence, because Postgres keeps running through one.
 
-The setup time is the tool call's recorded completion time (`endedAt`), never
-its issue time. Only Codex records it, from its rollout, once #356 lands;
-until then every run falls back to command evidence. Every fleet check's notes
+The setup time is the tool call's recorded completion time (`resultTs`), never
+its issue time. Only agents that record it provide it (Codex does, from its
+rollout); runs without it fall back to command evidence. Every fleet check's notes
 start with the evidence that decided it (`state:`, `commands:` or
 `unavailable:`, plus `listing:`/`resolution:`/`db port:`/`containers:` for
 legacy-import), citing commands as `cmd #<n>` (1-based, in command order) and
@@ -167,8 +167,11 @@ Each service resolves through `resolveStack` in `../lib/stack.ts`: the named
 managed stack (`stack status --stack <service>`) from inside the project
 directory, since a managed stack's identity is its project root plus name,
 then from the sandbox root, then the managed stack scoped to the project
-directory, then the legacy `supabase status -o json` there. When a service's
-directory is gone, only the root named lookup runs.
+directory, then the legacy `supabase status -o json` there. When none of
+those resolves, the lookup repeats without the name, which also tries each
+named stack `stack list` reports for that directory, so a stack the agent
+recreated under another name (for example `checkout-service-recovered`) still
+counts. When a service's directory is gone, only the root named lookup runs.
 
 ## The experiments and expected results
 
@@ -192,8 +195,8 @@ Each experiment runs this eval a fixed number of times (3 by default). A run
 only counts as a pass if every check in it passes.
 
 Earlier `nodaemon` results were affected by a sandbox `PATH` bug (fixed in
-#355) and by per-call working directories not being recorded (fixed in #356,
-not yet merged); `nodaemon` results are most meaningful once #356 lands. Some agents on the Docker arms decline to
+#355) and by per-call working directories not being recorded (fixed in #356),
+so only results from after those fixes are comparable. Some agents on the Docker arms decline to
 start anything because `docker ps` lists the sandbox's own container, which
 they read as a stack they shouldn't disturb. That's an environment artifact,
 not a CLI gap.

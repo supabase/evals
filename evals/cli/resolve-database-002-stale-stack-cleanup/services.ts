@@ -55,12 +55,27 @@ export async function resolveServiceStacks(
 ): Promise<Record<Service, StackProbe>> {
   const stacks = {} as Record<Service, StackProbe>;
   for (const service of SERVICES) {
-    stacks[service] = await resolveStack(
-      ctx,
-      serviceStackTarget(service, dirs.found[service])
-    );
+    const dir = dirs.found[service];
+    const byName = await resolveStack(ctx, serviceStackTarget(service, dir));
+    stacks[service] =
+      byName.ok || dir === undefined
+        ? byName
+        : await resolveRenamedStack(ctx, dir, byName.notes);
   }
   return stacks;
+}
+
+// Agents may recreate a service's stack under a different name, so when the
+// service-named stack is missing, fall back to any named stack for its dir.
+async function resolveRenamedStack(
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  dir: string,
+  namedNotes: string
+): Promise<StackProbe> {
+  const discovered = await resolveStack(ctx, { kind: 'project', dir });
+  return discovered.ok
+    ? discovered
+    : { ok: false, notes: `${namedNotes}; ${discovered.notes}` };
 }
 
 export async function checkStackRunning(

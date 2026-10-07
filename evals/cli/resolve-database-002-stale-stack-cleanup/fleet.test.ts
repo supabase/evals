@@ -54,9 +54,7 @@ const START_ALL = [
   'cd legacy-import && supabase start',
 ];
 
-type Outcome = Partial<Pick<ToolCallRecord, 'result' | 'error'>> & {
-  endedAt?: number;
-};
+type Outcome = Partial<Pick<ToolCallRecord, 'result' | 'error' | 'resultTs'>>;
 type Call = string | [command: string, outcome: Outcome];
 
 function toolCall([command, outcome]: [string, Outcome?]): ToolCallRecord {
@@ -939,7 +937,7 @@ describe('evidence from database start times', () => {
   const T = Date.parse('2026-10-01T11:50:42.000Z');
   const TIMED_START_ALL: Call[] = START_ALL.map((command, i) => [
     command,
-    { endedAt: T - (2 - i) * 10_000 },
+    { resultTs: T - (2 - i) * 10_000 },
   ]);
   const AFTER = [
     'setup completed 2026-10-01T11:50:42.000Z',
@@ -960,7 +958,7 @@ describe('evidence from database start times', () => {
         ...TIMED_START_ALL,
         [
           'supabase stack restart --stack checkout-service',
-          { result: 'Restarted.', endedAt: T + 5_000 },
+          { result: 'Restarted.', resultTs: T + 5_000 },
         ],
       ],
       T - 30_000
@@ -1002,7 +1000,7 @@ describe('evidence from database start times', () => {
 
   const SAME_CALL = (touch: string): Call[] => [
     ...TIMED_START_ALL.slice(0, 2),
-    [`cd legacy-import && supabase start && ${touch}`, { endedAt: T }],
+    [`cd legacy-import && supabase start && ${touch}`, { resultTs: T }],
   ];
 
   it('falls back to commands when setup and the checkout restart share a call', () => {
@@ -1136,10 +1134,10 @@ describe('ground truth for a restart the database start time disputes', () => {
       },
       stackList: EMPTY_LIST,
       invocations: invocationsOf([
-        ...START_ALL.map((command): Call => [command, { endedAt: T }]),
+        ...START_ALL.map((command): Call => [command, { resultTs: T }]),
         [
           'supabase stack restart --stack checkout-service',
-          { result: 'Restarted.', endedAt: T + 5_000 },
+          { result: 'Restarted.', resultTs: T + 5_000 },
         ],
       ]),
       postmasterStarts: {
@@ -1272,9 +1270,9 @@ describe('--stack-id attribution', () => {
 describe('setup anchor with parallel starts', () => {
   const T = Date.parse('2026-10-01T11:50:42.000Z');
   const PARALLEL: Call[] = [
-    ['cd checkout-service && supabase start', { endedAt: T - 20_000 }],
-    ['cd payments-api && supabase start', { endedAt: T - 10_000 }],
-    ['cd legacy-import && supabase start', { endedAt: T - 30_000 }],
+    ['cd checkout-service && supabase start', { resultTs: T - 20_000 }],
+    ['cd payments-api && supabase start', { resultTs: T - 10_000 }],
+    ['cd legacy-import && supabase start', { resultTs: T - 30_000 }],
   ];
 
   it('anchors on the start with the latest completion time', () => {

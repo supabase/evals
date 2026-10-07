@@ -142,6 +142,48 @@ describe('resolveServiceStacks', () => {
   });
 });
 
+describe('resolveServiceStacks with a renamed stack', () => {
+  const dirs = {
+    found: { 'checkout-service': './checkout-service' },
+    problems: {},
+    all: [],
+  };
+  const stackList = (...names: string[]) =>
+    commandResult(
+      `/sandbox/checkout-service\n${JSON.stringify({
+        stacks: names.map((name) => ({
+          name,
+          project_root: '/sandbox/checkout-service',
+          owner: 'reachable',
+        })),
+      })}`
+    );
+
+  it("finds a service's stack recreated under another name", async () => {
+    const { ctx } = fakeCtx({
+      'supabase stack list': stackList('checkout-service-recovered'),
+      "--stack 'checkout-service-recovered' --env": commandResult(
+        '{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:54322/postgres"}'
+      ),
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs);
+    expect(stacks['checkout-service']).toMatchObject({
+      ok: true,
+      backend: 'managed-named',
+    });
+  });
+
+  it('keeps the service-named notes when nothing resolves', async () => {
+    const { ctx } = fakeCtx({ 'supabase stack list': stackList() });
+    const stacks = await resolveServiceStacks(ctx, dirs);
+    const probe = stacks['checkout-service'];
+    expect(probe.ok).toBe(false);
+    expect(probe.ok ? '' : probe.notes).toContain(
+      'stack list: no named stacks for this project'
+    );
+  });
+});
+
 describe('checkStackRunning', () => {
   it('passes when select 1 answers', async () => {
     const { ctx } = fakeCtx({ 'select 1': commandResult('1\n') });
