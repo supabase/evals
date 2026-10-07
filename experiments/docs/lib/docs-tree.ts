@@ -9,6 +9,11 @@ export type TreeNode = {
   label: string;
   /** A subhead shown under the label, like a menu item's description. */
   description?: string;
+  /**
+   * A list of pages of one kind, such as sign-in providers or quickstarts,
+   * which may have more than MAX_CHILDREN children.
+   */
+  longList?: boolean;
   /** The page this item links today, like `/guides/platform/sso`. Groups and headings have none. */
   route?: string;
   /** A proposal's new url for the page. Old routes redirect here. */
@@ -108,7 +113,7 @@ export type TreeStats = {
   /** Linked nodes by depth: the root is 0, the top nav 1. */
   linkDepths: Record<number, number>;
   maxChildren: number;
-  /** Nodes with more children than MAX_CHILDREN. */
+  /** Nodes with more children than MAX_CHILDREN, other than long lists. */
   wideNodes: { trail: string; children: number }[];
   /** Pages linked from more than one node, ignoring query and anchor. */
   duplicatePages: { page: string; trails: string[] }[];
@@ -130,7 +135,9 @@ export function treeStats(tree: DocsTree): TreeStats {
     byRoute.set(node.route, [...(byRoute.get(node.route) ?? []), trail]);
   }
   const wideNodes = nodes
-    .filter((node) => (node.children?.length ?? 0) > MAX_CHILDREN)
+    .filter(
+      (node) => !node.longList && (node.children?.length ?? 0) > MAX_CHILDREN
+    )
     .map((node) => ({
       trail: node.trail.join(' > ') || tree.root.label,
       children: node.children?.length ?? 0,

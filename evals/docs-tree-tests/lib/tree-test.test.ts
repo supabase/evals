@@ -256,6 +256,28 @@ describe('ruleViolations', () => {
     expect(ruleViolations(tree(true))).toEqual([]);
   });
 
+  it('allows a long list of one kind, and flags any other wide node', () => {
+    const wide = (longList?: boolean): DocsTree => ({
+      name: 'wide',
+      description: 'Eight providers.',
+      root: {
+        label: 'Docs',
+        children: [
+          {
+            label: 'Social Login',
+            ...(longList ? { longList } : {}),
+            children: Array.from({ length: 8 }, (_, index) => ({
+              label: `Provider ${index + 1}`,
+              route: `/guides/auth/social-login/provider-${index + 1}`,
+            })),
+          },
+        ],
+      },
+    });
+    expect(ruleViolations(wide(true))).toEqual([]);
+    expect(ruleViolations(wide())).toEqual(['Social Login has 8 children']);
+  });
+
   it('flags a second link to a page', () => {
     expect(ruleViolations(tree())).toEqual([
       'guides/getting-started/api-keys is linked 2 times',

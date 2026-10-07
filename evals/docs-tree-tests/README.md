@@ -24,7 +24,7 @@ The trees are in `experiments/docs/trees/`:
 | Tree | What it is |
 | --- | --- |
 | `today` | The docs navigation as it ships, exported with every sidebar group expanded and every feature flag on, as in production. Its top level is the top nav: Start, Products, Build, Manage, Reference, Resources. |
-| `proposal-*` | Proposed trees. No node has more than 7 children, and every page appears exactly once. A tree can also split a section of a page into a new page, and choosing it counts as choosing that page. |
+| `proposal-*` | Proposed trees. No node has more than 7 children, except a long list of pages of one kind, such as sign-in providers, and every page appears exactly once. A tree can also split a section of a page into a new page, and choosing it counts as choosing that page. |
 
 Each tree has an experiment, `claude-code-sonnet-5-tree-<tree>`.
 

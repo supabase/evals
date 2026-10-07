@@ -1,7 +1,7 @@
 /**
  * Builds a proposed docs tree from a compact spec, and checks it against the
  * tree rules: every page in today's tree appears exactly once, and no node has
- * more than 7 children.
+ * more than 7 children unless it is a long list of pages of one kind.
  *
  * A spec node is either a page path, like `guides/platform/sso`, which keeps
  * today's label and route, or an object:
@@ -10,7 +10,8 @@
  *     "children": ["guides/platform/sso", ...] }
  *
  * `page` makes a group link a page too, and `label` alone on a page node
- * renames it. `description` adds a subhead under the label. `newRoute`
+ * renames it. `description` adds a subhead under the label, and `longList`
+ * lets a list of pages of one kind have more than 7 children. `newRoute`
  * proposes a new url for the page, and `new: true` marks a page that doesn't
  * exist yet, such as a new hub, with `route`.
  * `splitFrom`, like `guides/getting-started/api-keys#leaked-key`, with a
@@ -35,6 +36,7 @@ type SpecNode =
   | {
       label?: string;
       description?: string;
+      longList?: boolean;
       page?: string;
       route?: string;
       newRoute?: string;
@@ -93,6 +95,7 @@ function build(node: SpecNode, trail: string[]): TreeNode {
   return {
     label: label ?? '?',
     ...(node.description ? { description: node.description } : {}),
+    ...(node.longList ? { longList: true } : {}),
     ...(page ? { route: node.route ?? known?.route ?? `/${page}` } : {}),
     ...(node.newRoute ? { newRoute: node.newRoute } : {}),
     ...(node.new ? { new: true } : {}),
