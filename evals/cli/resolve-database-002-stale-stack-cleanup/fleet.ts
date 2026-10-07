@@ -380,8 +380,8 @@ function splitPhase(phase: readonly FleetInvocation[]): {
  * reset recreates the database) and the postmaster start time, or why it
  * can't decide: either time is missing, setup rests on a loop start whose
  * completion can't be attributed to one service, or the service was stopped
- * or restarted in the same tool call as setup, which one completion time can't
- * order.
+ * or restarted in the same tool call as setup or as the seeding reset that
+ * would move the reference time, which one completion time can't order.
  */
 function stateTimes(
   setup: Setup,
@@ -418,6 +418,19 @@ function stateTimes(
   if (seeding && seeding.at === undefined) {
     return {
       unusable: `seeding ${describeInvocation(seeding)} has no recorded time`,
+    };
+  }
+  const seedingSameCall =
+    seeding?.at !== undefined &&
+    seeding.at > anchor.at &&
+    lifecycleEvents(splitPhase(phase).change, service).some(
+      (event) =>
+        (event.kind === 'restart' || event.kind === 'teardown') &&
+        event.commandIndex === seeding.commandIndex
+    );
+  if (seedingSameCall) {
+    return {
+      unusable: `seeding ${describeInvocation(seeding)} and ${touch} ran in one call; timing can't order them`,
     };
   }
   const anchorAt = Math.max(anchor.at, seeding?.at ?? anchor.at);

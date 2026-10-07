@@ -10,7 +10,7 @@ import {
 import { countRawDockerSocketProbes } from '../lib/detours.js';
 import {
   countClearedDockerHost,
-  readCliVersion,
+  readCliVersions,
   safely,
 } from '../lib/metrics.js';
 import { urlPort, type StackProbe } from '../lib/stack.js';
@@ -81,7 +81,7 @@ export async function checkMetrics(
   const paymentsMs = services['payments-api'].postmasterStartMs;
 
   const metrics = {
-    cliVersion: await readCliVersion(ctx),
+    ...(await readCliVersions(ctx, marker)),
     cliOverride,
     cliRunnerUnverified: listUnverifiedRunners(invocations),
     channel: marker?.channel ?? 'pinned',

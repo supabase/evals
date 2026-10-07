@@ -725,6 +725,27 @@ describe('commands attributed by per-call working directory', () => {
   });
 });
 
+describe('--project-id is authoritative over the working directory', () => {
+  const STOP_PAYMENTS =
+    'cd checkout-service && supabase stop --project-id payments-api';
+
+  it('counts a stop of payments-api run from another service directory against it', () => {
+    const result = untouched([...START_ALL, STOP_PAYMENTS]);
+    expect(result.passed).toBe(false);
+    expect(result.notes).toMatch(/^commands: touched by cmd #4 /);
+  });
+
+  it('does not read a later checkout start as a checkout restart', () => {
+    expect(
+      restarted([
+        ...START_ALL,
+        STOP_PAYMENTS,
+        'cd checkout-service && supabase start',
+      ]).passed
+    ).toBe(false);
+  });
+});
+
 describe('directory attribution before stack name', () => {
   const kinds = (command: string, service: Service) =>
     lifecycleEvents(invocationsOf([command]), service).map(({ kind }) => kind);
@@ -1989,6 +2010,59 @@ describe('db reset recreates the database', () => {
         T + 39_000
       );
       expect(result.passed).toBe(true);
+    });
+
+    it('decides on commands when a seeding reset shares a call with the restart', () => {
+      const result = restarted(
+        [
+          ...TIMED,
+          timed(
+            'supabase db reset --workdir checkout-service && supabase stack restart --workdir checkout-service',
+            T + 20_000
+          ),
+        ],
+        T + 19_000
+      );
+      expect(result.passed).toBe(true);
+      expect(result.notes).toMatch(/^commands: /);
+      expect(result.notes).toContain(
+        'seeding cmd #4 "supabase db reset --workdir checkout-service" and restart ran in one call; timing can\'t order them'
+      );
+    });
+
+    it('decides on commands when a payments seeding reset shares a call with a stop', () => {
+      const result = untouched(
+        [
+          ...TIMED,
+          timed(
+            'supabase db reset --workdir payments-api && supabase stop --workdir payments-api',
+            T + 20_000
+          ),
+        ],
+        REACHABLE,
+        PAYMENTS_ROWS,
+        T + 19_000
+      );
+      expect(result.passed).toBe(false);
+      expect(result.notes).toMatch(/^commands: touched by cmd #4 /);
+      expect(result.notes).toContain('and touch ran in one call');
+    });
+
+    it('still lets state decide when the seeding reset ran in an earlier call', () => {
+      const result = restarted(
+        [
+          ...TIMED,
+          timed('supabase db reset --workdir checkout-service', T + 10_000),
+          timed(
+            'supabase stack restart --workdir checkout-service',
+            T + 20_000
+          ),
+        ],
+        T + 19_000
+      );
+      expect(result.passed).toBe(true);
+      expect(result.notes).toMatch(/^state: /);
+      expect(result.notes).toContain('after seeding cmd #4');
     });
 
     it('fails payments untouched on a reset after the change began', () => {

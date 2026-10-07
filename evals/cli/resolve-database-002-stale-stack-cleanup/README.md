@@ -57,12 +57,15 @@ the stacks (see [Evidence model](#evidence-model)), and the `supabase`
 invocations the agent executed, parsed from argv per executable segment: an echoed plan, a
 commit message, a heredoc, or a `psql` statement that merely mentions a
 command never counts. An invocation targets a service by the directory it
-ran in first: `--workdir`'s (or `SUPABASE_WORKDIR`'s) basename, else the
+ran in, except that `--project-id <name>` is authoritative: it names the
+project whatever directory the command ran in, so `cd checkout-service &&
+supabase stop --project-id payments-api` stops payments-api. Otherwise the
+directory decides: `--workdir`'s (or `SUPABASE_WORKDIR`'s) basename, else the
 directory an earlier `cd` in the same command entered, else the tool call's own
 working directory when the harness records one. Only when that directory is
 unknown, or isn't one of the three service directories, does `--stack <name>`
-or `--project-id <name>` decide, so `cd legacy-import && supabase stack destroy
---stack payments-api` targets legacy-import. `--all` targets every service.
+decide, so `cd legacy-import && supabase stack destroy --stack payments-api`
+targets legacy-import. `--all` targets every service.
 `--help`/`-h` invocations never count.
 A start whose target is a shell expansion (`cd "$s"` in a loop) counts as
 start evidence for every service (it is `legacy-import`'s required start, and
@@ -139,7 +142,9 @@ with `pg_postmaster_start_time()`.
 - State evidence applies when both the setup time and the service's
   postmaster start time are known, and the service wasn't stopped or
   restarted in the same tool call as setup (one completion time can't order
-  the two, so that falls back to commands, saying so). A postmaster that started more than
+  the two, so that falls back to commands, saying so). The same holds when a
+  seeding `db reset` that would move the reference time shares a tool call with
+  the service's change-phase stop, restart or destroy. A postmaster that started more than
   `CLOCK_TOLERANCE_MS` (1s) after setup completed means the service was
   restarted; anything earlier means it wasn't. Commands are then not
   consulted, so a restart the parser can't attribute still counts, and a
@@ -197,7 +202,8 @@ Behaviour checks:
 `dbPort`, `apiPort` and (for survivors) `postmasterStartMs`, plus
 `checkoutPostmasterNewerThanPayments`, `stackListAvailable`, `stackCount`,
 `relocatedHome` (the CLI home a service was found under when it isn't the
-default, else `null`), `cliVersion`, `cliOverride` and `cliRunnerUnverified` (see below), `channel`,
+default, else `null`), `cliVersion` (the staged CLI), `cliVersionAfterRun` (the PATH version, only
+when it differs), `cliOverride` and `cliRunnerUnverified` (see below), `channel`,
 `cliDetours`, `clearedDockerHost` and
 `rawDockerSocketProbes`. `setupCompletedAt` is the setup point's time (epoch
 ms, or null when not recorded), and `evidence` says which evidence decided
@@ -256,7 +262,11 @@ completion time when recorded, else command order) went through such a runner
 fails `… stack is running` even if the installed CLI happens to resolve its
 stack (`<service>: started with <runner>, not the installed CLI`), and the
 judge's ground truth says so; one whose latest non-failed start used the installed CLI
-passes. A global `npm i -g supabase@X` applies to later invocations. Runners
+passes. A global `npm i -g supabase@X` applies to later invocations only when
+its tool call succeeded (a failed install leaves the installed CLI in place),
+and a global uninstall clears it. The installed version the runners are compared
+with is the marker's `cliVersion`, else `/usr/bin/supabase --version`, else
+`supabase --version` on PATH. Runners
 that name a dist-tag (`supabase@beta`) can't be checked against the installed
 version offline and are listed in `metrics.cliRunnerUnverified` instead. The
 runner is never replayed.

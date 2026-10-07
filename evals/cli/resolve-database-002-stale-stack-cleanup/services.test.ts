@@ -2,12 +2,14 @@
 import type {
   CommandResult,
   LocalStackEvalContext,
+  ToolCallRecord,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import {
   findSupabaseInvocations,
   listCliOverrides,
 } from '../lib/cli-invocations.js';
+import { findFleetInvocations } from './fleet.js';
 import {
   checkServiceProjectsExist,
   checkStackRunning,
@@ -654,6 +656,68 @@ describe('findSwappedServices ignores failed starts', () => {
   it('does not flag a service whose only start failed', () => {
     const invocations = run([`cd payments-api && ${RUNNER} start`, true]);
     expect(findSwappedServices(invocations, [RUNNER])).toEqual({});
+  });
+});
+
+describe('a global install swaps the CLI only when its call succeeded', () => {
+  const INSTALL = 'npm i -g supabase@2.120.0';
+  const running = {
+    ok: true,
+    backend: 'managed-named',
+    dbUrl: 'postgresql://x',
+    runtime: 'native',
+  } as const;
+  const ctx = fakeCtx({ 'select 1': commandResult('1\n') }).ctx;
+  const call = (
+    command: string,
+    outcome: Partial<ToolCallRecord> = {}
+  ): ToolCallRecord => ({
+    tool: { kind: 'other', toolName: 'Bash' },
+    body: {},
+    command,
+    ts: 0,
+    ...outcome,
+  });
+  const starts = [
+    call('cd checkout-service && supabase start'),
+    call('cd payments-api && supabase start'),
+  ];
+
+  it('does not swap after a failed install', async () => {
+    const invocations = findFleetInvocations([
+      call(INSTALL, { error: 'EACCES: permission denied' }),
+      ...starts,
+    ]);
+    const cliOverride = listCliOverrides(invocations, '2.118.0');
+    expect(cliOverride).toEqual([]);
+    const result = await checkStackRunning(
+      ctx,
+      'payments-api',
+      running,
+      cliOverride,
+      invocations
+    );
+    expect(result.passed).toBe(true);
+  });
+
+  it('swaps after a successful install', async () => {
+    const invocations = findFleetInvocations([
+      call(INSTALL, { result: 'added 1 package' }),
+      ...starts,
+    ]);
+    const cliOverride = listCliOverrides(invocations, '2.118.0');
+    expect(cliOverride).toEqual([INSTALL]);
+    const result = await checkStackRunning(
+      ctx,
+      'payments-api',
+      running,
+      cliOverride,
+      invocations
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      `payments-api: started with ${INSTALL}, not the installed CLI`
+    );
   });
 });
 
