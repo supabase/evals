@@ -1,7 +1,10 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/docs-tree-tests/lib
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import type { DocsTree } from '../../../experiments/docs/lib/docs-tree.js';
+import {
+  type DocsTree,
+  ruleViolations,
+} from '../../../experiments/docs/lib/docs-tree.js';
 import {
   createTreeSession,
   decodeTree,
@@ -38,6 +41,11 @@ const TREE: DocsTree = {
               {
                 label: 'Audit logs',
                 route: '/guides/security/platform-audit-logs',
+              },
+              {
+                label: 'Rotate a leaked key',
+                route: '/guides/getting-started/api-keys#leaked-key',
+                split: true,
               },
             ],
           },
@@ -175,6 +183,19 @@ describe('scoreTreeTest', () => {
     });
   });
 
+  it('credits a split page to the page it comes from', () => {
+    const run = score(
+      play([
+        ['open', 'root'],
+        ['open', '2'],
+        ['open', '2.1'],
+        ['choose', '2.1.3'],
+      ]),
+      ['guides/getting-started/api-keys']
+    );
+    expect(run).toMatchObject({ success: true, outcome: 'direct success' });
+  });
+
   it('counts refused moves and a run that never chooses as a skip', () => {
     const run = score(
       play([
@@ -190,5 +211,33 @@ describe('scoreTreeTest', () => {
       chosen: null,
       severity: 'big failure',
     });
+  });
+});
+
+describe('ruleViolations', () => {
+  const tree = (split?: boolean): DocsTree => ({
+    name: 'rules',
+    description: 'A page and a section of it.',
+    root: {
+      label: 'Docs',
+      children: [
+        { label: 'API keys', route: '/guides/getting-started/api-keys' },
+        {
+          label: 'Rotate a leaked key',
+          route: '/guides/getting-started/api-keys#leaked-key',
+          ...(split ? { split } : {}),
+        },
+      ],
+    },
+  });
+
+  it('allows a split page beside the page it comes from', () => {
+    expect(ruleViolations(tree(true))).toEqual([]);
+  });
+
+  it('flags a second link to a page', () => {
+    expect(ruleViolations(tree())).toEqual([
+      'guides/getting-started/api-keys is linked 2 times',
+    ]);
   });
 });

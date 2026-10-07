@@ -13,6 +13,12 @@ export type TreeNode = {
   newRoute?: string;
   /** The page doesn't exist yet. */
   new?: boolean;
+  /**
+   * A new page split out of a section of `route`'s page, which `route` links
+   * with an anchor. Choosing it counts as choosing that page, and it doesn't
+   * count as a second link to it.
+   */
+  split?: boolean;
   children?: TreeNode[];
 };
 
@@ -116,9 +122,10 @@ export function treeStats(tree: DocsTree): TreeStats {
   for (const node of nodes) {
     if (!node.route || !node.page) continue;
     const trail = node.trail.join(' > ') || tree.root.label;
+    linkDepths[node.depth] = (linkDepths[node.depth] ?? 0) + 1;
+    if (node.split) continue;
     byPage.set(node.page, [...(byPage.get(node.page) ?? []), trail]);
     byRoute.set(node.route, [...(byRoute.get(node.route) ?? []), trail]);
-    linkDepths[node.depth] = (linkDepths[node.depth] ?? 0) + 1;
   }
   const wideNodes = nodes
     .filter((node) => (node.children?.length ?? 0) > MAX_CHILDREN)

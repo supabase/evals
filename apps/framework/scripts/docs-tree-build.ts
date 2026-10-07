@@ -12,6 +12,8 @@
  * `page` makes a group link a page too, and `label` alone on a page node
  * renames it. `newRoute` proposes a new url for the page, and `new: true`
  * marks a page that doesn't exist yet, such as a new hub, with `route`.
+ * `splitFrom`, like `guides/getting-started/api-keys#leaked-key`, with a
+ * `label` makes a new page out of a section of a page in today's tree.
  *
  * Usage: pnpm docs-tree-build -- <spec.json> <out.json> [--allow-missing]
  */
@@ -35,6 +37,7 @@ type SpecNode =
       route?: string;
       newRoute?: string;
       new?: boolean;
+      splitFrom?: string;
       children?: SpecNode[];
     };
 type Spec = { name: string; description: string; root: SpecNode[] };
@@ -65,6 +68,19 @@ const errors: string[] = [];
 
 function build(node: SpecNode, trail: string[]): TreeNode {
   if (typeof node === 'string') node = { page: node };
+  if (node.splitFrom) {
+    const source = routePage(node.splitFrom);
+    if (!today.has(source) || !node.splitFrom.includes('#'))
+      errors.push(
+        `${[...trail, node.splitFrom].join(' > ')}: splitFrom needs a page in today's tree and a section anchor`
+      );
+    if (!node.label) errors.push(`${trail.join(' > ')}: a split needs a label`);
+    return {
+      label: node.label ?? '?',
+      route: `/${node.splitFrom.replace(/^\/+/, '')}`,
+      split: true,
+    };
+  }
   const page = node.page ? routePage(node.page) : undefined;
   const known = page ? today.get(page) : undefined;
   if (page && !known && !node.new)
