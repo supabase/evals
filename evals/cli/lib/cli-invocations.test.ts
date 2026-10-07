@@ -561,20 +561,44 @@ describe('invocationTargets', () => {
     ).toBe(false);
   });
 
-  it('matches stop --project-id <name>, unless the cd directory is another known target', () => {
+  it('matches stop --project-id <name>', () => {
     expect(
       invocationTargets(
         inv(['supabase', 'stop', '--project-id', 'legacy-import']),
         'legacy-import'
       )
     ).toBe(true);
+  });
+
+  it('keeps --project-id authoritative over the cd directory', () => {
+    const known = ['checkout-service', 'payments-api'];
+    const stop = findSupabaseInvocations([
+      {
+        command:
+          'cd checkout-service && supabase stop --project-id payments-api',
+      },
+    ])[0];
+    expect(invocationTargets(stop, 'payments-api', known)).toBe(true);
+    expect(invocationTargets(stop, 'checkout-service', known)).toBe(false);
     expect(
       invocationTargets(
-        inv(['supabase', 'stop', '--project-id=payments-api'], 'legacy-import'),
-        'payments-api',
-        ['legacy-import', 'payments-api']
+        inv(
+          ['supabase', 'stop', '--project-id=payments-api'],
+          'checkout-service'
+        ),
+        'checkout-service',
+        known
       )
     ).toBe(false);
+  });
+
+  it('still lets the cd directory win over --stack', () => {
+    const [start] = findSupabaseInvocations([
+      { command: 'cd client-a && supabase stack start --stack native' },
+    ]);
+    const known = ['client-a', 'client-b'];
+    expect(invocationTargets(start, 'client-a', known)).toBe(true);
+    expect(invocationTargets(start, 'client-b', known)).toBe(false);
   });
 
   it('treats stop --all as targeting every stack', () => {

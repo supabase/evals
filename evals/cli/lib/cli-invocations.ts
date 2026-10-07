@@ -526,7 +526,7 @@ export function invocationVerb(inv: SupabaseInvocation): string | undefined {
 }
 
 function stackFlagName(inv: SupabaseInvocation): string | undefined {
-  return flagValue(inv.argv, '--stack') ?? flagValue(inv.argv, '--project-id');
+  return flagValue(inv.argv, '--project-id') ?? flagValue(inv.argv, '--stack');
 }
 
 /**
@@ -566,9 +566,10 @@ export function invocationTargetsDir(
 }
 
 /**
- * Whether the invocation addresses `name`; `--all` addresses every stack. The
- * directory it ran in wins: a `--stack`/`--project-id` name counts only when
- * the directory's basename is not another of `knownTargets`.
+ * Whether the invocation addresses `name`; `--all` addresses every stack. An
+ * explicit `--project-id` is authoritative whatever the directory. Otherwise
+ * the directory it ran in wins: a `--stack` name counts only when the
+ * directory's basename is not another of `knownTargets`.
  */
 export function invocationTargets(
   inv: SupabaseInvocation,
@@ -576,6 +577,8 @@ export function invocationTargets(
   knownTargets?: readonly string[]
 ): boolean {
   if (inv.argv.includes('--all')) return true;
+  const projectId = flagValue(inv.argv, '--project-id');
+  if (projectId !== undefined) return projectId === name;
   const dir = directoryName(inv);
   if (dir === name) return true;
   if (stackFlagName(inv) !== name) return false;
