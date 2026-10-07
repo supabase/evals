@@ -7,6 +7,7 @@ import {
   unwrapShell,
   type SpanSink,
   tokenMetrics,
+  transcriptSchema,
   utcStamp,
 } from './upload-braintrust.js';
 
@@ -330,6 +331,54 @@ describe('logTranscript', () => {
       ['task', 100, 104],
       ['passed', 170, 170],
     ]);
+  });
+});
+
+describe('tool span cwd', () => {
+  const toolMetadata = (transcript: unknown) => {
+    const metadata: unknown[] = [];
+    const sink = (): SpanSink => ({
+      startSpan: sink,
+      log(event) {
+        if (event.metadata && 'tool_name' in event.metadata) {
+          metadata.push(event.metadata);
+        }
+      },
+      end() {},
+    });
+    logTranscript(sink(), {
+      prompt: 'go',
+      agentReport: '',
+      checks: [],
+      judgeCalls: [],
+      passed: true,
+      modelId: 'm',
+      startTime: 100,
+      endTime: 120,
+      agentEndTime: 110,
+      scoringEndTime: 120,
+      toolLabels: [],
+      transcript: transcriptSchema.parse(transcript),
+    });
+    return metadata;
+  };
+
+  it('puts a call cwd in tool span metadata and omits it otherwise', () => {
+    expect(
+      toolMetadata([
+        { type: 'tool_call', name: 'Bash', ts: 101_000, cwd: '/work/a' },
+        { type: 'tool_call', name: 'Bash', ts: 102_000 },
+      ])
+    ).toEqual([{ tool_name: 'Bash', cwd: '/work/a' }, { tool_name: 'Bash' }]);
+  });
+
+  it('parses transcript parts with and without cwd', () => {
+    const parsed = transcriptSchema.parse([
+      { type: 'tool_call', name: 'Bash', input: {}, cwd: '/work/a' },
+      { type: 'tool_call', name: 'Bash', input: {} },
+    ]);
+    expect(parsed[0]).toMatchObject({ cwd: '/work/a' });
+    expect(parsed[1]).not.toHaveProperty('cwd');
   });
 });
 
