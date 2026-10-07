@@ -111,6 +111,32 @@ describe('opencodeParser', () => {
     expect(results.every((e) => e.tool?.success === true)).toBe(true);
   });
 
+  it("normalizes bash's workdir to the call's cwd", () => {
+    const stream = JSON.stringify({
+      type: 'tool_use',
+      part: {
+        type: 'tool',
+        tool: 'bash',
+        callID: 'tool_1',
+        state: {
+          status: 'completed',
+          input: { command: 'supabase start', workdir: '/work/client-a' },
+          output: '',
+          metadata: { exit: 0 },
+        },
+      },
+    });
+
+    const { toolCalls } = adaptTranscript(
+      opencodeParser.parseTranscript(stream).events
+    );
+    expect(toolCalls[0].cwd).toBe('/work/client-a');
+    expect(
+      adaptTranscript(opencodeParser.parseTranscript(SESSION).events)
+        .toolCalls[0].cwd
+    ).toBeUndefined();
+  });
+
   it('surfaces reasoning + the assistant report via the adapter', () => {
     const events = opencodeParser.parseTranscript(SESSION).events;
     expect(
@@ -131,6 +157,7 @@ describe('opencodeParser', () => {
         result: 'file1\nfile2',
         error: undefined,
         ts: 1782295624290, // epoch ms preserved through toISO -> parseTs
+        resultTs: 1782295624290,
       },
       {
         tool: { kind: 'other', toolName: 'write' },
@@ -140,6 +167,7 @@ describe('opencodeParser', () => {
         result: 'written',
         error: undefined,
         ts: 1782295624300,
+        resultTs: 1782295624300,
       },
     ]);
   });

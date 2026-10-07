@@ -21,6 +21,7 @@
  * format (event_msg/response_item) that older parsers targeted.
  */
 
+import { fileURLToPath } from 'node:url';
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
@@ -264,16 +265,20 @@ const ROLLOUT_TOOL_ITEMS = new Set([
  * Fills in event times, model requests, and per-request usage from the session
  * rollout, which the `--json` stream lacks. The two streams list tool items and
  * assistant messages in the same order but under different ids, so they're
- * paired by position. Tool pairs must also agree on the command or MCP tool,
- * and any count or content mismatch leaves those messages or tool calls
- * untouched. A request no event came from, like a compaction call, gets an
- * empty message. If the messages or tool calls didn't pair, only a request with
- * no `response_item` records gets one, since the others may just be missing
- * their requestId.
+ * paired by order. Messages pair only when their counts match. Each tool call
+ * pairs with the next rollout item that agrees on its command or MCP tool, so
+ * a call with no such item stays untouched without affecting the others. A
+ * request no event came from, like a compaction call, gets an empty message.
+ * If the messages or any tool call didn't pair, only a request with no
+ * `response_item` records gets one, since the others may just be missing their
+ * requestId.
  *
  *   rollout: reasoning → message → function_call(c1) → token_usage_record(r1)
  *            → function_call_output(c1)
  *   events:  message → tool_call → tool_result, each tagged requestId r1
+ *
+ * A command finishes when its item completes, not when its output arrives:
+ * a yielded long-running command outputs early, then `write_stdin` polls it.
  *
  * Returns when the rollout recorded the first user message, in epoch ms.
  */
@@ -291,6 +296,7 @@ export function enrichFromRollout(
   const callEnds = new Map<string, string | undefined>();
   const messages: { at?: string; request: Request }[] = [];
   const toolItems: Record<string, unknown>[] = [];
+  const itemEnds = new Map<string, string>();
   const requests: { at?: string; request: Request }[] = [];
   let open: Request | undefined;
   let promptAt: number | undefined;
@@ -328,6 +334,7 @@ export function enrichFromRollout(
       const { type, id } = payload.item;
       if (typeof id === 'string' && ROLLOUT_TOOL_ITEMS.has(String(type))) {
         toolItems.push(payload.item);
+        if (at && type === 'CommandExecution') itemEnds.set(id, at);
       }
     }
   }
@@ -347,25 +354,38 @@ export function enrichFromRollout(
     });
   }
   const calls = events.filter((e) => e.type === 'tool_call');
-  const toolsPaired =
-    calls.length === toolItems.length &&
-    calls.every((event, i) => sameCall(event, toolItems[i]));
-  if (toolsPaired) {
-    const callIdByItem = new Map<string, string>();
-    calls.forEach((event, i) => {
-      const itemId = String(toolItems[i].id);
-      const start = callStarts.get(itemId);
-      if (event.tool?.id) callIdByItem.set(event.tool.id, itemId);
-      if (!start) return;
-      event.timestamp = start.at ?? event.timestamp;
-      tag(event, start.request);
-    });
-    for (const event of events) {
-      if (event.type !== 'tool_result' || !event.tool?.id) continue;
-      const callId = callIdByItem.get(event.tool.id);
-      const end = callId ? callEnds.get(callId) : undefined;
-      if (end) event.timestamp = end;
-    }
+  // The rollout keeps items the stream omits, like a killed long-running
+  // command, so each call takes the next matching item and skips the rest.
+  let cursor = 0;
+  const items = calls.map((event) => {
+    const found = toolItems.findIndex(
+      (item, i) => i >= cursor && sameCall(event, item)
+    );
+    if (found === -1) return undefined;
+    cursor = found + 1;
+    return toolItems[found];
+  });
+  const toolsPaired = items.every((item) => item);
+  const callIdByItem = new Map<string, string>();
+  calls.forEach((event, i) => {
+    const item = items[i];
+    if (!item) return;
+    const itemId = String(item.id);
+    const start = callStarts.get(itemId);
+    if (event.tool?.id) callIdByItem.set(event.tool.id, itemId);
+    const cwd = directoryPath(item.cwd);
+    if (cwd && event.tool) event.tool.cwd = cwd;
+    if (!start) return;
+    event.timestamp = start.at ?? event.timestamp;
+    tag(event, start.request);
+  });
+  for (const event of events) {
+    if (event.type !== 'tool_result' || !event.tool?.id) continue;
+    const callId = callIdByItem.get(event.tool.id);
+    const end =
+      (callId ? itemEnds.get(callId) : undefined) ??
+      (callId ? callEnds.get(callId) : undefined);
+    if (end) event.timestamp = end;
   }
   const tagged = new Set(events.map((e) => e.requestId));
   for (const { at, request } of requests) {
@@ -409,7 +429,21 @@ function sameCall(event: TranscriptEvent, item: Record<string, unknown>) {
   if (item.type === 'McpToolCall') {
     return event.tool?.call?.toolName === item.tool;
   }
-  return true;
+  if (item.type === 'FileChange') {
+    return event.tool?.call?.toolName === 'file_change';
+  }
+  return event.tool?.call?.toolName === 'web_search';
+}
+
+/** A rollout `cwd` is a plain path or, for some Codex versions, a `file://` URL. */
+function directoryPath(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value) return undefined;
+  if (!value.startsWith('file:')) return value;
+  try {
+    return fileURLToPath(value);
+  } catch {
+    return undefined;
+  }
 }
 
 const REDACTED = '[REDACTED_SECRET]';
