@@ -175,11 +175,36 @@ export function serviceStackTarget(
     : { kind: 'project', dir, stackName: service };
 }
 
+type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
+
+// The resolution cascades overlap (a renamed-stack lookup retries the managed
+// and legacy probes the service-named lookup already ran), and every probe is
+// a read, so each distinct command runs once per scoring pass.
+function memoizeExec(ctx: ExecContext): ExecContext {
+  const results = new Map<string, ReturnType<ExecContext['exec']>>();
+  return {
+    exec: (command, options) => {
+      const cached = results.get(command);
+      if (cached) return cached;
+      const result = ctx.exec(command, options);
+      results.set(command, result);
+      return result;
+    },
+  };
+}
+
+function appendNewNotes(prior: string, next: string): string {
+  const seen = new Set(prior.split('; '));
+  const added = next.split('; ').filter((note) => !seen.has(note));
+  return [prior, ...added].join('; ');
+}
+
 export async function resolveServiceStacks(
-  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  scoringCtx: ExecContext,
   dirs: ServiceDirs,
   invocations: readonly SupabaseInvocation[] = []
 ): Promise<Record<Service, StackProbe>> {
+  const ctx = memoizeExec(scoringCtx);
   const stacks = {} as Record<Service, StackProbe>;
   const listUnder = stackListReader(ctx);
   for (const service of SERVICES) {
@@ -253,22 +278,25 @@ async function resolveRenamedStack(
   );
   return discovered.ok
     ? discovered
-    : { ok: false, notes: `${namedNotes}; ${discovered.notes}` };
+    : { ok: false, notes: appendNewNotes(namedNotes, discovered.notes) };
 }
+
+type StartRecord = SupabaseInvocation & { failed?: boolean };
 
 function isLater(a: SupabaseInvocation, b: SupabaseInvocation): boolean {
   return a.at !== undefined && b.at !== undefined ? a.at >= b.at : true;
 }
 
-/** Surviving services whose latest start ran through a `cliOverride` runner, mapped to that runner. */
+/** Surviving services whose latest start that didn't fail ran through a `cliOverride` runner, mapped to that runner. */
 export function findSwappedServices(
-  invocations: readonly SupabaseInvocation[],
+  invocations: readonly StartRecord[],
   cliOverride: readonly string[]
 ): Partial<Record<Service, string>> {
   const swapped: Partial<Record<Service, string>> = {};
   for (const service of SURVIVING) {
     const starts = invocations.filter(
       (inv) =>
+        !inv.failed &&
         isStartInvocation(inv) &&
         (invocationTargetUnresolved(inv) ||
           invocationTargets(inv, service, SERVICES))
@@ -291,7 +319,7 @@ export async function checkStackRunning(
   service: Service,
   stack: StackProbe,
   cliOverride: readonly string[] = [],
-  invocations: readonly SupabaseInvocation[] = []
+  invocations: readonly StartRecord[] = []
 ): Promise<CheckResult> {
   const name = `${service} stack is running`;
   const { ready, notes } = await probeStackReady(ctx, stack);

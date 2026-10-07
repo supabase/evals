@@ -2006,3 +2006,97 @@ describe('db reset recreates the database', () => {
     });
   });
 });
+
+describe('seeding db resets between the last start and the first change', () => {
+  const SEEDED_COMMANDS: Call[] = [
+    ...START_ALL,
+    'cd checkout-service && supabase db reset',
+    'cd payments-api && supabase db reset',
+    'cd legacy-import && supabase db reset',
+    'cd legacy-import && supabase stop',
+    'cd checkout-service && supabase stack restart',
+  ];
+
+  it('counts neither against payments-api nor as a checkout restart anchor', () => {
+    const payments = untouched(SEEDED_COMMANDS);
+    expect(payments.passed).toBe(true);
+    expect(payments.notes).toContain('no stop/restart/reset/destroy targeted');
+    expect(restarted(SEEDED_COMMANDS).passed).toBe(true);
+  });
+
+  it('requires the real restart even when every service was reset', () => {
+    const withoutRestart = SEEDED_COMMANDS.slice(0, -1);
+    expect(untouched(withoutRestart).passed).toBe(true);
+    expect(restarted(withoutRestart).passed).toBe(false);
+  });
+});
+
+describe('a start whose --stack name is not the directory name', () => {
+  const startsWith = (checkoutName: string): Call[] => [
+    `cd checkout-service && supabase stack start --stack ${checkoutName}`,
+    'cd payments-api && supabase stack start --stack payments',
+    'cd legacy-import && supabase stack start --stack legacy',
+    'cd legacy-import && supabase stack destroy --stack legacy',
+    `cd checkout-service && supabase stack restart --stack ${checkoutName}`,
+  ];
+
+  it.each(['checkout', 'checkout-service-recovered'])(
+    'is attributed to checkout-service for --stack %s',
+    (name) => {
+      const invocations = invocationsOf(startsWith(name));
+      expect(findSetup(invocations)?.resolved).toBe(true);
+      expect(checkCheckoutRestarted(invocations, null).passed).toBe(true);
+      expect(
+        checkPaymentsUntouched(invocations, null, REACHABLE, PAYMENTS_ROWS)
+          .passed
+      ).toBe(true);
+    }
+  );
+
+  it('does not read a restart of it as a payments-api touch', () => {
+    const invocations = invocationsOf(startsWith('checkout'));
+    expect(
+      lifecycleEvents(invocations, 'payments-api').map(({ kind }) => kind)
+    ).toEqual(['start']);
+  });
+});
+
+describe('a marker row naming the service among other words', () => {
+  const rows: RowStringsProbe = {
+    ok: true,
+    values: ['marker for payments-api'],
+  };
+
+  it('counts as its own marker in the untouched check and the ground truth', () => {
+    expect(untouched(START_ALL, REACHABLE, rows).passed).toBe(true);
+    const text = describeFleetGroundTruth({
+      stacks: {
+        'checkout-service': REACHABLE,
+        'payments-api': REACHABLE,
+        'legacy-import': UNREACHABLE,
+      },
+      rows: {
+        'checkout-service': {
+          ok: true,
+          values: ['marker for checkout-service'],
+        },
+        'payments-api': rows,
+      },
+      stackList: EMPTY_LIST,
+      invocations: invocationsOf(START_ALL),
+      postmasterStarts: NO_POSTMASTER,
+      portProbe: QUIET_PORT,
+      containerProbe: NO_CONTAINERS,
+    }).join('\n');
+    expect(text.match(/own marker row found: yes/g)).toHaveLength(2);
+  });
+
+  it('does not count a longer service name containing it', () => {
+    expect(
+      untouched(START_ALL, REACHABLE, {
+        ok: true,
+        values: ['payments-api-archive'],
+      }).passed
+    ).toBe(false);
+  });
+});

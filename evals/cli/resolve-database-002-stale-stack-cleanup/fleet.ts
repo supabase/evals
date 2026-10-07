@@ -597,12 +597,10 @@ export async function readPostmasterStarts(
   };
 }
 
-/** Whether a row value equals `service` (trimmed, case-insensitive). */
+/** Whether a row value names `service` as a whole word, the rule `checkMarkerIsolation` applies. */
 function holdsOwnMarker(rows: RowStringsProbe, service: SurvivingService) {
-  return (
-    rows.ok &&
-    rows.values.some((value) => value.trim().toLowerCase() === service)
-  );
+  const word = new RegExp(`(?<![A-Za-z0-9_-])${service}(?![A-Za-z0-9_-])`, 'i');
+  return rows.ok && rows.values.some((value) => word.test(value));
 }
 
 export function readConfigDbPort(toml: string): number | undefined {

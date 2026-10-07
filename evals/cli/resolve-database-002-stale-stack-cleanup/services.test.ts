@@ -4,7 +4,10 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import {
+  findSupabaseInvocations,
+  listCliOverrides,
+} from '../lib/cli-invocations.js';
 import {
   checkServiceProjectsExist,
   checkStackRunning,
@@ -603,4 +606,164 @@ describe('checkStackRunning with a relocated home or a swapped CLI', () => {
     );
     expect(result.passed).toBe(true);
   });
+});
+
+describe('findSwappedServices ignores failed starts', () => {
+  const RUNNER = 'npx supabase@2.120.0';
+  const run = (...calls: Array<[command: string, failed?: boolean]>) =>
+    findSupabaseInvocations(calls.map(([command]) => command)).map(
+      (inv, i) => ({ ...inv, failed: calls[i][1] })
+    );
+
+  it('flags a service whose failed installed start preceded a successful override start', () => {
+    const invocations = run(
+      ['cd payments-api && supabase start', true],
+      [`cd payments-api && ${RUNNER} start`]
+    );
+    expect(findSwappedServices(invocations, [RUNNER])).toEqual({
+      'payments-api': RUNNER,
+    });
+  });
+
+  it('flags a service whose successful override start preceded a failed installed start', () => {
+    const invocations = run(
+      [`cd payments-api && ${RUNNER} start`],
+      ['cd payments-api && supabase start', true]
+    );
+    expect(findSwappedServices(invocations, [RUNNER])).toEqual({
+      'payments-api': RUNNER,
+    });
+  });
+
+  it('does not flag a failed override start followed by a successful installed start', () => {
+    const invocations = run(
+      [`cd payments-api && ${RUNNER} start`, true],
+      ['cd payments-api && supabase start']
+    );
+    expect(findSwappedServices(invocations, [RUNNER])).toEqual({});
+  });
+
+  it('does not flag a failed override start after a successful installed start', () => {
+    const invocations = run(
+      ['cd payments-api && supabase start'],
+      [`cd payments-api && ${RUNNER} start`, true]
+    );
+    expect(findSwappedServices(invocations, [RUNNER])).toEqual({});
+  });
+
+  it('does not flag a service whose only start failed', () => {
+    const invocations = run([`cd payments-api && ${RUNNER} start`, true]);
+    expect(findSwappedServices(invocations, [RUNNER])).toEqual({});
+  });
+});
+
+describe('dist-tag runners are not CLI overrides', () => {
+  it.each(['latest', 'beta'])(
+    'does not fail a survivor started only through npx supabase@%s',
+    async (tag) => {
+      const invocations = findSupabaseInvocations([
+        `cd payments-api && npx supabase@${tag} start`,
+      ]);
+      const cliOverride = listCliOverrides(invocations, '2.118.0');
+      expect(cliOverride).toEqual([]);
+      const result = await checkStackRunning(
+        fakeCtx({ 'select 1': commandResult('1\n') }).ctx,
+        'payments-api',
+        {
+          ok: true,
+          backend: 'managed-named',
+          dbUrl: 'postgresql://x',
+          runtime: 'native',
+        },
+        cliOverride,
+        invocations
+      );
+      expect(result.passed).toBe(true);
+      expect(result.notes).not.toContain('not the installed CLI');
+    }
+  );
+});
+
+describe('resolveServiceStacks when the service-named lookup fails', () => {
+  const HOME = '/sandbox/.supabase-home';
+  const dirs = {
+    found: { 'legacy-import': './legacy-import' },
+    problems: {},
+    all: [],
+  };
+  const noStacks = commandResult(
+    `/sandbox/legacy-import\n${JSON.stringify({ stacks: [] })}`
+  );
+
+  it('runs each probe command at most once per home and keeps notes unique', async () => {
+    const invocations = findSupabaseInvocations([
+      `cd legacy-import && SUPABASE_HOME=${HOME} supabase start`,
+    ]);
+    const { ctx, commands } = fakeCtx({ 'supabase stack list': noStacks });
+    const probe = (await resolveServiceStacks(ctx, dirs, invocations))[
+      'legacy-import'
+    ];
+    expect(commands.length).toBeGreaterThan(0);
+    expect(new Set(commands).size).toBe(commands.length);
+    expect(commands.filter((c) => c.includes(HOME)).length).toBeGreaterThan(0);
+    const notes = (probe.ok ? '' : probe.notes).split('; ');
+    expect(new Set(notes).size).toBe(notes.length);
+  });
+
+  it('still finds a stack recreated under another name', async () => {
+    const { ctx, commands } = fakeCtx({
+      'supabase stack list': commandResult(
+        `/sandbox/legacy-import\n${JSON.stringify({
+          stacks: [
+            {
+              name: 'legacy-recovered',
+              project_root: '/sandbox/legacy-import',
+              owner: 'reachable',
+            },
+          ],
+        })}`
+      ),
+      "--stack 'legacy-recovered' --env": commandResult(
+        '{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:54322/postgres"}'
+      ),
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs);
+    expect(stacks['legacy-import'].ok).toBe(true);
+    expect(new Set(commands).size).toBe(commands.length);
+  });
+});
+
+describe('resolveServiceStacks for a start named differently from its directory', () => {
+  const HOME = '/sandbox/.supabase-home';
+  const dirs = {
+    found: { 'checkout-service': './checkout-service' },
+    problems: {},
+    all: [],
+  };
+
+  it.each(['checkout', 'checkout-service-recovered'])(
+    'uses the relocated home of `stack start --stack %s` run in the directory',
+    async (name) => {
+      const invocations = findSupabaseInvocations([
+        `cd checkout-service && SUPABASE_HOME=${HOME} supabase stack start --stack ${name}`,
+      ]);
+      const { ctx } = fakeCtx({
+        [`SUPABASE_HOME='${HOME}' SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list`]:
+          commandResult(
+            `/sandbox/checkout-service\n${JSON.stringify({
+              stacks: [{ name, project_root: '/sandbox/checkout-service' }],
+            })}`
+          ),
+        [`SUPABASE_HOME='${HOME}' SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack '${name}' --env`]:
+          commandResult(
+            '{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:54322/postgres"}'
+          ),
+      });
+      const stacks = await resolveServiceStacks(ctx, dirs, invocations);
+      expect(stacks['checkout-service']).toMatchObject({
+        ok: true,
+        relocatedHome: HOME,
+      });
+    }
+  );
 });

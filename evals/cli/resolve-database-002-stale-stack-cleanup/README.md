@@ -49,7 +49,7 @@ Outcome checks:
   under the default and each relocated home; two or more distinct roots leave
   it unresolved.
 - `surviving stacks kept their data` — each surviving database holds its own
-  `service_marker` row and not the other's (case-insensitive), so a restart
+  `service_marker` row and not the other's (a whole word, case-insensitive), so a restart
   that wiped data, or all writes landing in one database, fails.
 
 Fleet-management checks. They read two kinds of evidence: the end state of
@@ -118,7 +118,8 @@ fail, and the notes say there was no change phase.
   phase, failed or not; with state evidence, its postmaster started before
   setup completed (or its last seeding `db reset`); otherwise nothing stopped, restarted or destroyed it in the
   change phase, failed or not. It must also still resolve holding its own
-  marker row (whole value, case-insensitive).
+  marker row (its name as a whole word, case-insensitive, the same rule as the
+  isolation check, so `marker for payments-api` counts).
 
 ### Evidence model
 
@@ -220,7 +221,8 @@ directory, then the legacy `supabase status -o json` there. When none of
 those resolves, the lookup repeats without the name, which also tries each
 named stack `stack list` reports for that directory, so a stack the agent
 recreated under another name (for example `checkout-service-recovered`) still
-counts. When a service's directory is gone, or it only ever ran as a named
+counts. The overlapping probes of that second lookup are not re-run; each
+distinct command runs once per scoring pass. When a service's directory is gone, or it only ever ran as a named
 stack from the sandbox root, only the root named lookup runs.
 
 ### Relocated CLI homes (passes, visible)
@@ -249,11 +251,11 @@ under that home satisfies the check.
 The scorer only ever runs the installed `supabase`. An agent that runs a
 different version (`npx supabase@2.120.0 …`, `bunx`, `pnpm dlx`) starts
 stacks the installed CLI can't resolve. The runner specs are recorded in
-`metrics.cliOverride` (empty when none). A survivor whose latest start (by
+`metrics.cliOverride` (empty when none). A survivor whose latest start that didn't fail (by
 completion time when recorded, else command order) went through such a runner
 fails `… stack is running` even if the installed CLI happens to resolve its
 stack (`<service>: started with <runner>, not the installed CLI`), and the
-judge's ground truth says so; one whose latest start used the installed CLI
+judge's ground truth says so; one whose latest non-failed start used the installed CLI
 passes. A global `npm i -g supabase@X` applies to later invocations. Runners
 that name a dist-tag (`supabase@beta`) can't be checked against the installed
 version offline and are listed in `metrics.cliRunnerUnverified` instead. The
