@@ -61,11 +61,12 @@ const transcriptPartSchema = z.discriminatedUnion('type', [
     ts: z.number().optional(),
     resultTs: z.number().optional(),
     id: z.string().optional(),
+    cwd: z.string().optional(),
     requestId: z.string().optional(),
     usage: requestUsageSchema.optional(),
   }),
 ]);
-const transcriptSchema = z.array(transcriptPartSchema).catch([]);
+export const transcriptSchema = z.array(transcriptPartSchema).catch([]);
 const judgeCallsSchema = z.array(judgeCallSchema).catch([]);
 type TranscriptPart = z.infer<typeof transcriptPartSchema>;
 
@@ -595,7 +596,10 @@ export function logTranscript(
       input: part.input,
       // The span name adds a label, so keep the raw name filterable.
       // https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/skill-load-metadata.md
-      metadata: { tool_name: part.name },
+      metadata: {
+        tool_name: part.name,
+        ...(part.cwd ? { cwd: part.cwd } : {}),
+      },
       ...(part.output !== undefined ? { output: part.output } : {}),
       ...(part.error ? { error: part.error } : {}),
     });

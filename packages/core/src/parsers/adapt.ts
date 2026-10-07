@@ -79,6 +79,7 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         ...timed(event.timestamp),
         ...(resolved?.ts ? { resultTs: resolved.ts } : {}),
         ...(event.tool.id ? { id: event.tool.id } : {}),
+        ...(event.tool.cwd ? { cwd: event.tool.cwd } : {}),
         ...(event.requestId ? { requestId: event.requestId } : {}),
         ...(event.usage ? { usage: event.usage } : {}),
       });
