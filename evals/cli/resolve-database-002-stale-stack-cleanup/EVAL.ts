@@ -62,7 +62,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const commands = extractCommands(ctx.toolCalls);
     const cliDetourCommands = findCliDetourCommands(commands);
     const invocations = findFleetInvocations(ctx.toolCalls);
-    const dirs = await findServiceDirs(ctx);
+    const dirs = await findServiceDirs(ctx, invocations);
     const cliOverride = listCliOverrides(
       invocations,
       await readCliVersion(ctx)

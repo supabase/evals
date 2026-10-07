@@ -3,15 +3,18 @@ import {
   invocationTargetUnresolved,
   invocationTargets,
   invocationVerb,
+  type InvocationEnv,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import { findProjectDirs } from '../lib/projects.js';
 import {
+  candidateHomes,
   probeStackReady,
   resolveStackWithAgentHomes,
   type StackProbe,
   type StackTarget,
 } from '../lib/stack.js';
+import { readStackList, type StackListProbe } from '../lib/stack-list.js';
 
 export const SERVICES = [
   'checkout-service',
@@ -23,25 +26,125 @@ export type ServiceDirs = {
   found: Partial<Record<Service, string>>;
   problems: Partial<Record<Service, string>>;
   all: string[];
+  /** Services whose only trace is a named stack started from the sandbox root. */
+  namedAtRoot?: Service[];
+  /** Services whose directory came from `stack list` rather than a `config.toml`. */
+  fromStackList?: Service[];
 };
 
 const SURVIVING: readonly Service[] = ['checkout-service', 'payments-api'];
 
-export function findServiceDirs(
+type ListedStack = { root: string; reachable: boolean };
+
+function listedStacks(list: StackListProbe, service: Service): ListedStack[] {
+  if (!list.ok) return [];
+  return list.stacks.flatMap((entry) => {
+    const { name, project_root, owner } = (entry ?? {}) as Record<
+      string,
+      unknown
+    >;
+    return name === service && typeof project_root === 'string' && project_root
+      ? [
+          {
+            root: project_root.replace(/(?<=.)\/+$/, ''),
+            reachable: owner === 'reachable',
+          },
+        ]
+      : [];
+  });
+}
+
+async function readSandboxRoot(
   ctx: Pick<LocalStackEvalContext, 'exec'>
+): Promise<string | undefined> {
+  try {
+    const root = (await ctx.exec('pwd -P')).stdout.trim();
+    return root === '' ? undefined : root;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Finds each service's project directory by `supabase/config.toml`, then, for
+ * services without one, from the CLI's own `stack list` (default home and
+ * every relocated home the agent started the service under), which also
+ * covers stacks created without `supabase init`.
+ */
+export async function findServiceDirs(
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  invocations: readonly SupabaseInvocation[] = []
 ): Promise<ServiceDirs> {
-  return findProjectDirs(ctx, SERVICES);
+  const dirs = await findProjectDirs(ctx, SERVICES);
+  const unresolved = SERVICES.filter(
+    (service) => dirs.found[service] === undefined
+  );
+  if (unresolved.length === 0) return dirs;
+
+  const lists = new Map<string, Promise<StackListProbe>>();
+  const listUnder = (home?: InvocationEnv) => {
+    const key = JSON.stringify(home ?? null);
+    const cached = lists.get(key);
+    if (cached) return cached;
+    const read = readStackList(ctx, home);
+    lists.set(key, read);
+    return read;
+  };
+  let sandboxRoot: Promise<string | undefined> | undefined;
+  const namedAtRoot: Service[] = [];
+  const fromStackList: Service[] = [];
+  const found = { ...dirs.found };
+  const problems = { ...dirs.problems };
+
+  for (const service of unresolved) {
+    const homes = [
+      undefined,
+      ...candidateHomes(invocations, { kind: 'named', stackName: service }),
+    ];
+    const entries = (
+      await Promise.all(
+        homes.map(async (home) => listedStacks(await listUnder(home), service))
+      )
+    ).flat();
+    const preferred = entries.some((entry) => entry.reachable)
+      ? entries.filter((entry) => entry.reachable)
+      : entries;
+    const roots = [...new Set(preferred.map((entry) => entry.root))];
+    if (roots.length > 1) {
+      problems[service] = `ambiguous (stack list: ${roots.join(', ')})`;
+    } else if (roots.length === 1) {
+      sandboxRoot ??= readSandboxRoot(ctx);
+      if (roots[0] === (await sandboxRoot)) {
+        namedAtRoot.push(service);
+      } else {
+        found[service] = roots[0];
+        fromStackList.push(service);
+      }
+      delete problems[service];
+    }
+  }
+  return { ...dirs, found, problems, namedAtRoot, fromStackList };
 }
 
 // legacy-import's directory may legitimately be gone — deleting it is a fair
 // reading of "we killed that project" — so only the survivors are required.
 export function checkServiceProjectsExist(dirs: ServiceDirs): CheckResult {
   const name = 'checkout-service and payments-api projects exist';
-  const describe = (service: Service) =>
-    `${service}: ${dirs.found[service] ?? dirs.problems[service]}`;
+  const atRoot = (service: Service) =>
+    dirs.namedAtRoot?.includes(service) === true;
+  const describe = (service: Service) => {
+    const dir = dirs.found[service];
+    if (dir !== undefined) {
+      const listed = dirs.fromStackList?.includes(service) === true;
+      return `${service}: ${dir}${listed ? ' (from stack list)' : ''}`;
+    }
+    return `${service}: ${atRoot(service) ? 'named stack at sandbox root' : dirs.problems[service]}`;
+  };
   return {
     name,
-    passed: SURVIVING.every((service) => dirs.found[service] !== undefined),
+    passed: SURVIVING.every(
+      (service) => dirs.found[service] !== undefined || atRoot(service)
+    ),
     notes: SERVICES.map(describe).join('; '),
   };
 }

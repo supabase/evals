@@ -90,6 +90,155 @@ describe('findServiceDirs / checkServiceProjectsExist', () => {
   });
 });
 
+describe('findServiceDirs without a config.toml', () => {
+  const ROOT = '/tmp/sbx';
+  const LIST = 'SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list';
+  const HOME = '/tmp/sbx/.supabase-home';
+  const entry = (name: string, project_root: string, owner = 'reachable') => ({
+    name,
+    project_root,
+    owner,
+  });
+  const listing = (...stacks: object[]) =>
+    commandResult(JSON.stringify({ stacks }));
+  const pwd = commandResult(`${ROOT}\n`);
+
+  it('finds a service from the stack list entry for its project root', async () => {
+    const { ctx } = fakeCtx({
+      'pwd -P': pwd,
+      [LIST]: listing(
+        entry('checkout-service', `${ROOT}/checkout-service`),
+        entry('payments-api', `${ROOT}/payments-api`),
+        entry('other', `${ROOT}/other`)
+      ),
+    });
+    const dirs = await findServiceDirs(ctx);
+    expect(dirs.found).toEqual({
+      'checkout-service': `${ROOT}/checkout-service`,
+      'payments-api': `${ROOT}/payments-api`,
+    });
+    const result = checkServiceProjectsExist(dirs);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toBe(
+      `checkout-service: ${ROOT}/checkout-service (from stack list); payments-api: ${ROOT}/payments-api (from stack list); legacy-import: no matching project directory`
+    );
+  });
+
+  it('finds a service listed only under a relocated home it was started with', async () => {
+    const { ctx } = fakeCtx({
+      'pwd -P': pwd,
+      [`HOME='${HOME}' ${LIST}`]: listing(
+        entry('checkout-service', `${ROOT}/checkout-service`),
+        entry('payments-api', `${ROOT}/payments-api`)
+      ),
+    });
+    const invocations = findSupabaseInvocations([
+      `mkdir -p payments-api && cd payments-api && HOME=${HOME} supabase stack start --stack payments-api`,
+      `cd checkout-service && HOME=${HOME} supabase stack start --stack checkout-service`,
+    ]);
+    const dirs = await findServiceDirs(ctx, invocations);
+    expect(dirs.found['payments-api']).toBe(`${ROOT}/payments-api`);
+    expect(checkServiceProjectsExist(dirs).passed).toBe(true);
+    const unhomed = await findServiceDirs(ctx, []);
+    expect(unhomed.found).toEqual({});
+  });
+
+  it('treats named stacks started from the sandbox root as present without a directory', async () => {
+    const { ctx } = fakeCtx({
+      'pwd -P': pwd,
+      [LIST]: listing(
+        entry('checkout-service', ROOT),
+        entry('payments-api', ROOT),
+        entry('legacy-import', ROOT)
+      ),
+    });
+    const dirs = await findServiceDirs(ctx);
+    expect(dirs.found).toEqual({});
+    expect(dirs.namedAtRoot).toEqual([
+      'checkout-service',
+      'payments-api',
+      'legacy-import',
+    ]);
+    const result = checkServiceProjectsExist(dirs);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toBe(
+      'checkout-service: named stack at sandbox root; payments-api: named stack at sandbox root; legacy-import: named stack at sandbox root'
+    );
+    expect(
+      serviceStackTarget('payments-api', dirs.found['payments-api'])
+    ).toEqual({ kind: 'named', stackName: 'payments-api' });
+  });
+
+  it('is ambiguous when two entries name different project roots', async () => {
+    const { ctx } = fakeCtx({
+      'pwd -P': pwd,
+      [LIST]: listing(
+        entry('checkout-service', `${ROOT}/checkout-service`),
+        entry('payments-api', `${ROOT}/a/payments-api`),
+        entry('payments-api', `${ROOT}/b/payments-api`)
+      ),
+    });
+    const dirs = await findServiceDirs(ctx);
+    expect(dirs.problems['payments-api']).toBe(
+      `ambiguous (stack list: ${ROOT}/a/payments-api, ${ROOT}/b/payments-api)`
+    );
+    const result = checkServiceProjectsExist(dirs);
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain('payments-api: ambiguous (stack list: ');
+  });
+
+  it('prefers the reachable entry over a stale one and ignores other names', async () => {
+    const { ctx } = fakeCtx({
+      'pwd -P': pwd,
+      [LIST]: listing(
+        entry('payments-api', `${ROOT}/old/payments-api`, 'stale'),
+        entry('payments-api', `${ROOT}/payments-api`),
+        entry('payments-api-v2', `${ROOT}/payments-api-v2`)
+      ),
+    });
+    expect((await findServiceDirs(ctx)).found['payments-api']).toBe(
+      `${ROOT}/payments-api`
+    );
+  });
+
+  it('leaves a service unresolved when stack list has no entry for it', async () => {
+    const { ctx } = fakeCtx({ [LIST]: listing(entry('other', ROOT)) });
+    const dirs = await findServiceDirs(ctx);
+    expect(dirs.problems['payments-api']).toBe('no matching project directory');
+    expect(checkServiceProjectsExist(dirs).passed).toBe(false);
+  });
+
+  it('keeps config.toml results and never lists when every service has one', async () => {
+    const { ctx, commands } = fakeCtx({
+      'find .': configs(
+        './checkout-service',
+        './payments-api',
+        './legacy-import'
+      ),
+    });
+    const dirs = await findServiceDirs(ctx);
+    expect(dirs.found['payments-api']).toBe('./payments-api');
+    expect(dirs.namedAtRoot).toBeUndefined();
+    expect(commands.some((command) => command.includes('stack list'))).toBe(
+      false
+    );
+  });
+
+  it('only lists for the services config.toml missed', async () => {
+    const { ctx } = fakeCtx({
+      'find .': configs('./checkout-service'),
+      'pwd -P': pwd,
+      [LIST]: listing(entry('payments-api', `${ROOT}/payments-api`)),
+    });
+    const dirs = await findServiceDirs(ctx);
+    expect(dirs.found).toEqual({
+      'checkout-service': './checkout-service',
+      'payments-api': `${ROOT}/payments-api`,
+    });
+    expect(dirs.fromStackList).toEqual(['payments-api']);
+  });
+});
+
 describe('serviceStackTarget', () => {
   it('scopes to the project dir and stack name when the dir exists', () => {
     expect(serviceStackTarget('payments-api', './payments-api')).toEqual({

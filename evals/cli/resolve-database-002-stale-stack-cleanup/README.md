@@ -31,10 +31,16 @@ command names or Docker wording when editing it.
 Outcome checks:
 
 - `checkout-service and payments-api projects exist` — each service's
-  project directory is found independently, by `supabase/config.toml`
-  basename, so one missing project never hides the others. `legacy-import`'s
-  directory isn't required: deleting it is a fair reading of "we killed
-  `legacy-import`".
+  project is found independently, so one missing project never hides the
+  others: by `supabase/config.toml` basename, else (for agents that never ran
+  `supabase init`) by the CLI's own `stack list`, read under the default home
+  and each relocated home the agent started the service with. A `stack list`
+  entry whose `name` is the service (reachable entries preferred) gives its
+  `project_root`; a single root is the project directory
+  (`<dir> (from stack list)`), the sandbox root itself counts as a named stack
+  started there (`named stack at sandbox root`, no directory), and two or more
+  distinct roots are `ambiguous (stack list: …)`. `legacy-import`'s directory
+  isn't required: deleting it is a fair reading of "we killed `legacy-import`".
 - `checkout-service stack is running` and `payments-api stack is running` —
   the stack resolves and answers `select 1`.
 - `surviving stacks kept their data` — each surviving database holds its own
@@ -183,7 +189,8 @@ directory, then the legacy `supabase status -o json` there. When none of
 those resolves, the lookup repeats without the name, which also tries each
 named stack `stack list` reports for that directory, so a stack the agent
 recreated under another name (for example `checkout-service-recovered`) still
-counts. When a service's directory is gone, only the root named lookup runs.
+counts. When a service's directory is gone, or it only ever ran as a named
+stack from the sandbox root, only the root named lookup runs.
 
 ### Relocated CLI homes (passes, visible)
 
