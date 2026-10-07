@@ -30,7 +30,13 @@ export type SupabaseInvocation = {
   at?: number;
 };
 
-export type CommandEntry = { command: string; cwd?: string; at?: number };
+export type CommandEntry = {
+  command: string;
+  cwd?: string;
+  at?: number;
+  /** The tool call errored; a global install in it is not applied. */
+  failed?: boolean;
+};
 
 const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
@@ -39,6 +45,14 @@ const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
 const NPM_EXEC_VERBS = new Set(['exec', 'x']);
 const INSTALLERS = new Set(['npm', 'pnpm', 'bun']);
 const INSTALL_VERBS = new Set(['i', 'install', 'add']);
+const UNINSTALL_VERBS = new Set([
+  'uninstall',
+  'un',
+  'remove',
+  'rm',
+  'r',
+  'unlink',
+]);
 const GLOBAL_FLAGS = new Set(['-g', '--global']);
 const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const START_VERBS = new Set(['start', 'stack start']);
@@ -380,6 +394,20 @@ function exportAssignments(
   return out;
 }
 
+function isGlobalUninstall(argv: readonly string[]): boolean {
+  const [tool, verb] = argv;
+  const yarnGlobal =
+    tool === 'yarn' && verb === 'global' && UNINSTALL_VERBS.has(argv[2]);
+  const direct =
+    INSTALLERS.has(tool) &&
+    UNINSTALL_VERBS.has(verb) &&
+    argv.some((word) => GLOBAL_FLAGS.has(word));
+  return (
+    (yarnGlobal || direct) &&
+    argv.some((word) => word === 'supabase' || VERSIONED_SUPABASE_RE.test(word))
+  );
+}
+
 function globalInstallSpec(argv: readonly string[]): string | undefined {
   const [tool, verb] = argv;
   const yarnGlobal = tool === 'yarn' && verb === 'global' && argv[2] === 'add';
@@ -403,7 +431,8 @@ export function isStartInvocation(inv: SupabaseInvocation): boolean {
  * heredoc'd command line never counts. `cd`/`pushd` and `export` of
  * `SUPABASE_HOME`/`HOME`/`TMPDIR` are tracked within a single command only,
  * starting from the entry's `cwd` and ending with its subshell. A global
- * `supabase@<version>` install marks every later invocation with its `runner`.
+ * `supabase@<version>` install marks every later invocation with its `runner`
+ * until a global uninstall; an entry marked `failed` applies neither.
  * `--help`/`-h` invocations are skipped.
  */
 export function findSupabaseInvocations(
@@ -419,6 +448,7 @@ export function findSupabaseInvocations(
       exported: new Set(),
     };
     const at = typeof entry === 'string' ? undefined : entry.at;
+    const failed = typeof entry === 'string' ? false : entry.failed === true;
     const enclosing: ShellState[] = [];
     for (const { segment, opens, closes } of scopedCommandSegments(command)) {
       for (let n = 0; n < opens; n++) enclosing.push(state);
@@ -455,8 +485,9 @@ export function findSupabaseInvocations(
           ...(effectiveRunner === undefined ? {} : { runner: effectiveRunner }),
           ...(at === undefined ? {} : { at }),
         });
-      } else {
-        globalRunner = globalInstallSpec(argv) ?? globalRunner;
+      } else if (!failed) {
+        if (isGlobalUninstall(argv)) globalRunner = undefined;
+        else globalRunner = globalInstallSpec(argv) ?? globalRunner;
       }
       for (let n = 0; n < closes && enclosing.length > 0; n++) {
         state = enclosing.pop() ?? state;

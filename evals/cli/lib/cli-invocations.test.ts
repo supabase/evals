@@ -10,6 +10,7 @@ import {
   isStartInvocation,
   listCliOverrides,
   listUnverifiedRunners,
+  type CommandEntry,
   type SupabaseInvocation,
 } from './cli-invocations.js';
 
@@ -968,6 +969,72 @@ describe('runner forms', () => {
       same.runner,
     ]);
     expect(listCliOverrides([same], '2.1.0')).toEqual([]);
+  });
+
+  describe('global install lifecycle', () => {
+    const runners = (...commands: Array<string | CommandEntry>) =>
+      findSupabaseInvocations(commands).map(({ runner }) => runner);
+
+    it('does not apply an install whose call failed', () => {
+      const invocations = findSupabaseInvocations([
+        { command: 'npm i -g supabase@2.120.0', failed: true },
+        'supabase start',
+      ]);
+      expect(invocations.map(({ runner }) => runner)).toEqual([undefined]);
+      expect(listCliOverrides(invocations, '2.119.0')).toEqual([]);
+    });
+
+    it('applies an install whose call succeeded', () => {
+      const invocations = findSupabaseInvocations([
+        { command: 'npm i -g supabase@2.120.0' },
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.119.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('lets a later successful install replace a failed one', () => {
+      expect(
+        runners(
+          { command: 'npm i -g supabase@2.120.0', failed: true },
+          'npm i -g supabase@2.121.0',
+          'supabase start'
+        )
+      ).toEqual(['npm i -g supabase@2.121.0']);
+    });
+
+    it.each([
+      'npm uninstall -g supabase',
+      'npm rm -g supabase',
+      'pnpm remove -g supabase',
+      'bun remove -g supabase',
+      'yarn global remove supabase',
+    ])('clears the runner after %s', (uninstall) => {
+      expect(
+        runners('npm i -g supabase@2.120.0', uninstall, 'supabase start')
+      ).toEqual([undefined]);
+      expect(
+        runners(`npm i -g supabase@2.120.0 && ${uninstall} && supabase start`)
+      ).toEqual([undefined]);
+    });
+
+    it('keeps the runner when the uninstall failed or named another package', () => {
+      expect(
+        runners(
+          'npm i -g supabase@2.120.0',
+          { command: 'npm uninstall -g supabase', failed: true },
+          'supabase start'
+        )
+      ).toEqual(['npm i -g supabase@2.120.0']);
+      expect(
+        runners(
+          'npm i -g supabase@2.120.0',
+          'npm uninstall -g typescript',
+          'supabase start'
+        )
+      ).toEqual(['npm i -g supabase@2.120.0']);
+    });
   });
 
   it('ignores a global install of another package or without a version', () => {
