@@ -17,6 +17,7 @@ export interface ArgFieldMap {
   path?: readonly string[];
   command?: readonly string[];
   url?: readonly string[];
+  cwd?: readonly string[];
 }
 
 /** Normalized values extracted from a tool call's args. */
@@ -24,6 +25,7 @@ export interface ExtractedArgs {
   path?: string;
   command?: string;
   url?: string;
+  cwd?: string;
 }
 
 // Skill reads can appear as bare paths or quoted shell args in tool-call logs.
@@ -63,6 +65,7 @@ export function extractArgs(
     path: firstField(args, map.path),
     command: firstField(args, map.command),
     url: firstField(args, map.url),
+    cwd: firstField(args, map.cwd),
   };
 }
 
