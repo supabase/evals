@@ -202,6 +202,7 @@ describe('adaptTranscript', () => {
         result: 'file1\nfile2',
         error: undefined,
         ts: Date.parse('2026-06-18T10:00:00.000Z'),
+        resultTs: Date.parse('2026-06-18T10:00:01.000Z'),
       },
       {
         tool: { kind: 'mcp', server: 'supabase', toolName: 'search_docs' },

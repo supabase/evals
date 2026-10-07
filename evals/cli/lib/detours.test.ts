@@ -16,13 +16,12 @@ import {
   skipEnvOptions,
 } from './detours.js';
 
-// `cwd`/`endedAt` mirror the fields newer core versions add to ToolCallRecord.
-type RecordFields = Partial<Omit<ToolCallRecord, 'cwd' | 'endedAt'>> & {
-  cwd?: unknown;
-  endedAt?: unknown;
-};
-const record = (fields: RecordFields): ToolCallRecord =>
-  ({ tool: {}, body: {}, ts: 0, ...fields }) as ToolCallRecord;
+const record = (fields: Partial<ToolCallRecord>): ToolCallRecord => ({
+  tool: { kind: 'other', toolName: 'shell' },
+  body: {},
+  ts: 0,
+  ...fields,
+});
 
 // Exact `.source` text of the DETOUR_PATTERNS entries in detours.ts, so a
 // reorder of that array doesn't silently weaken these assertions. Order
@@ -412,7 +411,7 @@ describe('extractCommandEntries', () => {
       body: { command: ['supabase', 'stop'] },
       cwd: '/tmp/sandbox-x/legacy-import',
     }),
-    record({ command: 'supabase start', cwd: 42 }),
+    record({ command: 'supabase start' }),
     record({ command: 'supabase status' }),
   ];
 
@@ -422,7 +421,7 @@ describe('extractCommandEntries', () => {
     );
   });
 
-  it('carries a string cwd and omits a missing or non-string one', () => {
+  it('carries a cwd when the record has one', () => {
     expect(extractCommandEntries(calls)).toEqual([
       { command: 'ls', cwd: '/tmp/sandbox-x' },
       { command: 'supabase stop', cwd: '/tmp/sandbox-x/legacy-import' },
@@ -431,27 +430,15 @@ describe('extractCommandEntries', () => {
     ]);
   });
 
-  it('takes the call time from endedAt', () => {
+  it('takes the call time from resultTs, whatever ts holds', () => {
     expect(
       extractCommandEntries([
-        record({ command: 'supabase stop', ts: 1000, endedAt: 2000 }),
-      ])
-    ).toEqual([{ command: 'supabase stop', at: 2000 }]);
-  });
-
-  it('omits the time when endedAt is missing or not a positive number, whatever ts holds', () => {
-    expect(
-      extractCommandEntries([
-        record({ command: 'supabase stop', ts: 1000 }),
-        record({ command: 'supabase start', ts: 1500, endedAt: 'soon' }),
-        record({ command: 'supabase status', ts: 1700, endedAt: 0 }),
-        record({ command: 'supabase db reset', ts: 0 }),
+        record({ command: 'supabase stop', ts: 1000, resultTs: 2000 }),
+        record({ command: 'supabase start', ts: 1500 }),
       ])
     ).toEqual([
-      { command: 'supabase stop' },
+      { command: 'supabase stop', at: 2000 },
       { command: 'supabase start' },
-      { command: 'supabase status' },
-      { command: 'supabase db reset' },
     ]);
   });
 });

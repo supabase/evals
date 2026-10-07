@@ -105,13 +105,15 @@ const OPENCODE_TOOLS: AgentToolMap = {
 
 /**
  * opencode tool args → normalized fields. `bash` carries the command in
- * `command`; file tools the path in `filePath` (or `path`); `webfetch` the URL
- * in `url`. The shared extractor reads whichever keys this map names.
+ * `command` (and an optional `workdir`); file tools the path in `filePath` (or
+ * `path`); `webfetch` the URL in `url`. The shared extractor reads whichever
+ * keys this map names.
  */
 const OPENCODE_ARG_FIELDS: ArgFieldMap = {
   path: ['filePath', 'file_path', 'path'],
   command: ['command'],
   url: ['url'],
+  cwd: ['workdir'],
 };
 
 /**
@@ -221,6 +223,7 @@ function partToEvents(
       if (normalized.path) tool.path = normalized.path;
       if (normalized.command) tool.command = normalized.command;
       if (normalized.url) tool.url = normalized.url;
+      if (normalized.cwd) tool.cwd = normalized.cwd;
       const loadedSkills = loadedSkillsFromOpencodeCall(tool);
       if (loadedSkills.length > 0) tool.loadedSkills = loadedSkills;
 
