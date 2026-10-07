@@ -64,10 +64,11 @@ workflow":
 `metrics` always passes; per project it reports `backend`, `runtime`
 (`native`, `docker`, `unknown`, or `none`), `dbPort`, `apiPort`,
 `postmasterStartMs`, `attemptedStart`, and `relocatedHome` (the CLI home a
-project was found under when it isn't the default, else `null`), plus `timeToReadyMs` (session
-start to the later of the two postmaster starts), `attemptedAnyStart`,
-`cliVersion`, `cliOverride` (see below), `cliDetours`, `clearedDockerHost`, `rawDockerSocketProbes`, and
-`channel`. These are reported for every
+project was found under when it isn't the default, else `null`). It also
+reports `timeToReadyMs` (session start to the later of the two postmaster
+starts), `attemptedAnyStart`, `cliVersion`, `cliOverride` and
+`cliRunnerUnverified` (see below), `cliDetours`, `clearedDockerHost`,
+`rawDockerSocketProbes`, and `channel`. These are reported for every
 experiment, never asserted against.
 
 ## How stacks are resolved per project
@@ -89,6 +90,16 @@ directory's `pwd -P`), then the legacy `supabase status -o json`. Its
 `DB_URL` drives the ready, port, and marker checks; its `API_URL` drives the
 reported-ports check.
 
+### Which project an invocation belongs to
+
+Agent `supabase` invocations are attributed to a project by the directory they
+ran in (the call's `cwd`, `--workdir`, `SUPABASE_WORKDIR`, or `env -C`) before
+the `--stack` name they passed. `supabase stack start --stack demo` run inside
+`client-a` counts for `client-a`, and `--stack client-a` run inside `client-b`
+counts for `client-b`. The `--stack`/`--project-id` name is used only when no
+directory is known or the directory isn't one of the two clients. This drives
+`attemptedStart`, the relocated-home lookup, and the version-swap rule.
+
 ### Relocated CLI homes (passes, visible)
 
 Agents working around the managed Docker runtime's bind-mount failure often
@@ -96,8 +107,11 @@ relocate the CLI's state on their start commands (`SUPABASE_HOME=… TMPDIR=…
 supabase start`, or `HOME=…`). Those stacks really run, but they register
 under the relocated home, which the default-home probe can't see. When the
 default resolution fails, the scorer retries under each `SUPABASE_HOME`/`HOME`
-the agent set on a start of that project (per-command prefixes only; no
-`export`, rc or `.env` files), running the same managed commands with those
+the agent set on a start of that project: as a command prefix, through `env`,
+or through an `export` earlier in the same command. `$HOME` and `~` in a value
+resolve only when a `HOME=` assignment came earlier in that command; otherwise
+the value is dropped rather than guessing the sandbox user's home. Rc files and
+`.env` files aren't read. The scorer runs the same managed commands with those
 variables. A stack found this way passes the outcome checks, and stays
 visible: the `both stacks reach ready` notes say `relocated home: <path>`,
 `metrics` records it as each project's `relocatedHome`, and the truthful-report
@@ -106,15 +120,24 @@ judge's ground truth says the project was found under a relocated home.
 ### CLI version swaps (fails, visible)
 
 The scorer only ever runs the installed `supabase`. An agent that runs a
-different version (`npx supabase@2.120.0 …`, `bunx`, `pnpm dlx`) starts
-stacks the installed CLI can't resolve, so the outcome checks fail. The
-runner spec is recorded in `metrics.cliOverride` (empty when none), the
-`both stacks reach ready` notes say `agent ran <runner>; scorer uses the
-installed CLI`, and so does the judge's ground truth. A project whose every
-start went through such a runner fails `both stacks reach ready` even if the
-installed CLI happens to resolve its stack (`started with <runner>, not the
-installed CLI`); one also started with the installed CLI passes. The runner
-is never replayed.
+different version starts stacks the installed CLI can't resolve, so the
+outcome checks fail. Recognised runners are `npx`/`bunx` (including
+`-p`/`--package`), `npm exec`, `pnpm dlx` and `yarn dlx` with an explicit
+`supabase@<version>`, and a global reinstall (`npm i -g`, `pnpm add -g`,
+`bun add -g`, `yarn global add` of `supabase@<version>`), which counts for every
+later invocation in the run. The runner spec is recorded in
+`metrics.cliOverride` (empty when none), the `both stacks reach ready` notes
+lead with `agent ran <runner>; scorer uses the installed CLI`, and so does the
+judge's ground truth for every project. Each project is judged by its latest
+start (by tool-call time when recorded, else command order): if that start used
+an override runner, `both stacks reach ready` fails even when the installed CLI
+happens to resolve the stack (`started with <runner>, not the installed CLI`);
+a project whose latest start used the installed CLI passes, whatever it ran
+before. The runner is never replayed.
+
+A runner pinned to a dist-tag (`supabase@latest`, `@beta`, `@next`) can't be
+checked against the installed version offline, so it is not an override. It is
+listed in `metrics.cliRunnerUnverified` instead.
 
 The frontmatter has no `services:` key. The sandbox shim turns it into
 `supabase start -x <container names>`, which the managed stack rejects. With
@@ -128,27 +151,23 @@ agent's work.
 | pinned | this repo's pinned version | Docker available | baseline | pass |
 | stable | npm `latest` tag | Docker available | drift insurance — equals the pin between bumps | pass |
 | beta | npm `beta` tag | Docker available | regressions ahead of a stable promotion, compared against `stable` | pass |
-| nodaemon | beta | Docker client present, daemon unreachable | the Docker-less gap | fails the outcome checks, passes detours and truthful report |
-| absent | beta | no Docker at all | the Docker-less gap | fails the outcome checks, passes detours and truthful report |
+| nodaemon | beta | Docker client present, daemon unreachable | the Docker-less gap | pass via `--runtime native` |
+| absent | beta | no Docker at all | the Docker-less gap | pass via `--runtime native` |
 
-Observed in CI so far:
+Observed in CI (run 37618809016, head 4d4afce): 13/15 runs pass.
 
-- Docker-less experiments now pass through the native managed stack:
-  `absent` 3/3, `nodaemon` 2/3.
-- Docker arms: most failures in run 37607027430 were a scorer bug, not agent
-  failures. The managed Docker runtime failed to bind-mount
-  `~/.supabase/stacks` under the sandbox's sibling Docker daemon (a CLI and
-  harness issue tracked separately), so agents fell back to named native
-  stacks, which the scorer could not see until it started resolving them via
-  `stack list`. The pinned r2 failure was an agent gap.
-- Run 37616265010: the beta r1-r3 and stable r2 failures were a scorer gap.
-  The agents relocated the CLI home to dodge the same bind-mount failure and
-  their stacks ran, but the scorer only probed the default home; relocated
-  homes are now resolved (see above). The pinned r2 agent swapped CLI
-  versions with `npx supabase@2.120.0`, which now fails visibly. The nodaemon
-  r2 and r3 failures are agent gaps: they never tried `--runtime native`.
-- Earlier `nodaemon` results were affected by a harness `PATH` bug, fixed in
-  #355.
+- `absent` 3/3 and `nodaemon` 3/3 pass through the native managed stack.
+- Docker experiments pass 7/9: `beta` 3/3, `stable` 3/3, `pinned` 1/3.
+- 12 of the 13 passes resolved through managed or managed-named stacks, several
+  under an agent-relocated CLI home, so the managed backend's `API_URL` is
+  observed live and drives the reported-ports check.
+- `pinned` r2 fails the version-swap policy: the agent ran
+  `npx supabase@2.120.0` because the multi-project docs point to
+  `supabase stack`, which the pinned 2.117.0 doesn't have. That is a
+  docs/product gap worth fixing, not only an agent gap.
+- `pinned` r3 is an agent/tooling gap, not a version swap: the agent ran
+  `init` through `npx`, then hit `apply_patch: command not found` and stopped
+  before starting anything.
 - On the Docker arms the agent has to move one project off the default ports
   in `config.toml` (unless the CLI allocates them), since two stacks on the
   defaults collide. `nodaemon` and `absent` pin to beta because the native
@@ -176,5 +195,8 @@ each tool call.
   reported-ports check fails with "stack resolved via managed but reported
   no API URL" rather than falling back to `config.toml`. The managed
   backend has reported it in every run so far.
+- A `cd` that persists across separate tool calls (a persistent shell) isn't
+  tracked; attribution starts from each call's recorded `cwd` where the agent
+  parser provides one.
 - Projects nested deeper than two directories below the workspace root
   aren't discovered and fail the initialised check.
