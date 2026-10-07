@@ -334,15 +334,6 @@ describe('startTimeline: ok-ness', () => {
     expect(timeline.map(({ ok }) => ok)).toEqual([undefined, true]);
   });
 
-  it('marks earlier starts failed only on the Docker-unavailable pattern', () => {
-    const timeline = timelineOf([
-      call(`${dockerStart}; supabase stack start --runtime native`, {
-        result: "Docker CLI or daemon isn't reachable",
-      }),
-    ]);
-    expect(timeline.map(({ ok }) => ok)).toEqual([false, false]);
-  });
-
   it('flags a runtime-mismatch error on the last attempt', () => {
     const [first] = timelineOf([
       call('supabase stack start --runtime native', {
@@ -400,13 +391,23 @@ describe('startTimeline: resolved runtime', () => {
     ['Started.\nRuntime: native\n', 'native'],
     ['{"runtime":"podman","DB_URL":"postgresql://x"}', 'podman'],
     ['{"runtime":{"kind":"docker"}}', 'docker'],
-    ['Cannot connect to the Docker daemon', 'docker'],
+    ["Docker CLI or daemon isn't reachable", 'docker'],
   ])(
     'resolves an auto start from its own output %j to %s',
     (output, resolved) => {
       expect(
         resolvedOf('supabase stack start', output, stackOn('docker'))
       ).toBe(resolved);
+    }
+  );
+
+  it.each([
+    'Cannot connect to the Docker daemon at tcp://127.0.0.1:1.',
+    'bash: docker: command not found',
+  ])(
+    'does not read the raw Docker client error %j as an auto start resolving to docker',
+    (output) => {
+      expect(resolvedOf('supabase stack start', output)).toBe('unknown');
     }
   );
 
@@ -479,6 +480,178 @@ describe('startTimeline: resolved runtime', () => {
       'unknown',
       'docker',
     ]);
+  });
+});
+
+describe('startTimeline: per-start attribution and evidence', () => {
+  const BANNER = '[task] start: Starting local Supabase stack';
+  const CLI_DOCKER_ERROR =
+    "Docker CLI or daemon isn't reachable. Install or start Docker, or run with --runtime native.";
+  const summary = (timeline: StartAttempt[]) =>
+    timeline.map(
+      ({ requested, resolved, ok }) => `${requested}→${resolved}:${ok}`
+    );
+  const guarded =
+    'docker info >/dev/null 2>&1 && supabase stack start --runtime docker || supabase stack start --runtime native';
+
+  it('leaves a skipped docker arm unknown when only one start banner printed', () => {
+    const timeline = timelineOf([
+      call(guarded, { result: `${BANNER}\nRuntime: native` }),
+    ]);
+    expect(summary(timeline)).toEqual([
+      'docker→unknown:undefined',
+      'native→native:true',
+    ]);
+    expect(checkDockerAttemptedFirst(timeline).passed).toBe(false);
+    expect(checkRecovered(timeline, 'native').passed).toBe(false);
+  });
+
+  it('attributes an automatic-runtime notice to the start whose banner follows it', () => {
+    const timeline = timelineOf([
+      call('supabase stack start; supabase stack start', {
+        result: `${BANNER}\n[task] failed: ContainerLaunchError\nDocker didn't answer, so this new stack uses the native runtime, which is saved with the stack.\n${BANNER}\nRuntime: native`,
+      }),
+    ]);
+    expect(summary(timeline)).toEqual([
+      'auto→docker:false',
+      'auto→native:true',
+    ]);
+  });
+
+  it('gives each start its own chunk when the banner count matches', () => {
+    const timeline = timelineOf([
+      call(guarded, {
+        result: `${BANNER}\n${CLI_DOCKER_ERROR}\n${BANNER}\nRuntime: native`,
+      }),
+    ]);
+    expect(summary(timeline)).toEqual([
+      'docker→docker:false',
+      'native→native:true',
+    ]);
+    expect(checkDockerAttemptedFirst(timeline).passed).toBe(true);
+    expect(checkRecovered(timeline, 'native').passed).toBe(true);
+  });
+
+  it('gives the output to the earlier docker start when the last explicit request contradicts the reported runtime', () => {
+    const timeline = timelineOf([
+      call(
+        'supabase stack start --runtime docker || supabase stack start --runtime native',
+        { result: `${BANNER}\nRuntime: docker` }
+      ),
+    ]);
+    expect(summary(timeline)).toEqual([
+      'docker→docker:true',
+      'native→unknown:undefined',
+    ]);
+    expect(checkDockerAttemptedFirst(timeline).passed).toBe(true);
+    expect(checkRecovered(timeline, 'docker').passed).toBe(true);
+  });
+
+  it('gives an auto start that succeeded on docker the output when its native fallback never ran', () => {
+    const timeline = timelineOf([
+      call('supabase stack start || supabase stack start --runtime native', {
+        result: `${BANNER}\nRuntime: docker`,
+      }),
+    ]);
+    expect(summary(timeline)).toEqual([
+      'auto→docker:true',
+      'native→unknown:undefined',
+    ]);
+    expect(checkDockerAttemptedFirst(timeline).passed).toBe(true);
+  });
+
+  it.each([
+    [
+      'Cannot connect to the Docker daemon at tcp://127.0.0.1:1. Is the docker daemon running?',
+      'docker info; supabase stack start > /tmp/start.log 2>&1',
+    ],
+    [
+      'bash: docker: command not found',
+      'docker ps; supabase stack start > /tmp/start.log 2>&1',
+    ],
+  ])(
+    'does not credit the agent probe error %j to a silently native auto start',
+    (probeOutput, firstCommand) => {
+      const timeline = timelineOf([
+        call(firstCommand, { result: probeOutput }),
+        call('supabase stack start', { result: 'Runtime: native' }),
+      ]);
+      expect(timeline[0].resolved).not.toBe('docker');
+      expect(timeline[1].resolved).toBe('native');
+      expect(checkDockerAttemptedFirst(timeline).passed).toBe(false);
+    }
+  );
+
+  it('resolves a failed auto start with a CLI failure and no notice to docker, then succeeds on docker', () => {
+    const timeline = timelineOf([
+      call('supabase stack start', {
+        result: `${BANNER}\n[task] failed: ContainerLaunchError: boom`,
+      }),
+      call('supabase stack start', { result: 'Runtime: docker' }),
+    ]);
+    expect(summary(timeline)).toEqual([
+      'auto→docker:false',
+      'auto→docker:true',
+    ]);
+    expect(checkDockerAttemptedFirst(timeline).passed).toBe(true);
+  });
+
+  it('resolves a reused-runtime auto start to the last successful runtime before it', () => {
+    const timeline = timelineOf([
+      call('supabase stack start --runtime native', {
+        result: 'Runtime: native',
+      }),
+      call('supabase stack start', {
+        result: `${BANNER}\n[task] failed: boom`,
+      }),
+    ]);
+    expect(timeline.map(({ resolved }) => resolved)).toEqual([
+      'native',
+      'native',
+    ]);
+  });
+
+  it('forgets earlier runtimes after a stack destroy', () => {
+    const timeline = timelineOf([
+      call('supabase stack start --runtime native', {
+        result: 'Runtime: native',
+      }),
+      call('supabase stack destroy'),
+      call('supabase stack start', {
+        result: `${BANNER}\n[task] failed: boom`,
+      }),
+    ]);
+    expect(timeline.map(({ resolved }) => resolved)).toEqual([
+      'native',
+      'docker',
+    ]);
+  });
+
+  it('infers an auto start with no evidence from the next auto start', () => {
+    const timeline = timelineOf([
+      call('supabase stack start', { result: 'done' }),
+      call('supabase stack start', { result: 'Runtime: native' }),
+    ]);
+    expect(timeline.map(({ resolved }) => resolved)).toEqual([
+      'native',
+      'native',
+    ]);
+  });
+
+  it.each([
+    [
+      'Error: port 54322 is already allocated\nTry rerunning the command with --debug to troubleshoot the error.',
+    ],
+    ['port is already allocated'],
+    [`${BANNER}\n[task] failed: StartError`],
+    ['Try rerunning the command with --debug'],
+  ])('fails a piped docker start with exit 0 and the output %j', (output) => {
+    const [first] = timelineOf([
+      call('supabase stack start --runtime docker 2>&1 | tail -5', {
+        result: output,
+      }),
+    ]);
+    expect(first).toMatchObject({ resolved: 'docker', ok: false });
   });
 });
 

@@ -56,25 +56,46 @@ Regex detour counters (`cliDetours`, `clearedDockerHost`, `dockerHostOverrides`,
 
 ## How a start's runtime is resolved
 
+An explicit `--runtime docker|native|podman` resolves to itself, but only when
+the start has output attributed to it (see the evidence model); a start with
+none is `unknown`, since `&&`/`||` may have skipped it.
+
 A bare `supabase stack start`, `--runtime auto` or an opted-in `supabase start`
-asks the CLI to pick. `startTimeline` works out what it picked from evidence,
-not the command string, in this order: the CLI's automatic-runtime notice
-(`Docker didn't answer, so this new stack uses the ... runtime`); a
-`Runtime: <x>` line or top-level `"runtime"` JSON in the output; a
-Docker-unavailable message (the attempt reached for Docker); and, for the last
-real start only, the resolved stack's runtime. Otherwise it stays `unknown` and
-check 2 fails with that note. A plain `supabase start` counts as managed when
-its output shows the managed backend.
+asks the CLI to pick. `startTimeline` works out what it picked from the
+attempt's own output, in this order:
+
+1. The CLI's automatic-runtime notice (`Docker didn't answer, so this new stack
+   uses the ... runtime`).
+2. A `Runtime: <x>` line or top-level `"runtime"` JSON.
+3. The CLI's own `Docker CLI or daemon isn't reachable` message: Docker.
+   Raw Docker client errors (`Cannot connect to the Docker daemon`,
+   `docker: command not found`) never count; they come from the agent's own
+   probes.
+4. The managed banner, a `Runtime:` line or a CLI failure marker with no
+   notice: auto picked Docker or reused a saved runtime, so the runtime of the
+   most recent earlier successful start that no `supabase stack destroy`
+   followed, else Docker.
+5. No such evidence: the next later auto attempt's runtime, else the resolved
+   stack's runtime if this is the last real attempt, else `unknown` (check 2
+   then fails with that note).
+
+A plain `supabase start` counts as managed when its output shows the managed
+backend.
 
 ## Evidence model
 
 - Only executed commands count: echoed, committed or heredoc'd command lines
   are never attempts (`findSupabaseInvocations`).
-- A tool call's output is attributed to the last start in that call; earlier
-  starts in the same call only learn whether Docker was unreachable.
-- Failure markers in the output (`ContainerLaunchError`, a runtime mismatch,
-  Docker unreachable, ...) beat the exit status, since `... 2>&1 | tail`
-  exits 0 after a failed start.
+- A call with several starts and exactly as many `[task] start: Starting local
+  Supabase stack` banners gives start i the output from banner i to banner
+  i+1. Otherwise the whole output goes to the last start, unless a reported
+  runtime contradicts its explicit request, in which case it goes to the
+  latest earlier start whose request is consistent. Starts left without output
+  are `unknown` with no outcome.
+- Failure markers in the output (`ContainerLaunchError`, `[task] failed:`,
+  `Try rerunning the command with --debug`, a runtime mismatch, Docker
+  unreachable, a port already allocated, ...) beat the exit status, since
+  `... 2>&1 | tail` exits 0 after a failed start.
 
 ## Known limitations
 

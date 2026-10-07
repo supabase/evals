@@ -49,13 +49,23 @@ const AUTO_NOTICE_LINE_RE = new RegExp(`^.*${AUTO_NOTICE_RE.source}.*$`, 'gim');
 const RUNTIME_LINE_RE = /^\s*Runtime:\s*(docker|native|podman)\b/im;
 const LEGACY_SUCCESS_RE = /Started supabase local development setup/;
 const START_JSON_KEY_RE = /"(?:runtime|DB_URL)"/;
-const FAILURE_MARKERS = [
-  DOCKER_UNAVAILABLE_RE,
+const MANAGED_BANNER_RE = /^\[task\] start: Starting local Supabase stack/gm;
+// The CLI's own wording; the raw Docker client errors in DOCKER_UNAVAILABLE_RE can come from the agent's probes.
+const CLI_DOCKER_MESSAGE_RE = /Docker CLI or daemon isn't reachable/i;
+const PORT_ALLOCATED_RE = /port is already allocated/i;
+const CLI_FAILURE_MARKERS = [
   RUNTIME_MISMATCH_RE,
   /ContainerLaunchError/,
   /StackCommandStartError/,
   /Stack owner failed to start/,
   /"code"\s*:\s*"ExperimentalStack\w*Error"/,
+  /^\[task\] failed:/m,
+  /Try rerunning the command with --debug/,
+];
+const FAILURE_MARKERS = [
+  DOCKER_UNAVAILABLE_RE,
+  PORT_ALLOCATED_RE,
+  ...CLI_FAILURE_MARKERS,
 ];
 const NAMED_RUNTIMES = new Set(['docker', 'native', 'podman']);
 const REQUESTABLE_RUNTIMES = new Set([...NAMED_RUNTIMES, 'auto']);
@@ -146,27 +156,78 @@ function startOutcome(output: string): boolean | undefined {
 
 type Draft = {
   inv: SupabaseInvocation;
-  isLast: boolean;
   output: string;
-  dockerUnavailable: boolean;
+  attributed: boolean;
+  ownsRecordStatus: boolean;
   record: ToolCallRecord | undefined;
 };
 
-function resolveRuntime(
-  requested: RequestedRuntime,
-  draft: Draft,
-  stackRuntime: ResolvedRuntime
-): ResolvedRuntime {
-  if (requested === 'invalid') return 'unknown';
-  if (requested !== 'auto') return requested;
-  const notice = AUTO_NOTICE_RE.exec(draft.output)?.[1]?.toLowerCase();
-  const reported = runtimeName(notice) ?? reportedRuntime(draft.output);
-  if (reported !== undefined) return reported;
-  if (draft.dockerUnavailable) return 'docker';
-  return stackRuntime;
+// The automatic-runtime notice prints just before its start's banner, so a chunk begins at the notice.
+const START_CHUNK_RE = new RegExp(
+  `^(?:.*${AUTO_NOTICE_RE.source}.*\\n)?${MANAGED_BANNER_RE.source}`,
+  'gim'
+);
+
+function splitByBanner(output: string, count: number): string[] | undefined {
+  const at = [...output.matchAll(START_CHUNK_RE)].map(
+    (match) => match.index ?? 0
+  );
+  if (at.length !== count) return undefined;
+  return at.map((from, i) => output.slice(from, at[i + 1]));
 }
 
-/** The run's start attempts in order, with each call's output attributed to its last start. */
+// Index-aligned with `group`; undefined marks a start that received no output.
+function attributeOutput(
+  group: readonly SupabaseInvocation[],
+  output: string
+): Array<string | undefined> {
+  if (group.length === 1) return [output];
+  const chunks = splitByBanner(output, group.length);
+  if (chunks !== undefined) return chunks;
+  const reported = reportedRuntime(output);
+  const consistent = (inv: SupabaseInvocation) => {
+    const requested = requestedRuntime(inv);
+    return (
+      reported === undefined || requested === 'auto' || requested === reported
+    );
+  };
+  let target = group.length - 1;
+  if (!consistent(group[target])) {
+    for (let j = target - 1; j >= 0; j--) {
+      if (consistent(group[j])) {
+        target = j;
+        break;
+      }
+    }
+  }
+  return group.map((_, j) => (j === target ? output : undefined));
+}
+
+function showsCliRan(output: string): boolean {
+  return (
+    showsManagedBackend(output) ||
+    CLI_FAILURE_MARKERS.some((marker) => marker.test(output))
+  );
+}
+
+// undefined: no evidence in the attempt's own output; the caller infers it from neighbouring attempts.
+function resolveFromEvidence(
+  requested: RequestedRuntime,
+  draft: Draft,
+  previous: Exclude<ResolvedRuntime, 'unknown'> | undefined
+): ResolvedRuntime | undefined {
+  if (requested === 'invalid') return 'unknown';
+  if (requested !== 'auto') return draft.attributed ? requested : 'unknown';
+  const { output } = draft;
+  const notice = AUTO_NOTICE_RE.exec(output)?.[1]?.toLowerCase();
+  const reported = runtimeName(notice) ?? reportedRuntime(output);
+  if (reported !== undefined) return reported;
+  if (CLI_DOCKER_MESSAGE_RE.test(output)) return 'docker';
+  if (showsCliRan(output)) return previous ?? 'docker';
+  return undefined;
+}
+
+/** The run's start attempts in order, each given the slice of its call's output that belongs to it. */
 export function startTimeline(
   invocations: readonly SupabaseInvocation[],
   toolCalls: readonly ToolCallRecord[],
@@ -174,56 +235,93 @@ export function startTimeline(
 ): StartAttempt[] {
   const records = commandToolCalls(toolCalls);
   const starts = invocations.filter(isStartInvocation);
-  const lastInCall = new Map<number, number>();
-  starts.forEach((inv, i) => lastInCall.set(inv.commandIndex, i));
+  const byCall = new Map<number, number[]>();
+  starts.forEach((inv, i) =>
+    byCall.set(inv.commandIndex, [...(byCall.get(inv.commandIndex) ?? []), i])
+  );
 
-  const drafts: Draft[] = starts.map((inv, i) => {
-    const record = records[inv.commandIndex];
-    const full = withoutNotice(outputOf(record));
-    const isLast = lastInCall.get(inv.commandIndex) === i;
-    return {
-      inv,
-      isLast,
-      output: isLast ? outputOf(record) : '',
-      dockerUnavailable: DOCKER_UNAVAILABLE_RE.test(full),
-      record,
-    };
-  });
+  const drafts: Draft[] = new Array(starts.length);
+  for (const [commandIndex, indexes] of byCall) {
+    const record = records[commandIndex];
+    const outputs = attributeOutput(
+      indexes.map((i) => starts[i]),
+      outputOf(record)
+    );
+    indexes.forEach((startIndex, j) => {
+      const output = outputs[j];
+      drafts[startIndex] = {
+        inv: starts[startIndex],
+        output: output ?? '',
+        attributed: output !== undefined,
+        ownsRecordStatus: output !== undefined && j === indexes.length - 1,
+        record,
+      };
+    });
+  }
+
   const classified = drafts.map((draft) => ({
     draft,
     ...classify(draft.inv, draft.output),
   }));
+  const outcomes = drafts.map(
+    ({ attributed, ownsRecordStatus, output, record }) => {
+      if (!attributed) return undefined;
+      const fromOutput = startOutcome(withoutNotice(output));
+      if (fromOutput !== undefined || !ownsRecordStatus) return fromOutput;
+      return record?.error !== undefined
+        ? false
+        : record?.result !== undefined
+          ? true
+          : undefined;
+    }
+  );
   const lastReal = classified.reduce(
     (last, { requested }, i) => (requested === 'invalid' ? last : i),
     -1
   );
   const stackRuntime: ResolvedRuntime = stack.ok ? stack.runtime : 'unknown';
 
-  return classified.map(({ draft, backend, requested }, i) => {
-    const { record, isLast, output } = draft;
-    const outcome = isLast
-      ? (startOutcome(withoutNotice(output)) ??
-        (record?.error !== undefined
-          ? false
-          : record?.result !== undefined
-            ? true
-            : undefined))
-      : draft.dockerUnavailable
-        ? false
-        : undefined;
-    return {
-      commandIndex: draft.inv.commandIndex,
-      backend,
-      requested,
-      resolved: resolveRuntime(
-        requested,
-        draft,
-        i === lastReal ? stackRuntime : 'unknown'
-      ),
-      ok: outcome,
-      runtimeMismatch: isLast && RUNTIME_MISMATCH_RE.test(output),
-    };
-  });
+  const resolved: Array<ResolvedRuntime | undefined> = [];
+  let carried: Exclude<ResolvedRuntime, 'unknown'> | undefined;
+  for (const inv of invocations) {
+    if (invocationVerb(inv) === 'stack destroy') carried = undefined;
+    if (!isStartInvocation(inv)) continue;
+    const i = resolved.length;
+    const runtime = resolveFromEvidence(
+      classified[i].requested,
+      drafts[i],
+      carried
+    );
+    resolved.push(runtime);
+    if (
+      outcomes[i] === true &&
+      runtime !== undefined &&
+      runtime !== 'unknown'
+    ) {
+      carried = runtime;
+    }
+  }
+  for (let i = resolved.length - 1; i >= 0; i--) {
+    if (resolved[i] !== undefined) continue;
+    const nextAuto = classified.findIndex(
+      ({ requested }, j) => j > i && requested === 'auto'
+    );
+    resolved[i] =
+      nextAuto !== -1
+        ? (resolved[nextAuto] ?? 'unknown')
+        : i === lastReal
+          ? stackRuntime
+          : 'unknown';
+  }
+
+  return classified.map(({ draft, backend, requested }, i) => ({
+    commandIndex: draft.inv.commandIndex,
+    backend,
+    requested,
+    resolved: resolved[i] ?? 'unknown',
+    ok: outcomes[i],
+    runtimeMismatch: RUNTIME_MISMATCH_RE.test(draft.output),
+  }));
 }
 
 export function formatAttempt(attempt: StartAttempt): string {
