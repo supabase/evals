@@ -1,5 +1,4 @@
 import {
-  judge,
   serializeTranscript,
   type CheckResult,
   type ToolEvalContext,
@@ -155,7 +154,7 @@ async function checkStaffCanReadOrders(
 async function checkPublicationDiagnosis(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: serializeTranscript(ctx.transcript, {
       includeToolCallInputs: true,
     }),

@@ -2,9 +2,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   findSupabaseInvocations,
+  invocationDirectory,
   invocationTargetUnresolved,
   invocationTargets,
+  invocationTargetsDir,
   invocationVerb,
+  isStartInvocation,
+  listCliOverrides,
+  listUnverifiedRunners,
+  type CommandEntry,
   type SupabaseInvocation,
 } from './cli-invocations.js';
 
@@ -503,16 +509,14 @@ describe('invocationTargets', () => {
     ).toBe(false);
   });
 
-  it('lets --stack override the cd directory', () => {
-    expect(
-      invocationTargets(
-        inv(
-          ['supabase', 'stack', 'destroy', '--stack', 'payments-api'],
-          'legacy-import'
-        ),
-        'legacy-import'
-      )
-    ).toBe(false);
+  it('lets the cd directory win over --stack when the directory is a known target', () => {
+    const destroy = inv(
+      ['supabase', 'stack', 'destroy', '--stack', 'payments-api'],
+      'legacy-import'
+    );
+    const known = ['legacy-import', 'payments-api'];
+    expect(invocationTargets(destroy, 'legacy-import', known)).toBe(true);
+    expect(invocationTargets(destroy, 'payments-api', known)).toBe(false);
   });
 
   it('matches --workdir by basename, relative to the cd directory', () => {
@@ -557,19 +561,62 @@ describe('invocationTargets', () => {
     ).toBe(false);
   });
 
-  it('matches stop --project-id <name>, which overrides the cd directory', () => {
+  it('matches stop --project-id <name>', () => {
     expect(
       invocationTargets(
         inv(['supabase', 'stop', '--project-id', 'legacy-import']),
         'legacy-import'
       )
     ).toBe(true);
+  });
+
+  it('keeps stop --project-id authoritative over the cd directory', () => {
+    const known = ['checkout-service', 'payments-api'];
+    const stop = findSupabaseInvocations([
+      {
+        command:
+          'cd checkout-service && supabase stop --project-id payments-api',
+      },
+    ])[0];
+    expect(invocationTargets(stop, 'payments-api', known)).toBe(true);
+    expect(invocationTargets(stop, 'checkout-service', known)).toBe(false);
     expect(
       invocationTargets(
-        inv(['supabase', 'stop', '--project-id=payments-api'], 'legacy-import'),
-        'legacy-import'
+        inv(
+          ['supabase', 'stop', '--project-id=payments-api'],
+          'checkout-service'
+        ),
+        'checkout-service',
+        known
       )
     ).toBe(false);
+  });
+
+  it('ignores --project-id on verbs other than stop', () => {
+    const known = ['checkout-service', 'payments-api'];
+    const [start] = findSupabaseInvocations([
+      {
+        command:
+          'cd checkout-service && supabase start --project-id payments-api',
+      },
+    ]);
+    expect(invocationTargets(start, 'checkout-service', known)).toBe(true);
+    expect(invocationTargets(start, 'payments-api', known)).toBe(false);
+    expect(
+      invocationTargets(
+        inv(['supabase', 'gen', 'types', '--project-id', 'payments-api']),
+        'payments-api'
+      )
+    ).toBe(false);
+  });
+
+  it('still lets the cd directory win over --stack', () => {
+    const [start] = findSupabaseInvocations([
+      { command: 'cd client-a && supabase stack start --stack native' },
+    ]);
+    const known = ['client-a', 'client-b'];
+    expect(invocationTargets(start, 'client-a', known)).toBe(true);
+    expect(invocationTargets(start, 'client-b', known)).toBe(false);
   });
 
   it('treats stop --all as targeting every stack', () => {
@@ -597,6 +644,14 @@ describe('invocationTargetUnresolved', () => {
     expect(invocationTargetUnresolved(inv(argv))).toBe(true);
   });
 
+  it('ignores an expanded --project-id outside stop', () => {
+    expect(
+      invocationTargetUnresolved(
+        inv(['supabase', 'start', '--project-id', '$name'], 'client-a')
+      )
+    ).toBe(false);
+  });
+
   it('does not flag an expansion that still ends in a literal name', () => {
     const found = inv(['supabase', 'start'], '$WORKSPACE/legacy-import');
     expect(invocationTargetUnresolved(found)).toBe(false);
@@ -608,5 +663,683 @@ describe('invocationTargetUnresolved', () => {
       invocationTargetUnresolved(inv(['supabase', 'start'], 'legacy-import'))
     ).toBe(false);
     expect(invocationTargetUnresolved(inv(['supabase', 'start']))).toBe(false);
+  });
+});
+
+describe('invocation env and runner', () => {
+  const S = '/sandbox';
+  const first = (command: string, cwd?: string) =>
+    findSupabaseInvocations([{ command, cwd }])[0];
+
+  it('records an absolute SUPABASE_HOME and TMPDIR with the call cwd', () => {
+    const invocation = first(
+      `SUPABASE_HOME=${S}/.supabase-runtime-home TMPDIR=${S}/.supabase-tmp supabase start`,
+      `${S}/client-a`
+    );
+    expect(invocation).toMatchObject({
+      cwd: `${S}/client-a`,
+      env: {
+        SUPABASE_HOME: `${S}/.supabase-runtime-home`,
+        TMPDIR: `${S}/.supabase-tmp`,
+      },
+    });
+    expect(invocation.runner).toBeUndefined();
+  });
+
+  it('records HOME in place of SUPABASE_HOME', () => {
+    expect(
+      first(
+        `HOME=${S}/.supabase-runtime-home TMPDIR=${S}/.supabase-tmp supabase start`,
+        `${S}/client-a`
+      ).env
+    ).toEqual({
+      HOME: `${S}/.supabase-runtime-home`,
+      TMPDIR: `${S}/.supabase-tmp`,
+    });
+  });
+
+  it('records env assigned after a cd and resolves the target from it', () => {
+    const invocation = first(
+      `cd client-a && TMPDIR=${S}/.tmp SUPABASE_HOME=${S}/.supabase-home SUPABASE_EXPERIMENTAL_STACK=1 supabase start --runtime docker --eager`,
+      S
+    );
+    expect(invocation.env).toEqual({
+      SUPABASE_HOME: `${S}/.supabase-home`,
+      TMPDIR: `${S}/.tmp`,
+    });
+    expect(invocationTargets(invocation, 'client-a')).toBe(true);
+  });
+
+  it('resolves $PWD-relative values and records the npx runner', () => {
+    const invocation = first(
+      'HOME="$PWD/.local-supabase-home" TMPDIR="$PWD/.local-supabase-home/tmp" NPM_CONFIG_CACHE=/home/node/.npm npx --yes supabase@2.120.0 start --workdir client-b',
+      S
+    );
+    expect(invocation).toMatchObject({
+      argv: ['supabase', 'start', '--workdir', 'client-b'],
+      env: {
+        HOME: `${S}/.local-supabase-home`,
+        TMPDIR: `${S}/.local-supabase-home/tmp`,
+      },
+      runner: 'npx --yes supabase@2.120.0',
+    });
+    expect(invocationTargets(invocation, 'client-b')).toBe(true);
+  });
+
+  it('resolves ${PWD} the same way', () => {
+    expect(first('SUPABASE_HOME=${PWD}/.home supabase start', S).env).toEqual({
+      SUPABASE_HOME: `${S}/.home`,
+    });
+  });
+
+  it('resolves a relative value against the cwd', () => {
+    expect(
+      first('mkdir -p .home && SUPABASE_HOME=.home supabase start', S).env
+    ).toEqual({ SUPABASE_HOME: `${S}/.home` });
+  });
+
+  it('expands $PWD against the shell cwd, not the env -C directory', () => {
+    const w = '/w';
+    expect(
+      first('SUPABASE_HOME=$PWD/.h env -C client-a supabase start', w)
+    ).toMatchObject({ cwd: '/w/client-a', env: { SUPABASE_HOME: '/w/.h' } });
+    expect(
+      first('env -C client-a SUPABASE_HOME=$PWD/.h supabase start', w).env
+    ).toEqual({ SUPABASE_HOME: '/w/.h' });
+    expect(
+      first('cd client-a && SUPABASE_HOME=$PWD/.h supabase start', w).env
+    ).toEqual({ SUPABASE_HOME: '/w/client-a/.h' });
+    expect(
+      first('export SUPABASE_HOME=$PWD/.h && env -C client-a supabase start', w)
+        .env
+    ).toEqual({ SUPABASE_HOME: '/w/.h' });
+  });
+
+  it('resolves a plain relative value against the env -C directory', () => {
+    expect(
+      first('SUPABASE_HOME=.h env -C client-a supabase start', '/w').env
+    ).toEqual({ SUPABASE_HOME: '/w/client-a/.h' });
+  });
+
+  it('drops $PWD under env -C when the shell cwd is unknown', () => {
+    expect(
+      first('SUPABASE_HOME=$PWD/.h env -C /w/client-a supabase start').env
+    ).toBeUndefined();
+  });
+
+  it('drops a relative value when the cwd is unknown', () => {
+    expect(first('SUPABASE_HOME=.home supabase start').env).toBeUndefined();
+  });
+
+  it('drops values with other unresolved expansions', () => {
+    expect(
+      first('SUPABASE_HOME=$FOO/home TMPDIR=${BAR} HOME=/h supabase start', S)
+        .env
+    ).toEqual({ HOME: '/h' });
+  });
+
+  it('clears env with `env -u` and `env -i`', () => {
+    expect(
+      first('SUPABASE_HOME=/a env -u SUPABASE_HOME supabase start', S).env
+    ).toBeUndefined();
+    expect(first('HOME=/a env -i TMPDIR=/t supabase start', S).env).toEqual({
+      TMPDIR: '/t',
+    });
+  });
+
+  it('records env set through `env VAR=…`', () => {
+    expect(first('env SUPABASE_HOME=/a supabase start', S).env).toEqual({
+      SUPABASE_HOME: '/a',
+    });
+  });
+
+  it('records pnpm dlx and bunx runners but not unversioned or exec runs', () => {
+    expect(first('pnpm dlx supabase@2.0.0 start').runner).toBe(
+      'pnpm dlx supabase@2.0.0'
+    );
+    expect(first('bunx supabase@2.0.0 start').runner).toBe(
+      'bunx supabase@2.0.0'
+    );
+    expect(first('npx supabase start').runner).toBeUndefined();
+    expect(first('pnpm exec supabase start').runner).toBeUndefined();
+  });
+});
+
+describe('listCliOverrides', () => {
+  const runner = (spec: string) => ({
+    ...inv(['supabase', 'start']),
+    runner: spec,
+  });
+
+  it('lists distinct runner specs', () => {
+    expect(
+      listCliOverrides([
+        runner('npx supabase@2.0.0'),
+        inv(['supabase', 'start']),
+        runner('npx supabase@2.0.0'),
+      ])
+    ).toEqual(['npx supabase@2.0.0']);
+  });
+
+  it('skips the installed version', () => {
+    expect(
+      listCliOverrides([runner('npx supabase@2.0.0')], 'v2.0.0\n')
+    ).toEqual([]);
+  });
+});
+
+describe('directory attribution', () => {
+  const S = '/sandbox';
+  const KNOWN = ['client-a', 'client-b', 'payments-api'];
+  const start = (command: string, cwd?: string) =>
+    findSupabaseInvocations([{ command, cwd }])[0];
+
+  it('resolves the directory from cwd, --workdir, SUPABASE_WORKDIR and env -C', () => {
+    expect(invocationDirectory(start('supabase start', `${S}/client-a`))).toBe(
+      `${S}/client-a`
+    );
+    expect(
+      invocationDirectory(start('supabase --workdir client-b start', S))
+    ).toBe(`${S}/client-b`);
+    expect(
+      invocationDirectory(start('SUPABASE_WORKDIR=client-b supabase start', S))
+    ).toBe(`${S}/client-b`);
+    expect(
+      invocationDirectory(start('env -C client-b supabase start', S))
+    ).toBe(`${S}/client-b`);
+    expect(invocationDirectory(start('supabase start'))).toBeUndefined();
+  });
+
+  it('expands a leading $PWD in --workdir, SUPABASE_WORKDIR and env -C values', () => {
+    const codex = start(
+      'supabase start --workdir "$PWD"',
+      '/tmp/sbx/checkout-service'
+    );
+    expect(invocationDirectory(codex)).toBe('/tmp/sbx/checkout-service');
+    expect(invocationTargets(codex, 'checkout-service')).toBe(true);
+    expect(invocationTargetUnresolved(codex)).toBe(false);
+
+    for (const command of [
+      'supabase start --workdir "$PWD/legacy-import"',
+      'supabase start --workdir="$PWD/legacy-import"',
+      'supabase start --workdir ${PWD}/legacy-import',
+      'SUPABASE_WORKDIR="$PWD/legacy-import" supabase start',
+      'env -C "$PWD/legacy-import" supabase start',
+      'env --chdir=${PWD}/legacy-import supabase start',
+    ]) {
+      const found = start(command, '/tmp/sbx');
+      expect(invocationDirectory(found), command).toBe(
+        '/tmp/sbx/legacy-import'
+      );
+      expect(invocationTargetUnresolved(found), command).toBe(false);
+    }
+
+    const afterCd = start(
+      'cd payments-api && supabase stop --workdir "$PWD"',
+      '/tmp/sbx'
+    );
+    expect(invocationDirectory(afterCd)).toBe('/tmp/sbx/payments-api');
+    expect(invocationTargets(afterCd, 'payments-api')).toBe(true);
+  });
+
+  it('keeps $PWD and other variables in a workdir unresolved', () => {
+    for (const command of [
+      'supabase start --workdir "$PWD"',
+      'SUPABASE_WORKDIR="$PWD" supabase start',
+      'env -C "$PWD" supabase start',
+    ]) {
+      expect(invocationTargetUnresolved(start(command)), command).toBe(true);
+    }
+    expect(
+      invocationTargetUnresolved(
+        start('supabase start --workdir "$OTHER"', '/tmp/sbx')
+      )
+    ).toBe(true);
+  });
+
+  it('matches a directory by normalised path, or by basename when relative', () => {
+    const inDir = start('supabase start', `${S}/client-a/`);
+    expect(invocationTargetsDir(inDir, `${S}/client-a`)).toBe(true);
+    expect(invocationTargetsDir(inDir, `${S}/client-b`)).toBe(false);
+    expect(invocationTargetsDir(inDir, './client-a')).toBe(true);
+    expect(
+      invocationTargetsDir(
+        start('supabase --workdir client-a start'),
+        `${S}/client-a`
+      )
+    ).toBe(true);
+    expect(invocationTargetsDir(start('supabase start'), `${S}/client-a`)).toBe(
+      false
+    );
+  });
+
+  it('credits a --stack start to the directory it ran in', () => {
+    const inA = start('supabase stack start --stack demo', `${S}/client-a`);
+    expect(invocationTargets(inA, 'client-a')).toBe(true);
+    expect(invocationTargets(inA, 'client-a', KNOWN)).toBe(true);
+    expect(invocationTargets(inA, 'client-b', KNOWN)).toBe(false);
+  });
+
+  it('credits a --workdir --stack start to the workdir project', () => {
+    const inv = start(
+      'supabase --workdir client-b stack start --stack native',
+      S
+    );
+    expect(invocationTargets(inv, 'client-b', KNOWN)).toBe(true);
+    expect(invocationTargets(inv, 'client-a', KNOWN)).toBe(false);
+  });
+
+  it('keeps a --stack name from a directory that is no known target', () => {
+    const fromRoot = start('supabase stack start --stack payments-api', S);
+    expect(invocationTargets(fromRoot, 'payments-api', KNOWN)).toBe(true);
+    expect(invocationTargets(fromRoot, 'client-a', KNOWN)).toBe(false);
+    expect(
+      invocationTargets(
+        start('supabase stack start --stack payments-api'),
+        'payments-api'
+      )
+    ).toBe(true);
+  });
+
+  it('does not credit --stack <other known target> run inside a project directory', () => {
+    const inB = start('supabase stack start --stack client-a', `${S}/client-b`);
+    expect(invocationTargets(inB, 'client-b', KNOWN)).toBe(true);
+    expect(invocationTargets(inB, 'client-a', KNOWN)).toBe(false);
+  });
+
+  it('ignores the directory for --stack-id', () => {
+    const inv = start('supabase stack stop --stack-id abc', `${S}/client-a`);
+    expect(invocationTargets(inv, 'client-a', KNOWN)).toBe(false);
+    expect(invocationTargetsDir(inv, `${S}/client-a`)).toBe(false);
+  });
+
+  it('classifies start verbs once', () => {
+    expect(isStartInvocation(start('supabase start'))).toBe(true);
+    expect(isStartInvocation(start('supabase stack start --stack x'))).toBe(
+      true
+    );
+    expect(isStartInvocation(start('supabase stack stop --stack x'))).toBe(
+      false
+    );
+  });
+});
+
+describe('runner forms', () => {
+  const first = (command: string) => findSupabaseInvocations([command])[0];
+
+  it.each([
+    ['npx -p supabase@2.1.0 supabase stack start', 'npx -p supabase@2.1.0'],
+    [
+      'npx --yes --package supabase@2.1.0 supabase stack start',
+      'npx --yes --package supabase@2.1.0',
+    ],
+    [
+      'npx --package=supabase@2.1.0 supabase stack start',
+      'npx --package=supabase@2.1.0',
+    ],
+    ['npm exec supabase@2.1.0 -- stack start', 'npm exec supabase@2.1.0'],
+    [
+      'npm exec --yes -p supabase@2.1.0 -- supabase stack start',
+      'npm exec --yes -p supabase@2.1.0',
+    ],
+    ['pnpm dlx supabase@2.1.0 stack start', 'pnpm dlx supabase@2.1.0'],
+    ['yarn dlx supabase@2.1.0 stack start', 'yarn dlx supabase@2.1.0'],
+    ['bunx supabase@2.1.0 stack start', 'bunx supabase@2.1.0'],
+  ])('parses %s', (command, runner) => {
+    expect(first(command)).toMatchObject({
+      argv: ['supabase', 'stack', 'start'],
+      runner,
+    });
+  });
+
+  it('records no runner for an unversioned npm exec', () => {
+    expect(first('npm exec supabase -- stack start')).toMatchObject({
+      argv: ['supabase', 'stack', 'start'],
+    });
+    expect(first('npm exec supabase -- stack start').runner).toBeUndefined();
+  });
+
+  it.each([
+    'npm i -g supabase@2.1.0',
+    'npm install -g supabase@2.1.0',
+    'npm install --global supabase@2.1.0',
+    'pnpm add -g supabase@2.1.0',
+    'bun add -g supabase@2.1.0',
+    'yarn global add supabase@2.1.0',
+  ])('treats %s as an override for later invocations', (install) => {
+    const [before, same, later] = findSupabaseInvocations([
+      'supabase start',
+      `${install} && supabase stack start`,
+      'supabase stop',
+    ]);
+    expect(before.runner).toBeUndefined();
+    expect(same.runner).toMatch(/supabase@2\.1\.0$/);
+    expect(later.runner).toBe(same.runner);
+    expect(listCliOverrides([before, same, later], '2.0.0')).toEqual([
+      same.runner,
+    ]);
+    expect(listCliOverrides([same], '2.1.0')).toEqual([]);
+  });
+
+  describe('global install lifecycle', () => {
+    const runners = (...commands: Array<string | CommandEntry>) =>
+      findSupabaseInvocations(commands).map(({ runner }) => runner);
+
+    it('records an install whatever its call status', () => {
+      const invocations = findSupabaseInvocations([
+        { command: 'npm i -g supabase@2.120.0', failed: true },
+        'supabase start',
+      ]);
+      expect(invocations.map(({ runner }) => runner)).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('applies an install whose call succeeded', () => {
+      const invocations = findSupabaseInvocations([
+        { command: 'npm i -g supabase@2.120.0' },
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.119.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('lets a later install replace an earlier one', () => {
+      expect(
+        runners(
+          'npm i -g supabase@2.120.0',
+          'npm i -g supabase@2.121.0',
+          'supabase start'
+        )
+      ).toEqual(['npm i -g supabase@2.121.0']);
+    });
+
+    it('applies an install in a failing call when the PATH version moved', () => {
+      const invocations = findSupabaseInvocations([
+        {
+          command: 'npm i -g supabase@2.120.0 && supabase start',
+          failed: true,
+        },
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', '2.120.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('ignores an install that never took effect when the PATH version is unchanged', () => {
+      const invocations = findSupabaseInvocations([
+        { command: 'npm i -g supabase@2.120.0', failed: true },
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', '2.117.0\n')).toEqual([]);
+      expect(listCliOverrides(invocations, '2.117.0', 'v2.117.0')).toEqual([]);
+    });
+
+    it('applies an install as recorded when the PATH version is unknown', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', null)).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('still lists npx runners when the PATH version is unchanged', () => {
+      const invocations = findSupabaseInvocations([
+        'npx supabase@2.120.0 start',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', '2.117.0')).toEqual([
+        'npx supabase@2.120.0',
+      ]);
+    });
+
+    it('keeps starts that ran before an uninstall when the PATH version is unchanged', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'supabase start',
+        'npm uninstall -g supabase',
+        'supabase start',
+      ]);
+      expect(invocations.map(({ globalInstall }) => globalInstall)).toEqual([
+        'removed',
+        undefined,
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', '2.117.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('keeps an earlier install when the staged version is reinstalled last', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'cd client-a && supabase start',
+        'cd client-b && supabase start',
+        'npm i -g supabase@2.130.0',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.130.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('still ignores a single install that never took effect', () => {
+      const invocations = findSupabaseInvocations([
+        { command: 'npm i -g supabase@2.120.0', failed: true },
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.130.0')).toEqual([]);
+    });
+
+    it('lists both installs when a later install of another version took effect', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'supabase start',
+        'npm i -g supabase@2.125.0',
+        'supabase start',
+      ]);
+      expect(invocations.map(({ globalInstall }) => globalInstall)).toEqual([
+        'removed',
+        'active',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.125.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+        'npm i -g supabase@2.125.0',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.130.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('flags starts between an install and its uninstall before the staged version is reinstalled', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'supabase start',
+        'npm uninstall -g supabase',
+        'npm i -g supabase@2.130.0',
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.130.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it.each([
+      'npm uninstall -g supabase',
+      'npm rm -g supabase',
+      'pnpm remove -g supabase',
+      'bun remove -g supabase',
+      'yarn global remove supabase',
+    ])('clears the runner after %s', (uninstall) => {
+      expect(
+        runners('npm i -g supabase@2.120.0', uninstall, 'supabase start')
+      ).toEqual([undefined]);
+      expect(
+        runners(`npm i -g supabase@2.120.0 && ${uninstall} && supabase start`)
+      ).toEqual([undefined]);
+    });
+
+    it('clears the runner when the call holding the uninstall failed', () => {
+      expect(
+        runners(
+          'npm i -g supabase@2.120.0',
+          { command: 'npm uninstall -g supabase && false', failed: true },
+          'supabase start'
+        )
+      ).toEqual([undefined]);
+    });
+
+    it('keeps the runner when the uninstall named another package', () => {
+      expect(
+        runners(
+          'npm i -g supabase@2.120.0',
+          'npm uninstall -g typescript',
+          'supabase start'
+        )
+      ).toEqual(['npm i -g supabase@2.120.0']);
+    });
+  });
+
+  it('ignores a global install of another package or without a version', () => {
+    const invocations = findSupabaseInvocations([
+      'npm i -g typescript@5 && supabase start',
+      'npm i -g supabase && supabase start',
+      'npm i supabase@2.1.0 && supabase start',
+    ]);
+    expect(invocations.map(({ runner }) => runner)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it('lists dist-tag runners as unverified, not as overrides', () => {
+    const invocations = findSupabaseInvocations([
+      'npx supabase@latest start',
+      'npx -p supabase@beta supabase start',
+      'npx supabase@2.1.0 start',
+    ]);
+    expect(listCliOverrides(invocations, '2.0.0')).toEqual([
+      'npx supabase@2.1.0',
+    ]);
+    expect(listUnverifiedRunners(invocations)).toEqual([
+      'npx supabase@latest',
+      'npx -p supabase@beta',
+    ]);
+  });
+});
+
+describe('exported and home-relative env', () => {
+  const S = '/sandbox';
+  const first = (command: string, cwd = `${S}/client-a`) =>
+    findSupabaseInvocations([{ command, cwd }])[0];
+
+  it('carries an earlier export in the same command', () => {
+    expect(
+      first(`export SUPABASE_HOME=${S}/.h TMPDIR=${S}/.t && supabase start`).env
+    ).toEqual({ SUPABASE_HOME: `${S}/.h`, TMPDIR: `${S}/.t` });
+    expect(first(`export HOME=${S}/u; supabase start`).env).toEqual({
+      HOME: `${S}/u`,
+    });
+  });
+
+  it('lets a prefix assignment override, and env -u / env -i clear, an export', () => {
+    expect(
+      first(`export SUPABASE_HOME=/a && SUPABASE_HOME=/b supabase start`).env
+    ).toEqual({ SUPABASE_HOME: '/b' });
+    expect(
+      first(`export SUPABASE_HOME=/a && env -u SUPABASE_HOME supabase start`)
+        .env
+    ).toBeUndefined();
+    expect(first(`export SUPABASE_HOME=/a && env -i supabase start`).env).toBe(
+      undefined
+    );
+  });
+
+  it('scopes an export to its subshell and its own command', () => {
+    expect(
+      first(`(export SUPABASE_HOME=/a; supabase start); supabase start`)
+    ).toMatchObject({ env: { SUPABASE_HOME: '/a' } });
+    const both = findSupabaseInvocations([
+      { command: `(export SUPABASE_HOME=/a; supabase start); supabase start` },
+      { command: 'supabase start' },
+    ]);
+    expect(both.map(({ env }) => env)).toEqual([
+      { SUPABASE_HOME: '/a' },
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it('does not export a bare assignment', () => {
+    expect(first('SUPABASE_HOME=/a; supabase start').env).toBeUndefined();
+  });
+
+  it('resolves $HOME and ~ only against a HOME set earlier in the command', () => {
+    expect(
+      first(`export HOME=${S}/u && SUPABASE_HOME=$HOME/.sb supabase start`).env
+    ).toEqual({ HOME: `${S}/u`, SUPABASE_HOME: `${S}/u/.sb` });
+    expect(
+      first(`HOME=${S}/u; SUPABASE_HOME=~/.sb supabase start`).env
+    ).toEqual({ SUPABASE_HOME: `${S}/u/.sb` });
+    expect(
+      first(`export TMPDIR=\${HOME}/tmp; supabase start`).env
+    ).toBeUndefined();
+  });
+
+  describe('relative values', () => {
+    const W = '/w';
+    const envOf = (command: string, cwd = W) =>
+      findSupabaseInvocations([{ command, cwd }])[0].env;
+
+    it('resolves an exported relative home where the CLI runs, like a prefix assignment', () => {
+      expect(
+        envOf('export SUPABASE_HOME=.h && cd client-a && supabase start')
+      ).toEqual({ SUPABASE_HOME: `${W}/client-a/.h` });
+      expect(envOf('cd client-a && SUPABASE_HOME=.h supabase start')).toEqual({
+        SUPABASE_HOME: `${W}/client-a/.h`,
+      });
+    });
+
+    it('resolves a relative home against the same directory when nothing changes it', () => {
+      expect(envOf('export SUPABASE_HOME=.h && supabase start')).toEqual({
+        SUPABASE_HOME: `${W}/.h`,
+      });
+    });
+
+    it('expands $PWD at export time', () => {
+      expect(
+        envOf('export SUPABASE_HOME=$PWD/.h && cd client-a && supabase start')
+      ).toEqual({ SUPABASE_HOME: `${W}/.h` });
+      expect(
+        envOf('export SUPABASE_HOME=${PWD}/.h && cd client-a && supabase start')
+      ).toEqual({ SUPABASE_HOME: `${W}/.h` });
+    });
+
+    it('expands $HOME at export time against a HOME set earlier', () => {
+      expect(
+        envOf(
+          'export HOME=/u && export SUPABASE_HOME=$HOME/.sb && cd client-a && supabase start'
+        )
+      ).toEqual({ HOME: '/u', SUPABASE_HOME: '/u/.sb' });
+    });
+
+    it('moves a relative export with an env -C directory', () => {
+      expect(
+        envOf('export SUPABASE_HOME=.h && env -C client-a supabase start')
+      ).toEqual({ SUPABASE_HOME: `${W}/client-a/.h` });
+    });
+  });
+
+  it('drops $HOME/~ values when no HOME is in effect', () => {
+    expect(first('SUPABASE_HOME=$HOME/.sb supabase start').env).toBeUndefined();
+    expect(first('SUPABASE_HOME=~/.sb supabase start').env).toBeUndefined();
+    expect(
+      first(`HOME=${S}/u SUPABASE_HOME=$HOME/.sb supabase start`).env
+    ).toEqual({ HOME: `${S}/u` });
   });
 });

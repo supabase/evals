@@ -513,34 +513,25 @@ function recordCommand(record: ToolCallRecord): string {
  * with it. `cwd` comes from agent parsers that record a per-call directory
  * (Codex, OpenCode) and is absent otherwise; a `cd` persisting across separate
  * tool calls in a persistent shell (e.g. Claude Code) is not tracked. `at` is
- * the call's completion time (epoch ms), only present when the agent parser records it.
+ * the call's `resultTs` (epoch ms) when the agent records it, never `ts`, which
+ * parsers disagree on whether it marks issue or completion. `failed` marks a
+ * call the agent parser reported as errored.
  */
 export function extractCommandEntries(
   toolCalls: readonly ToolCallRecord[]
-): Array<{ command: string; cwd?: string; at?: number }> {
+): Array<{ command: string; cwd?: string; at?: number; failed?: boolean }> {
   return toolCalls.flatMap((record) => {
     const command = recordCommand(record);
     if (command.length === 0) return [];
-    // `cwd` isn't on every core version's ToolCallRecord yet.
-    const cwd = (record as { cwd?: unknown }).cwd;
-    const at = recordTime(record);
     return [
       {
         command,
-        ...(typeof cwd === 'string' ? { cwd } : {}),
-        ...(at === undefined ? {} : { at }),
+        ...(record.cwd === undefined ? {} : { cwd: record.cwd }),
+        ...(record.resultTs === undefined ? {} : { at: record.resultTs }),
+        ...(record.error === undefined ? {} : { failed: true }),
       },
     ];
   });
-}
-
-// `endedAt` isn't on every core version's ToolCallRecord. `ts` is never used:
-// parsers disagree on whether it marks when a call was issued or finished.
-function recordTime(record: ToolCallRecord): number | undefined {
-  const { endedAt } = record as { endedAt?: unknown };
-  return typeof endedAt === 'number' && Number.isFinite(endedAt) && endedAt > 0
-    ? endedAt
-    : undefined;
 }
 
 /** Numbers `commands` in order for the detour judge's input, each passed through in full. */

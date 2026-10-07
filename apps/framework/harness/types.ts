@@ -28,7 +28,7 @@ export type {
   LocalStackScorer,
   ExperimentConfig,
 } from '@supabase-evals/core';
-export { judge, serializeTranscript } from '@supabase-evals/core';
+export { serializeTranscript } from '@supabase-evals/core';
 export type {
   EvalInterface,
   EvalMetadata,
@@ -36,6 +36,7 @@ export type {
   EvalStage,
   EvalSuite,
   ExperimentSuite,
+  JudgeCall,
 } from '@supabase-evals/core/eval-metadata';
 
 export type EvalMode = 'tools' | 'local-stack';

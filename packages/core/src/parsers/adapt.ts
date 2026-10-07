@@ -79,6 +79,7 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         ...timed(event.timestamp),
         ...(resolved?.ts ? { resultTs: resolved.ts } : {}),
         ...(event.tool.id ? { id: event.tool.id } : {}),
+        ...(event.tool.cwd ? { cwd: event.tool.cwd } : {}),
         ...(event.requestId ? { requestId: event.requestId } : {}),
         ...(event.usage ? { usage: event.usage } : {}),
       });
@@ -90,10 +91,12 @@ export function adaptTranscript(events: TranscriptEvent[]): AdaptedTranscript {
         path: event.tool.path,
         command: event.tool.command,
         url: event.tool.url,
+        cwd: event.tool.cwd,
         loadedSkills: event.tool.loadedSkills,
         result: resolved?.error === undefined ? resolved?.result : undefined,
         error: resolved?.error,
         ts: parseTs(event.timestamp),
+        ...(resolved?.ts ? { resultTs: resolved.ts } : {}),
       });
     }
   }
