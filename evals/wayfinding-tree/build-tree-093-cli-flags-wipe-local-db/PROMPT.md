@@ -9,3 +9,5 @@ motivation: Tree test of the reference part of the docs navigation for DOCS-1432
 ---
 
 I want the full list of flags for the command-line command that wipes and rebuilds my local database. Where's that listed?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

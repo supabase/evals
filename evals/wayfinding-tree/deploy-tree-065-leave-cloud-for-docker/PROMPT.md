@@ -10,3 +10,5 @@ motivation: Tree test of the build tooling part of the docs navigation for DOCS-
 ---
 
 We're moving off Supabase's managed cloud onto our own servers running Supabase in Docker, and need to bring our existing database along, including the roles, schema, and all the data. What's the process?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

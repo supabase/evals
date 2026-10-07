@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-013-org-m
 ---
 
 A few people on our Supabase team still log into the dashboard with just a password. I want to make sure nobody can get into our projects unless they've added a second login step, like an authenticator app code. How do I require that?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

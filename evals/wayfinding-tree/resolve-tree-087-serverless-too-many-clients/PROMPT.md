@@ -9,3 +9,5 @@ motivation: Tree test of the database part of the docs navigation for DOCS-1432,
 ---
 
 Our API runs as Vercel Functions using Postgres.js, and whenever traffic spikes the database starts refusing us with 'sorry, too many clients already'. How should our code be talking to the database?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

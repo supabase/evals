@@ -10,3 +10,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-005-multi-
 ---
 
 My app has organizations, and each user belongs to one or more of them. How do I make sure people can only read and change records that belong to their own organization?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

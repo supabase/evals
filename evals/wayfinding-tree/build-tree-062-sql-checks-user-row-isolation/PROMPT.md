@@ -11,3 +11,5 @@ motivation: Tree test of the build tooling part of the docs navigation for DOCS-
 ---
 
 I want automated checks, written in plain SQL, that prove a signed-in user can only read their own todos and never anyone else's. I'd like to run them from my terminal before every push.
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -9,3 +9,5 @@ motivation: Tree test of the platform part of the docs navigation for DOCS-1432,
 ---
 
 When people sign in to our app with Google, the consent screen says they're continuing to abcdefghij.supabase.co, which looks sketchy. We'd like it to show api.acme.com instead. How do we set that up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

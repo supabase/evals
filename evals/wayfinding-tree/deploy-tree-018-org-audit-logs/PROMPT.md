@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-015-org-a
 ---
 
 Our IT lead wants a record of who on our team changed project settings, invited people, or created projects in our Supabase organization. Where do we get that?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

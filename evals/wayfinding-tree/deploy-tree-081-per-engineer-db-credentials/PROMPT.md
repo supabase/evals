@@ -9,3 +9,5 @@ motivation: Tree test of the security observability part of the docs navigation 
 ---
 
 I don't want our engineers sharing the postgres password anymore. Can each person connect to the database using their own Supabase account instead, and have that stop working after a date we set?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

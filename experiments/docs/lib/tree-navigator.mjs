@@ -18,7 +18,7 @@ export const REFUSED_PREFIX = 'Not allowed:';
 export const OPEN_TOOL = 'open_section';
 export const CHOOSE_TOOL = 'choose_page';
 
-export const PROMPT_ADDENDUM = `This is a tree test of the Supabase docs navigation. You can't read docs pages, only the labels in the navigation. Use \`${OPEN_TOOL}\` with \`${ROOT}\` to start at the top, then open the sections you think lead to the answer. You can go back to any section you've opened. When you find the page where you'd expect the answer, choose it with \`${CHOOSE_TOOL}\`. You get one choice. Then reply with the page you chose.`;
+export const INSTRUCTIONS = `This is a tree test of the Supabase docs navigation. You can't read docs pages, only the labels in the navigation. Use \`${OPEN_TOOL}\` with \`${ROOT}\` to start at the top, then open the sections you think lead to the answer. You can go back to any section you've opened. When you find the page where you'd expect the answer, choose it with \`${CHOOSE_TOOL}\`. You get one choice. Then reply with the page you chose.`;
 
 /** The tree as compact, gzipped JSON, small enough for an environment variable. */
 export function encodeTree(tree) {
@@ -178,6 +178,7 @@ function serve() {
             protocolVersion: params?.protocolVersion ?? '2025-06-18',
             capabilities: { tools: {} },
             serverInfo: { name: 'tree-navigator', version: '1.0.0' },
+            instructions: INSTRUCTIONS,
           },
         });
       }

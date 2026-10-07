@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-006-migra
 ---
 
 I've been changing my schema by hand in the dashboard and now I have a staging project and a production project that don't match. How should I manage schema changes so both stay in sync?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -9,3 +9,5 @@ motivation: Tree test of the database part of the docs navigation for DOCS-1432,
 ---
 
 Our product catalog is mostly in Japanese and Chinese. Postgres's built-in word matching doesn't break those sentences into words properly, so customers typing a product name often get no results. What can I use in Supabase so lookups work in those languages?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -10,3 +10,5 @@ motivation: Tree test of the security observability part of the docs navigation 
 ---
 
 I'd like every SQL statement that takes longer than 2 seconds to be recorded automatically, ideally with its execution plan, so I can go back later and see what was slow.
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-019-ssl-e
 ---
 
 Some of our database clients might be connecting without encryption. How do I make our Supabase database refuse any connection that isn't encrypted?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

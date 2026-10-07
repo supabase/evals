@@ -9,3 +9,5 @@ motivation: Tree test of the storage realtime part of the docs navigation for DO
 ---
 
 We're moving our app off Firebase and have tens of thousands of user photos sitting there. How do we copy all of them over into our Supabase project?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

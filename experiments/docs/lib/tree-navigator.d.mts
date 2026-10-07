@@ -6,7 +6,7 @@ export const CHOSEN_PREFIX: string;
 export const REFUSED_PREFIX: string;
 export const OPEN_TOOL: string;
 export const CHOOSE_TOOL: string;
-export const PROMPT_ADDENDUM: string;
+export const INSTRUCTIONS: string;
 
 export function encodeTree(tree: DocsTree): string;
 export function decodeTree(encoded: string): { name: string; root: TreeNode };

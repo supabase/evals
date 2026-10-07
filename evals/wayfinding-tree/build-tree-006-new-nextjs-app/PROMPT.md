@@ -10,3 +10,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-011-new-ne
 ---
 
 I'm starting a brand new Next.js app and want to use Supabase for login and the database. What's the fastest way to get set up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

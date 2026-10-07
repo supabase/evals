@@ -9,3 +9,5 @@ motivation: Tree test of the security observability part of the docs navigation 
 ---
 
 We already run our own Prometheus and want it to pull our Supabase database's CPU, connection, and replication stats every minute so we can write our own alert rules. What URL and credentials does the scrape job need?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

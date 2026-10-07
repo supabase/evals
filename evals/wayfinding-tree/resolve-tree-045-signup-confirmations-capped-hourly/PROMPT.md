@@ -9,3 +9,5 @@ motivation: Tree test of the auth part of the docs navigation for DOCS-1432, wei
 ---
 
 We just launched and only a couple of signup confirmations go out per hour, so most new users never get theirs. How do we get rid of that cap?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

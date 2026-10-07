@@ -9,3 +9,5 @@ motivation: Tree test of the storage realtime part of the docs navigation for DO
 ---
 
 We're launching a live auction page where around 3,000 people will have it open at once, with every new bid pushed instantly to their browsers. We're on the Pro plan. Will that many viewers at the same time work, and if not, what do we need to change?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

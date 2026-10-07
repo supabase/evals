@@ -10,3 +10,5 @@ motivation: Tree test of the security observability part of the docs navigation 
 ---
 
 Our on-call team lives in Datadog. I want every API request, Auth event, and Postgres error from our Supabase project streaming there continuously so they can search and alert on it next to our other services.
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

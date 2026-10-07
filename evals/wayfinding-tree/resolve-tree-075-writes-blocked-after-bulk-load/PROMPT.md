@@ -9,3 +9,5 @@ motivation: Tree test of the platform part of the docs navigation for DOCS-1432,
 ---
 
 Our production app suddenly can't save anything, and the logs are full of 'cannot execute INSERT in a read-only transaction'. We bulk-loaded a lot of data yesterday. Why did this happen, and how do we get writes working again?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

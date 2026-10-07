@@ -9,3 +9,5 @@ motivation: Tree test of the storage realtime part of the docs navigation for DO
 ---
 
 When a user changes their profile picture I overwrite the old one at the same path, but people keep seeing the old picture for a while afterwards. How do I get the new one to show up right away?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

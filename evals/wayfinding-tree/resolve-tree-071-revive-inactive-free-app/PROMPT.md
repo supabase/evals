@@ -9,3 +9,5 @@ motivation: Tree test of the platform part of the docs navigation for DOCS-1432,
 ---
 
 I left a hobby app on Supabase's free plan untouched for a couple of months. Now the dashboard says it's inactive and my app's API calls fail. How do I bring it back, and is my data still there?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

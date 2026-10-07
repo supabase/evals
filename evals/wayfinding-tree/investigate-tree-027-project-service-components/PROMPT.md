@@ -11,3 +11,5 @@ motivation: Tree test of the start part of the docs navigation for DOCS-1432, we
 ---
 
 Our infra team is evaluating Supabase and wants to know which open source services actually run behind each project besides Postgres, and what each one is responsible for.
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

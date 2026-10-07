@@ -9,3 +9,5 @@ motivation: Tree test of the functions ai cron queues part of the docs navigatio
 ---
 
 My React app on localhost:5173 calls my Edge Function with fetch, and Chrome blocks it, saying the preflight OPTIONS request doesn't pass an access control check. The same call works fine from curl. How do I fix it?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

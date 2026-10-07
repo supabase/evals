@@ -10,3 +10,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-003-produ
 ---
 
 We're about to launch our app on Supabase next week. What should I review or turn on in the project before real users show up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

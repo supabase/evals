@@ -9,3 +9,5 @@ motivation: Tree test of the resources part of the docs navigation for DOCS-1432
 ---
 
 I spotted a mistake in one of the Supabase guides and I'd like to send in a fix myself. How do I do that?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

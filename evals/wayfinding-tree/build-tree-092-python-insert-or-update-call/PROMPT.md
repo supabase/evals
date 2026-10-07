@@ -9,3 +9,5 @@ motivation: Tree test of the reference part of the docs navigation for DOCS-1432
 ---
 
 In our Python backend, what's the exact method and arguments for inserting a row, or updating it if it already exists, with the official client library?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

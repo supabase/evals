@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-021-hipaa
 ---
 
 We're building a healthcare app that will store patient data. What do we need to do on Supabase to be HIPAA compliant?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

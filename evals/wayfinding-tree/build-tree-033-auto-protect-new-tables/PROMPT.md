@@ -10,3 +10,5 @@ motivation: Tree test of the database part of the docs navigation for DOCS-1432,
 ---
 
 People on my team keep creating new tables in `public` and forgetting to turn on RLS. Can I make Postgres switch RLS on automatically for every new table the moment it's created?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -9,3 +9,5 @@ motivation: Tree test of the resources part of the docs navigation for DOCS-1432
 ---
 
 Every request from our app to Supabase started failing a few minutes ago, and nothing changed on our side. How can I tell whether the problem is on Supabase's end?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

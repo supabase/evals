@@ -9,3 +9,5 @@ motivation: Tree test of the build tooling part of the docs navigation for DOCS-
 ---
 
 We run Supabase on our own VM with Docker Compose, and our install is a few releases behind. How do we move it to the latest release without losing our .env values and the edits we've made to the compose files?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-025-push-
 ---
 
 I've been building my schema locally with the Supabase CLI. How do I get those changes onto my production project?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

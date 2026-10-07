@@ -9,3 +9,5 @@ motivation: Tree test of the database part of the docs navigation for DOCS-1432,
 ---
 
 Our frontend talks to Supabase through Apollo Client, and every field comes back snake_case like `created_at` and `user_id`. Can Supabase give us camelCase names like `createdAt` without renaming our columns?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

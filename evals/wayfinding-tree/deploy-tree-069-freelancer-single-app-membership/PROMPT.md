@@ -9,3 +9,5 @@ motivation: Tree test of the platform part of the docs navigation for DOCS-1432,
 ---
 
 We're bringing on a freelance developer. They should only be able to see and work on one of the five apps in our Supabase organization, not the others, and they shouldn't be able to touch payment settings. How do I set that up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

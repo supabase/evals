@@ -9,3 +9,5 @@ motivation: Tree test of the auth part of the docs navigation for DOCS-1432, wei
 ---
 
 Our Go API receives the logged-in user's credential from our frontend on every request. How can it check locally that it's genuine and was issued by our Supabase project, without calling Supabase each time?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

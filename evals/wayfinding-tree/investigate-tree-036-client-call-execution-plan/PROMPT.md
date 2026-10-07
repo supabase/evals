@@ -11,3 +11,5 @@ motivation: Tree test of the database part of the docs navigation for DOCS-1432,
 ---
 
 One of my supabase-js `.from('orders').select()` calls is slow in production, but the same SQL looks fine when I run it by hand. Can I see how Postgres is planning to run that exact request from the client?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

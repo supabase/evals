@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-007-magic-
 ---
 
 In my Next.js App Router app I want people to log in just by clicking a URL we send to their inbox, nothing to remember. I'd like to trigger that send from a server action. How?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

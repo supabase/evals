@@ -9,3 +9,5 @@ motivation: Tree test of the auth part of the docs navigation for DOCS-1432, wei
 ---
 
 Customers of our SaaS product want to protect their accounts with a six-digit code from Authy or 1Password, entered after their password. How do I add that extra step to our login?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

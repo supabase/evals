@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-001-cursor
 ---
 
 I use Cursor and want it to be able to look at my Supabase project's tables and run queries for me while I code. How do I hook that up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

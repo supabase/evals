@@ -10,3 +10,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-023-queue-
 ---
 
 I've put jobs onto a Supabase queue and want an Edge Function to process them. How do I wire that up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

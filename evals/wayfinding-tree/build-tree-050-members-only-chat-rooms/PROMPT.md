@@ -11,3 +11,5 @@ motivation: Tree test of the storage realtime part of the docs navigation for DO
 ---
 
 In our chat app each room has its own live channel, but right now anyone with our public API key could join any room and read along. How do I make it so only people who belong to a room can listen or post in it?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

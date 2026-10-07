@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-024-typesc
 ---
 
 My app is written in TypeScript and I want my editor to know what columns each of my Supabase tables has, so queries autocomplete and typos get caught before runtime. How do I set that up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

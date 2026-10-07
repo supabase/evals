@@ -9,3 +9,5 @@ motivation: Tree test of the platform part of the docs navigation for DOCS-1432,
 ---
 
 Our hosted Supabase project is still on Postgres 15, and I want to move it to the newest major version. What does that process involve, and how much downtime should we plan for?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -9,3 +9,5 @@ motivation: Tree test of the resources part of the docs navigation for DOCS-1432
 ---
 
 I'm new to Supabase and keep running into terms in the dashboard that I don't recognize. Is there one place that explains what each one means in plain words?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

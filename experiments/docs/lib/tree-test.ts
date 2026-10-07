@@ -7,7 +7,7 @@ import {
   type McpServerDefinition,
 } from '@supabase-evals/core';
 import { loadTree } from './docs-tree.js';
-import { encodeTree, PROMPT_ADDENDUM } from './tree-navigator.mjs';
+import { encodeTree } from './tree-navigator.mjs';
 
 const NAVIGATOR_SOURCE = readFileSync(
   new URL('./tree-navigator.mjs', import.meta.url),
@@ -18,7 +18,6 @@ const NAVIGATOR_SOURCE = readFileSync(
 function treeNavigatorMcpServer(tree: string): McpServerDefinition {
   return {
     name: 'tree-navigator',
-    promptAddendum: PROMPT_ADDENDUM,
     async createConfig() {
       return {
         config: {

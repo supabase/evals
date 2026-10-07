@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-018-terra
 ---
 
 We manage all of our infrastructure as code. Can I manage my Supabase project's settings with Terraform, and how do I start?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

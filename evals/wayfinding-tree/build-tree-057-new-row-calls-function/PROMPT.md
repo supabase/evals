@@ -10,3 +10,5 @@ motivation: Tree test of the functions ai cron queues part of the docs navigatio
 ---
 
 Whenever a new row is inserted into my orders table, I want my Edge Function to be called with that row so it can email the customer a receipt. What's the easiest way to wire that up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

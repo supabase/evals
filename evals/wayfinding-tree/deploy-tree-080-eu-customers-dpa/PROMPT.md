@@ -9,3 +9,5 @@ motivation: Tree test of the security observability part of the docs navigation 
 ---
 
 We're about to launch to customers in the EU. Our lawyer is asking for a data processing agreement from Supabase and wants our users' data to stay inside the EU. What do we need to do?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

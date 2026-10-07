@@ -10,3 +10,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-008-schedu
 ---
 
 I wrote an Edge Function that cleans up old records. I want it to run automatically every night at 2am. What's the way to do that on Supabase?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

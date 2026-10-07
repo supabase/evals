@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-002-local-
 ---
 
 I'm running Supabase on my laptop for development. Every time I reset the database it's empty and I have to click around to add test rows again. How do I get sample data loaded automatically?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -10,3 +10,5 @@ motivation: Tree test of the security observability part of the docs navigation 
 ---
 
 Every morning I want a script to pull the previous day's 5xx responses from our Supabase project's API, with the timestamp and request path for each, so we can open tickets for the failing endpoints. How can a script fetch that?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

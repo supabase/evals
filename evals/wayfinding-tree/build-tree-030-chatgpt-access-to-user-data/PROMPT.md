@@ -11,3 +11,5 @@ motivation: Tree test of the start part of the docs navigation for DOCS-1432, we
 ---
 
 I want customers of my SaaS to be able to connect ChatGPT or Claude to their account with us, so the assistant can look things up and take actions on their data while signed in as them. Can I host that on Supabase, and how?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

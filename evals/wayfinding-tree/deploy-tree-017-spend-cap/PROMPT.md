@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-014-spend
 ---
 
 I'm worried a bug or an attack could run up a huge Supabase bill. Is there a way to stop usage from going past what my plan includes?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

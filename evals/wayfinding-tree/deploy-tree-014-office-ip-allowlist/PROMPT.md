@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-009-offic
 ---
 
 Only our office should be able to connect directly to our production Postgres database. Our office IP is 203.0.113.7. How do I lock it down?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

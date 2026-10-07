@@ -10,3 +10,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-022-nightl
 ---
 
 Every night I want to delete rows older than 30 days from one of my tables. How do I schedule that in Supabase?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

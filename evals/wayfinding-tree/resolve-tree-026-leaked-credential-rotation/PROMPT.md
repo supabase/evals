@@ -9,3 +9,5 @@ motivation: Tree test of the start part of the docs navigation for DOCS-1432, we
 ---
 
 I accidentally pushed our project's service_role credential to a public GitHub repo. How do I make the leaked one stop working without breaking our backend?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

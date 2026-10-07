@@ -9,3 +9,5 @@ motivation: Tree test of the database part of the docs navigation for DOCS-1432,
 ---
 
 Our backend runs on a VPS from a host that doesn't support IPv6, and it can't reach our Supabase Postgres at db.<project-ref>.supabase.co. Every attempt fails with 'Network is unreachable'. What should we use instead?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

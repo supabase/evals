@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval build-wayfinding-012-existi
 ---
 
 I already have a React app built with Vite. I want to start reading data from a Supabase table in it. What do I need to add?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

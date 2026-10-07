@@ -11,3 +11,5 @@ motivation: Tree test of the start part of the docs navigation for DOCS-1432, we
 ---
 
 I'm writing a Flutter project where people sign in with an emailed link, edit their own profile details, and upload a profile photo. Is there a complete working example I can follow end to end?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

@@ -10,3 +10,5 @@ motivation: Tree test of the security observability part of the docs navigation 
 ---
 
 We've hired an outside firm to try to break into our app before launch, and they want to go after our Supabase project directly. Do we need Supabase's permission first, and is anything off-limits?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

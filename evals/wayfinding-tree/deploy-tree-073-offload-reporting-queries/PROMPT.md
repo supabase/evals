@@ -9,3 +9,5 @@ motivation: Tree test of the platform part of the docs navigation for DOCS-1432,
 ---
 
 Our analytics team's heavy reporting queries are slowing the app down for everyone. Can we get a second, always-in-sync copy of our Postgres that only serves those queries, and maybe another one in Europe closer to our users there?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

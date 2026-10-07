@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-017-previ
 ---
 
 I want every pull request in our GitHub repo to get its own temporary Supabase database so we can test schema changes before merging. How do I set that up?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

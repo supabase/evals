@@ -8,8 +8,10 @@ HTML, so a proposed navigation can be measured before anyone builds it.
 
 ## How it works
 
-The agent has no built-in tools, only the tree navigator
-(`experiments/docs/lib/tree-navigator.mjs`):
+Each prompt ends by asking the agent to find and choose the page. The agent
+has no built-in tools, only the tree navigator
+(`experiments/docs/lib/tree-navigator.mjs`), whose MCP instructions explain the
+tree test:
 
 - `open_section` opens the top (`root`), a section listed in a section the
   agent has opened, or a section it opened before, to go back. It shows the

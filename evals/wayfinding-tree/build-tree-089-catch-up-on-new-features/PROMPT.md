@@ -9,3 +9,5 @@ motivation: Tree test of the resources part of the docs navigation for DOCS-1432
 ---
 
 I haven't kept up with Supabase for a few months. Where can I see what features and fixes have shipped recently?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

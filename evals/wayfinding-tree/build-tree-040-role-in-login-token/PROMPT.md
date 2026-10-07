@@ -11,3 +11,5 @@ motivation: Tree test of the auth part of the docs navigation for DOCS-1432, wei
 ---
 
 Every user in my app is an admin, editor, or viewer, and we keep that in a table. I want that level stamped into what they get at login so my database policies and frontend can read it without querying the table each time.
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.

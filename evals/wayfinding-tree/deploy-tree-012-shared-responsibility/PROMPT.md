@@ -9,3 +9,5 @@ motivation: Tree test version of the wayfinding eval deploy-wayfinding-004-share
 ---
 
 My manager asked what we're on the hook for versus what Supabase handles for us, things like keeping copies of our data, patching Postgres, and keeping attackers out. What do I tell them?
+
+Find the page in the Supabase docs navigation where you'd expect the answer, and choose it.
