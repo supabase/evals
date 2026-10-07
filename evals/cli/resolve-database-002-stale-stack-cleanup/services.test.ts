@@ -4,10 +4,12 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
+import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import {
   checkServiceProjectsExist,
   checkStackRunning,
   findServiceDirs,
+  findSwappedServices,
   resolveServiceStacks,
   serviceStackTarget,
 } from './services.js';
@@ -213,5 +215,155 @@ describe('checkStackRunning', () => {
       passed: false,
       notes: 'state: does not resolve (no stack)',
     });
+  });
+});
+
+describe('resolveServiceStacks under an agent-relocated CLI home', () => {
+  const HOME = '/sandbox/.supabase-home';
+  const PREFIX = `SUPABASE_HOME='${HOME}' SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status`;
+  const dirs = {
+    found: { 'checkout-service': './checkout-service' },
+    problems: { 'legacy-import': 'no matching project directory' },
+    all: [],
+  };
+  const url = (port: number) =>
+    commandResult(
+      `{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:${port}/postgres"}`
+    );
+  const invocations = findSupabaseInvocations([
+    `cd checkout-service && SUPABASE_HOME=${HOME} supabase start`,
+    `cd legacy-import && SUPABASE_HOME=${HOME} supabase start`,
+  ]);
+
+  it('resolves a survivor registered only under that home', async () => {
+    const { ctx } = fakeCtx({
+      [`${PREFIX} --stack 'checkout-service' --env`]: url(54322),
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs, invocations);
+    expect(stacks['checkout-service']).toMatchObject({
+      ok: true,
+      backend: 'managed-named',
+      relocatedHome: HOME,
+    });
+  });
+
+  it('finds a renamed stack under that home', async () => {
+    const { ctx } = fakeCtx({
+      [`SUPABASE_HOME='${HOME}' SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list`]:
+        commandResult(
+          `/sandbox/checkout-service\n${JSON.stringify({
+            stacks: [
+              {
+                name: 'checkout-recovered',
+                project_root: '/sandbox/checkout-service',
+              },
+            ],
+          })}`
+        ),
+      [`${PREFIX} --stack 'checkout-recovered' --env`]: url(54322),
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs, invocations);
+    expect(stacks['checkout-service']).toMatchObject({
+      ok: true,
+      relocatedHome: HOME,
+    });
+  });
+
+  it('resolves a stack whose directory is gone by name under that home', async () => {
+    const { ctx } = fakeCtx({
+      [`${PREFIX} --stack 'legacy-import' --env`]: url(54522),
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs, invocations);
+    expect(stacks['legacy-import']).toMatchObject({
+      ok: true,
+      relocatedHome: HOME,
+    });
+  });
+
+  it('stays unresolved without a start under that home', async () => {
+    const { ctx } = fakeCtx({
+      [`${PREFIX} --stack 'checkout-service' --env`]: url(54322),
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs, []);
+    expect(stacks['checkout-service'].ok).toBe(false);
+  });
+});
+
+describe('checkStackRunning with a relocated home or a swapped CLI', () => {
+  const RUNNER = 'npx --yes supabase@2.120.0';
+  const running = {
+    ok: true,
+    backend: 'managed-named',
+    dbUrl: 'postgresql://x',
+    runtime: 'native',
+  } as const;
+  const ctx = fakeCtx({ 'select 1': commandResult('1\n') }).ctx;
+  const starts = (...commands: string[]) => findSupabaseInvocations(commands);
+
+  it('passes a relocated stack and notes the home', async () => {
+    expect(
+      await checkStackRunning(ctx, 'checkout-service', {
+        ...running,
+        relocatedHome: '/sandbox/.supabase-home',
+      })
+    ).toEqual({
+      name: 'checkout-service stack is running',
+      passed: true,
+      notes:
+        'state: resolved, managed-named (native), select 1 ok, relocated home: /sandbox/.supabase-home',
+    });
+  });
+
+  it('fails when every start used the override runner', async () => {
+    const result = await checkStackRunning(
+      ctx,
+      'payments-api',
+      running,
+      [RUNNER],
+      starts(
+        'cd checkout-service && supabase start',
+        `cd payments-api && ${RUNNER} start`
+      )
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      `payments-api: started with ${RUNNER}, not the installed CLI`
+    );
+  });
+
+  it('counts a loop start through the override against every survivor', async () => {
+    const invocations = starts(
+      `for s in checkout-service payments-api; do (cd "$s" && ${RUNNER} start); done`
+    );
+    expect(Object.keys(findSwappedServices(invocations, [RUNNER]))).toEqual([
+      'checkout-service',
+      'payments-api',
+    ]);
+  });
+
+  it('passes when the override run was followed by a plain start', async () => {
+    const result = await checkStackRunning(
+      ctx,
+      'payments-api',
+      running,
+      [RUNNER],
+      starts(
+        `cd payments-api && ${RUNNER} start`,
+        'cd payments-api && supabase start'
+      )
+    );
+    expect(result.passed).toBe(true);
+    expect(result.notes).not.toContain('not the installed CLI');
+  });
+
+  it('ignores a runner of the installed version', async () => {
+    const result = await checkStackRunning(
+      ctx,
+      'payments-api',
+      running,
+      [],
+      starts('cd payments-api && npx supabase@2.118.0 start')
+    );
+    expect(result.passed).toBe(true);
   });
 });

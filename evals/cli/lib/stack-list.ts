@@ -1,10 +1,20 @@
 import type { LocalStackEvalContext } from '@supabase-evals/core';
-import { describeFailure, errorMessage } from './shell.js';
+import type { InvocationEnv } from './cli-invocations.js';
+import { describeFailure, errorMessage, shellQuote } from './shell.js';
 import { parseJsonObject } from './stack.js';
 
 export type StackListProbe =
   | { ok: true; stacks: unknown[] }
   | { ok: false; unsupported: boolean; notes: string };
+
+const HOME_VARIABLES = ['SUPABASE_HOME', 'HOME', 'TMPDIR'] as const;
+
+function homePrefix(home: InvocationEnv | undefined): string {
+  return HOME_VARIABLES.flatMap((name) => {
+    const value = home?.[name];
+    return value === undefined ? [] : [`${name}=${shellQuote(value)} `];
+  }).join('');
+}
 
 const UNSUPPORTED_RE = /unknown\s*sub-?command|unknown command/i;
 
@@ -40,14 +50,16 @@ function parseStacks(stdout: string): unknown[] | undefined {
  * Reads the fleet-wide `supabase stack list`. The entry shape is unverified,
  * so entries are matched by `stackEntryMatchesName` rather than a field path.
  * Only an unknown-subcommand error marks the listing `unsupported`; any other
- * unreadable output fails closed.
+ * unreadable output fails closed. With `home`, lists the stacks registered
+ * under that relocated CLI home instead of the default one.
  */
 export async function readStackList(
-  ctx: Pick<LocalStackEvalContext, 'exec'>
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  home?: InvocationEnv
 ): Promise<StackListProbe> {
   try {
     const result = await ctx.exec(
-      'SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json'
+      `${homePrefix(home)}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json`
     );
     const stacks = parseStacks(result.stdout);
     if (stacks) {

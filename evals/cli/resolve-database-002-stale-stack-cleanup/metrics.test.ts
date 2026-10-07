@@ -15,12 +15,13 @@ function commandResult(stdout: string, ok = true): CommandResult {
   return { ok, exitCode: ok ? 0 : 1, stdout, stderr: ok ? '' : 'error' };
 }
 
-const stack = (port: number): StackProbe => ({
+const stack = (port: number, relocatedHome?: string): StackProbe => ({
   ok: true,
   backend: 'managed-named',
   dbUrl: `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`,
   apiUrl: `http://127.0.0.1:${port - 1}`,
   runtime: 'native',
+  ...(relocatedHome === undefined ? {} : { relocatedHome }),
 });
 const NONE: StackProbe = { ok: false, notes: 'no stack' };
 
@@ -42,15 +43,17 @@ describe('checkMetrics', () => {
       ['sudo dockerd'],
       { ok: true, stacks: [{ name: 'checkout-service' }] },
       {
-        'checkout-service': stack(54322),
+        'checkout-service': stack(54322, '/sandbox/.supabase-home'),
         'payments-api': stack(54422),
         'legacy-import': stack(54522),
       },
-      { 'checkout-service': 2000, 'payments-api': 1000 }
+      { 'checkout-service': 2000, 'payments-api': 1000 },
+      ['npx --yes supabase@2.120.0']
     );
     expect(result.passed).toBe(true);
     expect(JSON.parse(result.notes as string)).toEqual({
       cliVersion: '2.118.0',
+      cliOverride: ['npx --yes supabase@2.120.0'],
       channel: 'pinned',
       services: {
         'checkout-service': {
@@ -59,6 +62,7 @@ describe('checkMetrics', () => {
           dbPort: 54322,
           apiPort: 54321,
           postmasterStartMs: 2000,
+          relocatedHome: '/sandbox/.supabase-home',
         },
         'payments-api': {
           backend: 'managed-named',
@@ -66,6 +70,7 @@ describe('checkMetrics', () => {
           dbPort: 54422,
           apiPort: 54421,
           postmasterStartMs: 1000,
+          relocatedHome: null,
         },
         'legacy-import': {
           backend: 'managed-named',
@@ -73,6 +78,7 @@ describe('checkMetrics', () => {
           dbPort: 54522,
           apiPort: 54521,
           postmasterStartMs: null,
+          relocatedHome: null,
         },
       },
       attemptedStart: {
@@ -121,7 +127,9 @@ describe('checkMetrics', () => {
       dbPort: null,
       apiPort: null,
       postmasterStartMs: null,
+      relocatedHome: null,
     });
+    expect(metrics.cliOverride).toEqual([]);
     expect(metrics.checkoutPostmasterNewerThanPayments).toBe(null);
     expect(metrics.stackListAvailable).toBe(false);
     expect(metrics.stackCount).toBe(null);

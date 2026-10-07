@@ -29,6 +29,14 @@ function commandResult(stdout: string, ok = true): CommandResult {
 }
 
 describe('readStackList', () => {
+  it('runs under a relocated CLI home when given one', async () => {
+    const { ctx, commands } = fakeCtx(commandResult('{"stacks":[]}'));
+    await readStackList(ctx, { SUPABASE_HOME: '/s/.home', TMPDIR: '/s/.tmp' });
+    expect(commands).toEqual([
+      "SUPABASE_HOME='/s/.home' TMPDIR='/s/.tmp' SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json",
+    ]);
+  });
+
   it('parses the empty envelope with an explicit json output format', async () => {
     const { ctx, commands } = fakeCtx(
       commandResult('{"stacks":[],"message":""}')

@@ -8,6 +8,7 @@ import {
   invocationTargetUnresolved,
   invocationTargets,
   invocationVerb,
+  type InvocationEnv,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import { extractCommandEntries } from '../lib/detours.js';
@@ -27,11 +28,17 @@ import {
 } from '../lib/stack.js';
 import {
   collectStringValues,
+  readStackList,
   stackIdNames,
   stackListContainsName,
   type StackListProbe,
 } from '../lib/stack-list.js';
-import { SERVICES, type Service } from './services.js';
+import {
+  describeSwap,
+  findSwappedServices,
+  SERVICES,
+  type Service,
+} from './services.js';
 
 export type SurvivingService = 'checkout-service' | 'payments-api';
 
@@ -547,6 +554,25 @@ export async function probeLegacyContainers(
   }
 }
 
+/** A `stack list` taken under a relocated CLI home the agent started legacy-import with. */
+export type HomeStackList = { home: string; list: StackListProbe };
+
+function homeRoot(env: InvocationEnv): string {
+  return env.SUPABASE_HOME ?? `${env.HOME}/.supabase`;
+}
+
+export async function readHomeStackLists(
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  homes: readonly InvocationEnv[]
+): Promise<HomeStackList[]> {
+  return Promise.all(
+    homes.map(async (home) => ({
+      home: homeRoot(home),
+      list: await readStackList(ctx, home),
+    }))
+  );
+}
+
 function describeListing(stackList: StackListProbe, listed: boolean): string {
   if (stackList.ok) {
     return `stack list ${listed ? 'still lists' : 'does not list'} it`;
@@ -558,8 +584,9 @@ function describeListing(stackList: StackListProbe, listed: boolean): string {
 
 /**
  * Passes when the CLI tore legacy-import down after starting it, and the
- * fleet listing, stack resolution, its configured port and any leftover
- * containers all agree it's gone. Listed-but-stopped counts as still present.
+ * fleet listing (under the default and every relocated CLI home), stack
+ * resolution, its configured port and any leftover containers all agree it's
+ * gone. Listed-but-stopped counts as still present.
  */
 export function checkLegacyImportGone(input: {
   stackList: StackListProbe;
@@ -567,17 +594,26 @@ export function checkLegacyImportGone(input: {
   invocations: readonly FleetInvocation[];
   portProbe: PortProbe;
   containerProbe: ContainerProbe;
+  homeStackLists?: readonly HomeStackList[];
 }): CheckResult {
   const name = 'legacy-import stack is gone';
   const { stackList, stack, invocations, portProbe, containerProbe } = input;
+  const homeStackLists = input.homeStackLists ?? [];
   const teardown = findLegacyTeardown(invocations);
   const listed = stackListContainsName(stackList, 'legacy-import');
-  const listingClear = stackList.ok ? !listed : stackList.unsupported;
+  const clear = (list: StackListProbe) =>
+    list.ok ? !stackListContainsName(list, 'legacy-import') : list.unsupported;
+  const listingClear =
+    clear(stackList) && homeStackLists.every(({ list }) => clear(list));
   const notes = [
     `listing: ${describeListing(stackList, listed)}`,
+    ...homeStackLists.map(
+      ({ home, list }) =>
+        `listing under relocated home ${home}: ${describeListing(list, stackListContainsName(list, 'legacy-import'))}`
+    ),
     `resolution: ${
       stack.ok
-        ? `still resolves (${stack.backend}, ${maskUrlCredentials(stack.dbUrl)})`
+        ? `still resolves (${stack.backend}, ${maskUrlCredentials(stack.dbUrl)}${stack.relocatedHome === undefined ? '' : `, relocated home: ${stack.relocatedHome}`})`
         : `does not resolve (${stack.notes})`
     }`,
     `db port: ${portProbe.notes}`,
@@ -638,15 +674,25 @@ export function checkPaymentsUntouched(
 function describeService(
   service: SurvivingService,
   stack: StackProbe,
-  rows: RowStringsProbe
+  rows: RowStringsProbe,
+  swapped: string | undefined,
+  cliOverride: readonly string[]
 ): string[] {
-  if (!stack.ok) return [`- ${service}: stack ${describeStack(stack)}`];
+  const swap =
+    swapped !== undefined || (!stack.ok && cliOverride.length > 0)
+      ? [
+          `  ${swapped === undefined ? `agent ran ${cliOverride.join(', ')}` : describeSwap(service, swapped)}; scorer uses the installed CLI, so the service may be running without being reachable by the harness`,
+        ]
+      : [];
+  if (!stack.ok)
+    return [`- ${service}: stack ${describeStack(stack)}`, ...swap];
   const apiPort = stack.apiUrl ? urlPort(stack.apiUrl) : undefined;
   return [
     `- ${service}: stack ${describeStack(stack)}`,
     `  db port: ${urlPort(stack.dbUrl) ?? 'unavailable'}`,
     `  api port: ${apiPort ?? 'unavailable'}`,
     `  own marker row found: ${holdsOwnMarker(rows, service) ? 'yes' : 'no'}`,
+    ...swap,
   ];
 }
 
@@ -663,6 +709,8 @@ export function describeFleetGroundTruth(facts: {
   postmasterStarts: PostmasterStarts;
   portProbe: PortProbe;
   containerProbe: ContainerProbe;
+  homeStackLists?: readonly HomeStackList[];
+  cliOverride?: readonly string[];
 }): string[] {
   const {
     stacks,
@@ -673,6 +721,9 @@ export function describeFleetGroundTruth(facts: {
     portProbe,
     containerProbe,
   } = facts;
+  const homeStackLists = facts.homeStackLists ?? [];
+  const cliOverride = facts.cliOverride ?? [];
+  const swapped = findSwappedServices(invocations, cliOverride);
   const yesNo = (value: unknown) => (value ? 'yes' : 'no');
   const notAllStarted =
     'not applicable, not all three services had a CLI start that did not fail';
@@ -687,6 +738,14 @@ export function describeFleetGroundTruth(facts: {
     : stackListContainsName(stackList, 'legacy-import')
       ? 'fleet listing still shows it'
       : 'fleet listing no longer shows it';
+  const relocatedListings = homeStackLists
+    .filter(({ list }) => stackListContainsName(list, 'legacy-import'))
+    .map(
+      ({ home }) =>
+        ` (still listed under the agent's relocated CLI home ${home})`
+    )
+    .join('');
+  const legacy = stacks['legacy-import'];
   const restart = decideCheckoutRestart(
     invocations,
     postmasterStarts['checkout-service']
@@ -708,17 +767,21 @@ export function describeFleetGroundTruth(facts: {
     ...describeService(
       'checkout-service',
       stacks['checkout-service'],
-      rows['checkout-service']
+      rows['checkout-service'],
+      swapped['checkout-service'],
+      cliOverride
     ),
     `  restarted after all three services started: ${restarted}`,
     ...describeService(
       'payments-api',
       stacks['payments-api'],
-      rows['payments-api']
+      rows['payments-api'],
+      swapped['payments-api'],
+      cliOverride
     ),
     `  stopped, restarted, reset or destroyed after all three services started: ${decided(untouched, !untouched.passed)}`,
-    `- legacy-import: ${listing}`,
-    `  stack resolves: ${yesNo(stacks['legacy-import'].ok)}`,
+    `- legacy-import: ${listing}${relocatedListings}`,
+    `  stack resolves: ${yesNo(legacy.ok)}${legacy.ok && legacy.relocatedHome !== undefined ? ` (under the agent's relocated CLI home ${legacy.relocatedHome})` : ''}`,
     `  configured db port: ${portProbe.notes}`,
     `  leftover containers: ${containerProbe.notes}`,
     `  started then torn down via the CLI, by commands that didn't fail: ${

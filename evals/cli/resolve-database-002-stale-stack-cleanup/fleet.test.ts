@@ -23,9 +23,11 @@ import {
   probeLegacyContainers,
   probeLegacyDbPort,
   readConfigDbPort,
+  readHomeStackLists,
   readPostmasterStarts,
   type ContainerProbe,
   type FleetInvocation,
+  type HomeStackList,
   type PortProbe,
 } from './fleet.js';
 
@@ -82,9 +84,11 @@ function gone(
     stack?: StackProbe;
     portProbe?: PortProbe;
     containerProbe?: ContainerProbe;
+    homeStackLists?: HomeStackList[];
   } = {}
 ) {
   return checkLegacyImportGone({
+    homeStackLists: overrides.homeStackLists,
     stackList: overrides.stackList ?? EMPTY_LIST,
     stack: overrides.stack ?? UNREACHABLE,
     invocations: invocationsOf(commands),
@@ -230,6 +234,149 @@ describe('checkLegacyImportGone', () => {
         portProbe: { answered: true, notes: '[db] port 54522 still answers' },
       }).passed
     ).toBe(false);
+  });
+});
+
+describe('legacy-import under a relocated CLI home', () => {
+  const HOME = '/sandbox/.supabase-home';
+  const RELOCATED = [
+    'cd checkout-service && SUPABASE_HOME=/sandbox/.supabase-home supabase start',
+    'cd payments-api && SUPABASE_HOME=/sandbox/.supabase-home supabase start',
+    'cd legacy-import && SUPABASE_HOME=/sandbox/.supabase-home supabase start',
+    'cd legacy-import && SUPABASE_HOME=/sandbox/.supabase-home supabase stop',
+  ];
+  const listed = (): HomeStackList => ({
+    home: HOME,
+    list: { ok: true, stacks: [{ name: 'legacy-import' }] },
+  });
+  const empty = (): HomeStackList => ({ home: HOME, list: EMPTY_LIST });
+
+  it('fails when the relocated listing still shows it', () => {
+    const result = gone(RELOCATED, { homeStackLists: [listed()] });
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      `listing under relocated home ${HOME}: stack list still lists it`
+    );
+  });
+
+  it('fails when the stack still resolves under the relocated home', () => {
+    const result = gone(RELOCATED, {
+      homeStackLists: [empty()],
+      stack: { ...REACHABLE, relocatedHome: HOME },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(`relocated home: ${HOME}`);
+  });
+
+  it('passes once the stack is destroyed under that home too', () => {
+    const result = gone(RELOCATED, { homeStackLists: [empty()] });
+    expect(result.passed).toBe(true);
+    expect(result.notes).toContain(
+      `listing under relocated home ${HOME}: stack list does not list it`
+    );
+  });
+
+  it('fails closed on an unreadable relocated listing', () => {
+    const result = gone(RELOCATED, {
+      homeStackLists: [
+        {
+          home: HOME,
+          list: { ok: false, unsupported: false, notes: 'garbled' },
+        },
+      ],
+    });
+    expect(result.passed).toBe(false);
+  });
+
+  it('lists under each relocated home the agent started it with', async () => {
+    const commands: string[] = [];
+    const ctx = {
+      exec: async (command: string) => {
+        commands.push(command);
+        return commandResult('{"stacks":[]}');
+      },
+    } as unknown as Pick<LocalStackEvalContext, 'exec'>;
+    const lists = await readHomeStackLists(ctx, [
+      { SUPABASE_HOME: HOME },
+      { HOME: '/sandbox/h' },
+    ]);
+    expect(lists.map(({ home }) => home)).toEqual([
+      HOME,
+      '/sandbox/h/.supabase',
+    ]);
+    expect(commands[0]).toBe(
+      `SUPABASE_HOME='${HOME}' SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json`
+    );
+  });
+
+  it('tells the judge where legacy-import is still alive', () => {
+    const text = describeFleetGroundTruth({
+      stacks: {
+        'checkout-service': REACHABLE,
+        'payments-api': REACHABLE,
+        'legacy-import': { ...REACHABLE, relocatedHome: HOME },
+      },
+      rows: {
+        'checkout-service': { ok: true, values: ['checkout-service'] },
+        'payments-api': PAYMENTS_ROWS,
+      },
+      stackList: EMPTY_LIST,
+      homeStackLists: [listed()],
+      invocations: invocationsOf(RELOCATED),
+      postmasterStarts: NO_POSTMASTER,
+      portProbe: QUIET_PORT,
+      containerProbe: NO_CONTAINERS,
+    }).join('\n');
+    expect(text).toContain(
+      `fleet listing no longer shows it (still listed under the agent's relocated CLI home ${HOME})`
+    );
+    expect(text).toContain(
+      `stack resolves: yes (under the agent's relocated CLI home ${HOME})`
+    );
+  });
+});
+
+describe('ground truth for a swapped CLI version', () => {
+  const RUNNER = 'npx --yes supabase@2.120.0';
+  const facts = (commands: readonly string[], cliOverride: string[]) => ({
+    stacks: {
+      'checkout-service': REACHABLE,
+      'payments-api': UNREACHABLE,
+      'legacy-import': UNREACHABLE,
+    },
+    rows: {
+      'checkout-service': { ok: true, values: ['checkout-service'] },
+      'payments-api': { ok: false, notes: 'no stack' },
+    } as const,
+    stackList: EMPTY_LIST,
+    invocations: invocationsOf(commands),
+    postmasterStarts: NO_POSTMASTER,
+    portProbe: QUIET_PORT,
+    containerProbe: NO_CONTAINERS,
+    cliOverride,
+  });
+
+  it('flags a service started only through the override', () => {
+    const text = describeFleetGroundTruth(
+      facts(
+        [
+          'cd checkout-service && supabase start',
+          `cd payments-api && ${RUNNER} start`,
+        ],
+        [RUNNER]
+      )
+    ).join('\n');
+    expect(text).toContain(
+      `payments-api: started with ${RUNNER}, not the installed CLI; scorer uses the installed CLI`
+    );
+    expect(text).not.toContain('checkout-service: started with');
+  });
+
+  it('says nothing without an override', () => {
+    const text = describeFleetGroundTruth(
+      facts(['cd payments-api && supabase start'], [])
+    ).join('\n');
+    expect(text).not.toContain('not the installed CLI');
   });
 });
 

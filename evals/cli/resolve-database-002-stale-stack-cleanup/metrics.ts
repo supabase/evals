@@ -34,6 +34,7 @@ function serviceMetrics(
       dbPort: null,
       apiPort: null,
       postmasterStartMs: null,
+      relocatedHome: null,
     };
   }
   return {
@@ -43,6 +44,7 @@ function serviceMetrics(
     apiPort: stack.apiUrl ? (urlPort(stack.apiUrl) ?? null) : null,
     postmasterStartMs:
       service === 'legacy-import' ? null : postmasterStarts[service],
+    relocatedHome: stack.relocatedHome ?? null,
   };
 }
 
@@ -54,7 +56,8 @@ export async function checkMetrics(
   cliDetourCommands: readonly string[],
   stackList: StackListProbe,
   stacks: Record<Service, StackProbe>,
-  postmasterStarts: PostmasterStarts
+  postmasterStarts: PostmasterStarts,
+  cliOverride: readonly string[] = []
 ): Promise<CheckResult> {
   const services = Object.fromEntries(
     SERVICES.map((service) => [
@@ -75,6 +78,7 @@ export async function checkMetrics(
 
   const metrics = {
     cliVersion: await readCliVersion(ctx),
+    cliOverride,
     channel: marker?.channel ?? 'pinned',
     services,
     attemptedStart,

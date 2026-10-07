@@ -4,6 +4,7 @@ import {
   type LocalStackScorer,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { listCliOverrides } from '../lib/cli-invocations.js';
 import {
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
@@ -16,8 +17,9 @@ import {
   readRowStrings,
   type RowStringsProbe,
 } from '../lib/markers.js';
+import { readCliVersion } from '../lib/metrics.js';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
-import { urlPort, type StackProbe } from '../lib/stack.js';
+import { candidateHomes, urlPort, type StackProbe } from '../lib/stack.js';
 import { readStackList, type StackListProbe } from '../lib/stack-list.js';
 import {
   checkCheckoutRestarted,
@@ -27,9 +29,11 @@ import {
   findFleetInvocations,
   probeLegacyContainers,
   probeLegacyDbPort,
+  readHomeStackLists,
   readPostmasterStarts,
   type ContainerProbe,
   type FleetInvocation,
+  type HomeStackList,
   type PortProbe,
   type PostmasterStarts,
   type SurvivingService,
@@ -40,6 +44,7 @@ import {
   checkStackRunning,
   findServiceDirs,
   resolveServiceStacks,
+  serviceStackTarget,
   type Service,
 } from './services.js';
 
@@ -58,8 +63,19 @@ const scorer: LocalStackScorer = async (ctx) => {
     const cliDetourCommands = findCliDetourCommands(commands);
     const invocations = findFleetInvocations(ctx.toolCalls);
     const dirs = await findServiceDirs(ctx);
-    const stacks = await resolveServiceStacks(ctx, dirs);
+    const cliOverride = listCliOverrides(
+      invocations,
+      await readCliVersion(ctx)
+    );
+    const stacks = await resolveServiceStacks(ctx, dirs, invocations);
     const stackList = await readStackList(ctx);
+    const homeStackLists = await readHomeStackLists(
+      ctx,
+      candidateHomes(
+        invocations,
+        serviceStackTarget('legacy-import', dirs.found['legacy-import'])
+      )
+    );
     const rows: Record<SurvivingService, RowStringsProbe> = {
       'checkout-service': await readMarkerRows(ctx, stacks['checkout-service']),
       'payments-api': await readMarkerRows(ctx, stacks['payments-api']),
@@ -87,15 +103,24 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkStackRunning(
         ctx,
         'checkout-service',
-        stacks['checkout-service']
+        stacks['checkout-service'],
+        cliOverride,
+        invocations
       ),
-      await checkStackRunning(ctx, 'payments-api', stacks['payments-api']),
+      await checkStackRunning(
+        ctx,
+        'payments-api',
+        stacks['payments-api'],
+        cliOverride,
+        invocations
+      ),
       checkLegacyImportGone({
         stackList,
         stack: stacks['legacy-import'],
         invocations,
         portProbe,
         containerProbe,
+        homeStackLists,
       }),
       checkCheckoutRestarted(invocations, postmasterStarts['checkout-service']),
       checkPaymentsUntouched(
@@ -117,7 +142,8 @@ const scorer: LocalStackScorer = async (ctx) => {
         cliDetourCommands,
         stackList,
         stacks,
-        postmasterStarts
+        postmasterStarts,
+        cliOverride
       ),
       await checkReportIsTruthful(ctx, {
         stacks,
@@ -127,6 +153,8 @@ const scorer: LocalStackScorer = async (ctx) => {
         postmasterStarts,
         portProbe,
         containerProbe,
+        homeStackLists,
+        cliOverride,
       }),
     ];
 
@@ -192,6 +220,8 @@ async function checkReportIsTruthful(
     postmasterStarts: PostmasterStarts;
     portProbe: PortProbe;
     containerProbe: ContainerProbe;
+    homeStackLists: readonly HomeStackList[];
+    cliOverride: readonly string[];
   }
 ): Promise<CheckResult> {
   const name = 'final report is truthful about the fleet';

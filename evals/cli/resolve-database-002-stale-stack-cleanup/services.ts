@@ -1,8 +1,14 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
+import {
+  invocationTargetUnresolved,
+  invocationTargets,
+  invocationVerb,
+  type SupabaseInvocation,
+} from '../lib/cli-invocations.js';
 import { findProjectDirs } from '../lib/projects.js';
 import {
   probeStackReady,
-  resolveStack,
+  resolveStackWithAgentHomes,
   type StackProbe,
   type StackTarget,
 } from '../lib/stack.js';
@@ -51,16 +57,21 @@ export function serviceStackTarget(
 
 export async function resolveServiceStacks(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
-  dirs: ServiceDirs
+  dirs: ServiceDirs,
+  invocations: readonly SupabaseInvocation[] = []
 ): Promise<Record<Service, StackProbe>> {
   const stacks = {} as Record<Service, StackProbe>;
   for (const service of SERVICES) {
     const dir = dirs.found[service];
-    const byName = await resolveStack(ctx, serviceStackTarget(service, dir));
+    const byName = await resolveStackWithAgentHomes(
+      ctx,
+      serviceStackTarget(service, dir),
+      invocations
+    );
     stacks[service] =
       byName.ok || dir === undefined
         ? byName
-        : await resolveRenamedStack(ctx, dir, byName.notes);
+        : await resolveRenamedStack(ctx, dir, byName.notes, invocations);
   }
   return stacks;
 }
@@ -70,21 +81,67 @@ export async function resolveServiceStacks(
 async function resolveRenamedStack(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   dir: string,
-  namedNotes: string
+  namedNotes: string,
+  invocations: readonly SupabaseInvocation[]
 ): Promise<StackProbe> {
-  const discovered = await resolveStack(ctx, { kind: 'project', dir });
+  const discovered = await resolveStackWithAgentHomes(
+    ctx,
+    { kind: 'project', dir },
+    invocations
+  );
   return discovered.ok
     ? discovered
     : { ok: false, notes: `${namedNotes}; ${discovered.notes}` };
 }
 
+const START_VERBS = new Set(['start', 'stack start']);
+
+/** Surviving services whose every start ran through a `cliOverride` runner, mapped to the runners used. */
+export function findSwappedServices(
+  invocations: readonly SupabaseInvocation[],
+  cliOverride: readonly string[]
+): Partial<Record<Service, string>> {
+  const swapped: Partial<Record<Service, string>> = {};
+  for (const service of SURVIVING) {
+    const starts = invocations.filter(
+      (inv) =>
+        START_VERBS.has(invocationVerb(inv) ?? '') &&
+        (invocationTargetUnresolved(inv) || invocationTargets(inv, service))
+    );
+    if (
+      starts.length > 0 &&
+      starts.every(({ runner }) => runner && cliOverride.includes(runner))
+    ) {
+      swapped[service] = [...new Set(starts.map(({ runner }) => runner))].join(
+        ', '
+      );
+    }
+  }
+  return swapped;
+}
+
+export function describeSwap(service: Service, runners: string): string {
+  return `${service}: started with ${runners}, not the installed CLI`;
+}
+
 export async function checkStackRunning(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   service: Service,
-  stack: StackProbe
+  stack: StackProbe,
+  cliOverride: readonly string[] = [],
+  invocations: readonly SupabaseInvocation[] = []
 ): Promise<CheckResult> {
   const name = `${service} stack is running`;
   const { ready, notes } = await probeStackReady(ctx, stack);
+  const swapped = findSwappedServices(invocations, cliOverride)[service];
   const state = stack.ok ? `resolved, ${notes}` : `does not resolve (${notes})`;
-  return { name, passed: ready, notes: `state: ${state}` };
+  const relocated =
+    stack.ok && stack.relocatedHome !== undefined
+      ? `, relocated home: ${stack.relocatedHome}`
+      : '';
+  return {
+    name,
+    passed: ready && swapped === undefined,
+    notes: `state: ${state}${relocated}${swapped === undefined ? '' : `; ${describeSwap(service, swapped)}`}`,
+  };
 }
