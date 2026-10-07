@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/wayfinding/lib
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/docs-wayfinding/lib
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { docsPath, scoreNavigation, severityOf } from './wayfinding.js';

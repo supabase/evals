@@ -29,7 +29,7 @@ Each `EVAL.ts` exports the `TARGETS` that answer the question, any
   the first target, refused ones included. 0 to 3 is clean, 4 to 6 friction,
   7 to 9 failure, and 10 or more, or never reaching a target, a big failure,
   which fails the check. The notes hold the full navigation from
-  `evals/wayfinding/lib/wayfinding.ts`.
+  `evals/docs-wayfinding/lib/wayfinding.ts`.
 - **Answer covers the key facts.** A judge reads the final answer.
 
 `build-wayfinding-001-new-nextjs-app` is a control: its page is linked from the
@@ -47,11 +47,11 @@ link.
 ## Running
 
 ```bash
-pnpm eval -- --suite wayfinding --experiment-suite wayfinding --runs 3
+pnpm eval -- --suite docs-wayfinding --experiment-suite docs-wayfinding --runs 3
 pnpm wayfinding-report
 ```
 
-In CI, dispatch `eval-refresh.yml` with `suite=wayfinding` and
-`experiment_suite=wayfinding`. The export step skips this suite, so nothing is
+In CI, dispatch `eval-refresh.yml` with `suite=docs-wayfinding` and
+`experiment_suite=docs-wayfinding`. The export step skips this suite, so nothing is
 published to the results site. The runs are in the `raw-results` artifact and
 in Braintrust.
