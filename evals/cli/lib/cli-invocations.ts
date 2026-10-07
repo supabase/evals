@@ -26,6 +26,8 @@ export type SupabaseInvocation = {
   env?: InvocationEnv;
   /** The runner spec (e.g. `npx --yes supabase@2.120.0`, `npm i -g supabase@2.120.0`) when the invocation ran an explicitly versioned `supabase` through a package runner or a global install earlier in the run. */
   runner?: string;
+  /** Set when `runner` comes from a global install: `removed` once a later global uninstall was recorded, else `active`. */
+  globalInstall?: 'active' | 'removed';
   /** The tool call's completion time (epoch ms), present only when the agent parser records it. */
   at?: number;
 };
@@ -34,7 +36,7 @@ export type CommandEntry = {
   command: string;
   cwd?: string;
   at?: number;
-  /** The tool call errored; a global install in it is not applied. */
+  /** The tool call errored; its status says nothing about any single command inside it. */
   failed?: boolean;
 };
 
@@ -435,7 +437,9 @@ export function isStartInvocation(inv: SupabaseInvocation): boolean {
  * `SUPABASE_HOME`/`HOME`/`TMPDIR` are tracked within a single command only,
  * starting from the entry's `cwd` and ending with its subshell. A global
  * `supabase@<version>` install marks every later invocation with its `runner`
- * until a global uninstall; an entry marked `failed` applies neither.
+ * until a global uninstall or the next global install (both close the span),
+ * whatever the entry's `failed` status; whether the install still in effect
+ * took effect is reconciled by `listCliOverrides`.
  * `--help`/`-h` invocations are skipped.
  */
 export function findSupabaseInvocations(
@@ -443,6 +447,11 @@ export function findSupabaseInvocations(
 ): SupabaseInvocation[] {
   const invocations: SupabaseInvocation[] = [];
   let globalRunner: string | undefined;
+  let globalInvocations: SupabaseInvocation[] = [];
+  const closeGlobalSpan = () => {
+    for (const earlier of globalInvocations) earlier.globalInstall = 'removed';
+    globalInvocations = [];
+  };
   commands.forEach((entry, commandIndex) => {
     const command = typeof entry === 'string' ? entry : entry.command;
     let state: ShellState = {
@@ -451,7 +460,6 @@ export function findSupabaseInvocations(
       exported: new Set(),
     };
     const at = typeof entry === 'string' ? undefined : entry.at;
-    const failed = typeof entry === 'string' ? false : entry.failed === true;
     const enclosing: ShellState[] = [];
     for (const { segment, opens, closes } of scopedCommandSegments(command)) {
       for (let n = 0; n < opens; n++) enclosing.push(state);
@@ -479,18 +487,28 @@ export function findSupabaseInvocations(
       ) {
         const env = resolveEnv(rawEnv, state.cwd, dir, state.vars.HOME);
         const effectiveRunner = runner ?? globalRunner;
-        invocations.push({
+        const fromGlobal = runner === undefined && globalRunner !== undefined;
+        const invocation: SupabaseInvocation = {
           commandIndex,
           argv: ['supabase', ...argv.slice(1)],
           ...(dir === undefined ? {} : { cwd: dir }),
           ...(workdir === undefined ? {} : { workdir }),
           ...(env === undefined ? {} : { env }),
           ...(effectiveRunner === undefined ? {} : { runner: effectiveRunner }),
+          ...(fromGlobal ? { globalInstall: 'active' as const } : {}),
           ...(at === undefined ? {} : { at }),
-        });
-      } else if (!failed) {
-        if (isGlobalUninstall(argv)) globalRunner = undefined;
-        else globalRunner = globalInstallSpec(argv) ?? globalRunner;
+        };
+        invocations.push(invocation);
+        if (fromGlobal) globalInvocations.push(invocation);
+      } else if (isGlobalUninstall(argv)) {
+        globalRunner = undefined;
+        closeGlobalSpan();
+      } else {
+        const installed = globalInstallSpec(argv);
+        if (installed !== undefined) {
+          closeGlobalSpan();
+          globalRunner = installed;
+        }
       }
       for (let n = 0; n < closes && enclosing.length > 0; n++) {
         state = enclosing.pop() ?? state;
@@ -528,8 +546,15 @@ export function invocationVerb(inv: SupabaseInvocation): string | undefined {
   return first;
 }
 
+// Only `stop` takes `--project-id` as a local stack name; elsewhere it is a remote ref or unsupported.
+function stopProjectId(inv: SupabaseInvocation): string | undefined {
+  return invocationVerb(inv) === 'stop'
+    ? flagValue(inv.argv, '--project-id')
+    : undefined;
+}
+
 function stackFlagName(inv: SupabaseInvocation): string | undefined {
-  return flagValue(inv.argv, '--project-id') ?? flagValue(inv.argv, '--stack');
+  return stopProjectId(inv) ?? flagValue(inv.argv, '--stack');
 }
 
 /**
@@ -569,10 +594,11 @@ export function invocationTargetsDir(
 }
 
 /**
- * Whether the invocation addresses `name`; `--all` addresses every stack. An
- * explicit `--project-id` is authoritative whatever the directory. Otherwise
- * the directory it ran in wins: a `--stack` name counts only when the
- * directory's basename is not another of `knownTargets`.
+ * Whether the invocation addresses `name`; `--all` addresses every stack. A
+ * `stop --project-id` is authoritative whatever the directory; other verbs
+ * ignore `--project-id`. Otherwise the directory it ran in wins: a `--stack`
+ * name counts only when the directory's basename is not another of
+ * `knownTargets`.
  */
 export function invocationTargets(
   inv: SupabaseInvocation,
@@ -580,7 +606,7 @@ export function invocationTargets(
   knownTargets?: readonly string[]
 ): boolean {
   if (inv.argv.includes('--all')) return true;
-  const projectId = flagValue(inv.argv, '--project-id');
+  const projectId = stopProjectId(inv);
   if (projectId !== undefined) return projectId === name;
   const dir = directoryName(inv);
   if (dir === name) return true;
@@ -602,16 +628,23 @@ function runnerVersion(runner: string): string {
  * Distinct runner specs of invocations that ran an explicitly versioned
  * `supabase` (through a package runner or an earlier global install),
  * skipping runs of `installedVersion`. Dist-tags (`@latest`) cannot be
- * verified offline and are listed by `listUnverifiedRunners` instead.
+ * verified offline and are listed by `listUnverifiedRunners` instead. When
+ * `afterRunVersion` (the PATH version after the run) equals `installedVersion`,
+ * the last global install, if never uninstalled, did not take effect, so its
+ * runner is ignored.
  */
 export function listCliOverrides(
   invocations: readonly SupabaseInvocation[],
-  installedVersion?: string | null
+  installedVersion?: string | null,
+  afterRunVersion?: string | null
 ): string[] {
   const installed = installedVersion?.trim().replace(/^v/, '');
+  const afterRun = afterRunVersion?.trim().replace(/^v/, '');
+  const installTookEffect = !afterRun || afterRun !== installed;
   const runners = new Set<string>();
-  for (const { runner } of invocations) {
+  for (const { runner, globalInstall } of invocations) {
     if (runner === undefined) continue;
+    if (globalInstall === 'active' && !installTookEffect) continue;
     const version = runnerVersion(runner);
     if (SEMVER_RE.test(version) && version !== installed) runners.add(runner);
   }

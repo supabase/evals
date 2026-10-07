@@ -22,10 +22,20 @@ command) and marks the result with `relocatedHome`; `listCliOverrides` reports
 `npx`/`bunx`/`npm exec`/`pnpm dlx`/`yarn dlx` runs and global installs of
 another explicit CLI version, and `listUnverifiedRunners` the dist-tag ones.
 
-`invocationTargets` attributes an invocation to the directory it ran in
-before its `--stack`/`--project-id` name; pass `knownTargets` (the eval's
-sibling project or stack names) so a name given inside another known
-target's directory isn't credited to the named one.
+`invocationTargets` attributes an invocation by `stop --project-id` (the only
+verb whose `--project-id` is a local stack name; other verbs ignore it), then
+the directory it ran in, then its `--stack` name; pass `knownTargets` (the
+eval's sibling project or stack names) so a `--stack` name given inside another
+known target's directory isn't credited to the named one.
+
+`listCliOverrides(invocations, installedVersion, afterRunVersion)` takes the
+PATH version read after the run: when it equals the staged version, the last
+global install, if never uninstalled, did not take effect and its runner is
+ignored. A later global install closes the previous install's span like an
+uninstall does, so invocations it covered stay flagged (known cost: an install
+that fails, starts on the staged CLI, then is retried and fails again is flagged).
+Global installs and uninstalls are recorded in order whatever their tool call's
+status, since a call's error reflects its last command.
 
 Invocation attribution (`cli-invocations.ts`) starts from a tool call's `cwd`
 only when the agent parser records one (Codex, OpenCode); a `cd` persisting

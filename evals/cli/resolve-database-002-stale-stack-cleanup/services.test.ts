@@ -659,8 +659,9 @@ describe('findSwappedServices ignores failed starts', () => {
   });
 });
 
-describe('a global install swaps the CLI only when its call succeeded', () => {
+describe('a global install swaps the CLI when it took effect on PATH', () => {
   const INSTALL = 'npm i -g supabase@2.120.0';
+  const STAGED = '2.117.0';
   const running = {
     ok: true,
     backend: 'managed-named',
@@ -682,21 +683,36 @@ describe('a global install swaps the CLI only when its call succeeded', () => {
     call('cd checkout-service && supabase start'),
     call('cd payments-api && supabase start'),
   ];
+  const check = (
+    invocations: ReturnType<typeof findFleetInvocations>,
+    cliOverride: string[]
+  ) =>
+    checkStackRunning(ctx, 'payments-api', running, cliOverride, invocations);
 
-  it('does not swap after a failed install', async () => {
+  it('swaps when an install shares a failing call with a start and PATH ends on the install', async () => {
+    const invocations = findFleetInvocations([
+      call(`${INSTALL} && cd payments-api && supabase start`, {
+        error: 'port is already allocated',
+      }),
+      ...starts,
+    ]);
+    const cliOverride = listCliOverrides(invocations, STAGED, '2.120.0');
+    expect(cliOverride).toEqual([INSTALL]);
+    const result = await check(invocations, cliOverride);
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      `payments-api: started with ${INSTALL}, not the installed CLI`
+    );
+  });
+
+  it('does not swap after a failed install when PATH still has the staged version', async () => {
     const invocations = findFleetInvocations([
       call(INSTALL, { error: 'EACCES: permission denied' }),
       ...starts,
     ]);
-    const cliOverride = listCliOverrides(invocations, '2.118.0');
+    const cliOverride = listCliOverrides(invocations, STAGED, STAGED);
     expect(cliOverride).toEqual([]);
-    const result = await checkStackRunning(
-      ctx,
-      'payments-api',
-      running,
-      cliOverride,
-      invocations
-    );
+    const result = await check(invocations, cliOverride);
     expect(result.passed).toBe(true);
   });
 
@@ -705,19 +721,36 @@ describe('a global install swaps the CLI only when its call succeeded', () => {
       call(INSTALL, { result: 'added 1 package' }),
       ...starts,
     ]);
-    const cliOverride = listCliOverrides(invocations, '2.118.0');
+    const cliOverride = listCliOverrides(invocations, STAGED, '2.120.0');
     expect(cliOverride).toEqual([INSTALL]);
-    const result = await checkStackRunning(
-      ctx,
-      'payments-api',
-      running,
-      cliOverride,
-      invocations
-    );
+    const result = await check(invocations, cliOverride);
     expect(result.passed).toBe(false);
     expect(result.notes).toContain(
       `payments-api: started with ${INSTALL}, not the installed CLI`
     );
+  });
+
+  it('swaps when the staged version is reinstalled after the survivor started', async () => {
+    const invocations = findFleetInvocations([
+      call(INSTALL, { result: 'added 1 package' }),
+      ...starts,
+      call(`npm i -g supabase@${STAGED}`, { result: 'added 1 package' }),
+    ]);
+    const cliOverride = listCliOverrides(invocations, STAGED, STAGED);
+    expect(cliOverride).toEqual([INSTALL]);
+    const result = await check(invocations, cliOverride);
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      `payments-api: started with ${INSTALL}, not the installed CLI`
+    );
+  });
+
+  it('keeps the install when the post-run version is unknown', () => {
+    const invocations = findFleetInvocations([
+      call(INSTALL, { error: 'EACCES: permission denied' }),
+      ...starts,
+    ]);
+    expect(listCliOverrides(invocations, STAGED, null)).toEqual([INSTALL]);
   });
 });
 
