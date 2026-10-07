@@ -92,6 +92,8 @@ export interface TranscriptEvent {
     path?: string;
     command?: string;
     url?: string;
+    /** Absolute directory the call ran in, when the agent records one per call. */
+    cwd?: string;
     /** Skill names loaded by this call, when the parser can identify any. */
     loadedSkills?: string[];
     /** Tool result payload (for `tool_result`). */

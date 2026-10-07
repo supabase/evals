@@ -221,6 +221,8 @@ export interface ToolCallRecord {
   path?: string;
   command?: string;
   url?: string;
+  /** Absolute directory the call ran in, when the agent records one per call. */
+  cwd?: string;
   /** Canonical tool category, set by CLI agent parsers; unset for ai-sdk tools which have no normalization layer. */
   name?: ToolName;
   /** Skill names loaded by this call, when the harness can identify any. */
@@ -228,6 +230,8 @@ export interface ToolCallRecord {
   result?: unknown;
   error?: string;
   ts: number;
+  /** Epoch ms the call's result arrived, when the agent records it per call. */
+  resultTs?: number;
 }
 
 export interface CommandResult {
