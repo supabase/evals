@@ -172,26 +172,24 @@ them), since two stacks on the defaults collide.
 
 ## Observed in CI
 
-Latest run, 2026-10-07 (run 37628703266, head 8258177): 11/15 runs pass.
+Snapshot from run 37638547341 (2026-10-07, head 76e9c61): 12/15 runs pass.
+Results drift between runs; this is one dated observation, not a guarantee.
 
 | experiment | CLI version | passed |
 | --- | --- | --- |
-| absent | 2.121.0-beta.6 | 3/3 |
-| nodaemon | 2.121.0-beta.6 | 3/3 |
-| pinned | 2.117.0 | 3/3 |
-| beta | 2.121.0-beta.6 | 2/3 |
-| stable | 2.120.0 | 0/3 |
+| absent | 2.121.0-beta.7 | 3/3 |
+| nodaemon | 2.121.0-beta.7 | 3/3 |
+| beta | 2.121.0-beta.7 | 3/3 |
+| pinned | 2.117.0 | 2/3 |
+| stable | 2.120.0 | 1/3 |
 
-- `absent` and `nodaemon` pass through the native managed stack.
-- `stable` fails every run on `both stacks reach ready`: in two runs neither
-  project had a start attempted, in one only `client-a` did. The `beta` miss
-  (r2) is the same shape, with no start attempted for either project.
-- None of the failed runs used a runner override.
-
-Earlier run 37618809016 (head 4d4afce): 13/15, with `pinned` r2 failing the
-version-swap policy (`npx supabase@2.120.0`, because the multi-project docs
-point to `supabase stack`, which 2.117.0 lacks) and `pinned` r3 stopping after
-`apply_patch: command not found`.
+- `absent`, `nodaemon` and `beta` pass in every run; `absent` and `nodaemon`
+  go through the native managed stack.
+- `pinned` r3 fails the version-swap rule: the agent ran
+  `npx --yes supabase@2.120.0`, so `both stacks reach ready` fails with
+  `started with npx --yes supabase@2.120.0, not the installed CLI`.
+- `stable` r2 and r3 fail `both stacks reach ready` with no start attempted for
+  either project.
 
 ## Reading results
 
