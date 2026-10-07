@@ -30,7 +30,13 @@ export type SupabaseInvocation = {
   at?: number;
 };
 
-export type CommandEntry = { command: string; cwd?: string; at?: number };
+export type CommandEntry = {
+  command: string;
+  cwd?: string;
+  at?: number;
+  /** The tool call errored; a global install in it is not applied. */
+  failed?: boolean;
+};
 
 const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
@@ -39,6 +45,14 @@ const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
 const NPM_EXEC_VERBS = new Set(['exec', 'x']);
 const INSTALLERS = new Set(['npm', 'pnpm', 'bun']);
 const INSTALL_VERBS = new Set(['i', 'install', 'add']);
+const UNINSTALL_VERBS = new Set([
+  'uninstall',
+  'un',
+  'remove',
+  'rm',
+  'r',
+  'unlink',
+]);
 const GLOBAL_FLAGS = new Set(['-g', '--global']);
 const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const START_VERBS = new Set(['start', 'stack start']);
@@ -270,6 +284,18 @@ function resolveEnvPath(
   cwd: string | undefined,
   home: string | undefined
 ): string | undefined {
+  const expanded = expandAssigned(value, shellCwd, home);
+  if (expanded === undefined) return undefined;
+  if (expanded.startsWith('/')) return joinPath(undefined, expanded);
+  return cwd === undefined ? undefined : joinPath(cwd, expanded);
+}
+
+/** A value with a leading `$PWD`/`$HOME`/`~` expanded; a plain relative value stays relative. Undefined when it depends on an unknown directory or other expansion. */
+function expandAssigned(
+  value: string,
+  shellCwd: string | undefined,
+  home: string | undefined
+): string | undefined {
   const expanded = PWD_PREFIX_RE.test(value)
     ? shellCwd === undefined
       ? undefined
@@ -279,16 +305,12 @@ function resolveEnvPath(
         ? undefined
         : value.replace(HOME_PREFIX_RE, home)
       : value;
-  if (
-    expanded === undefined ||
+  return expanded === undefined ||
     expanded === '' ||
     SHELL_EXPANSION_RE.test(expanded) ||
     expanded.startsWith('~')
-  ) {
-    return undefined;
-  }
-  if (expanded.startsWith('/')) return joinPath(undefined, expanded);
-  return cwd === undefined ? undefined : joinPath(cwd, expanded);
+    ? undefined
+    : expanded;
 }
 
 function resolveEnv(
@@ -327,7 +349,7 @@ type EnvName = (typeof ENV_VARIABLES)[number];
 /** Shell state a command carries from segment to segment, restored when its subshell closes. */
 type ShellState = {
   cwd?: string;
-  vars: InvocationEnv;
+  vars: RawEnv;
   exported: ReadonlySet<EnvName>;
 };
 
@@ -353,14 +375,9 @@ function assignVariables(
   const exported = new Set(state.exported);
   for (const [name, raw] of assignments) {
     if (raw !== undefined) {
-      const resolved = resolveEnvPath(
-        raw,
-        state.cwd,
-        state.cwd,
-        state.vars.HOME
-      );
-      if (resolved === undefined) delete vars[name];
-      else vars[name] = resolved;
+      const expanded = expandAssigned(raw, state.cwd, state.vars.HOME);
+      if (expanded === undefined) delete vars[name];
+      else vars[name] = expanded;
     }
     if (exportThem) exported.add(name);
   }
@@ -378,6 +395,20 @@ function exportAssignments(
       out.push([name, eq === -1 ? undefined : word.slice(eq + 1)]);
   }
   return out;
+}
+
+function isGlobalUninstall(argv: readonly string[]): boolean {
+  const [tool, verb] = argv;
+  const yarnGlobal =
+    tool === 'yarn' && verb === 'global' && UNINSTALL_VERBS.has(argv[2]);
+  const direct =
+    INSTALLERS.has(tool) &&
+    UNINSTALL_VERBS.has(verb) &&
+    argv.some((word) => GLOBAL_FLAGS.has(word));
+  return (
+    (yarnGlobal || direct) &&
+    argv.some((word) => word === 'supabase' || VERSIONED_SUPABASE_RE.test(word))
+  );
 }
 
 function globalInstallSpec(argv: readonly string[]): string | undefined {
@@ -403,7 +434,8 @@ export function isStartInvocation(inv: SupabaseInvocation): boolean {
  * heredoc'd command line never counts. `cd`/`pushd` and `export` of
  * `SUPABASE_HOME`/`HOME`/`TMPDIR` are tracked within a single command only,
  * starting from the entry's `cwd` and ending with its subshell. A global
- * `supabase@<version>` install marks every later invocation with its `runner`.
+ * `supabase@<version>` install marks every later invocation with its `runner`
+ * until a global uninstall; an entry marked `failed` applies neither.
  * `--help`/`-h` invocations are skipped.
  */
 export function findSupabaseInvocations(
@@ -419,6 +451,7 @@ export function findSupabaseInvocations(
       exported: new Set(),
     };
     const at = typeof entry === 'string' ? undefined : entry.at;
+    const failed = typeof entry === 'string' ? false : entry.failed === true;
     const enclosing: ShellState[] = [];
     for (const { segment, opens, closes } of scopedCommandSegments(command)) {
       for (let n = 0; n < opens; n++) enclosing.push(state);
@@ -455,8 +488,9 @@ export function findSupabaseInvocations(
           ...(effectiveRunner === undefined ? {} : { runner: effectiveRunner }),
           ...(at === undefined ? {} : { at }),
         });
-      } else {
-        globalRunner = globalInstallSpec(argv) ?? globalRunner;
+      } else if (!failed) {
+        if (isGlobalUninstall(argv)) globalRunner = undefined;
+        else globalRunner = globalInstallSpec(argv) ?? globalRunner;
       }
       for (let n = 0; n < closes && enclosing.length > 0; n++) {
         state = enclosing.pop() ?? state;
@@ -495,7 +529,7 @@ export function invocationVerb(inv: SupabaseInvocation): string | undefined {
 }
 
 function stackFlagName(inv: SupabaseInvocation): string | undefined {
-  return flagValue(inv.argv, '--stack') ?? flagValue(inv.argv, '--project-id');
+  return flagValue(inv.argv, '--project-id') ?? flagValue(inv.argv, '--stack');
 }
 
 /**
@@ -535,9 +569,10 @@ export function invocationTargetsDir(
 }
 
 /**
- * Whether the invocation addresses `name`; `--all` addresses every stack. The
- * directory it ran in wins: a `--stack`/`--project-id` name counts only when
- * the directory's basename is not another of `knownTargets`.
+ * Whether the invocation addresses `name`; `--all` addresses every stack. An
+ * explicit `--project-id` is authoritative whatever the directory. Otherwise
+ * the directory it ran in wins: a `--stack` name counts only when the
+ * directory's basename is not another of `knownTargets`.
  */
 export function invocationTargets(
   inv: SupabaseInvocation,
@@ -545,6 +580,8 @@ export function invocationTargets(
   knownTargets?: readonly string[]
 ): boolean {
   if (inv.argv.includes('--all')) return true;
+  const projectId = flagValue(inv.argv, '--project-id');
+  if (projectId !== undefined) return projectId === name;
   const dir = directoryName(inv);
   if (dir === name) return true;
   if (stackFlagName(inv) !== name) return false;
