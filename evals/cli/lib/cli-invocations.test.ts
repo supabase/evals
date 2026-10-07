@@ -570,7 +570,7 @@ describe('invocationTargets', () => {
     ).toBe(true);
   });
 
-  it('keeps --project-id authoritative over the cd directory', () => {
+  it('keeps stop --project-id authoritative over the cd directory', () => {
     const known = ['checkout-service', 'payments-api'];
     const stop = findSupabaseInvocations([
       {
@@ -588,6 +588,24 @@ describe('invocationTargets', () => {
         ),
         'checkout-service',
         known
+      )
+    ).toBe(false);
+  });
+
+  it('ignores --project-id on verbs other than stop', () => {
+    const known = ['checkout-service', 'payments-api'];
+    const [start] = findSupabaseInvocations([
+      {
+        command:
+          'cd checkout-service && supabase start --project-id payments-api',
+      },
+    ]);
+    expect(invocationTargets(start, 'checkout-service', known)).toBe(true);
+    expect(invocationTargets(start, 'payments-api', known)).toBe(false);
+    expect(
+      invocationTargets(
+        inv(['supabase', 'gen', 'types', '--project-id', 'payments-api']),
+        'payments-api'
       )
     ).toBe(false);
   });
@@ -624,6 +642,14 @@ describe('invocationTargetUnresolved', () => {
     [['supabase', 'start', '--workdir', '`pwd`']],
   ])('flags an expanded flag value in %j', (argv) => {
     expect(invocationTargetUnresolved(inv(argv))).toBe(true);
+  });
+
+  it('ignores an expanded --project-id outside stop', () => {
+    expect(
+      invocationTargetUnresolved(
+        inv(['supabase', 'start', '--project-id', '$name'], 'client-a')
+      )
+    ).toBe(false);
   });
 
   it('does not flag an expansion that still ends in a literal name', () => {
@@ -999,13 +1025,14 @@ describe('runner forms', () => {
     const runners = (...commands: Array<string | CommandEntry>) =>
       findSupabaseInvocations(commands).map(({ runner }) => runner);
 
-    it('does not apply an install whose call failed', () => {
+    it('records an install whatever its call status', () => {
       const invocations = findSupabaseInvocations([
         { command: 'npm i -g supabase@2.120.0', failed: true },
         'supabase start',
       ]);
-      expect(invocations.map(({ runner }) => runner)).toEqual([undefined]);
-      expect(listCliOverrides(invocations, '2.119.0')).toEqual([]);
+      expect(invocations.map(({ runner }) => runner)).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
     });
 
     it('applies an install whose call succeeded', () => {
@@ -1018,14 +1045,74 @@ describe('runner forms', () => {
       ]);
     });
 
-    it('lets a later successful install replace a failed one', () => {
+    it('lets a later install replace an earlier one', () => {
       expect(
         runners(
-          { command: 'npm i -g supabase@2.120.0', failed: true },
+          'npm i -g supabase@2.120.0',
           'npm i -g supabase@2.121.0',
           'supabase start'
         )
       ).toEqual(['npm i -g supabase@2.121.0']);
+    });
+
+    it('applies an install in a failing call when the PATH version moved', () => {
+      const invocations = findSupabaseInvocations([
+        {
+          command: 'npm i -g supabase@2.120.0 && supabase start',
+          failed: true,
+        },
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', '2.120.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('ignores an install that never took effect when the PATH version is unchanged', () => {
+      const invocations = findSupabaseInvocations([
+        { command: 'npm i -g supabase@2.120.0', failed: true },
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', '2.117.0\n')).toEqual([]);
+      expect(listCliOverrides(invocations, '2.117.0', 'v2.117.0')).toEqual([]);
+    });
+
+    it('applies an install as recorded when the PATH version is unknown', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', null)).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('still lists npx runners when the PATH version is unchanged', () => {
+      const invocations = findSupabaseInvocations([
+        'npx supabase@2.120.0 start',
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', '2.117.0')).toEqual([
+        'npx supabase@2.120.0',
+      ]);
+    });
+
+    it('keeps starts that ran before an uninstall when the PATH version is unchanged', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'supabase start',
+        'npm uninstall -g supabase',
+        'supabase start',
+      ]);
+      expect(invocations.map(({ globalInstall }) => globalInstall)).toEqual([
+        'removed',
+        undefined,
+      ]);
+      expect(listCliOverrides(invocations, '2.117.0', '2.117.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
     });
 
     it.each([
@@ -1043,14 +1130,17 @@ describe('runner forms', () => {
       ).toEqual([undefined]);
     });
 
-    it('keeps the runner when the uninstall failed or named another package', () => {
+    it('clears the runner when the call holding the uninstall failed', () => {
       expect(
         runners(
           'npm i -g supabase@2.120.0',
-          { command: 'npm uninstall -g supabase', failed: true },
+          { command: 'npm uninstall -g supabase && false', failed: true },
           'supabase start'
         )
-      ).toEqual(['npm i -g supabase@2.120.0']);
+      ).toEqual([undefined]);
+    });
+
+    it('keeps the runner when the uninstall named another package', () => {
       expect(
         runners(
           'npm i -g supabase@2.120.0',
