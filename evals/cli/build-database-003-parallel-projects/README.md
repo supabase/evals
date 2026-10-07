@@ -92,12 +92,14 @@ reported-ports check.
 
 ### Which project an invocation belongs to
 
-Agent `supabase` invocations are attributed to a project by the directory they
-ran in (the call's `cwd`, `--workdir`, `SUPABASE_WORKDIR`, or `env -C`) before
-the `--stack` name they passed. `supabase stack start --stack demo` run inside
-`client-a` counts for `client-a`, and `--stack client-a` run inside `client-b`
-counts for `client-b`. The `--stack`/`--project-id` name is used only when no
-directory is known or the directory isn't one of the two clients. This drives
+Agent `supabase` invocations are attributed to a project in this order: a
+`stop --project-id <name>` (legacy `supabase stop`; other verbs ignore
+`--project-id`), then the directory they ran in (the call's `cwd`, `--workdir`,
+`SUPABASE_WORKDIR`, or `env -C`), then the `--stack` name they passed.
+`supabase stack start --stack demo` run inside `client-a` counts for
+`client-a`, and `--stack client-a` run inside `client-b` counts for
+`client-b`. The `--stack` name is used only when no directory is known or the
+directory isn't one of the two clients. This drives
 `attemptedStart`, the relocated-home lookup, and the version-swap rule.
 
 ### Relocated CLI homes (passes, visible)

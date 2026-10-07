@@ -528,8 +528,15 @@ export function invocationVerb(inv: SupabaseInvocation): string | undefined {
   return first;
 }
 
+// Only `stop` takes `--project-id` as a local stack name; elsewhere it is a remote ref or unsupported.
+function stopProjectId(inv: SupabaseInvocation): string | undefined {
+  return invocationVerb(inv) === 'stop'
+    ? flagValue(inv.argv, '--project-id')
+    : undefined;
+}
+
 function stackFlagName(inv: SupabaseInvocation): string | undefined {
-  return flagValue(inv.argv, '--project-id') ?? flagValue(inv.argv, '--stack');
+  return stopProjectId(inv) ?? flagValue(inv.argv, '--stack');
 }
 
 /**
@@ -569,10 +576,11 @@ export function invocationTargetsDir(
 }
 
 /**
- * Whether the invocation addresses `name`; `--all` addresses every stack. An
- * explicit `--project-id` is authoritative whatever the directory. Otherwise
- * the directory it ran in wins: a `--stack` name counts only when the
- * directory's basename is not another of `knownTargets`.
+ * Whether the invocation addresses `name`; `--all` addresses every stack. A
+ * `stop --project-id` is authoritative whatever the directory; other verbs
+ * ignore `--project-id`. Otherwise the directory it ran in wins: a `--stack`
+ * name counts only when the directory's basename is not another of
+ * `knownTargets`.
  */
 export function invocationTargets(
   inv: SupabaseInvocation,
@@ -580,7 +588,7 @@ export function invocationTargets(
   knownTargets?: readonly string[]
 ): boolean {
   if (inv.argv.includes('--all')) return true;
-  const projectId = flagValue(inv.argv, '--project-id');
+  const projectId = stopProjectId(inv);
   if (projectId !== undefined) return projectId === name;
   const dir = directoryName(inv);
   if (dir === name) return true;

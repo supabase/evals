@@ -570,7 +570,7 @@ describe('invocationTargets', () => {
     ).toBe(true);
   });
 
-  it('keeps --project-id authoritative over the cd directory', () => {
+  it('keeps stop --project-id authoritative over the cd directory', () => {
     const known = ['checkout-service', 'payments-api'];
     const stop = findSupabaseInvocations([
       {
@@ -588,6 +588,24 @@ describe('invocationTargets', () => {
         ),
         'checkout-service',
         known
+      )
+    ).toBe(false);
+  });
+
+  it('ignores --project-id on verbs other than stop', () => {
+    const known = ['checkout-service', 'payments-api'];
+    const [start] = findSupabaseInvocations([
+      {
+        command:
+          'cd checkout-service && supabase start --project-id payments-api',
+      },
+    ]);
+    expect(invocationTargets(start, 'checkout-service', known)).toBe(true);
+    expect(invocationTargets(start, 'payments-api', known)).toBe(false);
+    expect(
+      invocationTargets(
+        inv(['supabase', 'gen', 'types', '--project-id', 'payments-api']),
+        'payments-api'
       )
     ).toBe(false);
   });
@@ -624,6 +642,14 @@ describe('invocationTargetUnresolved', () => {
     [['supabase', 'start', '--workdir', '`pwd`']],
   ])('flags an expanded flag value in %j', (argv) => {
     expect(invocationTargetUnresolved(inv(argv))).toBe(true);
+  });
+
+  it('ignores an expanded --project-id outside stop', () => {
+    expect(
+      invocationTargetUnresolved(
+        inv(['supabase', 'start', '--project-id', '$name'], 'client-a')
+      )
+    ).toBe(false);
   });
 
   it('does not flag an expansion that still ends in a literal name', () => {
