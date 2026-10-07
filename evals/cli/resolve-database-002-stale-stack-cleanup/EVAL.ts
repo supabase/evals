@@ -17,7 +17,7 @@ import {
   readRowStrings,
   type RowStringsProbe,
 } from '../lib/markers.js';
-import { readStagedCliVersion } from '../lib/metrics.js';
+import { readCliVersion, readStagedCliVersion } from '../lib/metrics.js';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { candidateHomes, urlPort, type StackProbe } from '../lib/stack.js';
 import { readStackList, type StackListProbe } from '../lib/stack-list.js';
@@ -66,7 +66,8 @@ const scorer: LocalStackScorer = async (ctx) => {
     const dirs = await findServiceDirs(ctx, invocations);
     const cliOverride = listCliOverrides(
       invocations,
-      await readStagedCliVersion(ctx, marker)
+      await readStagedCliVersion(ctx, marker),
+      await readCliVersion(ctx)
     );
     const stacks = await resolveServiceStacks(ctx, dirs, invocations);
     const stackList = await readStackList(ctx);
