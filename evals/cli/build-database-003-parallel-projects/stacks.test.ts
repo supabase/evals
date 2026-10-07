@@ -752,6 +752,21 @@ describe('attribution by directory', () => {
     );
   });
 
+  it('keeps the swap when the staged version is reinstalled after both starts', async () => {
+    const ready = await readyAfter(
+      [
+        startIn('npm i -g supabase@2.120.0', S),
+        ...both('supabase start'),
+        startIn('npm i -g supabase@2.130.0', S),
+      ],
+      '2.130.0',
+      '2.130.0'
+    );
+    expect(ready.passed).toBe(false);
+    expect(ready.notes).toContain('agent ran npm i -g supabase@2.120.0');
+    expect(ready.notes).toContain('started with npm i -g supabase@2.120.0');
+  });
+
   it('does not flag starts after a global install that never took effect', async () => {
     const ready = await readyAfter(
       [

@@ -437,8 +437,9 @@ export function isStartInvocation(inv: SupabaseInvocation): boolean {
  * `SUPABASE_HOME`/`HOME`/`TMPDIR` are tracked within a single command only,
  * starting from the entry's `cwd` and ending with its subshell. A global
  * `supabase@<version>` install marks every later invocation with its `runner`
- * until a global uninstall, whatever the entry's `failed` status; whether an
- * install took effect is reconciled by `listCliOverrides`.
+ * until a global uninstall or the next global install (both close the span),
+ * whatever the entry's `failed` status; whether the install still in effect
+ * took effect is reconciled by `listCliOverrides`.
  * `--help`/`-h` invocations are skipped.
  */
 export function findSupabaseInvocations(
@@ -447,6 +448,10 @@ export function findSupabaseInvocations(
   const invocations: SupabaseInvocation[] = [];
   let globalRunner: string | undefined;
   let globalInvocations: SupabaseInvocation[] = [];
+  const closeGlobalSpan = () => {
+    for (const earlier of globalInvocations) earlier.globalInstall = 'removed';
+    globalInvocations = [];
+  };
   commands.forEach((entry, commandIndex) => {
     const command = typeof entry === 'string' ? entry : entry.command;
     let state: ShellState = {
@@ -497,11 +502,13 @@ export function findSupabaseInvocations(
         if (fromGlobal) globalInvocations.push(invocation);
       } else if (isGlobalUninstall(argv)) {
         globalRunner = undefined;
-        for (const earlier of globalInvocations)
-          earlier.globalInstall = 'removed';
-        globalInvocations = [];
+        closeGlobalSpan();
       } else {
-        globalRunner = globalInstallSpec(argv) ?? globalRunner;
+        const installed = globalInstallSpec(argv);
+        if (installed !== undefined) {
+          closeGlobalSpan();
+          globalRunner = installed;
+        }
       }
       for (let n = 0; n < closes && enclosing.length > 0; n++) {
         state = enclosing.pop() ?? state;
@@ -623,7 +630,7 @@ function runnerVersion(runner: string): string {
  * skipping runs of `installedVersion`. Dist-tags (`@latest`) cannot be
  * verified offline and are listed by `listUnverifiedRunners` instead. When
  * `afterRunVersion` (the PATH version after the run) equals `installedVersion`,
- * a global install that was never uninstalled did not take effect, so its
+ * the last global install, if never uninstalled, did not take effect, so its
  * runner is ignored.
  */
 export function listCliOverrides(

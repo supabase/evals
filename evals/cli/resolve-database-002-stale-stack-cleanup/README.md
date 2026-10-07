@@ -265,9 +265,12 @@ stack (`<service>: started with <runner>, not the installed CLI`), and the
 judge's ground truth says so; one whose latest non-failed start used the installed CLI
 passes. A global `npm i -g supabase@X` applies to later invocations whatever
 its tool call's status (a call's error reflects its last command, not the
-install), and a global uninstall clears it. When `supabase --version` on PATH
-after the run equals the installed version, an install that was never
-uninstalled did not take effect and its runner is ignored. The installed
+install), and a global uninstall or a later global install closes it. When
+`supabase --version` on PATH after the run equals the installed version, the last
+install, if never uninstalled, did not take effect and its runner is ignored. An
+earlier install stays flagged even if the installed version is reinstalled
+afterwards; the known cost is a false fail when an install fails, starts run on
+the installed CLI, and the install is retried and fails again. The installed
 version the runners are compared with is the marker's `cliVersion`, else
 `/usr/bin/supabase --version`, else `supabase --version` on PATH. Runners
 that name a dist-tag (`supabase@beta`) can't be checked against the installed

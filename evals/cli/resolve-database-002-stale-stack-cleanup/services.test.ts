@@ -730,6 +730,21 @@ describe('a global install swaps the CLI when it took effect on PATH', () => {
     );
   });
 
+  it('swaps when the staged version is reinstalled after the survivor started', async () => {
+    const invocations = findFleetInvocations([
+      call(INSTALL, { result: 'added 1 package' }),
+      ...starts,
+      call(`npm i -g supabase@${STAGED}`, { result: 'added 1 package' }),
+    ]);
+    const cliOverride = listCliOverrides(invocations, STAGED, STAGED);
+    expect(cliOverride).toEqual([INSTALL]);
+    const result = await check(invocations, cliOverride);
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      `payments-api: started with ${INSTALL}, not the installed CLI`
+    );
+  });
+
   it('keeps the install when the post-run version is unknown', () => {
     const invocations = findFleetInvocations([
       call(INSTALL, { error: 'EACCES: permission denied' }),

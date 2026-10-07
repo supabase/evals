@@ -1115,6 +1115,59 @@ describe('runner forms', () => {
       ]);
     });
 
+    it('keeps an earlier install when the staged version is reinstalled last', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'cd client-a && supabase start',
+        'cd client-b && supabase start',
+        'npm i -g supabase@2.130.0',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.130.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('still ignores a single install that never took effect', () => {
+      const invocations = findSupabaseInvocations([
+        { command: 'npm i -g supabase@2.120.0', failed: true },
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.130.0')).toEqual([]);
+    });
+
+    it('lists both installs when a later install of another version took effect', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'supabase start',
+        'npm i -g supabase@2.125.0',
+        'supabase start',
+      ]);
+      expect(invocations.map(({ globalInstall }) => globalInstall)).toEqual([
+        'removed',
+        'active',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.125.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+        'npm i -g supabase@2.125.0',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.130.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
+    it('flags starts between an install and its uninstall before the staged version is reinstalled', () => {
+      const invocations = findSupabaseInvocations([
+        'npm i -g supabase@2.120.0',
+        'supabase start',
+        'npm uninstall -g supabase',
+        'npm i -g supabase@2.130.0',
+        'supabase start',
+      ]);
+      expect(listCliOverrides(invocations, '2.130.0', '2.130.0')).toEqual([
+        'npm i -g supabase@2.120.0',
+      ]);
+    });
+
     it.each([
       'npm uninstall -g supabase',
       'npm rm -g supabase',

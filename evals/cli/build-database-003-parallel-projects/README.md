@@ -130,11 +130,15 @@ outcome checks fail. Recognised runners are `npx`/`bunx` (including
 `supabase@<version>`, and a global reinstall (`npm i -g`, `pnpm add -g`,
 `bun add -g`, `yarn global add` of `supabase@<version>`), which counts for every
 later invocation in the run until a global uninstall (`npm uninstall -g`,
-`pnpm remove -g`, `bun remove -g`, `yarn global remove`). Installs and
-uninstalls are recorded in order whatever their tool call's status (a call's
-error reflects its last command, not the install's). When the PATH version read
-after the run equals the staged version and no uninstall followed the install,
-the install is treated as never having taken effect and is ignored. A runner
+`pnpm remove -g`, `bun remove -g`, `yarn global remove`) or the next global
+install. Installs and uninstalls are recorded in order whatever their tool
+call's status (a call's error reflects its last command, not the install's).
+When the PATH version read after the run equals the staged version and no
+uninstall or later install followed the install, the install is treated as never
+having taken effect and is ignored. A later install closes the earlier one's
+span, so starts it covered stay flagged even if the staged version is
+reinstalled; the known cost is a false fail when an install fails, starts run on
+the staged CLI, and the install is retried and fails again. A runner
 is compared against the CLI version the session staged (the environment marker, else `/usr/bin/supabase --version`, the
 release binary), not the PATH `supabase --version`, which a global reinstall
 changes; `metrics.cliVersion` is the staged version and
