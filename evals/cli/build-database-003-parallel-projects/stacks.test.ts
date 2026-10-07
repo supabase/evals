@@ -4,8 +4,13 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
+import {
+  findSupabaseInvocations,
+  listCliOverrides,
+} from '../lib/cli-invocations.js';
 import { checkMarkerIsolation } from '../lib/markers.js';
 import type { StackProbe } from '../lib/stack.js';
+import { checkMetrics } from './metrics.js';
 import type { ProjectDirs } from './projects.js';
 import {
   checkBothStacksReady,
@@ -356,5 +361,118 @@ describe('checkSingleClientRow over readClientRowCounts', () => {
       passed: false,
       notes: 'client-a: 1 row; client-b: no stack',
     });
+  });
+});
+
+describe('stacks under an agent-relocated CLI home', () => {
+  const S = '/sandbox';
+  const HOME_ARG = `${S}/.supabase-runtime-home`;
+
+  // Answers managed status only for commands that carry the relocated home;
+  // the default home has no registry, like the sandbox's real CLI.
+  function relocatedCtx(home: string) {
+    const inner = fakeCtx({
+      projects: {
+        './client-a': { managed: ENV_A },
+        './client-b': { managed: ENV_B },
+      },
+    });
+    const prefixed = new RegExp(
+      `^(cd '[^']+' && )?((?:[A-Z_]+='[^']*' )*)(?=SUPABASE_EXPERIMENTAL_STACK|pwd)`
+    );
+    return {
+      commands: inner.commands,
+      exec: async (command: string) => {
+        const match = prefixed.exec(command);
+        const hasHome = match?.[2]?.includes(`'${home}'`) ?? false;
+        if (!hasHome && /supabase /.test(command)) {
+          inner.commands.push(command);
+          return commandResult('', false);
+        }
+        return inner.exec(command.replace(match?.[2] ?? '', ''));
+      },
+    };
+  }
+
+  it('resolves both stacks, notes the relocation, and keeps ports and rows working', async () => {
+    const ctx = relocatedCtx(HOME_ARG);
+    const invocations = findSupabaseInvocations([
+      {
+        command: `SUPABASE_HOME=${HOME_ARG} TMPDIR=${S}/.supabase-tmp supabase start`,
+        cwd: `${S}/client-a`,
+      },
+      {
+        command: `SUPABASE_HOME=${HOME_ARG} TMPDIR=${S}/.supabase-tmp supabase start`,
+        cwd: `${S}/client-b`,
+      },
+    ]);
+    const stacks = await resolveClientStacks(ctx, DIRS, invocations);
+    expect(stacks['client-a']).toMatchObject({
+      ok: true,
+      dbUrl: DB_A,
+      relocatedHome: HOME_ARG,
+    });
+    expect(stacks['client-b']).toMatchObject({
+      ok: true,
+      dbUrl: DB_B,
+      relocatedHome: HOME_ARG,
+    });
+    const ready = await checkBothStacksReady(ctx, stacks);
+    expect(ready.passed).toBe(true);
+    expect(ready.notes).toBe(
+      `client-a: managed (native), select 1 ok, relocated home: ${HOME_ARG}; client-b: managed (native), select 1 ok, relocated home: ${HOME_ARG}`
+    );
+    expect(checkDistinctPorts(stacks).passed).toBe(true);
+
+    const metrics = JSON.parse(
+      (await checkMetrics(ctx, undefined, [], [], stacks)).notes as string
+    );
+    expect(metrics.projects['client-a'].relocatedHome).toBe(HOME_ARG);
+    expect(metrics.cliOverride).toEqual([]);
+  });
+
+  it('records a relocated home as null when the default home resolved', async () => {
+    const ctx = fakeCtx({
+      projects: {
+        './client-a': { managed: ENV_A },
+        './client-b': { managed: ENV_B },
+      },
+    });
+    const stacks = await resolveClientStacks(ctx, DIRS);
+    const metrics = JSON.parse(
+      (await checkMetrics(ctx, undefined, [], [], stacks)).notes as string
+    );
+    expect(metrics.projects['client-a'].relocatedHome).toBeNull();
+  });
+
+  it('does not resolve a version-swapped run and says why', async () => {
+    const ctx = relocatedCtx(`${S}/.local-supabase-home`);
+    const entries = [
+      {
+        command:
+          'HOME="$PWD/.local-supabase-home" TMPDIR="$PWD/.local-supabase-home/tmp" NPM_CONFIG_CACHE=/home/node/.npm npx --yes supabase@2.120.0 start --workdir client-b',
+        cwd: S,
+      },
+    ];
+    const invocations = findSupabaseInvocations(entries);
+    const cliOverride = listCliOverrides(invocations, '2.119.0');
+    expect(cliOverride).toEqual(['npx --yes supabase@2.120.0']);
+
+    const stacks = await resolveClientStacks(
+      { exec: async () => commandResult('', false) },
+      DIRS,
+      invocations
+    );
+    expect(stacks['client-b'].ok).toBe(false);
+    const ready = await checkBothStacksReady(ctx, stacks, cliOverride);
+    expect(ready.passed).toBe(false);
+    expect(ready.notes).toContain(
+      'agent ran npx --yes supabase@2.120.0; scorer uses the installed CLI'
+    );
+    const metrics = JSON.parse(
+      (await checkMetrics(ctx, undefined, [], entries, stacks, cliOverride))
+        .notes as string
+    );
+    expect(metrics.cliOverride).toEqual(['npx --yes supabase@2.120.0']);
   });
 });

@@ -28,6 +28,7 @@ type ProjectMetrics = {
   apiPort: number | null;
   postmasterStartMs: number | null;
   attemptedStart: boolean;
+  relocatedHome: string | null;
 };
 
 export type StartAttempts = {
@@ -62,7 +63,8 @@ export async function checkMetrics(
   marker: LocalStackEnvironmentMarker | undefined,
   cliDetourCommands: readonly string[],
   commandEntries: readonly (string | CommandEntry)[],
-  stacks: ClientStacks
+  stacks: ClientStacks,
+  cliOverride: readonly string[] = []
 ): Promise<CheckResult> {
   const name = 'metrics';
   const commands = commandEntries.map((entry) =>
@@ -85,6 +87,7 @@ export async function checkMetrics(
         ? await safely(() => readPostmasterStartMs(ctx, stack.dbUrl))
         : null,
       attemptedStart: startAttempts.projects[client],
+      relocatedHome: (stack.ok && stack.relocatedHome) || null,
     };
   }
 
@@ -100,6 +103,7 @@ export async function checkMetrics(
 
   const metrics = {
     cliVersion,
+    cliOverride,
     projects,
     timeToReadyMs,
     attemptedAnyStart: startAttempts.any,

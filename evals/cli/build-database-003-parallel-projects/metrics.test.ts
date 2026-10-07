@@ -66,6 +66,7 @@ describe('checkMetrics', () => {
     expect(result.passed).toBe(true);
     expect(JSON.parse(result.notes as string)).toEqual({
       cliVersion: '2.0.0',
+      cliOverride: [],
       projects: {
         'client-a': {
           backend: 'managed',
@@ -74,6 +75,7 @@ describe('checkMetrics', () => {
           apiPort: 54321,
           postmasterStartMs: 5_000,
           attemptedStart: false,
+          relocatedHome: null,
         },
         'client-b': {
           backend: 'legacy',
@@ -82,6 +84,7 @@ describe('checkMetrics', () => {
           apiPort: null,
           postmasterStartMs: 7_000,
           attemptedStart: false,
+          relocatedHome: null,
         },
       },
       timeToReadyMs: 6_000,
@@ -114,6 +117,7 @@ describe('checkMetrics', () => {
       apiPort: null,
       postmasterStartMs: null,
       attemptedStart: false,
+      relocatedHome: null,
     });
   });
 

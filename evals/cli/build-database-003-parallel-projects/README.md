@@ -63,9 +63,10 @@ workflow":
 
 `metrics` always passes; per project it reports `backend`, `runtime`
 (`native`, `docker`, `unknown`, or `none`), `dbPort`, `apiPort`,
-`postmasterStartMs`, and `attemptedStart`, plus `timeToReadyMs` (session
+`postmasterStartMs`, `attemptedStart`, and `relocatedHome` (the CLI home a
+project was found under when it isn't the default, else `null`), plus `timeToReadyMs` (session
 start to the later of the two postmaster starts), `attemptedAnyStart`,
-`cliVersion`, `cliDetours`, `clearedDockerHost`, `rawDockerSocketProbes`, and
+`cliVersion`, `cliOverride` (see below), `cliDetours`, `clearedDockerHost`, `rawDockerSocketProbes`, and
 `channel`. These are reported for every
 experiment, never asserted against.
 
@@ -87,6 +88,30 @@ list` reports for that directory (agents often start `--stack native` or
 directory's `pwd -P`), then the legacy `supabase status -o json`. Its
 `DB_URL` drives the ready, port, and marker checks; its `API_URL` drives the
 reported-ports check.
+
+### Relocated CLI homes (passes, visible)
+
+Agents working around the managed Docker runtime's bind-mount failure often
+relocate the CLI's state on their start commands (`SUPABASE_HOME=… TMPDIR=…
+supabase start`, or `HOME=…`). Those stacks really run, but they register
+under the relocated home, which the default-home probe can't see. When the
+default resolution fails, the scorer retries under each `SUPABASE_HOME`/`HOME`
+the agent set on a start of that project (per-command prefixes only; no
+`export`, rc or `.env` files), running the same managed commands with those
+variables. A stack found this way passes the outcome checks, and stays
+visible: the `both stacks reach ready` notes say `relocated home: <path>`,
+`metrics` records it as each project's `relocatedHome`, and the truthful-report
+judge's ground truth says the project was found under a relocated home.
+
+### CLI version swaps (fails, visible)
+
+The scorer only ever runs the installed `supabase`. An agent that runs a
+different version (`npx supabase@2.120.0 …`, `bunx`, `pnpm dlx`) starts
+stacks the installed CLI can't resolve, so the outcome checks fail. The
+runner spec is recorded in `metrics.cliOverride` (empty when none), the
+`both stacks reach ready` notes say `agent ran <runner>; scorer uses the
+installed CLI`, and so does the judge's ground truth. The runner is never
+replayed.
 
 The frontmatter has no `services:` key. The sandbox shim turns it into
 `supabase start -x <container names>`, which the managed stack rejects. With
@@ -113,6 +138,12 @@ Observed in CI so far:
   harness issue tracked separately), so agents fell back to named native
   stacks, which the scorer could not see until it started resolving them via
   `stack list`. The pinned r2 failure was an agent gap.
+- Run 37616265010: the beta r1-r3 and stable r2 failures were a scorer gap.
+  The agents relocated the CLI home to dodge the same bind-mount failure and
+  their stacks ran, but the scorer only probed the default home; relocated
+  homes are now resolved (see above). The pinned r2 agent swapped CLI
+  versions with `npx supabase@2.120.0`, which now fails visibly. The nodaemon
+  r2 and r3 failures are agent gaps: they never tried `--runtime native`.
 - Earlier `nodaemon` results were affected by a harness `PATH` bug, fixed in
   #355.
 - On the Docker arms the agent has to move one project off the default ports

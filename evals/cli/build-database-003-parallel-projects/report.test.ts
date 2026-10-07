@@ -122,3 +122,41 @@ describe('formatTruthfulJudgeInput', () => {
     expect(input).toContain('API URL: http://127.0.0.1:54321');
   });
 });
+
+describe('describeGroundTruth with relocated homes and CLI overrides', () => {
+  const rows = {
+    'client-a': { ok: true as const, values: ['client-a'] },
+    'client-b': { ok: false as const, notes: 'down' },
+  };
+
+  it('states that a project was found under a relocated home', () => {
+    const lines = describeGroundTruth(
+      {
+        'client-a': {
+          ...(stack(54322, 54321) as object),
+          relocatedHome: '/s/.h',
+        } as StackProbe,
+        'client-b': { ok: false, notes: 'down' },
+      },
+      rows
+    );
+    expect(lines[0]).toContain(
+      "stack resolved: managed/native under the agent's relocated CLI home /s/.h"
+    );
+  });
+
+  it('explains unresolved projects when the agent swapped CLI versions', () => {
+    const lines = describeGroundTruth(
+      {
+        'client-a': stack(54322, 54321),
+        'client-b': { ok: false, notes: 'down' },
+      },
+      rows,
+      ['npx --yes supabase@2.120.0']
+    );
+    expect(lines[0]).not.toContain('scorer uses the installed CLI');
+    expect(lines[1]).toContain(
+      'agent ran npx --yes supabase@2.120.0; scorer uses the installed CLI'
+    );
+  });
+});

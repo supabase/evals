@@ -1,5 +1,12 @@
 import type { LocalStackEvalContext } from '@supabase-evals/core';
 import {
+  invocationTargetUnresolved,
+  invocationTargets,
+  invocationVerb,
+  type InvocationEnv,
+  type SupabaseInvocation,
+} from './cli-invocations.js';
+import {
   describeFailure,
   errorMessage,
   inProjectDir,
@@ -15,6 +22,8 @@ export type ResolvedStack = {
   dbUrl: string;
   apiUrl?: string;
   runtime: StackRuntime;
+  /** The CLI state root the stack was found under, set only when it is not the default home. */
+  relocatedHome?: string;
 };
 export type StackProbe = ResolvedStack | { ok: false; notes: string };
 export type StackTarget =
@@ -135,21 +144,49 @@ type CascadeStep = {
   statusCommand?: string;
 };
 
-function namedStepCommands(stackName: string): {
+const HOME_VARIABLES = ['SUPABASE_HOME', 'HOME', 'TMPDIR'] as const;
+
+function homePrefix(home: InvocationEnv | undefined): string {
+  return HOME_VARIABLES.flatMap((name) => {
+    const value = home?.[name];
+    return value === undefined ? [] : [`${name}=${shellQuote(value)} `];
+  }).join('');
+}
+
+function homeLabel(home: InvocationEnv): string {
+  return home.SUPABASE_HOME !== undefined
+    ? `SUPABASE_HOME=${home.SUPABASE_HOME}`
+    : `HOME=${home.HOME}`;
+}
+
+/** The directory the CLI keeps its managed stack registry under for `home`. */
+function effectiveRoot(home: InvocationEnv): string | undefined {
+  if (home.SUPABASE_HOME !== undefined) return home.SUPABASE_HOME;
+  return home.HOME === undefined ? undefined : `${home.HOME}/.supabase`;
+}
+
+function namedStepCommands(
+  stackName: string,
+  prefix: string
+): {
   envCommand: string;
   statusCommand: string;
 } {
   const flag = `--stack ${shellQuote(stackName)}`;
   return {
-    envCommand: `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --env --output-format json`,
-    statusCommand: `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --output-format json`,
+    envCommand: `${prefix}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --env --output-format json`,
+    statusCommand: `${prefix}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --output-format json`,
   };
 }
 
 // A managed stack's identity is (projectRoot, name), so a named stack started
 // inside the project dir is only visible from that dir.
-function projectNamedStep(dir: string, stackName: string): CascadeStep {
-  const { envCommand, statusCommand } = namedStepCommands(stackName);
+function projectNamedStep(
+  dir: string,
+  stackName: string,
+  prefix: string
+): CascadeStep {
+  const { envCommand, statusCommand } = namedStepCommands(stackName, prefix);
   return {
     label: 'managed-named',
     noteLabel: 'managed-named (project dir)',
@@ -158,36 +195,43 @@ function projectNamedStep(dir: string, stackName: string): CascadeStep {
   };
 }
 
-function cascadeSteps(target: StackTarget): CascadeStep[] {
+function cascadeSteps(
+  target: StackTarget,
+  home?: InvocationEnv
+): CascadeStep[] {
+  const prefix = homePrefix(home);
   const steps: CascadeStep[] = [];
   const stackName = target.kind === 'root' ? undefined : target.stackName;
   const dir = target.kind === 'project' ? target.dir : undefined;
   if (stackName !== undefined) {
-    if (dir !== undefined) steps.push(projectNamedStep(dir, stackName));
-    steps.push({ label: 'managed-named', ...namedStepCommands(stackName) });
+    if (dir !== undefined) steps.push(projectNamedStep(dir, stackName, prefix));
+    steps.push({
+      label: 'managed-named',
+      ...namedStepCommands(stackName, prefix),
+    });
   }
   if (target.kind === 'named') return steps;
 
-  steps.push(
-    {
-      label: 'managed',
-      envCommand: inProjectDir(
-        dir,
-        'SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --env --output-format json'
-      ),
-      statusCommand: inProjectDir(
-        dir,
-        'SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --output-format json'
-      ),
-    },
-    {
+  steps.push({
+    label: 'managed',
+    envCommand: inProjectDir(
+      dir,
+      `${prefix}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --env --output-format json`
+    ),
+    statusCommand: inProjectDir(
+      dir,
+      `${prefix}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --output-format json`
+    ),
+  });
+  if (home === undefined) {
+    steps.push({
       label: 'legacy',
       envCommand: inProjectDir(
         dir,
         'SUPABASE_EXPERIMENTAL_STACK=0 supabase status -o json'
       ),
-    }
-  );
+    });
+  }
   return steps;
 }
 
@@ -231,13 +275,14 @@ type NamedStackDiscovery = { names: string[] } | { detail: string };
  */
 async function discoverNamedStacks(
   ctx: ExecContext,
-  dir: string
+  dir: string,
+  prefix: string
 ): Promise<NamedStackDiscovery> {
   try {
     const result = await ctx.exec(
       inProjectDir(
         dir,
-        'pwd -P && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json'
+        `pwd -P && ${prefix}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json`
       )
     );
     const [firstLine = '', ...rest] = result.stdout.split('\n');
@@ -265,6 +310,11 @@ async function discoverNamedStacks(
   }
 }
 
+export type ResolveStackOptions = {
+  /** Runs the managed commands under this CLI home and skips the home-independent legacy step. */
+  home?: InvocationEnv;
+};
+
 /**
  * Resolves which stack backend actually came up and the Postgres connection
  * string to reach it, trying a named managed stack (when a name is given;
@@ -275,35 +325,48 @@ async function discoverNamedStacks(
  */
 export async function resolveStack(
   ctx: ExecContext,
-  target: StackTarget = { kind: 'root' }
+  target: StackTarget = { kind: 'root' },
+  options: ResolveStackOptions = {}
 ): Promise<StackProbe> {
-  const steps = cascadeSteps(target);
+  const { home } = options;
+  const prefix = homePrefix(home);
+  const suffix = home === undefined ? '' : ` (${homeLabel(home)})`;
+  const steps = cascadeSteps(target, home);
   const discoverIn =
     target.kind === 'project' && target.stackName === undefined
       ? target.dir
       : undefined;
   const details: string[] = [];
   let attempts = steps.length;
+  const discover = async (dir: string): Promise<ResolvedStack | undefined> => {
+    attempts += 1;
+    const discovery = await discoverNamedStacks(ctx, dir, prefix);
+    if ('detail' in discovery) {
+      details.push(`stack list${suffix}: ${discovery.detail}`);
+    } else if (discovery.names.length === 0) {
+      details.push(`stack list${suffix}: no named stacks for this project`);
+    }
+    for (const name of 'names' in discovery ? discovery.names : []) {
+      attempts += 1;
+      const named = projectNamedStep(dir, name, prefix);
+      const outcome = await runStep(ctx, named);
+      if ('ok' in outcome) return outcome;
+      details.push(`${named.noteLabel}${suffix} '${name}': ${outcome.detail}`);
+    }
+    return undefined;
+  };
   for (const step of steps) {
     if (step.label === 'legacy' && discoverIn !== undefined) {
-      attempts += 1;
-      const discovery = await discoverNamedStacks(ctx, discoverIn);
-      if ('detail' in discovery) {
-        details.push(`stack list: ${discovery.detail}`);
-      } else if (discovery.names.length === 0) {
-        details.push('stack list: no named stacks for this project');
-      }
-      for (const name of 'names' in discovery ? discovery.names : []) {
-        attempts += 1;
-        const named = projectNamedStep(discoverIn, name);
-        const outcome = await runStep(ctx, named);
-        if ('ok' in outcome) return outcome;
-        details.push(`${named.noteLabel} '${name}': ${outcome.detail}`);
-      }
+      const found = await discover(discoverIn);
+      if (found) return found;
     }
     const outcome = await runStep(ctx, step);
     if ('ok' in outcome) return outcome;
-    details.push(`${step.noteLabel ?? step.label}: ${outcome.detail}`);
+    details.push(`${step.noteLabel ?? step.label}${suffix}: ${outcome.detail}`);
+  }
+  if (home !== undefined && discoverIn !== undefined) {
+    const found = await discover(discoverIn);
+    if (found) return found;
   }
   return {
     ok: false,
@@ -317,10 +380,74 @@ export async function resolveStack(
   };
 }
 
+const START_VERBS = new Set(['start', 'stack start']);
+
+function targetName(target: StackTarget): string | undefined {
+  if (target.kind === 'root') return undefined;
+  if (target.kind === 'named') return target.stackName;
+  return target.stackName ?? target.dir.slice(target.dir.lastIndexOf('/') + 1);
+}
+
+/**
+ * Distinct relocated CLI homes the agent started the target under, newest
+ * first. A home counts only when the invocation set `SUPABASE_HOME` or `HOME`.
+ */
+export function candidateHomes(
+  invocations: readonly SupabaseInvocation[],
+  target: StackTarget
+): InvocationEnv[] {
+  const name = targetName(target);
+  const homes = new Map<string, InvocationEnv>();
+  for (const inv of [...invocations].reverse()) {
+    const { env } = inv;
+    if (
+      env === undefined ||
+      effectiveRoot(env) === undefined ||
+      !START_VERBS.has(invocationVerb(inv) ?? '') ||
+      (name !== undefined &&
+        !invocationTargets(inv, name) &&
+        !invocationTargetUnresolved(inv))
+    ) {
+      continue;
+    }
+    homes.set(JSON.stringify(env), env);
+  }
+  return [...homes.values()];
+}
+
+/**
+ * `resolveStack` under the default home first; only when that fails, retries
+ * under each home the agent started the target with. A hit carries the
+ * `relocatedHome` it was found under.
+ */
+export async function resolveStackWithAgentHomes(
+  ctx: ExecContext,
+  target: StackTarget,
+  invocations: readonly SupabaseInvocation[]
+): Promise<StackProbe> {
+  const initial = await resolveStack(ctx, target);
+  if (initial.ok) return initial;
+  const notes = [initial.notes];
+  for (const home of candidateHomes(invocations, target)) {
+    const retry = await resolveStack(ctx, target, { home });
+    if (retry.ok) {
+      return { ...retry, relocatedHome: effectiveRoot(home) };
+    }
+    notes.push(retry.notes);
+  }
+  return notes.length === 1
+    ? initial
+    : { ok: false, notes: truncate(notes.join('; '), MAX_NOTES_CHARS) };
+}
+
 /** One-line summary of a probe for judge ground truth. */
 export function describeStack(stack: StackProbe): string {
   return stack.ok
-    ? `resolved: ${stack.backend}/${stack.runtime}`
+    ? `resolved: ${stack.backend}/${stack.runtime}${
+        stack.relocatedHome === undefined
+          ? ''
+          : ` under the agent's relocated CLI home ${stack.relocatedHome}`
+      }`
     : `none (${stack.notes})`;
 }
 

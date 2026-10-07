@@ -1,10 +1,11 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
+import type { SupabaseInvocation } from '../lib/cli-invocations.js';
 import { readRowStrings, type RowStringsProbe } from '../lib/markers.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import {
   maskUrlCredentials,
   probeStackReady,
-  resolveStack,
+  resolveStackWithAgentHomes,
   urlPort,
   type StackProbe,
 } from '../lib/stack.js';
@@ -28,10 +29,14 @@ export function stackPorts(stack: StackProbe): {
   };
 }
 
-/** Resolves each client's stack from inside its own project directory. */
+/**
+ * Resolves each client's stack from inside its own project directory, falling
+ * back to any relocated CLI home the agent started that project under.
+ */
 export async function resolveClientStacks(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
-  dirs: ProjectDirs
+  dirs: ProjectDirs,
+  invocations: readonly SupabaseInvocation[] = []
 ): Promise<ClientStacks> {
   const stacks = {} as ClientStacks;
   for (const client of CLIENTS) {
@@ -42,7 +47,11 @@ export async function resolveClientStacks(
             ok: false,
             notes: `no project directory (${dirs.problems[client] ?? 'not found'})`,
           }
-        : await resolveStack(ctx, { kind: 'project', dir });
+        : await resolveStackWithAgentHomes(
+            ctx,
+            { kind: 'project', dir },
+            invocations
+          );
   }
   return stacks;
 }
@@ -107,9 +116,15 @@ export function checkSingleClientRow(counts: ClientRowCounts): CheckResult {
   };
 }
 
+/** The note explaining why a version-swapped run is judged against the installed CLI. */
+export function describeCliOverride(cliOverride: readonly string[]): string {
+  return `agent ran ${cliOverride.join(', ')}; scorer uses the installed CLI`;
+}
+
 export async function checkBothStacksReady(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
-  stacks: ClientStacks
+  stacks: ClientStacks,
+  cliOverride: readonly string[] = []
 ): Promise<CheckResult> {
   const name = 'both stacks reach ready';
   const probes = await Promise.all(
@@ -118,9 +133,17 @@ export async function checkBothStacksReady(
   return {
     name,
     passed: probes.every(({ ready }) => ready),
-    notes: CLIENTS.map((client, i) => `${client}: ${probes[i].notes}`).join(
-      '; '
-    ),
+    notes: [
+      ...CLIENTS.map((client, i) => {
+        const stack = stacks[client];
+        const relocated =
+          stack.ok && stack.relocatedHome !== undefined
+            ? `, relocated home: ${stack.relocatedHome}`
+            : '';
+        return `${client}: ${probes[i].notes}${relocated}`;
+      }),
+      ...(cliOverride.length > 0 ? [describeCliOverride(cliOverride)] : []),
+    ].join('; '),
   };
 }
 

@@ -5,6 +5,10 @@ import {
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 import {
+  findSupabaseInvocations,
+  listCliOverrides,
+} from '../lib/cli-invocations.js';
+import {
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
   extractCommandEntries,
@@ -13,6 +17,7 @@ import {
   formatDetourJudgeInput,
 } from '../lib/detours.js';
 import { checkMarkerIsolation } from '../lib/markers.js';
+import { readCliVersion } from '../lib/metrics.js';
 import { findProjectDirs } from '../lib/projects.js';
 import { checkMetrics } from './metrics.js';
 import { CLIENTS, checkProjectsInitialised } from './projects.js';
@@ -44,13 +49,19 @@ const scorer: LocalStackScorer = async (ctx) => {
     const commands = extractCommands(ctx.toolCalls);
     const cliDetourCommands = findCliDetourCommands(commands);
     const projectDirs = await findProjectDirs(ctx, CLIENTS);
-    const stacks = await resolveClientStacks(ctx, projectDirs);
+    const commandEntries = extractCommandEntries(ctx.toolCalls);
+    const invocations = findSupabaseInvocations(commandEntries);
+    const cliOverride = listCliOverrides(
+      invocations,
+      await readCliVersion(ctx)
+    );
+    const stacks = await resolveClientStacks(ctx, projectDirs, invocations);
     const rows = await readClientRows(ctx, stacks);
     const rowCounts = await readClientRowCounts(ctx, stacks);
 
     const checks: CheckResult[] = [
       checkProjectsInitialised(projectDirs),
-      await checkBothStacksReady(ctx, stacks),
+      await checkBothStacksReady(ctx, stacks, cliOverride),
       checkDistinctPorts(stacks),
       checkMarkerIsolation(
         'each project holds only its own marker row',
@@ -63,10 +74,11 @@ const scorer: LocalStackScorer = async (ctx) => {
         ctx,
         marker,
         cliDetourCommands,
-        extractCommandEntries(ctx.toolCalls),
-        stacks
+        commandEntries,
+        stacks,
+        cliOverride
       ),
-      await checkReportIsTruthful(ctx, stacks, rows),
+      await checkReportIsTruthful(ctx, stacks, rows, cliOverride),
     ];
 
     return { passed: checks.every((check) => check.passed), checks };
@@ -118,13 +130,14 @@ async function checkNoContainerRuntimeDetours(
 async function checkReportIsTruthful(
   ctx: LocalStackEvalContext,
   stacks: ClientStacks,
-  rows: ClientRows
+  rows: ClientRows,
+  cliOverride: readonly string[]
 ): Promise<CheckResult> {
   const name = 'final report is truthful about both projects';
   try {
     const verdict = await ctx.judge({
       input: formatTruthfulJudgeInput(
-        describeGroundTruth(stacks, rows),
+        describeGroundTruth(stacks, rows, cliOverride),
         ctx.transcript
       ),
       rubric: stripIndent`
