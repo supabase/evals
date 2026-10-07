@@ -46,7 +46,7 @@ export const evalSuiteSchema = z.enum([
   'docs',
   'cli',
   'wayfinding',
-  'wayfinding-tree',
+  'docs-tree-tests',
   'other',
 ]);
 export const EVAL_SUITES = evalSuiteSchema.options;
@@ -59,7 +59,7 @@ export const experimentSuiteSchema = z.enum([
   'docs',
   'cli',
   'wayfinding',
-  'wayfinding-tree',
+  'docs-tree-tests',
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;

@@ -1,7 +1,7 @@
-"""Writes evals/wayfinding-tree/<id>/{PROMPT.md,EVAL.ts} from a final tasks JSON."""
+"""Writes evals/docs-tree-tests/<id>/{PROMPT.md,EVAL.ts} from a final tasks JSON."""
 import json, sys, os, shutil
 tasks = json.load(open(sys.argv[1]))
-root = '../evals/wayfinding-tree'
+root = '../evals/docs-tree-tests'
 for name in os.listdir(root):
     if '-tree-' in name: shutil.rmtree(os.path.join(root, name))
 def ts_list(items):

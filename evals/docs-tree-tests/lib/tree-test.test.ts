@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/wayfinding-tree/lib
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/docs-tree-tests/lib
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { DocsTree } from '../../../experiments/docs/lib/docs-tree.js';

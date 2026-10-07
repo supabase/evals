@@ -8,8 +8,8 @@ import {
   summaryCells,
   SUMMARY_HEADERS,
   HOLDOUT_TASKS,
-} from '../evals/wayfinding-tree/lib/summary.ts';
-import type { TreeTestRun } from '../evals/wayfinding-tree/lib/tree-test.ts';
+} from '../evals/docs-tree-tests/lib/summary.ts';
+import type { TreeTestRun } from '../evals/docs-tree-tests/lib/tree-test.ts';
 
 type Row = { evalId: string; targets: string[]; result: TreeTestRun };
 const args = process.argv.slice(2);

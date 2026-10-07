@@ -5,12 +5,12 @@ Original brief: Notion "Handoff: docs IA tree tests and an optimal prototype tre
 
 ## State
 
-Branch `claude/dreamy-lovelace-yf9qxk` in supabase/evals, branched from `docs/wayfinding-navigation` (supabase/evals#372). Read `git log docs/wayfinding-navigation..HEAD` and `evals/wayfinding-tree/README.md` first. `handoff/` holds scratch tooling and isn't for merge: delete it before opening the PR.
+Branch `claude/dreamy-lovelace-yf9qxk` in supabase/evals, branched from `docs/wayfinding-navigation` (supabase/evals#372). Read `git log docs/wayfinding-navigation..HEAD` and `evals/docs-tree-tests/README.md` first. `handoff/` holds scratch tooling and isn't for merge: delete it before opening the PR.
 
 Done:
 - `pnpm docs-tree-export -- ../supabase` writes `experiments/docs/trees/today.json`. Today's tree has 661 pages, 710 links, 45 duplicated pages, and 31 nodes with more than 7 children. 5 pages are only group-header urls, which the sidebar never renders as links: storage/security, storage/uploads, storage/serving, api/data-apis, observability/metrics.
-- The label-only navigator is `experiments/docs/lib/tree-navigator.mjs`. The scorer is `evals/wayfinding-tree/lib/tree-test.ts`, and the summary and `HOLDOUT_TASKS` are in `lib/summary.ts`. The report is `pnpm tree-test-report`. `pnpm docs-tree-build -- spec.json out.json` checks the rules.
-- 93 tasks are in `evals/wayfinding-tree/`, with the source of truth in `handoff/tasks.json`. `handoff/gen-evals.py` regenerates the eval folders; run `biome check --write` after it. There are 24 holdout tasks: never revise a tree from their per-task results.
+- The label-only navigator is `experiments/docs/lib/tree-navigator.mjs`. The scorer is `evals/docs-tree-tests/lib/tree-test.ts`, and the summary and `HOLDOUT_TASKS` are in `lib/summary.ts`. The report is `pnpm tree-test-report`. `pnpm docs-tree-build -- spec.json out.json` checks the rules.
+- 93 tasks are in `evals/docs-tree-tests/`, with the source of truth in `handoff/tasks.json`. `handoff/gen-evals.py` regenerates the eval folders; run `biome check --write` after it. There are 24 holdout tasks: never revise a tree from their per-task results.
 - The round-1 proposals are `proposal-a1` (minimal change), `b1` (journey-first), and `c1` (audience-first). Their specs are in `experiments/docs/trees/specs/`, and the generator scripts are in `handoff/designs/`. The designers never saw the tasks.
 - CI run 37682948140 (https://github.com/supabase/evals/actions/runs/37682948140) succeeded. It scored today, a1, b1, and c1, with 93 tasks and 3 runs each. **Results aren't analyzed yet.**
 
@@ -18,7 +18,7 @@ Done:
 
 1. Get the round-1 results: `gh run download 37682948140 -n raw-results` (it expires about 3 days after Oct 7). Unpack the artifact into `results/`, then run `pnpm tree-test-report`. If the artifact has expired, fetch from Braintrust with `handoff/bt-fetch.mts <prefix>` (Evals project). It rescores the tool spans. Braintrust's BTQL allows 20 requests a minute, and the script retries. Set `MATCH=<sha or stamp>` to narrow the experiments. Then run `handoff/analyze.mts <files> --tasks --detail <tree>`; it hides holdout per-task results.
 2. Synthesize round 2 from the strongest tree and the design-set failures. Build it with `docs-tree-build`, add an experiment file `claude-code-sonnet-5-tree-<name>.experiment.ts`, push, and dispatch:
-   `gh workflow run eval-refresh.yml --ref <branch> -f suite=wayfinding-tree -f experiments=<names> -f runs=3 -f commit_to_branch=true`
+   `gh workflow run eval-refresh.yml --ref <branch> -f suite=docs-tree-tests -f experiments=<names> -f runs=3 -f commit_to_branch=true`
    Always set `commit_to_branch=true`, or the workflow opens a results PR. Only one run per branch goes at a time; a third dispatch cancels the pending one.
 3. Iterate until success and directness stop improving, then report holdout totals.
 4. Final deliverables:

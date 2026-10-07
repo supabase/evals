@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { scoreTreeTest } from '../evals/wayfinding-tree/lib/tree-test.ts';
+import { scoreTreeTest } from '../evals/docs-tree-tests/lib/tree-test.ts';
 
 const PROJECT = '448cc19e-afdf-4e96-b92a-6e02522603a0';
 const [prefix, outDir = 'handoff/results'] =
@@ -53,7 +53,7 @@ async function evalModule(evalId: string) {
   if (!evalModules.has(evalId)) {
     evalModules.set(
       evalId,
-      await import(pathToFileURL(`../evals/wayfinding-tree/${evalId}/EVAL.ts`).href)
+      await import(pathToFileURL(`../evals/docs-tree-tests/${evalId}/EVAL.ts`).href)
     );
   }
   return evalModules.get(evalId)!;

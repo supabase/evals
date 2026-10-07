@@ -15,11 +15,11 @@ import {
   summarize,
   summaryCells,
   type TaskRun,
-} from '../../../evals/wayfinding-tree/lib/summary.js';
+} from '../../../evals/docs-tree-tests/lib/summary.js';
 import {
   FOUND_CHECK,
   type TreeTestRun,
-} from '../../../evals/wayfinding-tree/lib/tree-test.js';
+} from '../../../evals/docs-tree-tests/lib/tree-test.js';
 import { collectResultFiles, ROOT } from '../lib/result-files.js';
 
 const files = await collectResultFiles({
@@ -36,7 +36,7 @@ for (const { result, sourcePath } of files) {
   if (!notes) continue;
   if (!targetsByEval.has(evalId)) {
     const mod = await import(
-      pathToFileURL(join(ROOT, 'evals/wayfinding-tree', evalId, 'EVAL.ts')).href
+      pathToFileURL(join(ROOT, 'evals/docs-tree-tests', evalId, 'EVAL.ts')).href
     );
     targetsByEval.set(evalId, mod.TARGETS);
   }

@@ -51,7 +51,7 @@ export function treeTestExperiment({
     runtime: platformLiteRuntime({
       mcpServers: [treeNavigatorMcpServer(tree)],
     }),
-    suite: ['wayfinding-tree'],
+    suite: ['docs-tree-tests'],
     skills: [],
     skipEval: (ev) => !ev.id.includes('-tree-'),
   });

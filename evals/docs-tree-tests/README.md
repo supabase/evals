@@ -73,11 +73,11 @@ pnpm docs-tree-build -- spec.json experiments/docs/trees/proposal-x.json
 ## Running
 
 ```bash
-pnpm eval -- --suite wayfinding-tree --experiment-suite wayfinding-tree --runs 3
+pnpm eval -- --suite docs-tree-tests --experiment-suite docs-tree-tests --runs 3
 pnpm tree-test-report
 ```
 
-In CI, dispatch `eval-refresh.yml` with `suite=wayfinding-tree` and
-`experiment_suite=wayfinding-tree`, or list `experiments` to score some trees.
+In CI, dispatch `eval-refresh.yml` with `suite=docs-tree-tests` and
+`experiment_suite=docs-tree-tests`, or list `experiments` to score some trees.
 Nothing is published to the results site. The runs are in the `raw-results`
 artifact and in Braintrust.
