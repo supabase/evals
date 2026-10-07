@@ -19,6 +19,7 @@ import {
   describeFleetGroundTruth,
   findFleetInvocations,
   findLegacyTeardown,
+  findSetup,
   probeLegacyContainers,
   probeLegacyDbPort,
   readConfigDbPort,
@@ -1174,5 +1175,129 @@ describe('readPostmasterStarts', () => {
       })
     ).toEqual({ 'checkout-service': 1700000000000, 'payments-api': null });
     expect(commands).toHaveLength(1);
+  });
+});
+
+describe('--stack-id attribution', () => {
+  const started = (service: string, id: string): Call => [
+    `cd ${service} && supabase start --runtime docker --eager`,
+    ok(`{"id":"${id}","name":"default"}`),
+  ];
+  const STARTS: Call[] = [
+    started('checkout-service', 'c1c1c1'),
+    started('payments-api', 'a2a2a2'),
+    started('legacy-import', 'c0ffee'),
+  ];
+
+  it('pairs a start with a teardown by the id its output printed', () => {
+    const teardown = findLegacyTeardown(
+      invocationsOf([
+        ...STARTS,
+        ['supabase stack destroy --stack-id c0ffee', ok('Destroyed.')],
+      ])
+    );
+    expect(teardown?.start.label).toContain('legacy-import');
+    expect(teardown?.teardown.label).toContain('stack destroy');
+  });
+
+  it('accepts --stack-id=<id>', () => {
+    expect(
+      findLegacyTeardown(
+        invocationsOf([...STARTS, 'supabase stack destroy --stack-id=c0ffee'])
+      )
+    ).toBeDefined();
+  });
+
+  it('passes the checkout restart on commands for its mapped id', () => {
+    const result = restarted([
+      ...STARTS,
+      ['supabase stack restart --stack-id c1c1c1', ok('Restarted.')],
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toMatch(/^commands: /);
+  });
+
+  it('does not attribute an unknown id', () => {
+    const calls: Call[] = [
+      ...STARTS,
+      'supabase stack destroy --stack-id deadbeef',
+    ];
+    expect(findLegacyTeardown(invocationsOf(calls))).toBeUndefined();
+    expect(
+      restarted([...STARTS, 'supabase stack restart --stack-id deadbeef'])
+        .passed
+    ).toBe(false);
+  });
+
+  it('does not map the id of a failed start', () => {
+    const calls: Call[] = [
+      started('checkout-service', 'c1c1c1'),
+      started('payments-api', 'a2a2a2'),
+      [
+        'cd legacy-import && supabase start',
+        { error: 'boom', result: '{"id":"c0ffee"}' },
+      ],
+      'cd legacy-import && supabase start',
+      'supabase stack destroy --stack-id c0ffee',
+    ];
+    expect(findLegacyTeardown(invocationsOf(calls))).toBeUndefined();
+  });
+
+  it('does not map an id printed by a call that started several services', () => {
+    const calls: Call[] = [
+      [
+        'cd checkout-service && supabase start; cd legacy-import && supabase start',
+        ok('{"id":"c0ffee"}'),
+      ],
+      'supabase stack destroy --stack-id c0ffee',
+    ];
+    expect(findLegacyTeardown(invocationsOf(calls))).toBeUndefined();
+  });
+
+  it('maps ids from a stack list the agent printed', () => {
+    const list = JSON.stringify({
+      stacks: [
+        { id: 'f00d', name: 'default', project_root: '/w/legacy-import' },
+      ],
+    });
+    const calls: Call[] = [
+      ...START_ALL,
+      ['supabase stack list --output-format json', ok(list)],
+      'supabase stack destroy --stack-id f00d',
+    ];
+    expect(findLegacyTeardown(invocationsOf(calls))).toBeDefined();
+  });
+});
+
+describe('setup anchor with parallel starts', () => {
+  const T = Date.parse('2026-10-01T11:50:42.000Z');
+  const PARALLEL: Call[] = [
+    ['cd checkout-service && supabase start', { endedAt: T - 20_000 }],
+    ['cd payments-api && supabase start', { endedAt: T - 10_000 }],
+    ['cd legacy-import && supabase start', { endedAt: T - 30_000 }],
+  ];
+
+  it('anchors on the start with the latest completion time', () => {
+    const setup = findSetup(invocationsOf(PARALLEL));
+    expect(setup?.anchor.at).toBe(T - 10_000);
+    expect(setup?.anchor.commandIndex).toBe(1);
+    expect(setup?.phase).toEqual([]);
+  });
+
+  it('reads a payments postmaster started between the first and last completion as untouched', () => {
+    const result = untouched(PARALLEL, REACHABLE, PAYMENTS_ROWS, T - 15_000);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toContain('before setup completed');
+  });
+
+  it('keeps index order when a setup start has no time', () => {
+    const setup = findSetup(
+      invocationsOf([
+        PARALLEL[0],
+        PARALLEL[1],
+        'cd legacy-import && supabase start',
+      ])
+    );
+    expect(setup?.anchor.commandIndex).toBe(2);
   });
 });

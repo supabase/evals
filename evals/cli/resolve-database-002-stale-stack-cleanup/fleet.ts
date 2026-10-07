@@ -27,6 +27,7 @@ import {
 } from '../lib/stack.js';
 import {
   collectStringValues,
+  stackIdNames,
   stackListContainsName,
   type StackListProbe,
 } from '../lib/stack-list.js';
@@ -34,8 +35,14 @@ import { SERVICES, type Service } from './services.js';
 
 export type SurvivingService = 'checkout-service' | 'payments-api';
 
-/** An invocation, with `failed` set when the tool call that ran it is known to have failed or not. */
-export type FleetInvocation = SupabaseInvocation & { failed?: boolean };
+/**
+ * An invocation, with `failed` set when the tool call that ran it is known to
+ * have failed or not, and `stackIdService` the service its `--stack-id` maps to.
+ */
+export type FleetInvocation = SupabaseInvocation & {
+  failed?: boolean;
+  stackIdService?: Service;
+};
 
 type LifecycleKind = 'start' | 'teardown' | 'restart' | 'reset';
 export type LifecycleEvent = {
@@ -85,7 +92,64 @@ function callFailed(record: ToolCallRecord): boolean | undefined {
   return CLI_ERROR_RE.test(collectStringValues(record.result).join('\n'));
 }
 
-/** Every executed `supabase` invocation, marked with whether its tool call failed. */
+const STARTED_ID_RE = /"id"\s*:\s*"([0-9a-f]+)"/i;
+
+function stackIdFlag(argv: readonly string[]): string | undefined {
+  for (let i = 1; i < argv.length; i++) {
+    if (argv[i] === '--stack-id') return argv[i + 1];
+    if (argv[i].startsWith('--stack-id=')) return argv[i].slice(11);
+  }
+  return undefined;
+}
+
+function soleTarget(inv: SupabaseInvocation): Service | undefined {
+  const targets = SERVICES.filter((service) => invocationTargets(inv, service));
+  return targets.length === 1 ? targets[0] : undefined;
+}
+
+/**
+ * Stack ids to services, from the id a successful start printed (when it was
+ * the only start in its tool call and targeted one service) and from any
+ * `stack list` output the agent printed.
+ */
+function mapStackIds(
+  invocations: readonly SupabaseInvocation[],
+  records: readonly ToolCallRecord[],
+  failed: (inv: SupabaseInvocation) => boolean | undefined
+): Map<string, Service> {
+  const ids = new Map<string, Service>();
+  const startsPerCall = new Map<number, number>();
+  for (const inv of invocations) {
+    if (lifecycleKind(inv) === 'start') {
+      startsPerCall.set(
+        inv.commandIndex,
+        (startsPerCall.get(inv.commandIndex) ?? 0) + 1
+      );
+    }
+  }
+  for (const inv of invocations) {
+    const result = records[inv.commandIndex].result;
+    if (result === undefined || failed(inv) !== false) continue;
+    const strings = collectStringValues(result);
+    if (invocationVerb(inv) === 'stack list') {
+      for (const text of strings) {
+        for (const [id, name] of stackIdNames(text, SERVICES)) {
+          ids.set(id, name as Service);
+        }
+      }
+    } else if (
+      lifecycleKind(inv) === 'start' &&
+      startsPerCall.get(inv.commandIndex) === 1
+    ) {
+      const service = soleTarget(inv);
+      const id = strings.join('\n').match(STARTED_ID_RE)?.[1];
+      if (service !== undefined && id !== undefined) ids.set(id, service);
+    }
+  }
+  return ids;
+}
+
+/** Every executed `supabase` invocation, marked with whether its tool call failed and which service its `--stack-id` names. */
 export function findFleetInvocations(
   toolCalls: readonly ToolCallRecord[]
 ): FleetInvocation[] {
@@ -93,12 +157,20 @@ export function findFleetInvocations(
   const records = toolCalls.filter(
     (record) => extractCommandEntries([record]).length > 0
   );
-  return findSupabaseInvocations(extractCommandEntries(toolCalls)).map(
-    (inv) => {
-      const failed = callFailed(records[inv.commandIndex]);
-      return failed === undefined ? inv : { ...inv, failed };
-    }
-  );
+  const invocations = findSupabaseInvocations(extractCommandEntries(toolCalls));
+  const failedOf = (inv: SupabaseInvocation) =>
+    callFailed(records[inv.commandIndex]);
+  const ids = mapStackIds(invocations, records, failedOf);
+  return invocations.map((inv) => {
+    const failed = failedOf(inv);
+    const id = stackIdFlag(inv.argv);
+    const stackIdService = id === undefined ? undefined : ids.get(id);
+    return {
+      ...inv,
+      ...(failed === undefined ? {} : { failed }),
+      ...(stackIdService === undefined ? {} : { stackIdService }),
+    };
+  });
 }
 
 /** `cmd #<n> "<argv>"`, numbered from 1 in command order, plus its directory when known. */
@@ -113,10 +185,11 @@ export function isStartInvocation(inv: SupabaseInvocation): boolean {
 }
 
 function targetsService(
-  inv: SupabaseInvocation,
+  inv: FleetInvocation,
   kind: LifecycleKind,
   service: Service
 ): boolean {
+  if (inv.stackIdService !== undefined) return inv.stackIdService === service;
   return (
     invocationTargets(inv, service) ||
     (kind === 'start' && invocationTargetUnresolved(inv))
@@ -150,21 +223,34 @@ export function lifecycleEvents(
  * The start completing setup — the first point where every service has had a
  * start that didn't fail — and the change-phase invocations after it, so
  * setup-phase stops and retries never read as changes; undefined when that
- * point never comes.
+ * point never comes. Parallel starts finish in any order, so when every
+ * service's first start has a completion time the latest one is the anchor.
  */
 export function findSetup(
   invocations: readonly FleetInvocation[]
 ): { anchor: FleetInvocation; phase: FleetInvocation[] } | undefined {
-  const started = new Set<Service>();
+  const firstStart = new Map<Service, number>();
   for (const [i, inv] of invocations.entries()) {
     const kind = lifecycleKind(inv);
     if (inv.failed || kind !== 'start') continue;
     for (const service of SERVICES) {
-      if (targetsService(inv, kind, service)) started.add(service);
+      if (!firstStart.has(service) && targetsService(inv, kind, service)) {
+        firstStart.set(service, i);
+      }
     }
-    if (started.size === SERVICES.length) {
-      return { anchor: inv, phase: invocations.slice(i + 1) };
-    }
+    if (firstStart.size < SERVICES.length) continue;
+    const starts = [...new Set(firstStart.values())].map((n) => invocations[n]);
+    const timed = starts.filter(
+      (start): start is FleetInvocation & { at: number } =>
+        start.at !== undefined
+    );
+    const anchor =
+      timed.length === starts.length
+        ? timed.reduce((latest, start) =>
+            start.at >= latest.at ? start : latest
+          )
+        : inv;
+    return { anchor, phase: invocations.slice(i + 1) };
   }
   return undefined;
 }

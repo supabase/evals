@@ -8,6 +8,7 @@ import {
   collectStringValues,
   readStackList,
   stackEntryMatchesName,
+  stackIdNames,
   stackListContainsName,
 } from './stack-list.js';
 
@@ -179,5 +180,28 @@ describe('stackListContainsName', () => {
         'legacy-import'
       )
     ).toBe(true);
+  });
+});
+
+describe('stackIdNames', () => {
+  const NAMES = ['checkout-service', 'payments-api', 'legacy-import'];
+
+  it('maps ids by name or project_root basename', () => {
+    const output = JSON.stringify({
+      stacks: [
+        { id: 'aa', name: 'payments-api' },
+        { id: 'bb', name: 'default', project_root: '/work/legacy-import' },
+        { id: 'cc', name: 'other', project_root: '/work/other' },
+        { name: 'checkout-service' },
+      ],
+    });
+    expect([...stackIdNames(output, NAMES)]).toEqual([
+      ['aa', 'payments-api'],
+      ['bb', 'legacy-import'],
+    ]);
+  });
+
+  it('is empty for output that is not a stack list', () => {
+    expect(stackIdNames('no stacks here', NAMES).size).toBe(0);
   });
 });

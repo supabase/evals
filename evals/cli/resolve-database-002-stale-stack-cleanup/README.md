@@ -220,9 +220,29 @@ not a CLI gap.
   accurately reports the restart command succeeding is truthful.
 - The container probe assumes legacy-import's CLI project id is its directory
   name, the `supabase init` default.
-- `--stack-id` targets aren't mapped to names, so they never count.
+- `--stack-id <id>` (or `--stack-id=<id>`) targets the service the id maps to,
+  built from the `"id"` a successful start printed (only when it was the one
+  start in its tool call and targeted one service) and from any `stack list`
+  output the agent printed (an entry's `id` with its `name` or its
+  `project_root` basename equal to a service). An unknown id, or one the agent
+  never saw printed, is attributed to no service.
+- Setup is anchored on the latest completion time among each service's first
+  successful start when all of them are recorded (parallel starts finish out
+  of order), else on the last start in command order.
 - The shape of a `stack list` entry is unverified; names are matched against
   every string anywhere in an entry.
 - A legacy `supabase stop` keeps a data-volume backup; it isn't inspected.
 - The configured-port probe connects as `postgres:postgres`; a stack with
   other credentials reads as not answering.
+
+## Known product gaps seen in CI
+
+- `supabase stop --no-backup` exits 1 with `StopVolumePruneError` or
+  `LegacyStopVolumePruneError` when the Docker client is older than 23.0, even
+  though the containers are removed. The scorer treats that failed call as no
+  teardown, by design.
+- The managed Docker runtime fails to bind-mount `~/.supabase/stacks` under the
+  sandbox's sibling Docker daemon, so agents fall back to native stacks or a
+  custom `SUPABASE_HOME`.
+- An agent that sets a custom `SUPABASE_HOME` has stacks the scorer can't
+  resolve.

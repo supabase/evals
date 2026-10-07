@@ -95,3 +95,29 @@ export function stackListContainsName(
     stackList.stacks.some((entry) => stackEntryMatchesName(entry, name))
   );
 }
+
+function basename(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1);
+}
+
+/** Maps each listed stack id to the one of `names` equal to its `name` or its `project_root` basename. */
+export function stackIdNames(
+  output: string,
+  names: readonly string[]
+): Map<string, string> {
+  const ids = new Map<string, string>();
+  for (const entry of parseStacks(output) ?? []) {
+    const { id, name, project_root } = (entry ?? {}) as Record<string, unknown>;
+    if (typeof id !== 'string' || id === '') continue;
+    const candidates = [
+      name,
+      typeof project_root === 'string' ? basename(project_root) : undefined,
+    ];
+    const match = candidates.find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && names.includes(candidate)
+    );
+    if (match !== undefined) ids.set(id, match);
+  }
+  return ids;
+}
