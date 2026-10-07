@@ -854,6 +854,147 @@ describe('failed tool calls', () => {
   });
 });
 
+describe('starts that reported ready inside a failed call', () => {
+  const READY = '[task] done: Stack is ready.';
+  const START = (name: string) =>
+    `SUPABASE_EXPERIMENTAL_STACK=1 supabase start --stack ${name}`;
+  const startFlags = (calls: readonly Call[]) =>
+    invocationsOf(calls).map((inv) => inv.failed);
+
+  it('do not fail a start that printed ready before a later command exited 127', () => {
+    expect(
+      startFlags([
+        [
+          `${START('checkout-service')} > out && jq . out`,
+          failed(`${READY}\nbash: jq: command not found\nexit 127`),
+        ],
+      ])
+    ).toEqual([false]);
+  });
+
+  it('read ready markers from the result too', () => {
+    expect(
+      startFlags([
+        [
+          START('checkout-service'),
+          {
+            error: 'exit 1',
+            result: 'Started supabase local development setup.',
+          },
+        ],
+      ])
+    ).toEqual([false]);
+  });
+
+  it('credit only as many starts as printed ready, in order', () => {
+    expect(
+      startFlags([
+        [
+          [
+            'set -e',
+            START('payments-api'),
+            'supabase db query --stack payments-api "select 1"',
+            START('legacy-import'),
+          ].join('\n'),
+          failed(`${READY}\ntls: handshake failure\nexit 1`),
+        ],
+      ])
+    ).toEqual([false, true, true]);
+  });
+
+  it('keep every invocation failed when the output has a CLI error envelope', () => {
+    expect(
+      startFlags([
+        [
+          `${START('checkout-service')}; ${START('payments-api')}`,
+          failed(`${READY}\n{"_tag":"Error","code":"StackNotFound"}`),
+        ],
+      ])
+    ).toEqual([true, true]);
+  });
+
+  it('keep a failed start failed when nothing reported ready', () => {
+    expect(
+      startFlags([[START('checkout-service'), failed('port in use')]])
+    ).toEqual([true]);
+  });
+
+  it('do not credit other verbs', () => {
+    expect(
+      startFlags([
+        [
+          'supabase stack restart --stack checkout-service',
+          failed(`${READY}\nexit 1`),
+        ],
+      ])
+    ).toEqual([true]);
+  });
+
+  describe('replaying a run where the first two starts hit unrelated failures', () => {
+    const at = (iso: string): Outcome => ({ resultTs: Date.parse(iso) });
+    const filler = (n: number): Call[] =>
+      Array.from({ length: n }, (): Call => 'echo working');
+    const CALLS: Call[] = [
+      ...filler(17),
+      [
+        `${START('checkout-service')} > out && jq . out`,
+        {
+          ...failed(`${READY}\njq: command not found\nexit 127`),
+          ...at('2026-10-07T12:41:00.000Z'),
+        },
+      ],
+      ...filler(2),
+      [
+        [
+          'set -e',
+          START('payments-api'),
+          'supabase db query --stack payments-api "insert into t values (1)"',
+          START('legacy-import'),
+        ].join('\n'),
+        {
+          ...failed(`${READY}\nTLS handshake failed\nexit 1`),
+          ...at('2026-10-07T12:42:08.000Z'),
+        },
+      ],
+      ...filler(6),
+      [
+        `supabase db query --stack legacy-import "select 1" && ${START('legacy-import')}`,
+        { result: READY, ...at('2026-10-07T12:43:28.432Z') },
+      ],
+      'echo working',
+      [
+        [
+          'supabase stack destroy --stack legacy-import --yes',
+          'supabase stack restart --stack checkout-service',
+        ].join('\n'),
+        { result: 'done', ...at('2026-10-07T12:43:50.000Z') },
+      ],
+    ];
+    const CHECKOUT_POSTMASTER = Date.parse('2026-10-07T12:43:56.389Z');
+    const PAYMENTS_POSTMASTER = Date.parse('2026-10-07T12:42:07.900Z');
+
+    it('anchors setup on the later successful start', () => {
+      const setup = findSetup(invocationsOf(CALLS));
+      expect(setup?.anchor.commandIndex).toBe(27);
+      expect(setup?.anchor.at).toBe(Date.parse('2026-10-07T12:43:28.432Z'));
+    });
+
+    it('passes checkout restarted and payments untouched on state evidence', () => {
+      const checkout = restarted(CALLS, CHECKOUT_POSTMASTER);
+      expect(checkout.passed).toBe(true);
+      expect(checkout.notes).toMatch(/^state: /);
+      const payments = untouched(
+        CALLS,
+        REACHABLE,
+        PAYMENTS_ROWS,
+        PAYMENTS_POSTMASTER
+      );
+      expect(payments.passed).toBe(true);
+      expect(payments.notes).toMatch(/^state: /);
+    });
+  });
+});
+
 describe('change phase', () => {
   it('ignores a setup-phase stop and start of checkout-service', () => {
     const result = restarted([

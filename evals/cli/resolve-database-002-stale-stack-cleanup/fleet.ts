@@ -102,6 +102,20 @@ function callFailed(record: ToolCallRecord): boolean | undefined {
   return CLI_ERROR_RE.test(collectStringValues(record.result).join('\n'));
 }
 
+const START_READY_RE =
+  /\[task\] done: Stack is ready\.|Started supabase local development setup/g;
+
+function callText(record: ToolCallRecord): string {
+  return [record.error ?? '', ...collectStringValues(record.result)].join('\n');
+}
+
+/** Starts a failed call reported ready, none when its output holds a CLI error. */
+function readyStarts(record: ToolCallRecord): number {
+  const text = callText(record);
+  if (CLI_ERROR_RE.test(text)) return 0;
+  return text.match(START_READY_RE)?.length ?? 0;
+}
+
 const PRUNE_ERROR_RE = /\b\w*VolumePruneError\b/;
 
 function pruneErrorOf(record: ToolCallRecord): string | undefined {
@@ -177,11 +191,23 @@ export function findFleetInvocations(
     (record) => extractCommandEntries([record]).length > 0
   );
   const invocations = findSupabaseInvocations(extractCommandEntries(toolCalls));
-  const failedOf = (inv: SupabaseInvocation) =>
-    callFailed(records[inv.commandIndex]);
-  const ids = mapStackIds(invocations, records, failedOf);
+  const unspent = new Map<number, number>();
+  const failedOf = (inv: SupabaseInvocation) => {
+    const record = records[inv.commandIndex];
+    const failed = callFailed(record);
+    if (failed !== true || lifecycleKind(inv) !== 'start') return failed;
+    const ready = unspent.get(inv.commandIndex) ?? readyStarts(record);
+    unspent.set(inv.commandIndex, Math.max(ready - 1, 0));
+    return ready === 0;
+  };
+  const failedByInvocation = new Map(
+    invocations.map((inv) => [inv, failedOf(inv)])
+  );
+  const ids = mapStackIds(invocations, records, (inv) =>
+    failedByInvocation.get(inv)
+  );
   return invocations.map((inv) => {
-    const failed = failedOf(inv);
+    const failed = failedByInvocation.get(inv);
     const pruneError = failed
       ? pruneErrorOf(records[inv.commandIndex])
       : undefined;

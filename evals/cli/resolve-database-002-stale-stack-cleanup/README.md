@@ -272,7 +272,11 @@ not a CLI gap.
   touching payments-api.
 - Failure is known per tool call, not per invocation: one failing command in
   a compound call (`supabase start --workdir a; supabase start --workdir b`)
-  marks every invocation in it failed.
+  marks every invocation in it failed. The exception is starts: when a failed
+  call's output has no CLI error envelope, each `[task] done: Stack is ready.`
+  or `Started supabase local development setup` it printed credits one start
+  (in order) as not failed, so a later `jq: command not found` or a `set -e`
+  seed failure doesn't discard a start that came up. Other verbs stay failed.
 - `attemptedStart` counts failed starts too; it reports intent, not outcome.
 - It's unverified whether a native `stack restart` restarts Postgres. If it
   doesn't, state evidence on a native stack reads checkout-service as not
