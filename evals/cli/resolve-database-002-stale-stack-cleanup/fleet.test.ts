@@ -18,7 +18,7 @@ import {
   checkPaymentsUntouched,
   describeFleetGroundTruth,
   findFleetInvocations,
-  findLegacyTeardown,
+  findLegacyLifecycle,
   findSetup,
   probeLegacyContainers,
   probeLegacyDbPort,
@@ -124,7 +124,7 @@ describe('checkLegacyImportGone', () => {
       name: 'legacy-import stack is gone',
       passed: true,
       notes:
-        'listing: stack list does not list it; resolution: does not resolve (no stack); db port: not probed; containers: no containers; commands: started by cmd #3 "supabase start" in legacy-import, torn down by cmd #4 "supabase stop" in legacy-import',
+        'listing: stack list does not list it; resolution: does not resolve (no stack); db port: not probed; containers: no containers; commands: started by cmd #3 "supabase start" in legacy-import; teardown cmd #4 "supabase stop" in legacy-import (succeeded)',
     });
   });
 
@@ -142,13 +142,13 @@ describe('checkLegacyImportGone', () => {
       ...START_ALL,
       `psql "$DB_URL" -c "delete from service_marker where name='legacy-import'"`,
     ];
-    expect(findLegacyTeardown(invocationsOf(commands))).toBe(undefined);
-    expect(gone(commands).passed).toBe(false);
+    expect(findLegacyLifecycle(invocationsOf(commands)).outcome).toBe('none');
+    expect(gone(commands, { stack: REACHABLE }).passed).toBe(false);
   });
 
   it('fails after rm -rf legacy-import while the stack is still reachable', () => {
     const commands = [...START_ALL, 'rm -rf legacy-import'];
-    expect(findLegacyTeardown(invocationsOf(commands))).toBe(undefined);
+    expect(findLegacyLifecycle(invocationsOf(commands)).outcome).toBe('none');
     const result = gone(commands, { stack: REACHABLE });
     expect(result.passed).toBe(false);
     expect(result.notes).toContain('still resolves (managed-named');
@@ -159,35 +159,119 @@ describe('checkLegacyImportGone', () => {
     const result = gone(['cd legacy-import && supabase stop']);
     expect(result.passed).toBe(false);
     expect(result.notes).toContain(
-      'no supabase start followed by a stop/destroy targeting legacy-import ran without failing'
+      'commands: no supabase start targeting legacy-import ran without failing'
     );
   });
 
-  it('fails when the teardown ran before the start', () => {
-    expect(
-      gone([
-        'supabase stack stop --stack legacy-import',
-        'supabase stack start --stack legacy-import',
-      ]).passed
-    ).toBe(false);
+  it('does not count a teardown that ran before the start', () => {
+    const result = gone([
+      'supabase stack stop --stack legacy-import',
+      'supabase stack start --stack legacy-import',
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toContain('no teardown command found');
   });
 
   it('does not count a teardown after cd moved to another service', () => {
-    expect(
-      gone([
-        ...START_ALL,
-        'cd legacy-import && cd ../payments-api && supabase stop',
-      ]).passed
-    ).toBe(false);
+    const commands = [
+      ...START_ALL,
+      'cd legacy-import && cd ../payments-api && supabase stop',
+    ];
+    expect(findLegacyLifecycle(invocationsOf(commands)).outcome).toBe('none');
   });
 
   it('does not count an echoed teardown', () => {
+    const commands = [
+      ...START_ALL,
+      'echo "next: supabase stack destroy --stack legacy-import"',
+    ];
+    expect(findLegacyLifecycle(invocationsOf(commands)).outcome).toBe('none');
+  });
+
+  it('passes by end state when no teardown command ran, saying so', () => {
+    const result = gone([
+      ...START_ALL,
+      'docker rm -f supabase_db_legacy-import',
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.notes).toContain(
+      'commands: started by cmd #3 "supabase start" in legacy-import; no teardown command found'
+    );
+  });
+
+  it('fails a stack that was never started even when the state is clear', () => {
+    expect(gone(['cd legacy-import && supabase stop']).passed).toBe(false);
+    expect(gone([]).passed).toBe(false);
+  });
+
+  it('fails a started stack that is still listed, however the teardown went', () => {
+    const stackList: StackListProbe = {
+      ok: true,
+      stacks: [{ name: 'legacy-import' }],
+    };
     expect(
-      gone([
-        ...START_ALL,
-        'echo "next: supabase stack destroy --stack legacy-import"',
-      ]).passed
+      gone([...START_ALL, 'cd legacy-import && supabase stop'], { stackList })
+        .passed
     ).toBe(false);
+    expect(gone(START_ALL, { stackList }).passed).toBe(false);
+  });
+
+  describe('when the teardown command failed but the state is clear', () => {
+    const stop = (error: string): Call[] => [
+      ...START_ALL,
+      ['cd legacy-import && supabase stop --no-backup', failed(error)],
+    ];
+
+    it('passes, naming the StopVolumePruneError as a product gap', () => {
+      const result = gone(stop('exit 1: StopVolumePruneError: docker too old'));
+      expect(result.passed).toBe(true);
+      expect(result.notes).toContain(
+        'teardown cmd #4 "supabase stop --no-backup" in legacy-import (failed: StopVolumePruneError, see CLI-2637) (product gap CLI-2637)'
+      );
+    });
+
+    it('reads the LegacyStopVolumePruneError name from structured output', () => {
+      const result = gone([
+        ...START_ALL,
+        [
+          'cd legacy-import && supabase stop --no-backup',
+          ok('{"_tag":"Error","code":"LegacyStopVolumePruneError"}'),
+        ],
+      ]);
+      expect(result.passed).toBe(true);
+      expect(result.notes).toContain(
+        '(failed: LegacyStopVolumePruneError, see CLI-2637) (product gap CLI-2637)'
+      );
+    });
+
+    it('reports another failure without the product-gap note', () => {
+      const result = gone(stop('exit 1: permission denied'));
+      expect(result.passed).toBe(true);
+      expect(result.notes).toContain(
+        'stop --no-backup" in legacy-import (failed)'
+      );
+      expect(result.notes).not.toContain('CLI-2637');
+    });
+
+    it('fails when the state still shows it', () => {
+      expect(
+        gone(stop('exit 1: StopVolumePruneError'), { stack: REACHABLE }).passed
+      ).toBe(false);
+      expect(
+        gone(stop('exit 1: StopVolumePruneError'), {
+          containerProbe: { running: true, notes: 'docker still runs x' },
+        }).passed
+      ).toBe(false);
+    });
+
+    it('prefers a later teardown that succeeded for the report', () => {
+      const result = gone([
+        ...stop('exit 1: StopVolumePruneError'),
+        'cd legacy-import && supabase stop',
+      ]);
+      expect(result.notes).toContain('(succeeded)');
+      expect(result.notes).not.toContain('product gap');
+    });
   });
 
   it('fails a managed stack stop that leaves it listed', () => {
@@ -333,6 +417,48 @@ describe('legacy-import under a relocated CLI home', () => {
     expect(text).toContain(
       `stack resolves: yes (under the agent's relocated CLI home ${HOME})`
     );
+  });
+});
+
+describe('ground truth for legacy-import', () => {
+  const facts = (calls: readonly Call[], gone = true) => ({
+    stacks: {
+      'checkout-service': REACHABLE,
+      'payments-api': REACHABLE,
+      'legacy-import': gone ? UNREACHABLE : REACHABLE,
+    },
+    rows: {
+      'checkout-service': { ok: true, values: ['checkout-service'] },
+      'payments-api': PAYMENTS_ROWS,
+    } as const,
+    stackList: EMPTY_LIST,
+    invocations: invocationsOf(calls),
+    postmasterStarts: NO_POSTMASTER,
+    portProbe: QUIET_PORT,
+    containerProbe: NO_CONTAINERS,
+  });
+
+  it('states gone by end state and the failed teardown as a fact', () => {
+    const text = describeFleetGroundTruth(
+      facts([
+        ...START_ALL,
+        [
+          'cd legacy-import && supabase stop --no-backup',
+          failed('exit 1: StopVolumePruneError'),
+        ],
+      ])
+    ).join('\n');
+    expect(text).toContain('gone by end state');
+    expect(text).toMatch(/gone by end state[^\n]*: yes/);
+    expect(text).toContain(
+      'teardown command: teardown cmd #4 "supabase stop --no-backup" in legacy-import (failed: StopVolumePruneError, see CLI-2637); a VolumePruneError on stop is a CLI product gap (CLI-2637)'
+    );
+  });
+
+  it('states a missing teardown command and a stack still present', () => {
+    const text = describeFleetGroundTruth(facts(START_ALL, false)).join('\n');
+    expect(text).toMatch(/gone by end state[^\n]*: no/);
+    expect(text).toContain('teardown command: no teardown command found');
   });
 });
 
@@ -526,8 +652,7 @@ describe('starts from a shell loop', () => {
       LOOP_START,
       'for s in checkout-service payments-api legacy-import; do (cd "$s" && supabase stop); done',
     ];
-    expect(findLegacyTeardown(invocationsOf(commands))).toBe(undefined);
-    expect(gone(commands).passed).toBe(false);
+    expect(findLegacyLifecycle(invocationsOf(commands)).outcome).toBe('none');
     expect(untouched(commands).passed).toBe(true);
   });
 
@@ -675,8 +800,8 @@ describe('failed tool calls', () => {
         failed('cannot read config in legacy-import'),
       ],
     ];
-    expect(findLegacyTeardown(invocationsOf(commands))).toBe(undefined);
-    expect(gone(commands).passed).toBe(false);
+    expect(findLegacyLifecycle(invocationsOf(commands)).outcome).toBe('failed');
+    expect(gone(commands).notes).toContain('(failed)');
   });
 
   it('do not count a failed start as legacy-import start evidence', () => {
@@ -1005,7 +1130,7 @@ describe('describeFleetGroundTruth', () => {
     );
   });
 
-  it('says no restart or teardown when those commands failed', () => {
+  it('says no restart and a failed teardown when those commands failed', () => {
     const text = describeFleetGroundTruth({
       stacks: {
         'checkout-service': REACHABLE,
@@ -1033,7 +1158,7 @@ describe('describeFleetGroundTruth', () => {
       'restarted after all three services started: no (decided by commands: '
     );
     expect(text).toContain(
-      "started then torn down via the CLI, by commands that didn't fail: no"
+      'teardown command: teardown cmd #5 "supabase stop" in legacy-import (failed)'
     );
   });
 
@@ -1335,22 +1460,22 @@ describe('--stack-id attribution', () => {
   ];
 
   it('pairs a start with a teardown by the id its output printed', () => {
-    const teardown = findLegacyTeardown(
+    const { start, teardown } = findLegacyLifecycle(
       invocationsOf([
         ...STARTS,
         ['supabase stack destroy --stack-id c0ffee', ok('Destroyed.')],
       ])
     );
-    expect(teardown?.start.label).toContain('legacy-import');
-    expect(teardown?.teardown.label).toContain('stack destroy');
+    expect(start?.label).toContain('legacy-import');
+    expect(teardown?.label).toContain('stack destroy');
   });
 
   it('accepts --stack-id=<id>', () => {
     expect(
-      findLegacyTeardown(
+      findLegacyLifecycle(
         invocationsOf([...STARTS, 'supabase stack destroy --stack-id=c0ffee'])
-      )
-    ).toBeDefined();
+      ).outcome
+    ).toBe('succeeded');
   });
 
   it('passes the checkout restart on commands for its mapped id', () => {
@@ -1367,7 +1492,7 @@ describe('--stack-id attribution', () => {
       ...STARTS,
       'supabase stack destroy --stack-id deadbeef',
     ];
-    expect(findLegacyTeardown(invocationsOf(calls))).toBeUndefined();
+    expect(findLegacyLifecycle(invocationsOf(calls)).outcome).toBe('none');
     expect(
       restarted([...STARTS, 'supabase stack restart --stack-id deadbeef'])
         .passed
@@ -1385,7 +1510,7 @@ describe('--stack-id attribution', () => {
       'cd legacy-import && supabase start',
       'supabase stack destroy --stack-id c0ffee',
     ];
-    expect(findLegacyTeardown(invocationsOf(calls))).toBeUndefined();
+    expect(findLegacyLifecycle(invocationsOf(calls)).outcome).toBe('none');
   });
 
   it('does not map an id printed by a call that started several services', () => {
@@ -1396,7 +1521,7 @@ describe('--stack-id attribution', () => {
       ],
       'supabase stack destroy --stack-id c0ffee',
     ];
-    expect(findLegacyTeardown(invocationsOf(calls))).toBeUndefined();
+    expect(findLegacyLifecycle(invocationsOf(calls)).outcome).toBe('none');
   });
 
   it('maps ids from a stack list the agent printed', () => {
@@ -1410,7 +1535,7 @@ describe('--stack-id attribution', () => {
       ['supabase stack list --output-format json', ok(list)],
       'supabase stack destroy --stack-id f00d',
     ];
-    expect(findLegacyTeardown(invocationsOf(calls))).toBeDefined();
+    expect(findLegacyLifecycle(invocationsOf(calls)).outcome).toBe('succeeded');
   });
 });
 

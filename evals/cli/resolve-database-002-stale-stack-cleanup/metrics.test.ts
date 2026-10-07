@@ -87,6 +87,7 @@ describe('checkMetrics', () => {
         'legacy-import': false,
       },
       attemptedAnyStart: true,
+      legacyTeardown: 'none',
       setupCompletedAt: null,
       evidence: {
         checkoutRestarted: 'unavailable',
@@ -262,5 +263,31 @@ describe('checkMetrics', () => {
       checkoutRestarted: 'state',
       paymentsUntouched: 'commands',
     });
+  });
+
+  it('reports how the legacy-import teardown went', async () => {
+    const legacyTeardown = async (stop: { failed?: boolean }) => {
+      const invocations = findSupabaseInvocations([
+        'cd legacy-import && supabase start',
+        'cd legacy-import && supabase stop --no-backup',
+      ]).map((inv) => (inv.argv.includes('stop') ? { ...inv, ...stop } : inv));
+      const result = await checkMetrics(
+        ctx,
+        undefined,
+        [],
+        invocations,
+        [],
+        { ok: false, unsupported: true, notes: 'unknown command' },
+        {
+          'checkout-service': NONE,
+          'payments-api': NONE,
+          'legacy-import': NONE,
+        },
+        NO_POSTMASTER
+      );
+      return JSON.parse(result.notes as string).legacyTeardown;
+    };
+    expect(await legacyTeardown({})).toBe('succeeded');
+    expect(await legacyTeardown({ failed: true })).toBe('failed');
   });
 });

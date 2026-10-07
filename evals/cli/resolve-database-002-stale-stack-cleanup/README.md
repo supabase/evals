@@ -56,7 +56,8 @@ stack that never ran. Order is execution order across all commands.
 
 A command counts as failed when its tool call exited non-zero, or its output
 holds a CLI error (`"_tag":"Error"`, `Unknown subcommand`, `UnknownSubcommand`,
-`unknown command`). Failed starts, teardowns and restarts are never evidence.
+`unknown command`). Failed starts and restarts are never evidence, and a
+failed teardown never decides `legacy-import stack is gone`.
 A call that recorded neither an exit status nor output counts as succeeded.
 
 The change phase begins right after the first point where all three services
@@ -66,19 +67,26 @@ clear a port clash) is neither a restart nor a touch. If that point never
 comes, `checkout-service was restarted` and `payments-api left untouched`
 fail, and the notes say there was no change phase.
 
-- `legacy-import stack is gone` — requires a start targeting `legacy-import`
-  followed by a teardown targeting it (`stop`, `destroy`, `down`, `stack stop`,
-  `stack destroy`), neither failed, and that `stack list` doesn't list it, its
-  stack doesn't resolve, and, when its `config.toml` survives, nothing answers
-  `select 1` on its `[db] port` (skipped if a surviving stack owns that port).
-  When its directory is gone, `docker ps` must also show no container labelled
+- `legacy-import stack is gone` — decided by the end state. It requires a
+  start targeting `legacy-import` that didn't fail (so it can't pass
+  vacuously), and that `stack list` doesn't list it, its stack doesn't
+  resolve, and, when its `config.toml` survives, nothing answers `select 1` on
+  its `[db] port` (skipped if a surviving stack owns that port). When its
+  directory is gone, `docker ps` must also show no container labelled
   `com.supabase.cli.project=legacy-import` or named
   `supabase_<service>_legacy-import`; that probe is skipped when `docker` is
-  unreachable, since then nothing can be running. Outcomes alone can't
-  separate "torn down" from "never started", and resolution alone reads a
-  deleted-but-running project as gone. The listing half is skipped, saying
-  so, only when `stack list` fails as an unknown subcommand; any other
-  unreadable output fails the check.
+  unreachable, since then nothing can be running. The teardown command
+  (`stop`, `destroy`, `down`, `stack stop`, `stack destroy`, after the start)
+  is not required: the notes report it as `teardown cmd #<n> "…" (succeeded)`,
+  `(failed)` or `no teardown command found`, so a stack stopped through
+  `docker` directly still passes. A teardown that failed with
+  `StopVolumePruneError`/`LegacyStopVolumePruneError` reads
+  `(failed: StopVolumePruneError, see CLI-2637)` plus `(product gap
+  CLI-2637)`: the CLI exits 1 although the containers are removed, and the
+  state gates decide. Resolution alone reads a deleted-but-running project as
+  gone, which is why the port and container probes exist. The listing half is
+  skipped, saying so, only when `stack list` fails as an unknown subcommand;
+  any other unreadable output fails the check.
 - `checkout-service was restarted` — with state evidence, its Postgres
   postmaster started after setup completed; otherwise, in the change phase, a
   `stack restart` targeting it, or a teardown followed by a start. Neither
@@ -119,8 +127,8 @@ times in ISO 8601. The running checks' notes say whether the stack resolved.
 ### What "gone" means
 
 The prompt says "tear its stack down completely". A managed `stack stop`
-leaves the stack registered and listed — stopped, not torn down — so it
-fails. `stack destroy`, which removes it from the fleet, passes; so does a
+leaves the stack registered and listed — stopped, not torn down — so the state
+gate fails it. `stack destroy`, which removes it from the fleet, passes; so does a
 legacy `supabase stop`, after which the CLI no longer reports any stack for
 that project. That reading is applied the same way on every CLI version: the
 stack must be absent from everything the CLI itself reports.
@@ -130,8 +138,8 @@ Behaviour checks:
 - `no container-runtime detours` — an LLM judge given only the executed
   commands (same policy as `build-database-002-stack-lifecycle`, see
   `../lib/detours.ts`). Stopping or removing Supabase's own containers with
-  `docker stop`/`docker rm` isn't a detour; it just doesn't count as CLI
-  teardown evidence.
+  `docker stop`/`docker rm` isn't a detour; the stack still has to read as gone
+  by state, and the notes say no teardown command was found.
 - `final report is truthful about the fleet` — an LLM judge given the
   harness's ground truth per service (resolution, ports, marker rows, listing,
   the configured-port and container probes, and the restart/teardown/touch
@@ -159,7 +167,9 @@ ms, or null when not recorded), and `evidence` says which evidence decided
 `unavailable` when setup never completed).
 `attemptedStart` reports per service whether the agent executed a
 `supabase start` or `stack start` targeting it (a loop start counts for every
-service), and `attemptedAnyStart` whether it executed any start at all. Use
+service), and `attemptedAnyStart` whether it executed any start at all, and
+`legacyTeardown` (`succeeded`, `failed` or `none`, reported only) how the
+teardown command targeting `legacy-import` after its start went. Use
 them to split a failed run into "tried to start and the CLI or runtime
 failed" versus "never tried", e.g. an agent that declined out of caution.
 
@@ -276,8 +286,9 @@ not a CLI gap.
 
 - `supabase stop --no-backup` exits 1 with `StopVolumePruneError` or
   `LegacyStopVolumePruneError` when the Docker client is older than 23.0, even
-  though the containers are removed. The scorer treats that failed call as no
-  teardown, by design.
+  though the containers are removed (CLI-2637). `legacy-import stack is gone`
+  is decided by state, so it passes, and its notes carry the failed call and
+  `(product gap CLI-2637)`.
 - The managed Docker runtime fails to bind-mount `~/.supabase/stacks` under the
   sandbox's sibling Docker daemon, so agents fall back to native stacks or a
   custom `SUPABASE_HOME`.

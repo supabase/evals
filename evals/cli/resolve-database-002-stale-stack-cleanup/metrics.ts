@@ -14,6 +14,7 @@ import type { StackListProbe } from '../lib/stack-list.js';
 import {
   decideCheckoutRestart,
   decidePaymentsUntouched,
+  findLegacyLifecycle,
   findSetup,
   isStartInvocation,
   lifecycleEvents,
@@ -83,6 +84,7 @@ export async function checkMetrics(
     services,
     attemptedStart,
     attemptedAnyStart: invocations.some(isStartInvocation),
+    legacyTeardown: findLegacyLifecycle(invocations).outcome,
     setupCompletedAt: findSetup(invocations)?.anchor.at ?? null,
     evidence: {
       checkoutRestarted: decideCheckoutRestart(invocations, checkoutMs)

@@ -48,6 +48,8 @@ export type SurvivingService = 'checkout-service' | 'payments-api';
  */
 export type FleetInvocation = SupabaseInvocation & {
   failed?: boolean;
+  /** The `*VolumePruneError` a failed call reported, when it did. */
+  pruneError?: string;
   stackIdService?: Service;
 };
 
@@ -57,6 +59,7 @@ export type LifecycleEvent = {
   /** `cmd #<n> "<argv>"`, plus the directory it ran in when known. */
   label: string;
   failed: boolean;
+  pruneError?: string;
   commandIndex: number;
 };
 
@@ -97,6 +100,13 @@ function callFailed(record: ToolCallRecord): boolean | undefined {
   if (record.error !== undefined) return true;
   if (record.result === undefined) return undefined;
   return CLI_ERROR_RE.test(collectStringValues(record.result).join('\n'));
+}
+
+const PRUNE_ERROR_RE = /\b\w*VolumePruneError\b/;
+
+function pruneErrorOf(record: ToolCallRecord): string | undefined {
+  const text = [record.error ?? '', ...collectStringValues(record.result)];
+  return text.join('\n').match(PRUNE_ERROR_RE)?.[0];
 }
 
 const STARTED_ID_RE = /"id"\s*:\s*"([0-9a-f]+)"/i;
@@ -170,11 +180,15 @@ export function findFleetInvocations(
   const ids = mapStackIds(invocations, records, failedOf);
   return invocations.map((inv) => {
     const failed = failedOf(inv);
+    const pruneError = failed
+      ? pruneErrorOf(records[inv.commandIndex])
+      : undefined;
     const id = stackIdFlag(inv.argv);
     const stackIdService = id === undefined ? undefined : ids.get(id);
     return {
       ...inv,
       ...(failed === undefined ? {} : { failed }),
+      ...(pruneError === undefined ? {} : { pruneError }),
       ...(stackIdService === undefined ? {} : { stackIdService }),
     };
   });
@@ -220,6 +234,7 @@ export function lifecycleEvents(
         kind,
         label: describeInvocation(inv),
         failed: inv.failed === true,
+        ...(inv.pruneError === undefined ? {} : { pruneError: inv.pruneError }),
         commandIndex: inv.commandIndex,
       },
     ];
@@ -318,19 +333,51 @@ function stateTimes(
     : { anchorAt: anchor.at, startMs: postmasterStartMs };
 }
 
-/** A start and later teardown of legacy-import, both from tool calls that didn't fail. */
-export function findLegacyTeardown(
-  invocations: readonly FleetInvocation[]
-): { start: LifecycleEvent; teardown: LifecycleEvent } | undefined {
-  const events = lifecycleEvents(invocations, 'legacy-import').filter(
-    (event) => !event.failed
+export type LegacyTeardownOutcome = 'succeeded' | 'failed' | 'none';
+
+/**
+ * legacy-import's first start that didn't fail, and the teardown command that
+ * followed it: the first that succeeded, else the last that failed. Teardown
+ * evidence is reported, never required, so a call that exited 1 after
+ * removing the stack (CLI-2637) can't hide a stack that is in fact gone.
+ */
+export function findLegacyLifecycle(invocations: readonly FleetInvocation[]): {
+  start: LifecycleEvent | undefined;
+  teardown: LifecycleEvent | undefined;
+  outcome: LegacyTeardownOutcome;
+} {
+  const events = lifecycleEvents(invocations, 'legacy-import');
+  const startIndex = events.findIndex(
+    (event) => event.kind === 'start' && !event.failed
   );
-  const start = events.findIndex((event) => event.kind === 'start');
-  if (start < 0) return undefined;
-  const teardown = events
-    .slice(start + 1)
-    .find((event) => event.kind === 'teardown');
-  return teardown ? { start: events[start], teardown } : undefined;
+  const teardowns = events
+    .slice(startIndex + 1)
+    .filter((event) => event.kind === 'teardown');
+  const teardown = teardowns.find((event) => !event.failed) ?? teardowns.at(-1);
+  return {
+    start: events[startIndex],
+    teardown,
+    outcome:
+      teardown === undefined
+        ? 'none'
+        : teardown.failed
+          ? 'failed'
+          : 'succeeded',
+  };
+}
+
+const PRUNE_BUG = 'CLI-2637';
+
+function isPruneGap(teardown: LifecycleEvent | undefined): boolean {
+  return teardown?.failed === true && teardown.pruneError !== undefined;
+}
+
+function describeTeardown(teardown: LifecycleEvent | undefined): string {
+  if (teardown === undefined) return 'no teardown command found';
+  const outcome = teardown.failed
+    ? `failed${teardown.pruneError === undefined ? '' : `: ${teardown.pruneError}, see ${PRUNE_BUG}`}`
+    : 'succeeded';
+  return `teardown ${teardown.label} (${outcome})`;
 }
 
 /** Change-phase invocations that restarted checkout-service and didn't fail: a restart, or a teardown followed by a start. */
@@ -582,29 +629,47 @@ function describeListing(stackList: StackListProbe, listed: boolean): string {
     : `stack list unreadable, failing closed (${stackList.notes})`;
 }
 
-/**
- * Passes when the CLI tore legacy-import down after starting it, and the
- * fleet listing (under the default and every relocated CLI home), stack
- * resolution, its configured port and any leftover containers all agree it's
- * gone. Listed-but-stopped counts as still present.
- */
-export function checkLegacyImportGone(input: {
+type LegacyStateInput = {
   stackList: StackListProbe;
   stack: StackProbe;
-  invocations: readonly FleetInvocation[];
   portProbe: PortProbe;
   containerProbe: ContainerProbe;
   homeStackLists?: readonly HomeStackList[];
-}): CheckResult {
+};
+
+function listingClear(
+  stackList: StackListProbe,
+  homeStackLists: readonly HomeStackList[]
+): boolean {
+  const clear = (list: StackListProbe) =>
+    list.ok ? !stackListContainsName(list, 'legacy-import') : list.unsupported;
+  return clear(stackList) && homeStackLists.every(({ list }) => clear(list));
+}
+
+function goneByState(input: LegacyStateInput): boolean {
+  return (
+    listingClear(input.stackList, input.homeStackLists ?? []) &&
+    !input.stack.ok &&
+    !input.portProbe.answered &&
+    !input.containerProbe.running
+  );
+}
+
+/**
+ * Passes when legacy-import was started through the CLI and the fleet listing
+ * (under the default and every relocated CLI home), stack resolution, its
+ * configured port and any leftover containers all agree it's gone.
+ * Listed-but-stopped counts as still present. The teardown command's outcome
+ * is reported but never decides.
+ */
+export function checkLegacyImportGone(
+  input: LegacyStateInput & { invocations: readonly FleetInvocation[] }
+): CheckResult {
   const name = 'legacy-import stack is gone';
   const { stackList, stack, invocations, portProbe, containerProbe } = input;
   const homeStackLists = input.homeStackLists ?? [];
-  const teardown = findLegacyTeardown(invocations);
+  const { start, teardown } = findLegacyLifecycle(invocations);
   const listed = stackListContainsName(stackList, 'legacy-import');
-  const clear = (list: StackListProbe) =>
-    list.ok ? !stackListContainsName(list, 'legacy-import') : list.unsupported;
-  const listingClear =
-    clear(stackList) && homeStackLists.every(({ list }) => clear(list));
   const notes = [
     `listing: ${describeListing(stackList, listed)}`,
     ...homeStackLists.map(
@@ -618,18 +683,23 @@ export function checkLegacyImportGone(input: {
     }`,
     `db port: ${portProbe.notes}`,
     `containers: ${containerProbe.notes}`,
-    teardown
-      ? `commands: started by ${teardown.start.label}, torn down by ${teardown.teardown.label}`
-      : 'commands: no supabase start followed by a stop/destroy targeting legacy-import ran without failing',
+    `commands: ${
+      start
+        ? `started by ${start.label}`
+        : 'no supabase start targeting legacy-import ran without failing'
+    }; ${describeTeardown(teardown)}${isPruneGap(teardown) ? ` (product gap ${PRUNE_BUG})` : ''}`,
   ].join('; ');
   return {
     name,
     passed:
-      teardown !== undefined &&
-      listingClear &&
-      !stack.ok &&
-      !portProbe.answered &&
-      !containerProbe.running,
+      start !== undefined &&
+      goneByState({
+        stackList,
+        stack,
+        portProbe,
+        containerProbe,
+        homeStackLists,
+      }),
     notes,
   };
 }
@@ -762,7 +832,14 @@ export function describeFleetGroundTruth(facts: {
     invocations,
     postmasterStarts['payments-api']
   );
-  const teardown = findLegacyTeardown(invocations);
+  const { start, teardown } = findLegacyLifecycle(invocations);
+  const gone = goneByState({
+    stackList,
+    stack: legacy,
+    portProbe,
+    containerProbe,
+    homeStackLists,
+  });
   return [
     ...describeService(
       'checkout-service',
@@ -784,10 +861,12 @@ export function describeFleetGroundTruth(facts: {
     `  stack resolves: ${yesNo(legacy.ok)}${legacy.ok && legacy.relocatedHome !== undefined ? ` (under the agent's relocated CLI home ${legacy.relocatedHome})` : ''}`,
     `  configured db port: ${portProbe.notes}`,
     `  leftover containers: ${containerProbe.notes}`,
-    `  started then torn down via the CLI, by commands that didn't fail: ${
-      teardown
-        ? `yes (${teardown.start.label}, then ${teardown.teardown.label})`
-        : 'no'
+    `  started via the CLI, by a command that didn't fail: ${start ? `yes (${start.label})` : 'no'}`,
+    `  gone by end state (not listed, doesn't resolve, db port silent, no containers): ${yesNo(gone)}`,
+    `  teardown command: ${describeTeardown(teardown)}${
+      isPruneGap(teardown)
+        ? `; a VolumePruneError on stop is a CLI product gap (${PRUNE_BUG}) that can exit 1 after the containers are removed`
+        : ''
     }`,
   ];
 }
