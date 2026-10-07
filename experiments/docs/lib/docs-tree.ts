@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 
 export type TreeNode = {
   label: string;
+  /** A subhead shown under the label, like a menu item's description. */
+  description?: string;
   /** The page this item links today, like `/guides/platform/sso`. Groups and headings have none. */
   route?: string;
   /** A proposal's new url for the page. Old routes redirect here. */

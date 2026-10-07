@@ -91,6 +91,27 @@ describe('tree navigator', () => {
     expect(session.open('2').text).toContain('[2.1] Organization');
   });
 
+  it('shows a subhead under its label', () => {
+    const tree: DocsTree = {
+      name: 'subheads',
+      description: 'A section with a subhead.',
+      root: {
+        label: 'Docs',
+        children: [
+          {
+            label: 'Run and manage',
+            description: 'Network, team access, security, billing, and logs',
+            children: [{ label: 'SSO', route: '/guides/platform/sso' }],
+          },
+        ],
+      },
+    };
+    const session = createTreeSession(decodeTree(encodeTree(tree)));
+    expect(session.open('root').text).toContain(
+      '[1] Run and manage (a section)\n  Network, team access, security, billing, and logs'
+    );
+  });
+
   it('chooses pages, not headings, and only once', () => {
     const session = createTreeSession(decodeTree(encodeTree(TREE)));
     session.open('root');

@@ -10,8 +10,9 @@
  *     "children": ["guides/platform/sso", ...] }
  *
  * `page` makes a group link a page too, and `label` alone on a page node
- * renames it. `newRoute` proposes a new url for the page, and `new: true`
- * marks a page that doesn't exist yet, such as a new hub, with `route`.
+ * renames it. `description` adds a subhead under the label. `newRoute`
+ * proposes a new url for the page, and `new: true` marks a page that doesn't
+ * exist yet, such as a new hub, with `route`.
  * `splitFrom`, like `guides/getting-started/api-keys#leaked-key`, with a
  * `label` makes a new page out of a section of a page in today's tree.
  *
@@ -33,6 +34,7 @@ type SpecNode =
   | string
   | {
       label?: string;
+      description?: string;
       page?: string;
       route?: string;
       newRoute?: string;
@@ -90,6 +92,7 @@ function build(node: SpecNode, trail: string[]): TreeNode {
   const here = [...trail, label ?? '?'];
   return {
     label: label ?? '?',
+    ...(node.description ? { description: node.description } : {}),
     ...(page ? { route: node.route ?? known?.route ?? `/${page}` } : {}),
     ...(node.newRoute ? { newRoute: node.newRoute } : {}),
     ...(node.new ? { new: true } : {}),

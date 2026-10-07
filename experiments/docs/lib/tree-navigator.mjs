@@ -22,11 +22,12 @@ export const INSTRUCTIONS = `This is a tree test of the Supabase docs navigation
 
 /** The tree as compact, gzipped JSON, small enough for an environment variable. */
 export function encodeTree(tree) {
-  const compact = (node) => [
-    node.label,
-    node.route ?? 0,
-    ...(node.children?.length ? [node.children.map(compact)] : []),
-  ];
+  const compact = (node) => {
+    const children = node.children?.length ? node.children.map(compact) : 0;
+    if (node.description)
+      return [node.label, node.route ?? 0, children, node.description];
+    return [node.label, node.route ?? 0, ...(children ? [children] : [])];
+  };
   return gzipSync(JSON.stringify([tree.name, compact(tree.root)])).toString(
     'base64'
   );
@@ -36,10 +37,11 @@ export function decodeTree(encoded) {
   const [name, root] = JSON.parse(
     gunzipSync(Buffer.from(encoded, 'base64')).toString('utf8')
   );
-  const expand = ([label, route, children]) => ({
+  const expand = ([label, route, children, description]) => ({
     label,
     ...(route ? { route } : {}),
     ...(children ? { children: children.map(expand) } : {}),
+    ...(description ? { description } : {}),
   });
   return { name, root: expand(root) };
 }
@@ -96,7 +98,7 @@ export function createTreeSession(tree) {
     const items = node.children
       .map(
         (child, index) =>
-          `- [${childId(id, index)}] ${child.label}${describe(child)}`
+          `- [${childId(id, index)}] ${child.label}${describe(child)}${child.description ? `\n  ${child.description}` : ''}`
       )
       .join('\n');
     return {
