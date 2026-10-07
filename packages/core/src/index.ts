@@ -184,6 +184,8 @@ export type TranscriptPart =
       resultTs?: number;
       /** Correlates the call with its result, as `TranscriptEvent.tool.id`. */
       id?: string;
+      /** Absolute directory the call ran in, when the agent records one per call. */
+      cwd?: string;
       requestId?: string;
       usage?: RequestUsage;
     };

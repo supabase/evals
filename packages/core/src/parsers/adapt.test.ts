@@ -33,4 +33,12 @@ describe('adaptTranscript', () => {
     expect(second.cwd).toBeUndefined();
     expect(second.resultTs).toBeUndefined();
   });
+
+  it("copies a call's cwd onto its transcript part only when present", () => {
+    const parts = adaptTranscript(events).transcript.filter(
+      (part) => part.type === 'tool_call'
+    );
+    expect(parts[0]).toMatchObject({ cwd: '/work/client-a' });
+    expect(parts[1]).not.toHaveProperty('cwd');
+  });
 });
