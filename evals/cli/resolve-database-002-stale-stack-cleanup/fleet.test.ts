@@ -1245,6 +1245,32 @@ describe('probeLegacyDbPort', () => {
     });
   });
 
+  it('probes the default port when config.toml sets no [db] port', async () => {
+    const { ctx, commands } = fakeCtx('[api]\nport = 54321', {
+      ok: true,
+      exitCode: 0,
+      stdout: '1\n',
+      stderr: '',
+    });
+    expect(await probeLegacyDbPort(ctx, './legacy-import', [54422])).toEqual({
+      answered: true,
+      notes: '[db] port 54322 (default) still answers select 1',
+    });
+    expect(commands).toEqual([
+      "psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -tAc 'select 1'",
+    ]);
+  });
+
+  it('skips the default port when a surviving stack owns it', async () => {
+    const { ctx, commands } = fakeCtx('');
+    expect(await probeLegacyDbPort(ctx, './legacy-import', [54322])).toEqual({
+      answered: false,
+      notes:
+        '[db] port 54322 (default) is shared with a surviving stack; not probed',
+    });
+    expect(commands).toEqual([]);
+  });
+
   it('skips a port shared with a surviving stack', async () => {
     const { ctx, commands } = fakeCtx('[db]\nport = 54322');
     expect(await probeLegacyDbPort(ctx, './legacy-import', [54322])).toEqual({

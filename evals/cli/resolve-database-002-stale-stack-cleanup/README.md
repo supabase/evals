@@ -91,8 +91,8 @@ fail, and the notes say there was no change phase.
   start targeting `legacy-import` that didn't fail (so it can't pass
   vacuously), and that `stack list` doesn't list it, its stack doesn't
   resolve, and, when its `config.toml` survives, nothing answers `select 1` on
-  its `[db] port` (skipped if a surviving stack owns that port). When its
-  directory is gone, `docker ps` must also show no container labelled
+  its `[db] port` (54322 when none is set; skipped if a surviving stack owns
+  that port). When its directory is gone, `docker ps` must also show no container labelled
   `com.supabase.cli.project=legacy-import` or named
   `supabase_<service>_legacy-import`; that probe is skipped when `docker` is
   unreachable, since then nothing can be running. The teardown command
@@ -338,5 +338,6 @@ not a CLI gap.
 - The managed Docker runtime fails to bind-mount `~/.supabase/stacks` under the
   sandbox's sibling Docker daemon, so agents fall back to native stacks or a
   custom `SUPABASE_HOME`.
-- An agent that sets a custom `SUPABASE_HOME` has stacks the scorer can't
-  resolve.
+- `CliConfigParseError` doesn't say which key or table of `config.toml` is
+  invalid (a duplicate `[experimental]` table is enough), so an agent can't
+  tell what to fix.

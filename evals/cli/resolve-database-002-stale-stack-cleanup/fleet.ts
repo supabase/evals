@@ -619,10 +619,13 @@ export function readConfigDbPort(toml: string): number | undefined {
   return undefined;
 }
 
+const DEFAULT_DB_PORT = 54322;
+
 export type PortProbe = { answered: boolean; notes: string };
 
 /**
- * Whether Postgres still answers on legacy-import's configured `[db] port`,
+ * Whether Postgres still answers on legacy-import's configured `[db] port`
+ * (54322 when `config.toml` sets none),
  * catching a database left running that the CLI no longer reports. Skipped
  * when the port belongs to a surviving stack, which would answer instead.
  */
@@ -635,16 +638,15 @@ export async function probeLegacyDbPort(
     return { answered: false, notes: 'no legacy-import config.toml to read' };
   }
   try {
-    const port = readConfigDbPort(
+    const configured = readConfigDbPort(
       await ctx.readFile(`${dir}/supabase/config.toml`)
     );
-    if (port === undefined) {
-      return { answered: false, notes: 'config.toml sets no [db] port' };
-    }
+    const port = configured ?? DEFAULT_DB_PORT;
+    const label = `[db] port ${port}${configured === undefined ? ' (default)' : ''}`;
     if (survivingDbPorts.includes(port)) {
       return {
         answered: false,
-        notes: `[db] port ${port} is shared with a surviving stack; not probed`,
+        notes: `${label} is shared with a surviving stack; not probed`,
       };
     }
     const result = await ctx.exec(
@@ -653,7 +655,7 @@ export async function probeLegacyDbPort(
     const answered = result.ok && result.stdout.trim() === '1';
     return {
       answered,
-      notes: `[db] port ${port} ${answered ? 'still answers select 1' : 'does not answer'}`,
+      notes: `${label} ${answered ? 'still answers select 1' : 'does not answer'}`,
     };
   } catch (error) {
     return { answered: false, notes: errorMessage(error) };
