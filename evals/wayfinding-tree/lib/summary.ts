@@ -13,6 +13,38 @@ export const OPERATOR_SECTIONS = [
   'Observability',
 ];
 
+/**
+ * Tasks held out from tree design: about a quarter of each area. Revise a
+ * tree from the other tasks' results, and read these only in totals, so the
+ * holdout shows whether a tree works beyond the tasks it was tuned on.
+ */
+export const HOLDOUT_TASKS = [
+  'build-tree-007-existing-react-app',
+  'build-tree-029-repo-instructions-for-assistant',
+  'build-tree-033-auto-protect-new-tables',
+  'build-tree-040-role-in-login-token',
+  'build-tree-044-verify-user-in-go-api',
+  'build-tree-051-push-row-updates-at-scale',
+  'build-tree-056-keep-working-after-response',
+  'build-tree-057-new-row-calls-function',
+  'build-tree-059-chatbot-only-users-documents',
+  'build-tree-061-local-oauth-credentials-gitignored',
+  'deploy-tree-012-shared-responsibility',
+  'deploy-tree-014-office-ip-allowlist',
+  'deploy-tree-019-project-transfer',
+  'deploy-tree-023-soc2-report',
+  'deploy-tree-066-docker-install-catch-up-release',
+  'deploy-tree-069-freelancer-single-app-membership',
+  'deploy-tree-076-newer-postgres-major-version',
+  'deploy-tree-079-outside-firm-attack-rules',
+  'deploy-tree-083-prometheus-scrape-database-stats',
+  'investigate-tree-060-nightly-purge-did-not-run',
+  'resolve-tree-038-tables-outside-public-client',
+  'resolve-tree-048-replaced-avatar-still-old',
+  'resolve-tree-071-revive-inactive-free-app',
+  'resolve-tree-087-serverless-too-many-clients',
+];
+
 export type TaskRun = { evalId: string; targets: string[]; run: TreeTestRun };
 
 export type Summary = {

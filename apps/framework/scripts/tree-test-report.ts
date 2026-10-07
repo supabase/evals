@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import {
   areaOf,
+  HOLDOUT_TASKS,
   isOperator,
   SUMMARY_HEADERS,
   summarize,
@@ -62,6 +63,8 @@ const table = (headers: string[], rows: string[][]) =>
 
 const groups: [string, (run: TaskRun) => boolean][] = [
   ['All tasks', () => true],
+  ['Design tasks', (run) => !HOLDOUT_TASKS.includes(run.evalId)],
+  ['Holdout tasks', (run) => HOLDOUT_TASKS.includes(run.evalId)],
   ['Operator tasks', (run) => isOperator(areaOf(run.targets))],
   ['Other tasks', (run) => !isOperator(areaOf(run.targets))],
 ];

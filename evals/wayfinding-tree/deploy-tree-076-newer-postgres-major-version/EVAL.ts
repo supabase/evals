@@ -1,0 +1,6 @@
+import { treeTestScorer } from '../lib/tree-test.js';
+
+export const TARGETS = ['guides/platform/upgrading'];
+export const ALTERNATES: string[] = [];
+
+export default treeTestScorer(TARGETS, ALTERNATES);
