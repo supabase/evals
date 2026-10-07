@@ -133,7 +133,8 @@ it (a loop over both directories counts for both), and `attemptedAnyStart` is
 true for any start at all. A failure with `attemptedStart: true` means the CLI
 or runtime failed the start; `false` means the agent never tried — for
 example, it declined out of caution. Codex runs that start stacks in per-call
-directories are only picked up once #356 lands.
+directories are picked up through the per-call working directory recorded on
+each tool call.
 
 ## Known limitations
 
