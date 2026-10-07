@@ -35,3 +35,5 @@ const scorer: ToolScorer = async (ctx) => {
 };
 
 export default scorer;
+
+// Temporary change to exercise the refresh results commit.
