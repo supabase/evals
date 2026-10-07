@@ -505,6 +505,23 @@ describe('checkStackRunning with a relocated home or a swapped CLI', () => {
     expect(result.notes).not.toContain('not the installed CLI');
   });
 
+  it('fails when the latest start used the override runner after an installed start', async () => {
+    const result = await checkStackRunning(
+      ctx,
+      'payments-api',
+      running,
+      ['npx supabase@2.121.0-beta.6'],
+      starts(
+        'cd payments-api && supabase start',
+        'cd payments-api && npx supabase@2.121.0-beta.6 stack start'
+      )
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      'payments-api: started with npx supabase@2.121.0-beta.6, not the installed CLI'
+    );
+  });
+
   it('ignores a runner of the installed version', async () => {
     const result = await checkStackRunning(
       ctx,

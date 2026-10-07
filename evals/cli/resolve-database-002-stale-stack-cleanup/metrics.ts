@@ -3,6 +3,10 @@ import type {
   LocalStackEnvironmentMarker,
   LocalStackEvalContext,
 } from '@supabase-evals/core';
+import {
+  isStartInvocation,
+  listUnverifiedRunners,
+} from '../lib/cli-invocations.js';
 import { countRawDockerSocketProbes } from '../lib/detours.js';
 import {
   countClearedDockerHost,
@@ -16,7 +20,6 @@ import {
   decidePaymentsUntouched,
   findLegacyLifecycle,
   findSetup,
-  isStartInvocation,
   lifecycleEvents,
   type FleetInvocation,
   type PostmasterStarts,
@@ -80,6 +83,7 @@ export async function checkMetrics(
   const metrics = {
     cliVersion: await readCliVersion(ctx),
     cliOverride,
+    cliRunnerUnverified: listUnverifiedRunners(invocations),
     channel: marker?.channel ?? 'pinned',
     services,
     attemptedStart,

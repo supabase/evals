@@ -54,6 +54,7 @@ describe('checkMetrics', () => {
     expect(JSON.parse(result.notes as string)).toEqual({
       cliVersion: '2.118.0',
       cliOverride: ['npx --yes supabase@2.120.0'],
+      cliRunnerUnverified: [],
       channel: 'pinned',
       services: {
         'checkout-service': {

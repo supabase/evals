@@ -120,7 +120,9 @@ function stackIdFlag(argv: readonly string[]): string | undefined {
 }
 
 function soleTarget(inv: SupabaseInvocation): Service | undefined {
-  const targets = SERVICES.filter((service) => invocationTargets(inv, service));
+  const targets = SERVICES.filter((service) =>
+    invocationTargets(inv, service, SERVICES)
+  );
   return targets.length === 1 ? targets[0] : undefined;
 }
 
@@ -200,11 +202,6 @@ function describeInvocation(inv: SupabaseInvocation): string {
   return `cmd #${inv.commandIndex + 1} "${truncate(inv.argv.join(' '), 120)}"${where}`;
 }
 
-/** Whether the invocation is a `supabase start` or `supabase stack start`, whatever it targets. */
-export function isStartInvocation(inv: SupabaseInvocation): boolean {
-  return lifecycleKind(inv) === 'start';
-}
-
 function targetsService(
   inv: FleetInvocation,
   kind: LifecycleKind,
@@ -212,7 +209,7 @@ function targetsService(
 ): boolean {
   if (inv.stackIdService !== undefined) return inv.stackIdService === service;
   return (
-    invocationTargets(inv, service) ||
+    invocationTargets(inv, service, SERVICES) ||
     (kind === 'start' && invocationTargetUnresolved(inv))
   );
 }

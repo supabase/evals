@@ -2,7 +2,7 @@ import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import {
   invocationTargetUnresolved,
   invocationTargets,
-  invocationVerb,
+  isStartInvocation,
   type InvocationEnv,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
@@ -99,7 +99,11 @@ export async function findServiceDirs(
   for (const service of unresolved) {
     const homes = [
       undefined,
-      ...candidateHomes(invocations, { kind: 'named', stackName: service }),
+      ...candidateHomes(
+        invocations,
+        { kind: 'named', stackName: service },
+        SERVICES
+      ),
     ];
     const entries = (
       await Promise.all(
@@ -169,7 +173,8 @@ export async function resolveServiceStacks(
     const byName = await resolveStackWithAgentHomes(
       ctx,
       serviceStackTarget(service, dir),
-      invocations
+      invocations,
+      SERVICES
     );
     stacks[service] =
       byName.ok || dir === undefined
@@ -190,16 +195,19 @@ async function resolveRenamedStack(
   const discovered = await resolveStackWithAgentHomes(
     ctx,
     { kind: 'project', dir },
-    invocations
+    invocations,
+    SERVICES
   );
   return discovered.ok
     ? discovered
     : { ok: false, notes: `${namedNotes}; ${discovered.notes}` };
 }
 
-const START_VERBS = new Set(['start', 'stack start']);
+function isLater(a: SupabaseInvocation, b: SupabaseInvocation): boolean {
+  return a.at !== undefined && b.at !== undefined ? a.at >= b.at : true;
+}
 
-/** Surviving services whose every start ran through a `cliOverride` runner, mapped to the runners used. */
+/** Surviving services whose latest start ran through a `cliOverride` runner, mapped to that runner. */
 export function findSwappedServices(
   invocations: readonly SupabaseInvocation[],
   cliOverride: readonly string[]
@@ -208,17 +216,15 @@ export function findSwappedServices(
   for (const service of SURVIVING) {
     const starts = invocations.filter(
       (inv) =>
-        START_VERBS.has(invocationVerb(inv) ?? '') &&
-        (invocationTargetUnresolved(inv) || invocationTargets(inv, service))
+        isStartInvocation(inv) &&
+        (invocationTargetUnresolved(inv) ||
+          invocationTargets(inv, service, SERVICES))
     );
-    if (
-      starts.length > 0 &&
-      starts.every(({ runner }) => runner && cliOverride.includes(runner))
-    ) {
-      swapped[service] = [...new Set(starts.map(({ runner }) => runner))].join(
-        ', '
-      );
-    }
+    if (starts.length === 0) continue;
+    const { runner } = starts.reduce((latest, inv) =>
+      isLater(inv, latest) ? inv : latest
+    );
+    if (runner && cliOverride.includes(runner)) swapped[service] = runner;
   }
   return swapped;
 }

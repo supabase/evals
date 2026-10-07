@@ -20,6 +20,7 @@ import {
   findFleetInvocations,
   findLegacyLifecycle,
   findSetup,
+  lifecycleEvents,
   probeLegacyContainers,
   probeLegacyDbPort,
   readConfigDbPort,
@@ -30,6 +31,7 @@ import {
   type HomeStackList,
   type PortProbe,
 } from './fleet.js';
+import type { Service } from './services.js';
 
 const UNREACHABLE: StackProbe = { ok: false, notes: 'no stack' };
 const REACHABLE: StackProbe = {
@@ -721,6 +723,30 @@ describe('commands attributed by per-call working directory', () => {
   });
 });
 
+describe('directory attribution before stack name', () => {
+  const kinds = (command: string, service: Service) =>
+    lifecycleEvents(invocationsOf([command]), service).map(({ kind }) => kind);
+
+  it('credits a --stack name inside another service directory to the directory', () => {
+    const command =
+      'cd legacy-import && supabase stack destroy --stack payments-api';
+    expect(kinds(command, 'legacy-import')).toEqual(['teardown']);
+    expect(kinds(command, 'payments-api')).toEqual([]);
+  });
+
+  it('credits a --stack name to its service from the sandbox root', () => {
+    const command = 'supabase stack start --stack payments-api';
+    expect(kinds(command, 'payments-api')).toEqual(['start']);
+    expect(kinds(command, 'legacy-import')).toEqual([]);
+  });
+
+  it('credits an unrelated --stack name inside a service directory to that service', () => {
+    const command = 'cd checkout-service && supabase stack start --stack demo';
+    expect(kinds(command, 'checkout-service')).toEqual(['start']);
+    expect(kinds(command, 'payments-api')).toEqual([]);
+  });
+});
+
 describe('failed tool calls', () => {
   const START_BY_WORKDIR = [
     'supabase start --workdir checkout-service',
@@ -1277,12 +1303,12 @@ describe('evidence from database start times', () => {
 
   it('falls back to commands when setup and the checkout restart share a call', () => {
     const result = restarted(
-      SAME_CALL('supabase stack restart --stack checkout-service'),
+      SAME_CALL('supabase stack restart --workdir ../checkout-service'),
       T - 5_000
     );
     expect(result.passed).toBe(true);
     expect(result.notes).toBe(
-      'commands: cmd #3 "supabase stack restart --stack checkout-service" in legacy-import ran without failing after setup (cmd #3 "supabase start" in legacy-import); setup and restart ran in one call (cmd #3); timing can\'t order them'
+      'commands: cmd #3 "supabase stack restart --workdir ../checkout-service" in legacy-import ran without failing after setup (cmd #3 "supabase start" in legacy-import); setup and restart ran in one call (cmd #3); timing can\'t order them'
     );
   });
 

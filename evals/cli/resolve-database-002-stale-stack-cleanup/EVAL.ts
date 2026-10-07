@@ -44,6 +44,7 @@ import {
   checkStackRunning,
   findServiceDirs,
   resolveServiceStacks,
+  SERVICES,
   serviceStackTarget,
   type Service,
 } from './services.js';
@@ -73,7 +74,8 @@ const scorer: LocalStackScorer = async (ctx) => {
       ctx,
       candidateHomes(
         invocations,
-        serviceStackTarget('legacy-import', dirs.found['legacy-import'])
+        serviceStackTarget('legacy-import', dirs.found['legacy-import']),
+        SERVICES
       )
     );
     const rows: Record<SurvivingService, RowStringsProbe> = {
