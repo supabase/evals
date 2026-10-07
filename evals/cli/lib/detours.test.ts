@@ -250,6 +250,21 @@ describe('commandSegments', () => {
     ]);
   });
 
+  it('keeps a # inside a parameter expansion, nested or not', () => {
+    expect(
+      commandSegments('echo ${DOCKER_HOST:- # unset}; sudo dockerd')
+    ).toEqual(['echo ${DOCKER_HOST:- # unset}', 'sudo dockerd']);
+    expect(commandSegments('echo ${a:-${b:- # x}} # y; sudo dockerd')).toEqual([
+      'echo ${a:-${b:- # x}}',
+    ]);
+  });
+
+  it('still drops a comment after a closed parameter expansion', () => {
+    expect(commandSegments('echo ${x} # c; sudo dockerd')).toEqual([
+      'echo ${x}',
+    ]);
+  });
+
   it('masks quoted literals so their contents cannot leak into segments', () => {
     expect(
       commandSegments('echo "sudo systemctl start docker; rm -rf /"')
@@ -263,6 +278,12 @@ describe('findDetours with comments', () => {
       []
     );
     expect(findDetours('ls # cleanup; sudo dockerd')).toEqual([]);
+  });
+
+  it('flags a detour after a # inside a parameter expansion', () => {
+    expect(findDetours('echo ${DOCKER_HOST:- # unset}; sudo dockerd')).toEqual([
+      'leading:sudo',
+    ]);
   });
 
   it('still flags a detour before a comment', () => {
@@ -286,18 +307,43 @@ describe('scopedCommandSegments', () => {
       { segment: 'echo ")"', opens: 0, closes: 0 },
     ]);
   });
+
+  it('does not count a backslash-escaped paren', () => {
+    expect(scopedCommandSegments('(cd a && echo \\) && b); c')).toEqual([
+      { segment: 'cd a', opens: 1, closes: 0 },
+      { segment: 'echo \\)', opens: 0, closes: 0 },
+      { segment: 'b)', opens: 0, closes: 1 },
+      { segment: 'c', opens: 0, closes: 0 },
+    ]);
+    expect(scopedCommandSegments('echo \\( x')).toEqual([
+      { segment: 'echo \\', opens: 0, closes: 0 },
+      { segment: 'x', opens: 0, closes: 0 },
+    ]);
+  });
+
+  it('counts a paren after an escaped backslash', () => {
+    expect(scopedCommandSegments('(echo \\\\); c')).toEqual([
+      { segment: 'echo \\\\)', opens: 1, closes: 1 },
+      { segment: 'c', opens: 0, closes: 0 },
+    ]);
+  });
 });
 
 describe('skipEnvOptions', () => {
   it.each([
-    [['-i', 'x'], { next: 1 }],
-    [['-u', 'DOCKER_HOST', 'x'], { next: 2 }],
-    [['--unset=DOCKER_HOST', 'x'], { next: 1 }],
-    [['--unset', 'DOCKER_HOST', 'x'], { next: 2 }],
+    [['-i', 'x'], { next: 1, clearsEnvironment: true }],
+    [['-u', 'DOCKER_HOST', 'x'], { next: 2, unset: ['DOCKER_HOST'] }],
+    [['--unset=DOCKER_HOST', 'x'], { next: 1, unset: ['DOCKER_HOST'] }],
+    [['--unset', 'DOCKER_HOST', 'x'], { next: 2, unset: ['DOCKER_HOST'] }],
     [['-C', 'dir', 'x'], { next: 2, chdir: 'dir' }],
     [['--chdir=dir', 'x'], { next: 1, chdir: 'dir' }],
-    [['--chdir', 'dir', '-i', 'x'], { next: 3, chdir: 'dir' }],
+    [
+      ['--chdir', 'dir', '-i', 'x'],
+      { next: 3, chdir: 'dir', clearsEnvironment: true },
+    ],
     [['FOO=1', 'x'], { next: 0 }],
+    [['--', 'x'], { next: 1 }],
+    [['-u', 'A', '--', '--', 'x'], { next: 3, unset: ['A'] }],
   ])('%j -> %j', (tokens, expected) => {
     expect(skipEnvOptions(tokens, 0)).toEqual(expected);
   });
@@ -320,6 +366,11 @@ describe('leadingWord', () => {
     expect(leadingWord('env --unset DOCKER_HOST --chdir=/tmp sudo')).toBe(
       'sudo'
     );
+  });
+
+  it('strips an env -- end-of-options marker', () => {
+    expect(leadingWord('env -- sudo')).toBe('sudo');
+    expect(leadingWord('env -i -- FOO=1 sudo')).toBe('sudo');
   });
 
   it('takes the basename of an absolute path', () => {

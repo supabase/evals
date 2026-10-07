@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { claudeCodeParser } from './parser.js';
+import {
+  claudeCodeParser,
+  sessionPromptAt,
+  sessionRequestUsage,
+} from './parser.js';
 import { adaptTranscript } from '../../parsers/adapt.js';
 
 /** A representative Claude Code `--print` JSONL session. */
@@ -11,6 +15,7 @@ const SESSION = [
     type: 'assistant',
     timestamp: '2026-06-18T10:00:00.000Z',
     message: {
+      id: 'msg_1',
       role: 'assistant',
       content: [
         { type: 'text', text: 'Let me list the files.' },
@@ -211,13 +216,23 @@ describe('adaptTranscript', () => {
 
   it('renders a scorer-facing transcript (messages + tool calls, raw args preserved)', () => {
     expect(adapted.transcript).toEqual([
-      { type: 'message', role: 'assistant', content: 'Let me list the files.' },
+      {
+        type: 'message',
+        role: 'assistant',
+        content: 'Let me list the files.',
+        ts: Date.parse('2026-06-18T10:00:00.000Z'),
+        requestId: 'msg_1',
+      },
       {
         type: 'tool_call',
         name: 'Bash',
         input: { command: 'ls -la' },
         output: 'file1\nfile2',
         error: undefined,
+        ts: Date.parse('2026-06-18T10:00:00.000Z'),
+        resultTs: Date.parse('2026-06-18T10:00:01.000Z'),
+        id: 'toolu_1',
+        requestId: 'msg_1',
       },
       {
         type: 'tool_call',
@@ -225,6 +240,7 @@ describe('adaptTranscript', () => {
         input: { query: 'rls' },
         output: undefined,
         error: 'boom',
+        id: 'toolu_2',
       },
       {
         type: 'message',
@@ -232,5 +248,49 @@ describe('adaptTranscript', () => {
         content: 'Done. Listed files and searched docs.',
       },
     ]);
+  });
+});
+
+describe('sessionRequestUsage', () => {
+  it('keys final usage by message id and folds cache buckets into input', () => {
+    const line = (outputTokens: number) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          id: 'msg_1',
+          usage: {
+            input_tokens: 2,
+            cache_read_input_tokens: 5,
+            cache_creation_input_tokens: 3,
+            output_tokens: outputTokens,
+          },
+        },
+      });
+    expect(sessionRequestUsage(`${line(259)}\n${line(259)}`)).toEqual(
+      new Map([
+        [
+          'msg_1',
+          {
+            inputTokens: 10,
+            cacheReadInputTokens: 5,
+            cacheWriteInputTokens: 3,
+            outputTokens: 259,
+          },
+        ],
+      ])
+    );
+  });
+});
+
+describe('sessionPromptAt', () => {
+  it('returns the first user record time, skipping queue records', () => {
+    const jsonl = [
+      { type: 'queue-operation', timestamp: '2026-09-30T20:31:32.391Z' },
+      { type: 'user', timestamp: '2026-09-30T20:31:34.374Z' },
+      { type: 'user', timestamp: '2026-09-30T20:31:40.000Z' },
+    ]
+      .map((r) => JSON.stringify(r))
+      .join('\n');
+    expect(sessionPromptAt(jsonl)).toBe(Date.parse('2026-09-30T20:31:34.374Z'));
   });
 });

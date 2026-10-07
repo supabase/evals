@@ -14,7 +14,7 @@ import {
 import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import type { ToolCall, ToolName } from './transcript/types.js';
+import type { RequestUsage, ToolCall, ToolName } from './transcript/types.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
@@ -47,6 +47,7 @@ import type {
   EvalSuite,
   ExperimentDisplayMetadata,
   ExperimentSuite,
+  JudgeCall,
   ModelProvider,
   ReasoningEffortLevel,
 } from './eval-metadata.js';
@@ -159,11 +160,19 @@ export interface ScoreResult {
   checks?: CheckResult[];
 }
 
+/**
+ * `ts` and `resultTs` are epoch ms, set when the agent records event times.
+ * `requestId` groups the parts one model request emitted, and `usage` is that
+ * request's tokens (see `TranscriptEvent`).
+ */
 export type TranscriptPart =
   | {
       type: 'message';
       role: 'system' | 'user' | 'assistant';
       content: string;
+      ts?: number;
+      requestId?: string;
+      usage?: RequestUsage;
     }
   | {
       type: 'tool_call';
@@ -171,6 +180,12 @@ export type TranscriptPart =
       input: Record<string, unknown>;
       output?: unknown;
       error?: string;
+      ts?: number;
+      resultTs?: number;
+      /** Correlates the call with its result, as `TranscriptEvent.tool.id`. */
+      id?: string;
+      requestId?: string;
+      usage?: RequestUsage;
     };
 
 export type TranscriptSerializationOptions = {
@@ -289,6 +304,8 @@ export interface ToolEvalContext extends ToolScoringContext {
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   agentReport?: string;
+  /** Ask an LLM judge whether `input` meets `rubric`. Each call shows up in the run's trace. */
+  judge: (args: JudgeInput) => Promise<JudgeResult>;
 }
 
 /**
@@ -396,6 +413,8 @@ export interface LocalStackEvalContext extends LocalStackScoringContext {
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   agentReport?: string;
+  /** See {@link ToolEvalContext.judge}. */
+  judge: (args: JudgeInput) => Promise<JudgeResult>;
   /**
    * Host-side copy of the agent's workspace, exported from the sandbox after
    * the run. Lets scorers run host tooling (vite/vitest from the repo root)
@@ -441,7 +460,12 @@ export type AgentRunResult = {
   stoppedReason: string;
   usage?: AgentUsage;
   stepCount?: number;
+  /** Task time, prompt to last transcript event; see `agentRunDurationMs`. */
   durationMs: number;
+  /** Host epoch ms the agent process or model loop started. */
+  startedAt: number;
+  /** Epoch ms the CLI recorded the user prompt, from its session files. */
+  promptAt?: number;
 };
 
 export type AgentHarness = {
@@ -678,24 +702,60 @@ const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   },
 };
 
-export async function judge(args: JudgeInput): Promise<JudgeResult> {
+const JUDGE_SYSTEM =
+  'You are a strict eval judge. Return only the requested structured judgment.';
+
+async function judge(
+  args: JudgeInput
+): Promise<{ verdict: JudgeResult; call: JudgeCall }> {
   const model = args.model ?? DEFAULT_JUDGE_MODEL;
   const providerOptions =
     args.providerOptions ?? DEFAULT_JUDGE_PROVIDER_OPTIONS;
   assertProviderReady(model.provider);
-  const { output } = await generateText({
+  const prompt = ['Rubric:', args.rubric, '', 'Input:', args.input].join('\n');
+  const startedAt = Date.now();
+  const { output, totalUsage } = await generateText({
     model,
-    system:
-      'You are a strict eval judge. Return only the requested structured judgment.',
-    prompt: ['Rubric:', args.rubric, '', 'Input:', args.input].join('\n'),
+    system: JUDGE_SYSTEM,
+    prompt,
     output: Output.object({ schema: judgeOutputSchema }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     providerOptions: withProviderDefaults(model.provider, providerOptions),
   });
 
   return {
-    passed: output.passed,
-    notes: output.notes,
+    verdict: { passed: output.passed, notes: output.notes },
+    call: {
+      // AI SDK reports `openai.responses`, so keep the vendor like agent spans do.
+      // https://github.com/vercel/ai/blob/f6e588173713842794c619f9554a4b341c6e97f5/packages/openai/src/openai-provider.ts#L231
+      provider: model.provider.split('.')[0] ?? model.provider,
+      system: JUDGE_SYSTEM,
+      prompt,
+      output,
+      model: model.modelId,
+      usage: {
+        inputTokens: totalUsage.inputTokens,
+        cacheReadInputTokens: totalUsage.inputTokenDetails.cacheReadTokens,
+        cacheWriteInputTokens: totalUsage.inputTokenDetails.cacheWriteTokens,
+        outputTokens: totalUsage.outputTokens,
+        reasoningTokens: totalUsage.outputTokenDetails.reasoningTokens,
+      },
+      startedAt,
+      durationMs: Date.now() - startedAt,
+    },
+  };
+}
+
+/** Records one run's successful `judge` calls. Read them back with `finish()`. */
+export function createJudgeRecorder(run: typeof judge = judge) {
+  const calls: JudgeCall[] = [];
+  return {
+    judge: async (args: JudgeInput): Promise<JudgeResult> => {
+      const { verdict, call } = await run(args);
+      calls.push(call);
+      return verdict;
+    },
+    finish: (): readonly JudgeCall[] => [...calls],
   };
 }
 
@@ -868,6 +928,7 @@ export function aiSdkAgent(options: {
           usage,
           stepCount: result.steps.length,
           durationMs: Date.now() - start,
+          startedAt: start,
         };
       } finally {
         await closeMcpHandles(mcpHandles);

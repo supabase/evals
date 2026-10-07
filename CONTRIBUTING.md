@@ -36,7 +36,7 @@ Instead of spoonfeeding agents in the prompt, move details into seed data to let
 
 Prefer deterministic checks where possible because they are cheaper, faster, repeatable, and easier to debug. Avoid being overly prescriptive with the process an agent takes to reach a solution (unless critical to the scenario), prefer checking the end state by inspecting the project or filesystem.
 
-Reserve LLM-as-a-judge checks via `judge()` for semantic or free-form outcomes where multiple valid forms make exact checks brittle.
+Reserve LLM-as-a-judge checks via `ctx.judge()` for semantic or free-form outcomes where multiple valid forms make exact checks brittle.
 
 Prefer building checks declaratively and returning the list in one place instead of accumulating checks within branching logic, so the list remains stable if one path fails.
 
@@ -66,7 +66,7 @@ Use this checklist after the author has followed [Submitting evals for review](#
 
 - Read [Eval criteria](#eval-criteria) and [Writing prompts](#writing-prompts). The `motivation:` should cite a real user problem, with the respective external link or Linear issue ID, and the prompt should have one clear, observable goal without leaking commands, schema details, or rubric language.
 - Review [Writing scorers](#writing-scorers) assertion by assertion. Each check should map to a user requirement, avoid known false passes and false fails, and measure behavior instead of one implementation path. Don't turn incidental diagnostics into pass/fail checks.
-- Ask for a deterministic or fixture-based check whenever it can replace `judge()`. Reserve judges for semantic or free-form outcomes where exact checks would be brittle.
+- Ask for a deterministic or fixture-based check whenever it can replace `ctx.judge()`. Reserve judges for semantic or free-form outcomes where exact checks would be brittle.
 - Require refreshed CI results, inspect at least one success run and each distinct failure shape, and confirm the experiment matches the intended suite, skills, runtime, hosted or local state, and any CLI or Docker assumptions.
 - Classify each failure before requesting changes: agent gap, product gap, scorer bug, or harness/runtime failure. Ideally, show that the scorer rejects at least one known-bad solution or counterexample with a scorer unit test or a failing run linked in the PR.
 

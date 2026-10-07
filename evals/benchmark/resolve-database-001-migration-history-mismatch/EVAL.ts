@@ -1,5 +1,4 @@
 import {
-  judge,
   type CheckResult,
   type LocalStackEvalContext,
   type LocalStackScorer,
@@ -255,7 +254,7 @@ async function checkUsedCliWorkflow(
       notes: 'no agent actions recorded to evaluate',
     };
   }
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: `<<<AGENT_ACTIONS\n${actions}\nAGENT_ACTIONS>>>`,
     rubric: stripIndent`
       The input is a numbered log of an agent's actions (shell commands / tool

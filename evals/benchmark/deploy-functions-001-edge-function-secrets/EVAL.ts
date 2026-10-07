@@ -1,5 +1,4 @@
 import {
-  judge,
   readEnvVariable,
   type CheckResult,
   type LocalStackEvalContext,
@@ -144,7 +143,7 @@ async function checkFunctionReadsSecret(
       notes: `could not read supabase/functions/${FUNCTION_SLUG}/*`,
     };
   }
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: source,
     rubric: stripIndent`
       The input is the source of a Supabase Edge Function (Deno runtime).

@@ -1,5 +1,4 @@
 import {
-  judge,
   type CheckResult,
   type LocalStackEvalContext,
 } from '@supabase-evals/core';
@@ -65,7 +64,7 @@ export async function checkTestsExerciseAccessControl(
     files.map(async (file) => `-- ${file}\n${await ctx.readFile(file)}`)
   );
 
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: sources.join('\n\n'),
     rubric: stripIndent`
       You are reviewing pgTAP tests for a Postgres database holding a to-do app

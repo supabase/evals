@@ -34,6 +34,7 @@ import { buildSystemPrompt } from './system-prompt.js';
 import {
   buildDocsResult,
   buildSkillResult,
+  createJudgeRecorder,
   evalSuiteSchema,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
@@ -44,6 +45,7 @@ import type {
   ExperimentConfig,
   EvalInterface,
   EvalManifest,
+  JudgeCall,
   EvalMode,
   EvalSuite,
   ToolScorer,
@@ -357,6 +359,7 @@ async function runOne(
   runIndex: number
 ): Promise<
   ScoreResult & {
+    judgeCalls: JudgeCall[];
     run: number;
     skills: SkillResult;
     docs: DocsResult;
@@ -373,6 +376,10 @@ async function runOne(
     stepCount?: number;
     toolCallCount: number;
     agentRunDurationMs: number;
+    agentRunStartedAt: number;
+    agentPromptAt?: number;
+    agentRunEndedAt: number;
+    scoringEndedAt: number;
     cliVersion?: string;
   }
 > {
@@ -456,6 +463,7 @@ async function runOne(
       timeoutSec: TIMEOUT_SEC,
       sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
     });
+    const agentRunEndedAt = Date.now();
     await session.ensureReady?.();
     // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
     // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
@@ -469,11 +477,13 @@ async function runOne(
       copiedWithheldTests = true;
     };
 
+    const judges = createJudgeRecorder();
     const last = await (scorer as LocalStackScorer)({
       ...session.scoringContext,
       toolCalls: run.toolCalls,
       transcript: run.transcript,
       agentReport: run.agentReport,
+      judge: judges.judge,
       hostWorkspace,
       runViteBuild: () => viteBuild(hostWorkspace),
       runVitest: () => {
@@ -481,6 +491,7 @@ async function runOne(
         return vitestRun(hostWorkspace);
       },
     });
+    const scoringEndedAt = Date.now();
 
     // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
     await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
@@ -491,6 +502,7 @@ async function runOne(
 
     return {
       ...last,
+      judgeCalls: [...judges.finish()],
       run: runIndex,
       skills: buildSkillResult(availableSkills, run.toolCalls),
       docs: buildDocsResult(run.toolCalls),
@@ -503,6 +515,10 @@ async function runOne(
       stepCount: run.stepCount,
       toolCallCount: run.toolCalls.length,
       agentRunDurationMs: run.durationMs,
+      agentRunStartedAt: run.startedAt,
+      agentPromptAt: run.promptAt,
+      agentRunEndedAt,
+      scoringEndedAt,
       cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
     };
   }
@@ -543,12 +559,16 @@ async function runOne(
     timeoutSec: TIMEOUT_SEC,
     sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
   });
+  const agentRunEndedAt = Date.now();
+  const judges = createJudgeRecorder();
   const last = await (scorer as ToolScorer)({
     ...session.scoringContext,
     toolCalls: run.toolCalls,
     transcript: run.transcript,
     agentReport: run.agentReport,
+    judge: judges.judge,
   });
+  const scoringEndedAt = Date.now();
 
   // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
   if (cliSandbox)
@@ -556,6 +576,7 @@ async function runOne(
 
   return {
     ...last,
+    judgeCalls: [...judges.finish()],
     run: runIndex,
     skills: buildSkillResult(availableSkills, run.toolCalls),
     docs: buildDocsResult(run.toolCalls),
@@ -568,6 +589,10 @@ async function runOne(
     stepCount: run.stepCount,
     toolCallCount: run.toolCalls.length,
     agentRunDurationMs: run.durationMs,
+    agentRunStartedAt: run.startedAt,
+    agentPromptAt: run.promptAt,
+    agentRunEndedAt,
+    scoringEndedAt,
     // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.
     cliVersion: ev.metadata.cliVersion,
   };

@@ -1,5 +1,4 @@
 import {
-  judge,
   serializeTranscript,
   type CheckResult,
   type ToolEvalContext,
@@ -43,7 +42,7 @@ async function checkNoReadReplicaGuidance(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
   // AI-795 regression guard: live updates should not require read replicas.
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: serializeTranscript(ctx.transcript, {
       includeToolCallInputs: true,
     }),
