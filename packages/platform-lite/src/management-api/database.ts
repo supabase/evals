@@ -58,15 +58,11 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
     const { name, query } = body;
 
     try {
-      await project.app.connection.exec(query);
+      return c.json(await project.applyMigration(name, query), 201);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ message }, 400);
     }
-
-    const version = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
-    project.migrations.push({ version, name });
-    return c.json({ version, name }, 201);
   });
 
   return routes;

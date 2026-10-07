@@ -325,12 +325,20 @@ function readSessionSeedArgs(ev: EvalManifest) {
   const projectSeedSql = join(ev.remoteDir, 'project.sql');
   const logsSeedJsonl = join(ev.remoteDir, 'logs.jsonl');
   const functionsSeedDir = join(ev.remoteDir, 'functions');
+  const organizationSeedJson = join(ev.remoteDir, 'organization.json');
+  const migrationsSeedDir = join(ev.remoteDir, 'migrations');
 
   return {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
     logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
     functionsSeedDir: existsSync(functionsSeedDir)
       ? functionsSeedDir
+      : undefined,
+    organizationSeedJson: existsSync(organizationSeedJson)
+      ? organizationSeedJson
+      : undefined,
+    migrationsSeedDir: existsSync(migrationsSeedDir)
+      ? migrationsSeedDir
       : undefined,
     pgvector: ev.metadata.product.includes('vectors'),
   };
@@ -537,6 +545,8 @@ async function runOne(
     await exp.runtime.startSession({
       ...readSessionSeedArgs(ev),
       hostname: agentRunsInSandbox ? '0.0.0.0' : undefined,
+      projectScoped: ev.metadata.projectScoped,
+      mcpFeatures: ev.metadata.mcpFeatures,
     })
   );
 

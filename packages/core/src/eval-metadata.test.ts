@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { evalMetadataSchema, rawEvalResultSchema } from './eval-metadata.js';
+import {
+  evalFrontmatterSchema,
+  evalMetadataSchema,
+  rawEvalResultSchema,
+} from './eval-metadata.js';
 
 describe('cliVersion schema', () => {
   const BETA_VERSION = '2.118.0-beta.60';
@@ -36,6 +40,37 @@ describe('cliVersion schema', () => {
         interface: 'cli',
         cliVersion: 'stable',
       })
+    ).toThrow();
+  });
+});
+
+describe('MCP frontmatter', () => {
+  const base = {
+    stage: 'build',
+    product: ['database'],
+    topic: ['sql'],
+    interface: 'mcp',
+  };
+
+  it('parses projectScoped and mcpFeatures', () => {
+    const parsed = evalFrontmatterSchema.parse({
+      ...base,
+      projectScoped: 'true',
+      mcpFeatures: 'Branching',
+    });
+    expect(parsed.projectScoped).toBe(true);
+    expect(parsed.mcpFeatures).toEqual(['branching']);
+  });
+
+  it('leaves both unset when omitted', () => {
+    const parsed = evalFrontmatterSchema.parse(base);
+    expect(parsed.projectScoped).toBeUndefined();
+    expect(parsed.mcpFeatures).toBeUndefined();
+  });
+
+  it('rejects an unknown MCP feature group', () => {
+    expect(() =>
+      evalFrontmatterSchema.parse({ ...base, mcpFeatures: ['billing'] })
     ).toThrow();
   });
 });

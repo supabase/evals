@@ -60,6 +60,28 @@ describe('supabaseMcpServer().createConfig', () => {
     expect(config.args).toContain('--api-url');
   });
 
+  it('scopes to a project and adds eval-requested features', async () => {
+    clearEnv();
+    const { config } = await supabaseMcpServer().createConfig({
+      apiUrl: 'http://api.test',
+      projectRef: 'evalproject',
+      extraFeatures: ['branching', 'docs'],
+    });
+    const arg = (flag: string) => config.args[config.args.indexOf(flag) + 1];
+    expect(arg('--project-ref')).toBe('evalproject');
+    expect(arg('--features')).toBe(
+      'docs,account,database,development,debugging,functions,branching'
+    );
+  });
+
+  it('is unscoped by default', async () => {
+    clearEnv();
+    const { config } = await supabaseMcpServer().createConfig({
+      apiUrl: 'http://api.test',
+    });
+    expect(config.args).not.toContain('--project-ref');
+  });
+
   it('launches a local build dir with node when SUPABASE_MCP_SERVER_PATH is set', async () => {
     clearEnv();
     vi.stubEnv('SUPABASE_MCP_SERVER_PATH', fixtureDir);

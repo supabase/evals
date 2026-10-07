@@ -1,6 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { EdgeFunctionSeed, ProjectSeed, LogRow } from './types.js';
+import type {
+  EdgeFunctionSeed,
+  MigrationSeed,
+  ProjectSeed,
+  LogRow,
+} from './types.js';
 
 export async function loadSeedDir(dir: string): Promise<ProjectSeed[]> {
   const entries = await readdir(dir, { withFileTypes: true }).catch(
@@ -53,6 +58,7 @@ export async function loadSeedDir(dir: string): Promise<ProjectSeed[]> {
     }
 
     seed.functions = await loadFunctionSeeds(join(projectDir, 'functions'));
+    seed.migrations = await loadMigrationSeeds(join(projectDir, 'migrations'));
 
     seeds.push(seed);
   }
@@ -86,6 +92,37 @@ export async function loadFunctionSeeds(
   }
 
   return functions;
+}
+
+/**
+ * Read a `migrations/` directory of Supabase CLI-style `<version>_<name>.sql`
+ * files into `MigrationSeed[]`, ordered by version. Returns `[]` if the
+ * directory is absent; throws on a misnamed file.
+ */
+export async function loadMigrationSeeds(
+  dir: string
+): Promise<MigrationSeed[]> {
+  const entries = await readdir(dir).catch((err: NodeJS.ErrnoException) => {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  });
+  if (!entries) return [];
+
+  const migrations: MigrationSeed[] = [];
+  for (const file of entries.sort()) {
+    const match = /^(\d+)_(.+)\.sql$/.exec(file);
+    if (!match) {
+      throw new Error(
+        `${join(dir, file)}: migration seeds must be named <version>_<name>.sql`
+      );
+    }
+    migrations.push({
+      version: match[1]!,
+      name: match[2]!,
+      query: await readFile(join(dir, file), 'utf-8'),
+    });
+  }
+  return migrations;
 }
 
 async function loadFunctionFiles(
