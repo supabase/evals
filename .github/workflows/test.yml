@@ -33,7 +33,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: pnpm test
 
-  # Separate job since it's the slowest suite.
+  # Separate job so it runs in parallel with `test`.
   test-platform-lite:
     runs-on: ubuntu-26.04
     steps:
@@ -57,8 +57,7 @@ jobs:
       - name: Run platform-lite tests
         run: pnpm --filter @supabase-evals/platform-lite test
 
-  # Boots a real Supabase stack in Docker (~2.5 min), so it only runs when the sandbox could have changed.
-  # A skipped job would leave a required check pending, so the job always runs and gates its steps instead.
+  # Slow, so the steps only run when the sandbox changes. A `paths:` filter would leave the required check pending.
   test-docker:
     runs-on: ubuntu-26.04
     steps:
