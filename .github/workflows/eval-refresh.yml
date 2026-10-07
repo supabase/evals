@@ -62,8 +62,8 @@ permissions:
   actions: read
 
 concurrency:
-  # The app's own results push gets a unique group so it can't cancel the run that pushed it.
-  group: eval-refresh-${{ github.event.sender.login == 'supabase-evals-releaser[bot]' && github.run_id || github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  # Bot pushes get a unique group so the app's results push can't cancel the run that pushed it.
+  group: eval-refresh-${{ github.event.sender.type == 'Bot' && github.run_id || github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   # Supersede an in-flight run when a new commit is pushed to the same PR, but
   # never cancel a workflow_dispatch run (those open the refresh PR).
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -74,7 +74,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
-        github.event.sender.login != 'supabase-evals-releaser[bot]' &&
+        github.event.sender.type != 'Bot' &&
         (contains(github.event.pull_request.labels.*.name, 'run-evals') ||
          contains(github.event.pull_request.labels.*.name, 'run-evals-changed')) &&
         github.event.pull_request.head.repo.full_name == github.repository &&
@@ -554,7 +554,7 @@ jobs:
             exit 0
           fi
 
-          # Required PR checks run on this commit. prepare skips the app's pushes so the refresh doesn't loop.
+          # This push runs the PR checks. prepare skips bot pushes so the refresh doesn't loop.
           git commit -m "chore: refresh eval results"
           git push
 
