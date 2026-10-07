@@ -327,6 +327,29 @@ export const checkResultSchema = z.object({
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
+/** One successful `ctx.judge` call, uploaded as an LLM span under the score span. */
+export const judgeCallSchema = z.object({
+  provider: z.string(),
+  system: z.string(),
+  prompt: z.string(),
+  output: z.object({ passed: z.boolean(), notes: z.string() }),
+  model: z.string(),
+  /** Each count is absent when the provider didn't report it. */
+  usage: z
+    .object({
+      inputTokens: z.number(),
+      cacheReadInputTokens: z.number(),
+      cacheWriteInputTokens: z.number(),
+      outputTokens: z.number(),
+      reasoningTokens: z.number(),
+    })
+    .partial(),
+  /** Host epoch ms. */
+  startedAt: z.number(),
+  durationMs: z.number(),
+});
+export type JudgeCall = z.infer<typeof judgeCallSchema>;
+
 export const skillResultSchema = z.object({
   // Skills exposed to the agent for this run.
   available: z.array(z.string()),
@@ -410,6 +433,7 @@ const evalResultShape = {
   cliVersion: cliVersionSchema.optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
+  judgeCalls: z.array(judgeCallSchema).optional(),
   attempts: z.number().optional(),
   // 1-based index of this scored run within a pair's sample set. Absent on
   // legacy rows exported before pairs ran more than once.

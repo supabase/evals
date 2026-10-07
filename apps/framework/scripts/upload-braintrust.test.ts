@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   experimentName,
+  judgeMetrics,
   logTranscript,
   runViewUrl,
   unwrapShell,
@@ -135,6 +136,7 @@ describe('logTranscript', () => {
       prompt: 'go',
       agentReport: 'done',
       checks: [],
+      judgeCalls: [],
       passed: true,
       modelId: 'm',
       startTime: 100,
@@ -247,6 +249,7 @@ describe('logTranscript', () => {
       prompt: 'go',
       agentReport: '',
       checks: [],
+      judgeCalls: [],
       passed: true,
       modelId: 'm',
       startTime: 100,
@@ -280,6 +283,7 @@ describe('logTranscript', () => {
       prompt: '',
       agentReport: '',
       checks: [],
+      judgeCalls: [],
       passed: false,
       startTime: 100,
       endTime: 120,
@@ -311,6 +315,7 @@ describe('logTranscript', () => {
       prompt: '',
       agentReport: '',
       checks: [],
+      judgeCalls: [],
       passed: true,
       startTime: 100,
       endTime: 170,
@@ -325,6 +330,78 @@ describe('logTranscript', () => {
       ['task', 100, 104],
       ['passed', 170, 170],
     ]);
+  });
+});
+
+describe('judge spans', () => {
+  it('nests judge calls under the score span', () => {
+    const spans: Record<string, unknown>[] = [];
+    const sink = (parentName?: string): SpanSink => ({
+      startSpan(args) {
+        const span: Record<string, unknown> = { ...args, parentName };
+        spans.push(span);
+        return {
+          ...sink(args?.name),
+          log: (event) => Object.assign(span, event),
+          end: (end) => Object.assign(span, end),
+        };
+      },
+      log() {},
+      end() {},
+    });
+    logTranscript(sink(), {
+      prompt: '',
+      agentReport: '',
+      checks: [],
+      passed: true,
+      startTime: 100,
+      endTime: 150,
+      agentEndTime: 110,
+      scoringEndTime: 150,
+      toolLabels: [],
+      transcript: [],
+      judgeCalls: [
+        {
+          provider: 'openai',
+          system: 'sys',
+          prompt: 'Rubric:\nr',
+          output: { passed: true, notes: 'ok' },
+          model: 'gpt-6-sol',
+          usage: { inputTokens: 100, outputTokens: 7, reasoningTokens: 5 },
+          startedAt: 120_000,
+          durationMs: 4000,
+        },
+      ],
+    });
+    expect(spans.find((span) => span.name === 'passed')).toMatchObject({
+      type: 'score',
+      spanAttributes: { purpose: 'scorer' },
+    });
+    expect(spans.find((span) => span.name === 'gpt-6-sol')).toMatchObject({
+      parentName: 'passed',
+      type: 'llm',
+      spanAttributes: { purpose: 'scorer' },
+      startTime: 120,
+      endTime: 124,
+      input: [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'Rubric:\nr' },
+      ],
+      output: { passed: true, notes: 'ok' },
+      metrics: {
+        prompt_tokens: 100,
+        completion_tokens: 7,
+        completion_reasoning_tokens: 5,
+        tokens: 107,
+      },
+      metadata: { model: 'gpt-6-sol', provider: 'openai' },
+    });
+  });
+
+  it('omits unreported judge token counts', () => {
+    expect(judgeMetrics({ outputTokens: 12 })).toEqual({
+      completion_tokens: 12,
+    });
   });
 });
 

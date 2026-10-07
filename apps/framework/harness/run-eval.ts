@@ -34,6 +34,7 @@ import { buildSystemPrompt } from './system-prompt.js';
 import {
   buildDocsResult,
   buildSkillResult,
+  createJudgeRecorder,
   evalSuiteSchema,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
@@ -44,6 +45,7 @@ import type {
   ExperimentConfig,
   EvalInterface,
   EvalManifest,
+  JudgeCall,
   EvalMode,
   EvalSuite,
   ToolScorer,
@@ -357,6 +359,7 @@ async function runOne(
   runIndex: number
 ): Promise<
   ScoreResult & {
+    judgeCalls: JudgeCall[];
     run: number;
     skills: SkillResult;
     docs: DocsResult;
@@ -474,11 +477,13 @@ async function runOne(
       copiedWithheldTests = true;
     };
 
+    const judges = createJudgeRecorder();
     const last = await (scorer as LocalStackScorer)({
       ...session.scoringContext,
       toolCalls: run.toolCalls,
       transcript: run.transcript,
       agentReport: run.agentReport,
+      judge: judges.judge,
       hostWorkspace,
       runViteBuild: () => viteBuild(hostWorkspace),
       runVitest: () => {
@@ -497,6 +502,7 @@ async function runOne(
 
     return {
       ...last,
+      judgeCalls: [...judges.finish()],
       run: runIndex,
       skills: buildSkillResult(availableSkills, run.toolCalls),
       docs: buildDocsResult(run.toolCalls),
@@ -554,11 +560,13 @@ async function runOne(
     sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
   });
   const agentRunEndedAt = Date.now();
+  const judges = createJudgeRecorder();
   const last = await (scorer as ToolScorer)({
     ...session.scoringContext,
     toolCalls: run.toolCalls,
     transcript: run.transcript,
     agentReport: run.agentReport,
+    judge: judges.judge,
   });
   const scoringEndedAt = Date.now();
 
@@ -568,6 +576,7 @@ async function runOne(
 
   return {
     ...last,
+    judgeCalls: [...judges.finish()],
     run: runIndex,
     skills: buildSkillResult(availableSkills, run.toolCalls),
     docs: buildDocsResult(run.toolCalls),

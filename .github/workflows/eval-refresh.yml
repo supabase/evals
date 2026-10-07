@@ -4,21 +4,21 @@ on:
   workflow_dispatch:
     inputs:
       experiments:
-        description: "Comma-separated experiment names to run (blank to auto-discover from experiment_suite)"
+        description: "Comma-separated experiment names to run (overrides experiment_suite)"
         required: false
         default: ""
       eval:
-        description: "Optional comma-separated eval ids to run"
+        description: "Comma-separated eval ids to run (overrides suite)"
         required: false
         default: ""
       suite:
         description: "Comma-separated eval suites to run"
-        required: true
-        default: "benchmark"
+        required: false
+        default: ""
       experiment_suite:
         description: "Comma-separated experiment suites to run"
-        required: true
-        default: "benchmark,no-skills"
+        required: false
+        default: ""
       runs:
         description: "Independent scored runs per experiment/eval pair"
         required: true
@@ -35,7 +35,7 @@ on:
         description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
         type: boolean
         required: false
-        default: false
+        default: true
       commit_to_branch:
         description: "Commit exported results to the dispatched branch instead of opening a PR"
         type: boolean
@@ -87,7 +87,6 @@ jobs:
       sandbox_concurrency: ${{ steps.inputs.outputs.sandbox_concurrency }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
       do_merge: ${{ steps.inputs.outputs.do_merge }}
-      suite: ${{ steps.inputs.outputs.suite }}
       cli_stable_version: ${{ steps.inputs.outputs.cli_stable_version }}
       cli_beta_version: ${{ steps.inputs.outputs.cli_beta_version }}
     steps:
@@ -107,6 +106,15 @@ jobs:
             sandbox_concurrency="${{ inputs.sandbox_concurrency }}"
             cli_stable_version="${{ inputs.cli_stable_version }}"
             cli_beta_version="${{ inputs.cli_beta_version }}"
+
+            if [ -z "$suite" ] && [ -z "$eval_id" ]; then
+              echo "::error::Set suite or eval to choose which evals to run."
+              exit 1
+            fi
+            if [ -z "$experiment_suite" ] && [ -z "$experiments_override" ]; then
+              echo "::error::Set experiment_suite or experiments to choose which experiments to run."
+              exit 1
+            fi
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             experiments_override=""
             eval_id=""
@@ -235,7 +243,7 @@ jobs:
           fi
 
           pairs='[]'
-          experiments_override="${{ steps.inputs.outputs.experiments_override }}"
+          experiments_override="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "${{ steps.inputs.outputs.experiments_override }}")"
           for id in "${matching[@]}"; do
             eval_suite=$(basename "$(dirname "$(compgen -G "evals/*/$id")")")
             case "$eval_suite" in
@@ -247,15 +255,16 @@ jobs:
             esac
 
             for experiment_suite in "${experiment_suites[@]}"; do
-              if ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
+              # experiment_suite only narrows auto-discovery. An explicit list
+              # runs each experiment in whichever of these suites it belongs to.
+              if [ "$experiments_override" = "[]" ] && ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
                 <<< '${{ steps.inputs.outputs.experiment_suite }}' > /dev/null; then
                 continue
               fi
 
-              if [ -n "$experiments_override" ]; then
-                experiments_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiments_override")"
-              else
-                experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite" --eval "$id")"
+              experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite" --eval "$id")"
+              if [ "$experiments_override" != "[]" ]; then
+                experiments_json="$(jq -c --argjson want "$experiments_override" 'map(select(IN($want[])))' <<< "$experiments_json")"
               fi
 
               while IFS= read -r experiment; do
@@ -269,6 +278,12 @@ jobs:
               done < <(jq -r '.[]' <<< "$experiments_json")
             done
           done
+
+          unmatched="$(jq -r --argjson pairs "$pairs" '. - ($pairs | map(.experiment)) | join(",")' <<< "$experiments_override")"
+          if [ -n "$unmatched" ]; then
+            echo "Experiments not in any suite for the selected evals: $unmatched" >&2
+            exit 1
+          fi
 
           if [ "$(jq 'length' <<< "$pairs")" -eq 0 ]; then
             echo "No experiment and eval pairs matched" >&2
@@ -555,8 +570,10 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           add-paths: apps/web/src/data/*eval-results.json
-          # Per ref, event, and suite so concurrent refreshes open separate PRs.
-          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name }}-${{ join(fromJSON(needs.prepare.outputs.suite), '-') }}
+          # The action resets an existing branch, so reusing a name replaces the earlier run's results.
+          # Manual dispatches get a branch per run to keep them apart. Scheduled runs share one branch.
+          # https://github.com/peter-evans/create-pull-request/blob/5f6978faf089d4d20b00c7766989d076bb2fc7f1/src/create-or-update-branch.ts#L297-L310
+          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event_name }}
           base: ${{ github.ref_name }}
           commit-message: "chore: refresh eval results"
           title: "chore: refresh eval results"

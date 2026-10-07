@@ -11,8 +11,10 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
+  judgeCallSchema,
   modelUsageSchema,
   type AgentUsage,
+  type JudgeCall,
 } from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
@@ -64,6 +66,7 @@ const transcriptPartSchema = z.discriminatedUnion('type', [
   }),
 ]);
 const transcriptSchema = z.array(transcriptPartSchema).catch([]);
+const judgeCallsSchema = z.array(judgeCallSchema).catch([]);
 type TranscriptPart = z.infer<typeof transcriptPartSchema>;
 
 interface PendingRow {
@@ -72,6 +75,7 @@ interface PendingRow {
   agentReport: string;
   passed: boolean;
   checks: unknown;
+  judgeCalls: JudgeCall[];
   modelId?: string;
   modelProvider?: string;
   transcript: TranscriptPart[];
@@ -200,6 +204,28 @@ export function tokenMetrics(
   return metrics;
 }
 
+/**
+ * Maps only the counts the provider reported, so missing usage stays missing.
+ * https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/token-and-cost-metrics.md#canonical-metrics
+ */
+export function judgeMetrics(
+  usage: JudgeCall['usage']
+): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  const set = (key: string, value: number | undefined) => {
+    if (value !== undefined) metrics[key] = value;
+  };
+  set('prompt_tokens', usage.inputTokens);
+  set('prompt_cached_tokens', usage.cacheReadInputTokens);
+  set('prompt_cache_creation_tokens', usage.cacheWriteInputTokens);
+  set('completion_tokens', usage.outputTokens);
+  set('completion_reasoning_tokens', usage.reasoningTokens);
+  if (usage.inputTokens !== undefined && usage.outputTokens !== undefined) {
+    metrics.tokens = usage.inputTokens + usage.outputTokens;
+  }
+  return metrics;
+}
+
 function toolLabels(toolCalls: unknown): (string | undefined)[] {
   if (!Array.isArray(toolCalls)) {
     return [];
@@ -291,6 +317,7 @@ async function collectRows(
         typeof result.agentReport === 'string' ? result.agentReport : '',
       passed: result.passed === true,
       checks: result.checks,
+      judgeCalls: judgeCallsSchema.parse(result.judgeCalls),
       modelId: display?.modelId,
       modelProvider: display?.modelProvider,
       transcript,
@@ -318,8 +345,10 @@ async function collectRows(
         ...(promptData?.product ?? result.product ?? []),
         ...(promptData?.topic ?? result.topic ?? []),
       ].map(String),
+      // Braintrust sums tokens across a trace's spans, so only LLM spans carry
+      // them. `aiSdkAgent` records no per-request usage, so its rows show none.
+      // https://braintrust.dev/docs/reference/sql/query-structure#summary
       metrics: {
-        ...tokenMetrics(result.usage),
         // Preserve the harness's own step and tool-call counts.
         ...(typeof result.stepCount === 'number'
           ? { step_count: result.stepCount }
@@ -410,6 +439,7 @@ export interface SpanSink {
  *   │  └─ llm (text)         31s → 38s
  *   ├─ teardown              38s → 40s  CLI exit until `agent.run()` returns
  *   └─ passed (score)        40s → 50s  workspace export, checks, judges
+ *      └─ gpt-6-sol (llm)    44s → 48s  one per judge call
  *
  * Without a prompt time or a leading non-assistant message there is no setup
  * span, and the first LLM span starts at the run start. Parts without a
@@ -423,6 +453,7 @@ export function logTranscript(
     | 'prompt'
     | 'agentReport'
     | 'checks'
+    | 'judgeCalls'
     | 'passed'
     | 'modelId'
     | 'modelProvider'
@@ -606,15 +637,36 @@ export function logTranscript(
   }
   const scoreStart =
     row.agentEndTime === undefined ? (row.endTime ?? latestTime) : agentEnd;
+  // `purpose: 'scorer'` keeps judge cost out of Braintrust's preset cost charts.
+  // https://braintrust.dev/docs/kb/total-llm-cost-preset-requirements#what-is-happening
   const scorer = parent.startSpan({
     name: 'passed',
     type: 'score',
+    spanAttributes: { purpose: 'scorer' },
     startTime: scoreStart,
   });
   scorer.log({
     output: row.checks,
     scores: { passed: row.passed ? 1 : 0 },
   });
+  for (const call of row.judgeCalls) {
+    const span = scorer.startSpan({
+      name: call.model,
+      type: 'llm',
+      spanAttributes: { purpose: 'scorer' },
+      startTime: call.startedAt / 1000,
+    });
+    span.log({
+      input: [
+        { role: 'system', content: call.system },
+        { role: 'user', content: call.prompt },
+      ],
+      output: call.output,
+      metrics: judgeMetrics(call.usage),
+      metadata: { model: call.model, provider: call.provider },
+    });
+    span.end({ endTime: (call.startedAt + call.durationMs) / 1000 });
+  }
   scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
 }
 

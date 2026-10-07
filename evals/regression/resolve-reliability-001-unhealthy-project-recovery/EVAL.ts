@@ -1,5 +1,4 @@
 import {
-  judge,
   serializeTranscript,
   type CheckResult,
   type ToolScorer,
@@ -7,7 +6,7 @@ import {
 import { stripIndent } from 'common-tags';
 
 const scorer: ToolScorer = async (ctx) => {
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: serializeTranscript(ctx.transcript),
     rubric: stripIndent`
       Pass if the assistant answers the support question with safe, docs-grounded unhealthy-project recovery guidance.
