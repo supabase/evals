@@ -161,6 +161,28 @@ describe('brokeredNetworkPolicy', () => {
       },
     });
   });
+
+  it("sends Meta's key as a bearer token to api.meta.ai only", () => {
+    process.env.META_API_KEY = 'meta-key';
+
+    expect(brokeredNetworkPolicy()).toEqual({
+      allow: {
+        '*': [],
+        'api.meta.ai': [
+          {
+            transform: [
+              {
+                headers: {
+                  host: 'api.meta.ai',
+                  authorization: 'Bearer meta-key',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
 });
 
 describe('resolveChannelPins', () => {
