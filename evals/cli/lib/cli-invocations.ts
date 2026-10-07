@@ -30,6 +30,8 @@ export type SupabaseInvocation = {
   globalInstall?: 'active' | 'removed';
   /** The tool call's completion time (epoch ms), present only when the agent parser records it. */
   at?: number;
+  /** Set when `SUPABASE_EXPERIMENTAL_STACK` was enabled (anything but empty, `0` or `false`) in the invocation's own prefix or by an earlier `export` in the same command. */
+  experimentalStack?: true;
 };
 
 export type CommandEntry = {
@@ -72,6 +74,14 @@ const CHDIR_WORDS = new Set(['cd', 'pushd']);
 const WORKDIR_VARIABLE = 'SUPABASE_WORKDIR';
 const WORKDIR_ASSIGNMENT = `${WORKDIR_VARIABLE}=`;
 const ENV_VARIABLES = ['SUPABASE_HOME', 'HOME', 'TMPDIR'] as const;
+const EXPERIMENTAL_STACK_VARIABLE = 'SUPABASE_EXPERIMENTAL_STACK';
+const TRACKED_VARIABLES = [
+  ...ENV_VARIABLES,
+  EXPERIMENTAL_STACK_VARIABLE,
+] as const;
+const FD_REDIRECT_OPERATORS = new Set(['>', '>>', '>&', '<', '<&', '<<<']);
+const FD_NUMBER_RE = /^\d+$/;
+const FALSY_FLAG_VALUES = new Set(['', '0', 'false']);
 const PWD_PREFIX_RE = /^\$\{?PWD\}?(?=\/|$)/;
 const HOME_PREFIX_RE = /^(?:\$\{?HOME\}?|~)(?=\/|$)/;
 const VERSIONED_SUPABASE_RE = /^supabase@.+/;
@@ -133,18 +143,27 @@ function parseKeepingVariables(text: string): ParseEntry[] | undefined {
   }
 }
 
-/** Executed words up to the first operator (redirection, subshell close); globs keep their pattern. */
+/** Executed words up to the first operator (redirection, subshell close); globs keep their pattern, and a file-descriptor number directly before a redirect (`2>&1`) is not a word. */
 function words(tokens: readonly ParseEntry[]): string[] {
   const out: string[] = [];
   for (const token of tokens) {
     if (typeof token === 'string') out.push(token);
     else if ('op' in token && token.op === 'glob') out.push(token.pattern);
-    else break;
+    else {
+      if (
+        'op' in token &&
+        FD_REDIRECT_OPERATORS.has(token.op) &&
+        FD_NUMBER_RE.test(out[out.length - 1] ?? '')
+      ) {
+        out.pop();
+      }
+      break;
+    }
   }
   return out;
 }
 
-type RawEnv = Partial<Record<(typeof ENV_VARIABLES)[number], string>>;
+type RawEnv = Partial<Record<(typeof TRACKED_VARIABLES)[number], string>>;
 
 type Stripped = {
   argv: string[];
@@ -206,6 +225,7 @@ function stripPrefixes(
     const runnerSkip = PACKAGE_RUNNERS.has(word)
       ? 1
       : (word === 'npm' && NPM_EXEC_VERBS.has(next)) ||
+          (word === 'bun' && next === 'x') ||
           (word === 'pnpm' && next === 'dlx') ||
           (word === 'yarn' && next === 'dlx')
         ? 2
@@ -232,9 +252,7 @@ function stripPrefixes(
       }
     } else if (ENV_ASSIGNMENT_RE.test(word)) {
       const name = word.slice(0, word.indexOf('='));
-      if ((ENV_VARIABLES as readonly string[]).includes(name)) {
-        rawEnv[name as keyof RawEnv] = word.slice(name.length + 1);
-      }
+      if (isEnvName(name)) rawEnv[name] = word.slice(name.length + 1);
       i++;
     } else if (PASSTHROUGH_WORDS.has(word)) {
       i++;
@@ -249,6 +267,9 @@ function stripPrefixes(
     } else if (word === 'pnpm' && next === 'exec') {
       runnerStart = undefined;
       i += 2;
+    } else if (word === 'pnpm' && isSupabaseBinary(next)) {
+      runnerStart = undefined;
+      i++;
     } else if (word === 'yarn' && next !== 'global') {
       runnerStart = undefined;
       i++;
@@ -346,7 +367,7 @@ function executedArgv(segment: string, seedEnv: RawEnv): Stripped {
   return stripPrefixes(tokens === undefined ? [] : words(tokens), seedEnv);
 }
 
-type EnvName = (typeof ENV_VARIABLES)[number];
+type EnvName = (typeof TRACKED_VARIABLES)[number];
 
 /** Shell state a command carries from segment to segment, restored when its subshell closes. */
 type ShellState = {
@@ -356,7 +377,7 @@ type ShellState = {
 };
 
 function isEnvName(name: string): name is EnvName {
-  return (ENV_VARIABLES as readonly string[]).includes(name);
+  return (TRACKED_VARIABLES as readonly string[]).includes(name);
 }
 
 function exportedEnv(state: ShellState): RawEnv {
@@ -477,7 +498,7 @@ export function findSupabaseInvocations(
       } else if (argv[0] === 'export') {
         state = assignVariables(state, exportAssignments(argv.slice(1)), true);
       } else if (argv.length === 0) {
-        const assigned = ENV_VARIABLES.filter(
+        const assigned = TRACKED_VARIABLES.filter(
           (name) => rawEnv[name] !== seed[name]
         ).map((name) => [name, rawEnv[name]] as const);
         state = assignVariables(state, assigned, false);
@@ -488,6 +509,7 @@ export function findSupabaseInvocations(
         const env = resolveEnv(rawEnv, state.cwd, dir, state.vars.HOME);
         const effectiveRunner = runner ?? globalRunner;
         const fromGlobal = runner === undefined && globalRunner !== undefined;
+        const experimental = rawEnv[EXPERIMENTAL_STACK_VARIABLE];
         const invocation: SupabaseInvocation = {
           commandIndex,
           argv: ['supabase', ...argv.slice(1)],
@@ -497,6 +519,10 @@ export function findSupabaseInvocations(
           ...(effectiveRunner === undefined ? {} : { runner: effectiveRunner }),
           ...(fromGlobal ? { globalInstall: 'active' as const } : {}),
           ...(at === undefined ? {} : { at }),
+          ...(experimental === undefined ||
+          FALSY_FLAG_VALUES.has(experimental.toLowerCase())
+            ? {}
+            : { experimentalStack: true as const }),
         };
         invocations.push(invocation);
         if (fromGlobal) globalInvocations.push(invocation);
@@ -537,6 +563,14 @@ function flagValue(argv: readonly string[], flag: string): string | undefined {
     if (argv[i].startsWith(`${flag}=`)) return argv[i].slice(flag.length + 1);
   }
   return undefined;
+}
+
+/** The value of `--flag value` or `--flag=value` in the invocation's argv. */
+export function invocationFlag(
+  inv: SupabaseInvocation,
+  flag: string
+): string | undefined {
+  return flagValue(inv.argv, flag);
 }
 
 /** The subcommand an invocation ran, e.g. `stop` or `stack destroy`. */

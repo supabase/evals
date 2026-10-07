@@ -37,6 +37,13 @@ that fails, starts on the staged CLI, then is retried and fails again is flagged
 Global installs and uninstalls are recorded in order whatever their tool call's
 status, since a call's error reflects its last command.
 
+`findSupabaseInvocations` also recognises `pnpm supabase`, `bun x supabase` and
+`yarn supabase`, drops the fd number of a redirect (`2>&1`), and sets
+`experimentalStack` when `SUPABASE_EXPERIMENTAL_STACK` is enabled in the
+invocation's prefix or an earlier `export` in the same command.
+`commandToolCalls` returns the tool calls behind `extractCommands`' entries, so
+an invocation's `commandIndex` maps back to its result.
+
 Invocation attribution (`cli-invocations.ts`) starts from a tool call's `cwd`
 only when the agent parser records one (Codex, OpenCode); a `cd` persisting
 across separate tool calls in a persistent shell (e.g. Claude Code) is not

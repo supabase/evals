@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   findSupabaseInvocations,
   invocationDirectory,
+  invocationFlag,
   invocationTargetUnresolved,
   invocationTargets,
   invocationTargetsDir,
@@ -1341,5 +1342,158 @@ describe('exported and home-relative env', () => {
     expect(
       first(`HOME=${S}/u SUPABASE_HOME=$HOME/.sb supabase start`).env
     ).toEqual({ HOME: `${S}/u` });
+  });
+});
+
+describe('package runners that run the local binary', () => {
+  const first = (command: string) => findSupabaseInvocations([command])[0];
+
+  it.each([
+    'pnpm supabase start',
+    'bun x supabase start',
+    'npm exec supabase -- start',
+    'yarn supabase start',
+    'pnpm exec supabase start',
+    'npx supabase start',
+  ])('treats %s as a supabase start', (command) => {
+    const invocation = first(command);
+    expect(invocation.argv).toEqual(['supabase', 'start']);
+    expect(invocationVerb(invocation)).toBe('start');
+    expect(isStartInvocation(invocation)).toBe(true);
+    expect(invocation.runner).toBeUndefined();
+  });
+
+  it('records a versioned bun x runner like bunx', () => {
+    expect(first('bun x supabase@2.1.0 stack start')).toMatchObject({
+      argv: ['supabase', 'stack', 'start'],
+      runner: 'bun x supabase@2.1.0',
+    });
+  });
+
+  it('does not treat pnpm or bun installers as supabase runs', () => {
+    expect(
+      findSupabaseInvocations([
+        'pnpm install',
+        'pnpm add supabase',
+        'bun add supabase',
+        'bun x vitest run',
+        'pnpm test',
+      ])
+    ).toEqual([]);
+  });
+
+  it('keeps pnpm add -g as a global install', () => {
+    const [run] = findSupabaseInvocations([
+      'pnpm add -g supabase@2.1.0 && pnpm supabase start',
+    ]);
+    expect(run).toMatchObject({
+      argv: ['supabase', 'start'],
+      runner: 'pnpm add -g supabase@2.1.0',
+    });
+  });
+});
+
+describe('file-descriptor redirects', () => {
+  const argvOf = (command: string) =>
+    findSupabaseInvocations([command])[0].argv;
+
+  it('drops the fd number of a 2>&1 redirect', () => {
+    expect(
+      argvOf('supabase stack start --runtime docker 2>&1 | tail -5')
+    ).toEqual(['supabase', 'stack', 'start', '--runtime', 'docker']);
+  });
+
+  it.each([
+    ['supabase start --runtime native 2>/dev/null', ['--runtime', 'native']],
+    ['supabase start --runtime native 1>out.log', ['--runtime', 'native']],
+    ['supabase start --runtime native 2>> err.log', ['--runtime', 'native']],
+    ['supabase start --runtime native 0< /dev/null', ['--runtime', 'native']],
+  ])('drops the fd number in %s', (command, flags) => {
+    expect(argvOf(command)).toEqual(['supabase', 'start', ...flags]);
+  });
+
+  it('keeps a numeric argument that is not an fd number', () => {
+    expect(argvOf('supabase start --port 54321 2>&1')).toEqual([
+      'supabase',
+      'start',
+      '--port',
+      '54321',
+    ]);
+    expect(argvOf('supabase start --port 2 --debug')).toEqual([
+      'supabase',
+      'start',
+      '--port',
+      '2',
+      '--debug',
+    ]);
+  });
+});
+
+describe('experimentalStack', () => {
+  const first = (command: string) => findSupabaseInvocations([command])[0];
+
+  it.each([
+    'SUPABASE_EXPERIMENTAL_STACK=1 supabase start',
+    'SUPABASE_EXPERIMENTAL_STACK=true supabase start',
+    'env SUPABASE_EXPERIMENTAL_STACK=1 supabase start',
+    'env -u FOO SUPABASE_EXPERIMENTAL_STACK=1 supabase start',
+    'export SUPABASE_EXPERIMENTAL_STACK=1 && supabase start',
+    'export SUPABASE_EXPERIMENTAL_STACK=1; cd app; supabase start',
+    '(export SUPABASE_EXPERIMENTAL_STACK=1; supabase start)',
+    'SUPABASE_EXPERIMENTAL_STACK=1 pnpm supabase start',
+  ])('is set for %s', (command) => {
+    expect(first(command).experimentalStack).toBe(true);
+  });
+
+  it.each([
+    'supabase start',
+    'SUPABASE_EXPERIMENTAL_STACK=0 supabase start',
+    'SUPABASE_EXPERIMENTAL_STACK=false supabase start',
+    'SUPABASE_EXPERIMENTAL_STACK= supabase start',
+    'export SUPABASE_EXPERIMENTAL_STACK=0 && supabase start',
+    'SUPABASE_EXPERIMENTAL_STACK=1; supabase start',
+    'export SUPABASE_EXPERIMENTAL_STACK=1 && env -u SUPABASE_EXPERIMENTAL_STACK supabase start',
+    'export SUPABASE_EXPERIMENTAL_STACK=1 && env -i supabase start',
+    'export SUPABASE_EXPERIMENTAL_STACK=1 && SUPABASE_EXPERIMENTAL_STACK=0 supabase start',
+  ])('is unset for %s', (command) => {
+    expect(first(command).experimentalStack).toBeUndefined();
+  });
+
+  it('does not leak an export out of a closed subshell or into the next command', () => {
+    const invocations = findSupabaseInvocations([
+      '(export SUPABASE_EXPERIMENTAL_STACK=1; supabase start); supabase start',
+      'supabase start',
+    ]);
+    expect(
+      invocations.map(({ experimentalStack }) => experimentalStack)
+    ).toEqual([true, undefined, undefined]);
+  });
+
+  it('is independent of the home variables', () => {
+    expect(
+      first('SUPABASE_EXPERIMENTAL_STACK=1 SUPABASE_HOME=/a supabase start')
+    ).toMatchObject({
+      env: { SUPABASE_HOME: '/a' },
+      experimentalStack: true,
+    });
+    expect(
+      first('SUPABASE_EXPERIMENTAL_STACK=1 supabase start').env
+    ).toBeUndefined();
+  });
+});
+
+describe('invocationFlag', () => {
+  const flag = (command: string, name = '--runtime') =>
+    invocationFlag(findSupabaseInvocations([command])[0], name);
+
+  it('reads both spellings of a flag value', () => {
+    expect(flag('supabase stack start --runtime native')).toBe('native');
+    expect(flag('supabase stack start --runtime=native')).toBe('native');
+    expect(flag('supabase stack start --runtime "docker"')).toBe('docker');
+  });
+
+  it('is undefined when the flag is absent', () => {
+    expect(flag('supabase stack start')).toBeUndefined();
+    expect(flag('supabase stack start --stack a', '--runtime')).toBeUndefined();
   });
 });
