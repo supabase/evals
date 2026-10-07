@@ -598,8 +598,14 @@ describe('attribution by directory', () => {
   });
 
   async function readyAfter(
-    entries: Array<{ command: string; cwd?: string; at?: number }>,
-    installed = '2.120.0'
+    entries: Array<{
+      command: string;
+      cwd?: string;
+      at?: number;
+      failed?: boolean;
+    }>,
+    installed = '2.120.0',
+    afterRun?: string
   ) {
     const invocations = findSupabaseInvocations(entries);
     const ctx = fakeCtx({
@@ -612,7 +618,7 @@ describe('attribution by directory', () => {
     return checkBothStacksReady(
       ctx,
       stacks,
-      listCliOverrides(invocations, installed),
+      listCliOverrides(invocations, installed, afterRun),
       invocations
     );
   }
@@ -721,6 +727,58 @@ describe('attribution by directory', () => {
     expect(ready.notes).toContain(
       'started with npm i -g supabase@2.121.0-beta.6'
     );
+  });
+
+  it('fails starts after a global install inside a call that later failed', async () => {
+    const ready = await readyAfter(
+      [
+        {
+          ...startIn(
+            'npm i -g supabase@2.120.0 && cd client-a && supabase start',
+            S
+          ),
+          failed: true,
+        },
+        startIn('cd client-a && supabase start', S),
+        startIn('cd client-b && supabase start', S),
+      ],
+      '2.117.0',
+      '2.120.0'
+    );
+    expect(ready.passed).toBe(false);
+    expect(ready.notes).toContain('agent ran npm i -g supabase@2.120.0');
+    expect(ready.notes).toContain(
+      'client-b: managed (native), select 1 ok; client-b: started with npm i -g supabase@2.120.0'
+    );
+  });
+
+  it('does not flag starts after a global install that never took effect', async () => {
+    const ready = await readyAfter(
+      [
+        { ...startIn('npm i -g supabase@2.120.0', S), failed: true },
+        ...both('supabase start'),
+      ],
+      '2.117.0',
+      '2.117.0'
+    );
+    expect(ready.passed).toBe(true);
+    expect(ready.notes).not.toContain('agent ran');
+  });
+
+  it('does not flag starts after an uninstall in a failing call', async () => {
+    const ready = await readyAfter(
+      [
+        startIn('npm i -g supabase@2.120.0', S),
+        {
+          ...startIn('npm uninstall -g supabase && false', S),
+          failed: true,
+        },
+        ...both('supabase start'),
+      ],
+      '2.117.0',
+      '2.117.0'
+    );
+    expect(ready.passed).toBe(true);
   });
 
   it('puts the swap explanation first and shortens help payloads', async () => {
