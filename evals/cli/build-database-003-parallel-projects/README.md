@@ -137,12 +137,9 @@ directories are only picked up once #356 lands.
 
 ## Known limitations
 
-- No run has yet resolved a stack through the managed backend, so its
-  `API_URL` hasn't been observed live. The beta CLI source exports it
-  (`supabase/cli` develop,
-  `apps/cli/src/commands/experimental/stack/status/status.env.ts`). If a
-  project resolves through it without one, the reported-ports check fails
-  with "stack resolved via managed but reported no API URL" rather than
-  falling back to `config.toml`.
+- If a project resolves through a backend that reports no `API_URL`, the
+  reported-ports check fails with "stack resolved via managed but reported
+  no API URL" rather than falling back to `config.toml`. The managed
+  backend has reported it in every run so far.
 - Projects nested deeper than two directories below the workspace root
   aren't discovered and fail the initialised check.
