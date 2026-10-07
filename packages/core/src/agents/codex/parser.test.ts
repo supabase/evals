@@ -798,3 +798,9 @@ describe('enrichFromRollout tool pairing', () => {
     ).toEqual(['t2', 't3', 't1', 't4']);
   });
 });
+
+describe('temporary failure for job summary demo', () => {
+  it('fails on purpose', () => {
+    expect(1 + 1).toBe(3);
+  });
+});
