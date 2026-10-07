@@ -108,8 +108,8 @@ Observed in CI so far:
   rubric no longer requires.
 - `absent`: 0/3, as designed — the outcome checks fail while the detour and
   truthful-report checks pass.
-- `nodaemon`: results so far were affected by a harness `PATH` bug (fixed in
-  #355) and need re-running before they say anything.
+- `nodaemon`: earlier results were affected by a harness `PATH` bug, fixed in
+  #355; re-run it before drawing conclusions from them.
 - Every passing run resolved its stacks through the legacy backend.
 
 These runs predate the single-row check. On the Docker arms the agent has to
@@ -130,7 +130,8 @@ if the agent executed a `supabase start` or `supabase stack start` addressing
 it (a loop over both directories counts for both), and `attemptedAnyStart` is
 true for any start at all. A failure with `attemptedStart: true` means the CLI
 or runtime failed the start; `false` means the agent never tried — for
-example, it declined out of caution.
+example, it declined out of caution. Codex runs that start stacks in per-call
+directories are only picked up once #356 lands.
 
 ## Known limitations
 
