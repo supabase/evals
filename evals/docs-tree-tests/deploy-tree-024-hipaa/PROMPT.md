@@ -5,7 +5,7 @@ product:
   - database
 topic:
   - security
-motivation: Tree test version of the wayfinding eval deploy-wayfinding-021-hipaa (DOCS-1432). The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 We're building a healthcare app that will store patient data. What do we need to do on Supabase to be HIPAA compliant?

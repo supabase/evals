@@ -5,7 +5,7 @@ product:
   - data-api
 topic:
   - sdk
-motivation: Tree test of the database part of the docs navigation for DOCS-1432, weighted toward operator areas where the wayfinding evals found big failures. The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 I moved our CRM tables out of `public` into their own `crm` namespace in Postgres, and now supabase-js calls like `.from('contacts')` come back with an error. What do I need to change so the app can read them again?

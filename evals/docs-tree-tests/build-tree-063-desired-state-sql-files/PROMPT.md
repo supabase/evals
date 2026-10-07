@@ -6,7 +6,7 @@ product:
 topic:
   - declarative-schema
   - migrations
-motivation: Tree test of the build tooling part of the docs navigation for DOCS-1432, weighted toward operator areas where the wayfinding evals found big failures. The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 I'm tired of hand-writing a new ALTER TABLE file for every small change. I'd rather keep one SQL file per table that shows how it should look right now, and have the Supabase tooling work out the change scripts for me. How do I set that up?

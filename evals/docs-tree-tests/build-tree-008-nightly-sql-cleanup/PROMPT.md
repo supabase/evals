@@ -6,7 +6,7 @@ product:
   - cron
 topic:
   - sql
-motivation: Tree test version of the wayfinding eval build-wayfinding-022-nightly-sql-cleanup (DOCS-1432). The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 Every night I want to delete rows older than 30 days from one of my tables. How do I schedule that in Supabase?

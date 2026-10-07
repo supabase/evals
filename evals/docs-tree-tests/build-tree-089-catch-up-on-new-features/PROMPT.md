@@ -5,7 +5,7 @@ product:
   - database
 topic:
   - sdk
-motivation: Tree test of the resources part of the docs navigation for DOCS-1432, weighted toward operator areas where the wayfinding evals found big failures. The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 I haven't kept up with Supabase for a few months. Where can I see what features and fixes have shipped recently?

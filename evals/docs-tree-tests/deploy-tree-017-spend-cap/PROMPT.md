@@ -5,7 +5,7 @@ product:
   - database
 topic:
   - observability
-motivation: Tree test version of the wayfinding eval deploy-wayfinding-014-spend-cap (DOCS-1432). The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 I'm worried a bug or an attack could run up a huge Supabase bill. Is there a way to stop usage from going past what my plan includes?

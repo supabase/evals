@@ -6,7 +6,7 @@ product:
   - cron
 topic:
   - sql
-motivation: Tree test version of the wayfinding eval build-wayfinding-008-scheduled-function (DOCS-1432). The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 I wrote an Edge Function that cleans up old records. I want it to run automatically every night at 2am. What's the way to do that on Supabase?

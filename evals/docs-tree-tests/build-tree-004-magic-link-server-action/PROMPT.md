@@ -5,7 +5,7 @@ product:
   - auth
 topic:
   - sdk
-motivation: Tree test version of the wayfinding eval build-wayfinding-007-magic-link-server-action (DOCS-1432). The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 In my Next.js App Router app I want people to log in just by clicking a URL we send to their inbox, nothing to remember. I'd like to trigger that send from a server action. How?

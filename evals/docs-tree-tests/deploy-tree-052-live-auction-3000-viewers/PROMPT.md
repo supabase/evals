@@ -5,7 +5,7 @@ product:
   - realtime
 topic:
   - observability
-motivation: Tree test of the storage realtime part of the docs navigation for DOCS-1432, weighted toward operator areas where the wayfinding evals found big failures. The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 We're launching a live auction page where around 3,000 people will have it open at once, with every new bid pushed instantly to their browsers. We're on the Pro plan. Will that many viewers at the same time work, and if not, what do we need to change?

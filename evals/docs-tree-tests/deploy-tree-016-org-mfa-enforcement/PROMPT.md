@@ -5,7 +5,7 @@ product:
   - auth
 topic:
   - security
-motivation: Tree test version of the wayfinding eval deploy-wayfinding-013-org-mfa-enforcement (DOCS-1432). The prompt names no page or label, and EVAL.ts holds the targets. See ../README.md before editing.
+motivation: A strong docs navigation lets developers find the right information intuitively. This tree test checks whether the navigation's labels alone lead to the page that answers the task.
 ---
 
 A few people on our Supabase team still log into the dashboard with just a password. I want to make sure nobody can get into our projects unless they've added a second login step, like an authenticator app code. How do I require that?
