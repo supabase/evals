@@ -443,6 +443,20 @@ describe('extractCommandEntries', () => {
   });
 });
 
+describe('extractCommandEntries failure', () => {
+  it('marks a call with an error as failed', () => {
+    expect(
+      extractCommandEntries([
+        record({ command: 'npm i -g supabase@2.0.0', error: 'exit 1' }),
+        record({ command: 'supabase start', result: 'ok' }),
+      ])
+    ).toEqual([
+      { command: 'npm i -g supabase@2.0.0', failed: true },
+      { command: 'supabase start' },
+    ]);
+  });
+});
+
 describe('formatDetourJudgeInput', () => {
   it('returns an empty string for no commands', () => {
     expect(formatDetourJudgeInput([])).toBe('');

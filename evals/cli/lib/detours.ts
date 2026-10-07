@@ -514,11 +514,12 @@ function recordCommand(record: ToolCallRecord): string {
  * (Codex, OpenCode) and is absent otherwise; a `cd` persisting across separate
  * tool calls in a persistent shell (e.g. Claude Code) is not tracked. `at` is
  * the call's `resultTs` (epoch ms) when the agent records it, never `ts`, which
- * parsers disagree on whether it marks issue or completion.
+ * parsers disagree on whether it marks issue or completion. `failed` marks a
+ * call the agent parser reported as errored.
  */
 export function extractCommandEntries(
   toolCalls: readonly ToolCallRecord[]
-): Array<{ command: string; cwd?: string; at?: number }> {
+): Array<{ command: string; cwd?: string; at?: number; failed?: boolean }> {
   return toolCalls.flatMap((record) => {
     const command = recordCommand(record);
     if (command.length === 0) return [];
@@ -527,6 +528,7 @@ export function extractCommandEntries(
         command,
         ...(record.cwd === undefined ? {} : { cwd: record.cwd }),
         ...(record.resultTs === undefined ? {} : { at: record.resultTs }),
+        ...(record.error === undefined ? {} : { failed: true }),
       },
     ];
   });

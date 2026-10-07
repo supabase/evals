@@ -11,6 +11,22 @@ What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
 helpers with a single consumer stay colocated with that eval.
 
+Project stack targets (`{ kind: 'project', dir }` without a stack name) also
+discover named managed stacks started from that directory via
+`supabase stack list`, before falling back to the legacy backend.
+
+`resolveStackWithAgentHomes` retries a failed resolution under each
+`SUPABASE_HOME`/`HOME` the agent started the target with (`cli-invocations.ts`
+records them per invocation, including an earlier `export` in the same
+command) and marks the result with `relocatedHome`; `listCliOverrides` reports
+`npx`/`bunx`/`npm exec`/`pnpm dlx`/`yarn dlx` runs and global installs of
+another explicit CLI version, and `listUnverifiedRunners` the dist-tag ones.
+
+`invocationTargets` attributes an invocation to the directory it ran in
+before its `--stack`/`--project-id` name; pass `knownTargets` (the eval's
+sibling project or stack names) so a name given inside another known
+target's directory isn't credited to the named one.
+
 Invocation attribution (`cli-invocations.ts`) starts from a tool call's `cwd`
 only when the agent parser records one (Codex, OpenCode); a `cd` persisting
 across separate tool calls in a persistent shell (e.g. Claude Code) is not
