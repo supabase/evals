@@ -277,6 +277,9 @@ const ROLLOUT_TOOL_ITEMS = new Set([
  *            → function_call_output(c1)
  *   events:  message → tool_call → tool_result, each tagged requestId r1
  *
+ * A command finishes when its item completes, not when its output arrives:
+ * a yielded long-running command outputs early, then `write_stdin` polls it.
+ *
  * Returns when the rollout recorded the first user message, in epoch ms.
  */
 export function enrichFromRollout(
@@ -293,6 +296,7 @@ export function enrichFromRollout(
   const callEnds = new Map<string, string | undefined>();
   const messages: { at?: string; request: Request }[] = [];
   const toolItems: Record<string, unknown>[] = [];
+  const itemEnds = new Map<string, string>();
   const requests: { at?: string; request: Request }[] = [];
   let open: Request | undefined;
   let promptAt: number | undefined;
@@ -330,6 +334,7 @@ export function enrichFromRollout(
       const { type, id } = payload.item;
       if (typeof id === 'string' && ROLLOUT_TOOL_ITEMS.has(String(type))) {
         toolItems.push(payload.item);
+        if (at && type === 'CommandExecution') itemEnds.set(id, at);
       }
     }
   }
@@ -377,7 +382,9 @@ export function enrichFromRollout(
   for (const event of events) {
     if (event.type !== 'tool_result' || !event.tool?.id) continue;
     const callId = callIdByItem.get(event.tool.id);
-    const end = callId ? callEnds.get(callId) : undefined;
+    const end =
+      (callId ? itemEnds.get(callId) : undefined) ??
+      (callId ? callEnds.get(callId) : undefined);
     if (end) event.timestamp = end;
   }
   const tagged = new Set(events.map((e) => e.requestId));

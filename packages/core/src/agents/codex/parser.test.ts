@@ -423,7 +423,7 @@ describe('enrichFromRollout', () => {
     expect(events.map((e) => [e.timestamp, e.requestId, e.usage])).toEqual([
       ['t1', 'r1', usage],
       ['t2', 'r1', usage],
-      ['t5', undefined, undefined],
+      ['t4', undefined, undefined],
     ]);
   });
 
@@ -567,6 +567,39 @@ describe('enrichFromRollout tool pairing', () => {
         issued('c1', 't1'),
         completed('c1', 'cat "a b.txt"'),
         finished('c1', 't2'),
+      ])
+    ).toEqual(['t1', 't2']);
+  });
+
+  it('takes a yielded command completion time from its item_completed', () => {
+    const completedAt = (id: string, at: string) =>
+      line(at, 'event_msg', {
+        type: 'item_completed',
+        item: {
+          type: 'CommandExecution',
+          id,
+          command: ['/bin/bash', '-lc', 'sleep 90'],
+        },
+      });
+    expect(
+      times(call('item_1', '/bin/bash -lc "sleep 90"'), [
+        issued('c1', 't1'),
+        finished('c1', 't2'),
+        issued('c2', 't3'),
+        finished('c2', 't4'),
+        completedAt('c1', 't5'),
+      ])
+    ).toEqual(['t1', 't5']);
+  });
+
+  it('falls back to the output time without an item_completed timestamp', () => {
+    expect(
+      times(call('item_1', '/bin/bash -lc "sleep 90"'), [
+        issued('c1', 't1'),
+        finished('c1', 't2'),
+        issued('c2', 't3'),
+        finished('c2', 't4'),
+        completed('c1', 'sleep 90'),
       ])
     ).toEqual(['t1', 't2']);
   });
