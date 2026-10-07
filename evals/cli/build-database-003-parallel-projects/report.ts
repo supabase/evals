@@ -76,9 +76,9 @@ export function describeGroundTruth(
       `  db port: ${db ?? 'unavailable'}`,
       `  api port: ${api ?? 'unavailable'}`,
       `  clients rows: ${clientRows.ok ? JSON.stringify(clientRows.values) : `unavailable (${clientRows.notes})`}`,
-      ...(!stack.ok && cliOverride.length > 0
+      ...(cliOverride.length > 0
         ? [
-            `  ${describeCliOverride(cliOverride)}, so the project may be running without being reachable by the harness`,
+            `  ${describeCliOverride(cliOverride)}${stack.ok ? '' : ', so the project may be running without being reachable by the harness'}`,
           ]
         : []),
     ].join('\n');

@@ -2,7 +2,7 @@ import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import {
   invocationTargetUnresolved,
   invocationTargets,
-  invocationVerb,
+  isStartInvocation,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import { readRowStrings, type RowStringsProbe } from '../lib/markers.js';
@@ -55,7 +55,8 @@ export async function resolveClientStacks(
         : await resolveStackWithAgentHomes(
             ctx,
             { kind: 'project', dir },
-            invocations
+            invocations,
+            CLIENTS
           );
   }
   return stacks;
@@ -126,9 +127,11 @@ export function describeCliOverride(cliOverride: readonly string[]): string {
   return `agent ran ${cliOverride.join(', ')}; scorer uses the installed CLI`;
 }
 
-const START_VERBS = new Set(['start', 'stack start']);
+function isLater(a: SupabaseInvocation, b: SupabaseInvocation): boolean {
+  return a.at !== undefined && b.at !== undefined ? a.at >= b.at : true;
+}
 
-/** Projects whose every start ran through a `cliOverride` runner, mapped to the runners used. */
+/** Projects whose latest start ran through a `cliOverride` runner, mapped to that runner. */
 function findSwappedProjects(
   invocations: readonly SupabaseInvocation[],
   cliOverride: readonly string[]
@@ -137,17 +140,15 @@ function findSwappedProjects(
   for (const client of CLIENTS) {
     const starts = invocations.filter(
       (inv) =>
-        START_VERBS.has(invocationVerb(inv) ?? '') &&
-        (invocationTargetUnresolved(inv) || invocationTargets(inv, client))
+        isStartInvocation(inv) &&
+        (invocationTargetUnresolved(inv) ||
+          invocationTargets(inv, client, CLIENTS))
     );
-    if (
-      starts.length > 0 &&
-      starts.every(({ runner }) => runner && cliOverride.includes(runner))
-    ) {
-      swapped[client] = [...new Set(starts.map(({ runner }) => runner))].join(
-        ', '
-      );
-    }
+    if (starts.length === 0) continue;
+    const { runner } = starts.reduce((latest, inv) =>
+      isLater(inv, latest) ? inv : latest
+    );
+    if (runner && cliOverride.includes(runner)) swapped[client] = runner;
   }
   return swapped;
 }
@@ -168,6 +169,7 @@ export async function checkBothStacksReady(
     passed:
       probes.every(({ ready }) => ready) && CLIENTS.every((c) => !swapped[c]),
     notes: [
+      ...(cliOverride.length > 0 ? [describeCliOverride(cliOverride)] : []),
       ...CLIENTS.map((client, i) => {
         const stack = stacks[client];
         const relocated =
@@ -179,7 +181,6 @@ export async function checkBothStacksReady(
           : '';
         return `${client}: ${probes[i].notes}${relocated}${swap}`;
       }),
-      ...(cliOverride.length > 0 ? [describeCliOverride(cliOverride)] : []),
     ].join('; '),
   };
 }

@@ -6,9 +6,10 @@ import type {
 import {
   findSupabaseInvocations,
   invocationTargets,
+  isStartInvocation,
+  listUnverifiedRunners,
   type CommandEntry,
   invocationTargetUnresolved,
-  invocationVerb,
 } from '../lib/cli-invocations.js';
 import { countRawDockerSocketProbes } from '../lib/detours.js';
 import {
@@ -36,8 +37,6 @@ export type StartAttempts = {
   any: boolean;
 };
 
-const START_VERBS = new Set(['start', 'stack start']);
-
 /**
  * Which projects the agent ran a stack start against. A start whose target is
  * a shell expansion (e.g. a `for d in …; do (cd "$d" && …)` loop) counts for
@@ -46,13 +45,13 @@ const START_VERBS = new Set(['start', 'stack start']);
 export function findStartAttempts(
   commands: readonly (string | CommandEntry)[]
 ): StartAttempts {
-  const starts = findSupabaseInvocations(commands).filter((inv) =>
-    START_VERBS.has(invocationVerb(inv) ?? '')
-  );
+  const starts = findSupabaseInvocations(commands).filter(isStartInvocation);
   const projects = {} as Record<Client, boolean>;
   for (const client of CLIENTS) {
     projects[client] = starts.some(
-      (inv) => invocationTargetUnresolved(inv) || invocationTargets(inv, client)
+      (inv) =>
+        invocationTargetUnresolved(inv) ||
+        invocationTargets(inv, client, CLIENTS)
     );
   }
   return { projects, any: starts.length > 0 };
@@ -73,6 +72,9 @@ export async function checkMetrics(
 
   const cliVersion = await readCliVersion(ctx);
   const startAttempts = findStartAttempts(commandEntries);
+  const cliRunnerUnverified = listUnverifiedRunners(
+    findSupabaseInvocations(commandEntries)
+  );
 
   const projects = {} as Record<Client, ProjectMetrics>;
   for (const client of CLIENTS) {
@@ -104,6 +106,7 @@ export async function checkMetrics(
   const metrics = {
     cliVersion,
     cliOverride,
+    cliRunnerUnverified,
     projects,
     timeToReadyMs,
     attemptedAnyStart: startAttempts.any,

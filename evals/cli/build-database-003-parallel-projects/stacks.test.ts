@@ -364,35 +364,35 @@ describe('checkSingleClientRow over readClientRowCounts', () => {
   });
 });
 
+// Answers managed status only for commands that carry the relocated home;
+// the default home has no registry, like the sandbox's real CLI.
+function relocatedCtx(home: string) {
+  const inner = fakeCtx({
+    projects: {
+      './client-a': { managed: ENV_A },
+      './client-b': { managed: ENV_B },
+    },
+  });
+  const prefixed = new RegExp(
+    `^(cd '[^']+' && )?((?:[A-Z_]+='[^']*' )*)(?=SUPABASE_EXPERIMENTAL_STACK|pwd)`
+  );
+  return {
+    commands: inner.commands,
+    exec: async (command: string) => {
+      const match = prefixed.exec(command);
+      const hasHome = match?.[2]?.includes(`'${home}'`) ?? false;
+      if (!hasHome && /supabase /.test(command)) {
+        inner.commands.push(command);
+        return commandResult('', false);
+      }
+      return inner.exec(command.replace(match?.[2] ?? '', ''));
+    },
+  };
+}
+
 describe('stacks under an agent-relocated CLI home', () => {
   const S = '/sandbox';
   const HOME_ARG = `${S}/.supabase-runtime-home`;
-
-  // Answers managed status only for commands that carry the relocated home;
-  // the default home has no registry, like the sandbox's real CLI.
-  function relocatedCtx(home: string) {
-    const inner = fakeCtx({
-      projects: {
-        './client-a': { managed: ENV_A },
-        './client-b': { managed: ENV_B },
-      },
-    });
-    const prefixed = new RegExp(
-      `^(cd '[^']+' && )?((?:[A-Z_]+='[^']*' )*)(?=SUPABASE_EXPERIMENTAL_STACK|pwd)`
-    );
-    return {
-      commands: inner.commands,
-      exec: async (command: string) => {
-        const match = prefixed.exec(command);
-        const hasHome = match?.[2]?.includes(`'${home}'`) ?? false;
-        if (!hasHome && /supabase /.test(command)) {
-          inner.commands.push(command);
-          return commandResult('', false);
-        }
-        return inner.exec(command.replace(match?.[2] ?? '', ''));
-      },
-    };
-  }
 
   it('resolves both stacks, notes the relocation, and keeps ports and rows working', async () => {
     const ctx = relocatedCtx(HOME_ARG);
@@ -534,5 +534,145 @@ describe('stacks under an agent-relocated CLI home', () => {
     );
     expect(ready.passed).toBe(true);
     expect(ready.notes).not.toContain('not the installed CLI');
+  });
+});
+
+describe('attribution by directory', () => {
+  const S = '/sandbox';
+  const NAMED = {
+    './client-a': { named: { demo: ENV_A } },
+    './client-b': { named: { demo: ENV_B } },
+  };
+  const startIn = (command: string, cwd: string) => ({ command, cwd });
+
+  it('finds a relocated home for a --stack start run inside each project', async () => {
+    const home = `${S}/.h`;
+    const inner = fakeCtx({ projects: NAMED });
+    const ctx = {
+      exec: async (command: string) =>
+        command.includes(`SUPABASE_HOME='${home}' `)
+          ? inner.exec(command.replace(`SUPABASE_HOME='${home}' `, ''))
+          : command.includes('supabase ')
+            ? commandResult('', false)
+            : inner.exec(command),
+    };
+    const invocations = findSupabaseInvocations([
+      startIn(
+        `SUPABASE_HOME=${home} supabase stack start --stack demo`,
+        `${S}/client-a`
+      ),
+      startIn(
+        `SUPABASE_HOME=${home} supabase stack start --stack demo`,
+        `${S}/client-b`
+      ),
+    ]);
+    const stacks = await resolveClientStacks(ctx, DIRS, invocations);
+    expect(stacks['client-a']).toMatchObject({ ok: true, relocatedHome: home });
+    expect(stacks['client-b']).toMatchObject({ ok: true, relocatedHome: home });
+    expect(
+      (await checkBothStacksReady(ctx, stacks, [], invocations)).passed
+    ).toBe(true);
+  });
+
+  it('fails version-swapped --stack starts run inside each project', async () => {
+    const runner = 'npx --yes supabase@2.121.0-beta.6';
+    const invocations = findSupabaseInvocations([
+      startIn(`${runner} stack start --stack demo`, `${S}/client-a`),
+      startIn(`${runner} stack start --stack demo`, `${S}/client-b`),
+    ]);
+    const cliOverride = listCliOverrides(invocations, '2.120.0');
+    const ctx = fakeCtx({ projects: NAMED });
+    const stacks = await resolveClientStacks(ctx, DIRS, invocations);
+    const ready = await checkBothStacksReady(
+      ctx,
+      stacks,
+      cliOverride,
+      invocations
+    );
+    expect(ready.passed).toBe(false);
+    expect(ready.notes.startsWith(`agent ran ${runner}`)).toBe(true);
+    expect(ready.notes).toContain(`client-a: ${'managed-named'}`);
+    expect(ready.notes).toContain(
+      `client-b: managed-named (native), select 1 ok; client-b: started with ${runner}`
+    );
+  });
+
+  async function readyAfter(
+    entries: Array<{ command: string; cwd?: string; at?: number }>,
+    installed = '2.120.0'
+  ) {
+    const invocations = findSupabaseInvocations(entries);
+    const ctx = fakeCtx({
+      projects: {
+        './client-a': { managed: ENV_A },
+        './client-b': { managed: ENV_B },
+      },
+    });
+    const stacks = await resolveClientStacks(ctx, DIRS, invocations);
+    return checkBothStacksReady(
+      ctx,
+      stacks,
+      listCliOverrides(invocations, installed),
+      invocations
+    );
+  }
+  const BETA = 'npx --yes supabase@2.121.0-beta.6';
+  const both = (command: string) => [
+    startIn(command, `${S}/client-a`),
+    startIn(command, `${S}/client-b`),
+  ];
+
+  it('judges each project by its latest start', async () => {
+    const swapped = await readyAfter([
+      ...both('supabase stack start'),
+      ...both(`${BETA} stack start`),
+    ]);
+    expect(swapped.passed).toBe(false);
+
+    const recovered = await readyAfter([
+      ...both(`${BETA} stack start`),
+      ...both('supabase start'),
+    ]);
+    expect(recovered.passed).toBe(true);
+  });
+
+  it('orders starts by time when the parser records it', async () => {
+    const ready = await readyAfter([
+      { ...startIn('supabase start', `${S}/client-a`), at: 20 },
+      { ...startIn(`${BETA} start`, `${S}/client-a`), at: 10 },
+      ...both('supabase start').slice(1),
+    ]);
+    expect(ready.passed).toBe(true);
+  });
+
+  it('treats a global reinstall as a swap for every later start', async () => {
+    const ready = await readyAfter([
+      startIn('npm i -g supabase@2.121.0-beta.6', S),
+      ...both('supabase start'),
+    ]);
+    expect(ready.passed).toBe(false);
+    expect(ready.notes).toContain(
+      'started with npm i -g supabase@2.121.0-beta.6'
+    );
+  });
+
+  it('puts the swap explanation first and shortens help payloads', async () => {
+    const help = `{"_tag":"Help","usage":"supabase stack start","flags":[{"name":"--stack"}]}`;
+    const ctx = fakeCtx({});
+    const stacks = await resolveClientStacks(
+      {
+        exec: async () => ({
+          ok: false,
+          exitCode: 1,
+          stdout: help,
+          stderr: '',
+        }),
+      },
+      DIRS
+    );
+    const ready = await checkBothStacksReady(ctx, stacks, [BETA]);
+    expect(ready.notes.startsWith('agent ran')).toBe(true);
+    expect(ready.notes).toContain('<help output>');
+    expect(ready.notes).not.toContain('_tag');
   });
 });

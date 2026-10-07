@@ -24,7 +24,7 @@ export type SupabaseInvocation = {
   workdir?: string;
   /** `SUPABASE_HOME`/`HOME`/`TMPDIR` assignments prefixing the invocation; values that could not be resolved to a path are dropped. */
   env?: InvocationEnv;
-  /** The package-runner spec (e.g. `npx --yes supabase@2.120.0`) when the invocation ran an explicitly versioned `supabase` through `npx`/`bunx`/`pnpm dlx`/`yarn dlx`. */
+  /** The runner spec (e.g. `npx --yes supabase@2.120.0`, `npm i -g supabase@2.120.0`) when the invocation ran an explicitly versioned `supabase` through a package runner or a global install earlier in the run. */
   runner?: string;
   /** The tool call's completion time (epoch ms), present only when the agent parser records it. */
   at?: number;
@@ -36,6 +36,12 @@ const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const PASSTHROUGH_WORDS = new Set(['exec', 'command', 'time', 'nohup']);
 const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
+const NPM_EXEC_VERBS = new Set(['exec', 'x']);
+const INSTALLERS = new Set(['npm', 'pnpm', 'bun']);
+const INSTALL_VERBS = new Set(['i', 'install', 'add']);
+const GLOBAL_FLAGS = new Set(['-g', '--global']);
+const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const START_VERBS = new Set(['start', 'stack start']);
 const SHELL_KEYWORDS = new Set([
   'if',
   'then',
@@ -51,6 +57,7 @@ const WORKDIR_VARIABLE = 'SUPABASE_WORKDIR';
 const WORKDIR_ASSIGNMENT = `${WORKDIR_VARIABLE}=`;
 const ENV_VARIABLES = ['SUPABASE_HOME', 'HOME', 'TMPDIR'] as const;
 const PWD_PREFIX_RE = /^\$\{?PWD\}?(?=\/|$)/;
+const HOME_PREFIX_RE = /^(?:\$\{?HOME\}?|~)(?=\/|$)/;
 const VERSIONED_SUPABASE_RE = /^supabase@.+/;
 const HELP_FLAGS = new Set(['--help', '-h']);
 
@@ -119,21 +126,70 @@ function words(tokens: readonly ParseEntry[]): string[] {
 
 type RawEnv = Partial<Record<(typeof ENV_VARIABLES)[number], string>>;
 
-function stripPrefixes(argv: readonly string[]): {
+type Stripped = {
   argv: string[];
   workdir?: string;
   chdir?: string;
   rawEnv: RawEnv;
   runner?: string;
-} {
+};
+
+function skipRunnerOptions(
+  argv: readonly string[],
+  start: number
+): { next: number; packageAt?: number } {
+  let i = start;
+  let packageAt: number | undefined;
+  while (argv[i]?.startsWith('-')) {
+    const flag = argv[i];
+    if (flag === '--') {
+      i++;
+      break;
+    }
+    if (flag === '-p' || flag === '--package') {
+      if (
+        packageAt === undefined &&
+        VERSIONED_SUPABASE_RE.test(argv[i + 1] ?? '')
+      ) {
+        packageAt = i + 1;
+      }
+      i += 2;
+    } else {
+      if (
+        packageAt === undefined &&
+        flag.startsWith('--package=') &&
+        VERSIONED_SUPABASE_RE.test(flag.slice('--package='.length))
+      ) {
+        packageAt = i;
+      }
+      i++;
+    }
+  }
+  return { next: i, packageAt };
+}
+
+function stripPrefixes(
+  argv: readonly string[],
+  seedEnv: RawEnv = {}
+): Stripped {
   let i = 0;
   let workdir: string | undefined;
   let chdir: string | undefined;
-  let rawEnv: RawEnv = {};
+  let rawEnv: RawEnv = { ...seedEnv };
   let runnerStart: number | undefined;
+  let runnerEnd: number | undefined;
+  let npmExec = false;
   while (i < argv.length && SHELL_KEYWORDS.has(argv[i])) i++;
   while (i < argv.length) {
     const word = argv[i];
+    const next = argv[i + 1];
+    const runnerSkip = PACKAGE_RUNNERS.has(word)
+      ? 1
+      : (word === 'npm' && NPM_EXEC_VERBS.has(next)) ||
+          (word === 'pnpm' && next === 'dlx') ||
+          (word === 'yarn' && next === 'dlx')
+        ? 2
+        : 0;
     if (word.startsWith(WORKDIR_ASSIGNMENT)) {
       workdir = word.slice(WORKDIR_ASSIGNMENT.length);
       i++;
@@ -164,29 +220,33 @@ function stripPrefixes(argv: readonly string[]): {
       i++;
     } else if (word === 'timeout') {
       i += 2;
-    } else if (PACKAGE_RUNNERS.has(word)) {
+    } else if (runnerSkip > 0) {
       runnerStart = i;
-      i++;
-      while (argv[i]?.startsWith('-')) i++;
-    } else if (
-      word === 'pnpm' &&
-      (argv[i + 1] === 'dlx' || argv[i + 1] === 'exec')
-    ) {
-      runnerStart = argv[i + 1] === 'dlx' ? i : undefined;
+      npmExec = word === 'npm';
+      const options = skipRunnerOptions(argv, i + runnerSkip);
+      runnerEnd = options.packageAt;
+      i = options.next;
+    } else if (word === 'pnpm' && next === 'exec') {
+      runnerStart = undefined;
       i += 2;
-    } else if (word === 'yarn') {
-      runnerStart = argv[i + 1] === 'dlx' ? i : undefined;
-      i += argv[i + 1] === 'dlx' ? 2 : 1;
+    } else if (word === 'yarn' && next !== 'global') {
+      runnerStart = undefined;
+      i++;
     } else {
       break;
     }
   }
+  if (runnerEnd === undefined && VERSIONED_SUPABASE_RE.test(argv[i] ?? '')) {
+    runnerEnd = i;
+  }
   const runner =
-    runnerStart !== undefined && VERSIONED_SUPABASE_RE.test(argv[i] ?? '')
-      ? argv.slice(runnerStart, i + 1).join(' ')
+    runnerStart !== undefined && runnerEnd !== undefined
+      ? argv.slice(runnerStart, runnerEnd + 1).join(' ')
       : undefined;
+  const rest = argv.slice(i);
+  if (npmExec && rest[1] === '--') rest.splice(1, 1);
   return {
-    argv: argv.slice(i),
+    argv: rest,
     rawEnv,
     ...(workdir ? { workdir } : {}),
     ...(chdir === undefined ? {} : { chdir }),
@@ -194,16 +254,21 @@ function stripPrefixes(argv: readonly string[]): {
   };
 }
 
-/** A path assignment resolved against `cwd`; undefined when it depends on an unknown directory or other expansion. */
+/** A path assignment resolved against `cwd`/`home`; undefined when it depends on an unknown directory or other expansion. */
 function resolveEnvPath(
   value: string,
-  cwd: string | undefined
+  cwd: string | undefined,
+  home: string | undefined
 ): string | undefined {
   const expanded = PWD_PREFIX_RE.test(value)
     ? cwd === undefined
       ? undefined
       : value.replace(PWD_PREFIX_RE, cwd)
-    : value;
+    : HOME_PREFIX_RE.test(value)
+      ? home === undefined
+        ? undefined
+        : value.replace(HOME_PREFIX_RE, home)
+      : value;
   if (
     expanded === undefined ||
     expanded === '' ||
@@ -218,12 +283,14 @@ function resolveEnvPath(
 
 function resolveEnv(
   rawEnv: RawEnv,
-  cwd: string | undefined
+  cwd: string | undefined,
+  home: string | undefined
 ): InvocationEnv | undefined {
   const env: InvocationEnv = {};
   for (const name of ENV_VARIABLES) {
     const raw = rawEnv[name];
-    const resolved = raw === undefined ? undefined : resolveEnvPath(raw, cwd);
+    const resolved =
+      raw === undefined ? undefined : resolveEnvPath(raw, cwd, home);
     if (resolved !== undefined) env[name] = resolved;
   }
   return Object.keys(env).length === 0 ? undefined : env;
@@ -235,54 +302,145 @@ function isSupabaseBinary(word: string | undefined): boolean {
   );
 }
 
-function executedArgv(segment: string): ReturnType<typeof stripPrefixes> {
+function executedArgv(segment: string, seedEnv: RawEnv): Stripped {
   const lead = leadingWord(segment);
   if (lead && PASSIVE_LEADING_WORDS.has(lead)) {
     return { argv: [], rawEnv: {} };
   }
   const tokens = parseKeepingVariables(segment);
-  return stripPrefixes(tokens === undefined ? [] : words(tokens));
+  return stripPrefixes(tokens === undefined ? [] : words(tokens), seedEnv);
+}
+
+type EnvName = (typeof ENV_VARIABLES)[number];
+
+/** Shell state a command carries from segment to segment, restored when its subshell closes. */
+type ShellState = {
+  cwd?: string;
+  vars: InvocationEnv;
+  exported: ReadonlySet<EnvName>;
+};
+
+function isEnvName(name: string): name is EnvName {
+  return (ENV_VARIABLES as readonly string[]).includes(name);
+}
+
+function exportedEnv(state: ShellState): RawEnv {
+  const env: RawEnv = {};
+  for (const name of state.exported) {
+    const value = state.vars[name];
+    if (value !== undefined) env[name] = value;
+  }
+  return env;
+}
+
+function assignVariables(
+  state: ShellState,
+  assignments: ReadonlyArray<readonly [EnvName, string | undefined]>,
+  exportThem: boolean
+): ShellState {
+  const vars = { ...state.vars };
+  const exported = new Set(state.exported);
+  for (const [name, raw] of assignments) {
+    if (raw !== undefined) {
+      const resolved = resolveEnvPath(raw, state.cwd, state.vars.HOME);
+      if (resolved === undefined) delete vars[name];
+      else vars[name] = resolved;
+    }
+    if (exportThem) exported.add(name);
+  }
+  return { ...state, vars, exported };
+}
+
+function exportAssignments(
+  words: readonly string[]
+): Array<readonly [EnvName, string | undefined]> {
+  const out: Array<readonly [EnvName, string | undefined]> = [];
+  for (const word of words) {
+    const eq = word.indexOf('=');
+    const name = eq === -1 ? word : word.slice(0, eq);
+    if (isEnvName(name))
+      out.push([name, eq === -1 ? undefined : word.slice(eq + 1)]);
+  }
+  return out;
+}
+
+function globalInstallSpec(argv: readonly string[]): string | undefined {
+  const [tool, verb] = argv;
+  const yarnGlobal = tool === 'yarn' && verb === 'global' && argv[2] === 'add';
+  const direct =
+    INSTALLERS.has(tool) &&
+    INSTALL_VERBS.has(verb) &&
+    argv.some((word) => GLOBAL_FLAGS.has(word));
+  if (!yarnGlobal && !direct) return undefined;
+  const at = argv.findIndex((word) => VERSIONED_SUPABASE_RE.test(word));
+  return at === -1 ? undefined : argv.slice(0, at + 1).join(' ');
+}
+
+/** Whether the invocation brings a stack up (`start` or `stack start`). */
+export function isStartInvocation(inv: SupabaseInvocation): boolean {
+  return START_VERBS.has(invocationVerb(inv) ?? '');
 }
 
 /**
  * Every `supabase` invocation the agent actually executed, in order — parsed
  * from argv per executable segment, so an echoed, commented, committed or
- * heredoc'd command line never counts. `cd`/`pushd` is tracked within a single
- * command only, starting from the entry's `cwd` and ending with its subshell.
+ * heredoc'd command line never counts. `cd`/`pushd` and `export` of
+ * `SUPABASE_HOME`/`HOME`/`TMPDIR` are tracked within a single command only,
+ * starting from the entry's `cwd` and ending with its subshell. A global
+ * `supabase@<version>` install marks every later invocation with its `runner`.
  * `--help`/`-h` invocations are skipped.
  */
 export function findSupabaseInvocations(
   commands: readonly (string | CommandEntry)[]
 ): SupabaseInvocation[] {
   const invocations: SupabaseInvocation[] = [];
+  let globalRunner: string | undefined;
   commands.forEach((entry, commandIndex) => {
     const command = typeof entry === 'string' ? entry : entry.command;
-    let cwd = typeof entry === 'string' ? undefined : entry.cwd;
+    let state: ShellState = {
+      cwd: typeof entry === 'string' ? undefined : entry.cwd,
+      vars: {},
+      exported: new Set(),
+    };
     const at = typeof entry === 'string' ? undefined : entry.at;
-    const enclosing: Array<string | undefined> = [];
+    const enclosing: ShellState[] = [];
     for (const { segment, opens, closes } of scopedCommandSegments(command)) {
-      for (let n = 0; n < opens; n++) enclosing.push(cwd);
-      const { argv, workdir, chdir, rawEnv, runner } = executedArgv(segment);
-      const dir = chdir === undefined ? cwd : changeDir(cwd, chdir);
+      for (let n = 0; n < opens; n++) enclosing.push(state);
+      const seed = exportedEnv(state);
+      const { argv, workdir, chdir, rawEnv, runner } = executedArgv(
+        segment,
+        seed
+      );
+      const dir = chdir === undefined ? state.cwd : changeDir(state.cwd, chdir);
       if (CHDIR_WORDS.has(argv[0])) {
-        cwd = changeDir(cwd, argv[1]);
+        state = { ...state, cwd: changeDir(state.cwd, argv[1]) };
+      } else if (argv[0] === 'export') {
+        state = assignVariables(state, exportAssignments(argv.slice(1)), true);
+      } else if (argv.length === 0) {
+        const assigned = ENV_VARIABLES.filter(
+          (name) => rawEnv[name] !== seed[name]
+        ).map((name) => [name, rawEnv[name]] as const);
+        state = assignVariables(state, assigned, false);
       } else if (
         isSupabaseBinary(argv[0]) &&
         !argv.some((word) => HELP_FLAGS.has(word))
       ) {
-        const env = resolveEnv(rawEnv, dir);
+        const env = resolveEnv(rawEnv, dir, state.vars.HOME);
+        const effectiveRunner = runner ?? globalRunner;
         invocations.push({
           commandIndex,
           argv: ['supabase', ...argv.slice(1)],
           ...(dir === undefined ? {} : { cwd: dir }),
           ...(workdir === undefined ? {} : { workdir }),
           ...(env === undefined ? {} : { env }),
-          ...(runner === undefined ? {} : { runner }),
+          ...(effectiveRunner === undefined ? {} : { runner: effectiveRunner }),
           ...(at === undefined ? {} : { at }),
         });
+      } else {
+        globalRunner = globalInstallSpec(argv) ?? globalRunner;
       }
       for (let n = 0; n < closes && enclosing.length > 0; n++) {
-        cwd = enclosing.pop();
+        state = enclosing.pop() ?? state;
       }
     }
   });
@@ -317,38 +475,75 @@ export function invocationVerb(inv: SupabaseInvocation): string | undefined {
   return first;
 }
 
+function stackFlagName(inv: SupabaseInvocation): string | undefined {
+  return flagValue(inv.argv, '--stack') ?? flagValue(inv.argv, '--project-id');
+}
+
 /**
- * The stack or project name an invocation addresses: `--stack` or
- * `--project-id`, else the basename of `--workdir` (or `SUPABASE_WORKDIR`),
- * else the `cd` directory's.
+ * The directory an invocation ran against: `--workdir` (or `SUPABASE_WORKDIR`)
+ * resolved against its `cwd`; undefined when neither is known.
  */
-function targetName(inv: SupabaseInvocation): string | undefined {
-  const stack =
-    flagValue(inv.argv, '--stack') ?? flagValue(inv.argv, '--project-id');
-  if (stack !== undefined) return stack;
-  if (flagValue(inv.argv, '--stack-id') !== undefined) return undefined;
+export function invocationDirectory(
+  inv: SupabaseInvocation
+): string | undefined {
   const workdir = flagValue(inv.argv, '--workdir') ?? inv.workdir;
-  const dir = workdir === undefined ? inv.cwd : joinPath(inv.cwd, workdir);
+  if (workdir !== undefined) return joinPath(inv.cwd, workdir);
+  return inv.cwd === undefined ? undefined : joinPath(undefined, inv.cwd);
+}
+
+// `--stack-id` addresses a stack by id, so the directory says nothing about it.
+function directoryName(inv: SupabaseInvocation): string | undefined {
+  if (flagValue(inv.argv, '--stack-id') !== undefined) return undefined;
+  const dir = invocationDirectory(inv);
   return dir === undefined ? undefined : basename(dir);
 }
 
-/** Whether the invocation addresses `name`; `--all` addresses every stack. */
+/** Whether the invocation ran in `dir`; a relative invocation directory is compared by basename only. */
+export function invocationTargetsDir(
+  inv: SupabaseInvocation,
+  dir: string
+): boolean {
+  if (flagValue(inv.argv, '--stack-id') !== undefined) return false;
+  const actual = invocationDirectory(inv);
+  if (actual === undefined) return false;
+  const wanted = joinPath(undefined, dir);
+  return actual.startsWith('/') && wanted.startsWith('/')
+    ? joinPath(undefined, actual) === wanted
+    : basename(actual) === basename(wanted);
+}
+
+/**
+ * Whether the invocation addresses `name`; `--all` addresses every stack. The
+ * directory it ran in wins: a `--stack`/`--project-id` name counts only when
+ * the directory's basename is not another of `knownTargets`.
+ */
 export function invocationTargets(
   inv: SupabaseInvocation,
-  name: string
+  name: string,
+  knownTargets?: readonly string[]
 ): boolean {
-  return inv.argv.includes('--all') || targetName(inv) === name;
+  if (inv.argv.includes('--all')) return true;
+  const dir = directoryName(inv);
+  if (dir === name) return true;
+  if (stackFlagName(inv) !== name) return false;
+  return dir === undefined || !knownTargets?.includes(dir);
 }
 
 /** Whether the addressed name comes from a shell expansion (`$s`, backticks), e.g. inside a loop. */
 export function invocationTargetUnresolved(inv: SupabaseInvocation): boolean {
-  const name = targetName(inv);
+  const name = stackFlagName(inv) ?? directoryName(inv);
   return name !== undefined && SHELL_EXPANSION_RE.test(name);
+}
+
+function runnerVersion(runner: string): string {
+  return runner.slice(runner.lastIndexOf('@') + 1).replace(/^v/, '');
 }
 
 /**
  * Distinct runner specs of invocations that ran an explicitly versioned
- * `supabase` through a package runner, skipping runs of `installedVersion`.
+ * `supabase` (through a package runner or an earlier global install),
+ * skipping runs of `installedVersion`. Dist-tags (`@latest`) cannot be
+ * verified offline and are listed by `listUnverifiedRunners` instead.
  */
 export function listCliOverrides(
   invocations: readonly SupabaseInvocation[],
@@ -358,8 +553,21 @@ export function listCliOverrides(
   const runners = new Set<string>();
   for (const { runner } of invocations) {
     if (runner === undefined) continue;
-    const version = runner.slice(runner.lastIndexOf('@') + 1).replace(/^v/, '');
-    if (version !== installed) runners.add(runner);
+    const version = runnerVersion(runner);
+    if (SEMVER_RE.test(version) && version !== installed) runners.add(runner);
+  }
+  return [...runners];
+}
+
+/** Distinct runner specs pinned to a dist-tag or range rather than a semver version. */
+export function listUnverifiedRunners(
+  invocations: readonly SupabaseInvocation[]
+): string[] {
+  const runners = new Set<string>();
+  for (const { runner } of invocations) {
+    if (runner !== undefined && !SEMVER_RE.test(runnerVersion(runner))) {
+      runners.add(runner);
+    }
   }
   return [...runners];
 }

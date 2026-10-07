@@ -145,7 +145,7 @@ describe('describeGroundTruth with relocated homes and CLI overrides', () => {
     );
   });
 
-  it('explains unresolved projects when the agent swapped CLI versions', () => {
+  it('explains every project when the agent swapped CLI versions', () => {
     const lines = describeGroundTruth(
       {
         'client-a': stack(54322, 54321),
@@ -154,7 +154,10 @@ describe('describeGroundTruth with relocated homes and CLI overrides', () => {
       rows,
       ['npx --yes supabase@2.120.0']
     );
-    expect(lines[0]).not.toContain('scorer uses the installed CLI');
+    expect(lines[0]).toContain(
+      'agent ran npx --yes supabase@2.120.0; scorer uses the installed CLI'
+    );
+    expect(lines[0]).not.toContain('may be running without being reachable');
     expect(lines[1]).toContain(
       'agent ran npx --yes supabase@2.120.0; scorer uses the installed CLI'
     );

@@ -67,6 +67,7 @@ describe('checkMetrics', () => {
     expect(JSON.parse(result.notes as string)).toEqual({
       cliVersion: '2.0.0',
       cliOverride: [],
+      cliRunnerUnverified: [],
       projects: {
         'client-a': {
           backend: 'managed',
@@ -156,6 +157,35 @@ describe('findStartAttempts', () => {
       ])
     ).toEqual({
       projects: { 'client-a': true, 'client-b': true },
+      any: true,
+    });
+  });
+
+  it('attributes a --workdir start to that project even with --stack', () => {
+    expect(
+      findStartAttempts([
+        {
+          command:
+            'supabase --workdir client-b stack start --stack native --runtime native',
+          cwd: '/sandbox',
+        },
+      ])
+    ).toEqual({
+      projects: { 'client-a': false, 'client-b': true },
+      any: true,
+    });
+  });
+
+  it('attributes --stack <other project> run inside a project to that project', () => {
+    expect(
+      findStartAttempts([
+        {
+          command: 'supabase stack start --stack client-a',
+          cwd: '/sandbox/client-b',
+        },
+      ])
+    ).toEqual({
+      projects: { 'client-a': false, 'client-b': true },
       any: true,
     });
   });
