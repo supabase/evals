@@ -735,6 +735,14 @@ describe('--project-id is authoritative over the working directory', () => {
     expect(result.notes).toMatch(/^commands: touched by cmd #4 /);
   });
 
+  it('records the stop as a payments-api teardown, not a checkout-service one', () => {
+    const invocations = invocationsOf([STOP_PAYMENTS]);
+    expect(
+      lifecycleEvents(invocations, 'payments-api').map(({ kind }) => kind)
+    ).toEqual(['teardown']);
+    expect(lifecycleEvents(invocations, 'checkout-service')).toEqual([]);
+  });
+
   it('does not read a later checkout start as a checkout restart', () => {
     expect(
       restarted([

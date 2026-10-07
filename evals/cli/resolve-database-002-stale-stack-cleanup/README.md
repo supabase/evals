@@ -57,9 +57,10 @@ the stacks (see [Evidence model](#evidence-model)), and the `supabase`
 invocations the agent executed, parsed from argv per executable segment: an echoed plan, a
 commit message, a heredoc, or a `psql` statement that merely mentions a
 command never counts. An invocation targets a service by the directory it
-ran in, except that `--project-id <name>` is authoritative: it names the
+ran in, except that `stop --project-id <name>` is authoritative: it names the
 project whatever directory the command ran in, so `cd checkout-service &&
-supabase stop --project-id payments-api` stops payments-api. Otherwise the
+supabase stop --project-id payments-api` stops payments-api. Other verbs ignore
+`--project-id` for attribution. Otherwise the
 directory decides: `--workdir`'s (or `SUPABASE_WORKDIR`'s) basename, else the
 directory an earlier `cd` in the same command entered, else the tool call's own
 working directory when the harness records one. Only when that directory is
@@ -262,11 +263,13 @@ completion time when recorded, else command order) went through such a runner
 fails `… stack is running` even if the installed CLI happens to resolve its
 stack (`<service>: started with <runner>, not the installed CLI`), and the
 judge's ground truth says so; one whose latest non-failed start used the installed CLI
-passes. A global `npm i -g supabase@X` applies to later invocations only when
-its tool call succeeded (a failed install leaves the installed CLI in place),
-and a global uninstall clears it. The installed version the runners are compared
-with is the marker's `cliVersion`, else `/usr/bin/supabase --version`, else
-`supabase --version` on PATH. Runners
+passes. A global `npm i -g supabase@X` applies to later invocations whatever
+its tool call's status (a call's error reflects its last command, not the
+install), and a global uninstall clears it. When `supabase --version` on PATH
+after the run equals the installed version, an install that was never
+uninstalled did not take effect and its runner is ignored. The installed
+version the runners are compared with is the marker's `cliVersion`, else
+`/usr/bin/supabase --version`, else `supabase --version` on PATH. Runners
 that name a dist-tag (`supabase@beta`) can't be checked against the installed
 version offline and are listed in `metrics.cliRunnerUnverified` instead. The
 runner is never replayed.
