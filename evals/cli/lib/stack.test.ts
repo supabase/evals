@@ -100,8 +100,12 @@ describe('readDbUrl', () => {
 describe('readRuntimeKind', () => {
   it.each<[stdout: string, expected: 'native' | 'docker' | 'unknown']>([
     ['{"runtime":{"kind":"native"}}', 'native'],
+    ['{"runtime":{"kind":"docker"}}', 'docker'],
+    ['{"runtime":"native"}', 'native'],
+    ['{"runtime":"docker"}', 'docker'],
+    ['{"runtime":"podman"}', 'unknown'],
     ['{"DB_URL":"x"}', 'unknown'],
-  ])('reads runtime.kind from %j as %j', (stdout, expected) => {
+  ])('reads runtime from %j as %j', (stdout, expected) => {
     expect(readRuntimeKind(stdout)).toBe(expected);
   });
 });
@@ -230,6 +234,7 @@ describe('resolveStack', () => {
     });
     expect(commands).toEqual([
       `cd 'client a' && ${ROOT_MANAGED_ENV}`,
+      `cd 'client a' && pwd -P && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json`,
       `cd 'client a' && ${ROOT_LEGACY}`,
     ]);
   });
@@ -251,6 +256,170 @@ describe('resolveStack', () => {
       ok: false,
       notes:
         'managed-named (project dir): exit 1: error; managed-named: exit 1: error; managed: exit 1: error; legacy: exit 1: error',
+    });
+  });
+
+  describe('named managed stacks discovered through `stack list`', () => {
+    const LIST = (dir: string) =>
+      `cd '${dir}' && pwd -P && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json`;
+    const DEFAULT_UNAVAILABLE = commandResult(
+      'ExperimentalStackStatusError: owner or primary database is unavailable',
+      false
+    );
+
+    it('probes the dir’s reachable named stack and never a sibling’s', async () => {
+      const { ctx, commands } = fakeCtx({
+        [`cd 'client-a' && ${ROOT_MANAGED_ENV}`]: DEFAULT_UNAVAILABLE,
+        [LIST('client-a')]: commandResult(
+          [
+            '/work/client-a',
+            JSON.stringify({
+              stacks: [
+                {
+                  name: 'default',
+                  project_root: '/work/client-a',
+                  owner: 'unavailable',
+                },
+                {
+                  name: 'native',
+                  project_root: '/work/client-a',
+                  owner: 'reachable',
+                },
+                {
+                  name: 'sibling',
+                  project_root: '/work/client-b',
+                  owner: 'reachable',
+                },
+              ],
+            }),
+          ].join('\n')
+        ),
+        "--stack 'native' --env": managedEnv,
+        "--stack 'native' --output-format": commandResult(
+          '{"runtime":"native"}'
+        ),
+      });
+      expect(
+        await resolveStack(ctx, { kind: 'project', dir: 'client-a' })
+      ).toEqual({
+        ok: true,
+        backend: 'managed-named',
+        dbUrl: 'postgresql://managed',
+        apiUrl: 'http://127.0.0.1:54321',
+        runtime: 'native',
+      });
+      expect(commands).toEqual([
+        `cd 'client-a' && ${ROOT_MANAGED_ENV}`,
+        LIST('client-a'),
+        "cd 'client-a' && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'native' --env --output-format json",
+        "cd 'client-a' && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'native' --output-format json",
+      ]);
+      expect(commands.some((command) => command.includes('sibling'))).toBe(
+        false
+      );
+    });
+
+    it('orders reachable owners first and falls through to the next name', async () => {
+      const { ctx, commands } = fakeCtx({
+        [LIST('client-a')]: commandResult(
+          [
+            '/work/client-a',
+            JSON.stringify({
+              stacks: [
+                {
+                  name: 'stale',
+                  project_root: '/work/client-a',
+                  owner: 'unavailable',
+                },
+                {
+                  name: 'wedged',
+                  project_root: '/work/client-a',
+                  owner: 'reachable',
+                },
+                {
+                  name: 'demo',
+                  project_root: '/work/client-a',
+                  owner: 'reachable',
+                },
+              ],
+            }),
+          ].join('\n')
+        ),
+        "--stack 'demo' --env": managedEnv,
+      });
+      expect(
+        await resolveStack(ctx, { kind: 'project', dir: 'client-a' })
+      ).toMatchObject({ ok: true, backend: 'managed-named' });
+      const probed = commands
+        .filter((command) => command.includes('--env --output-format'))
+        .map((command) => /--stack '([^']*)'/.exec(command)?.[1]);
+      expect(probed).toEqual([undefined, 'wedged', 'demo']);
+    });
+
+    it('resolves a lone named stack after the default has no managed stack', async () => {
+      const { ctx } = fakeCtx({
+        [`cd 'client-a' && ${ROOT_MANAGED_ENV}`]: commandResult(
+          'ExperimentalStackStatusError: No managed stack exists for the selected project',
+          false
+        ),
+        [LIST('client-a')]: commandResult(
+          `/work/client-a\n${JSON.stringify({
+            stacks: [{ name: 'client-a', project_root: '/work/client-a' }],
+          })}`
+        ),
+        "--stack 'client-a' --env": managedEnv,
+      });
+      expect(
+        await resolveStack(ctx, { kind: 'project', dir: 'client-a' })
+      ).toMatchObject({ ok: true, backend: 'managed-named' });
+    });
+
+    it('falls through to legacy when the list output is unparseable', async () => {
+      const { ctx, commands } = fakeCtx({
+        [LIST('client-a')]: commandResult('/work/client-a\nnot json'),
+        [`cd 'client-a' && ${ROOT_LEGACY}`]: commandResult(
+          '{"DB_URL":"postgresql://legacy"}'
+        ),
+      });
+      expect(
+        await resolveStack(ctx, { kind: 'project', dir: 'client-a' })
+      ).toMatchObject({ ok: true, backend: 'legacy' });
+      expect(commands).toEqual([
+        `cd 'client-a' && ${ROOT_MANAGED_ENV}`,
+        LIST('client-a'),
+        `cd 'client-a' && ${ROOT_LEGACY}`,
+      ]);
+    });
+
+    it('notes the list outcome when nothing resolves', async () => {
+      const { ctx } = fakeCtx({
+        [LIST('client-a')]: commandResult('/work/client-a\nnot json'),
+      });
+      const probe = await resolveStack(ctx, {
+        kind: 'project',
+        dir: 'client-a',
+      });
+      expect(probe).toEqual({
+        ok: false,
+        notes:
+          'managed: exit 1: error; stack list: unparseable output; legacy: exit 1: error',
+      });
+    });
+
+    it('does not run `stack list` for root or named-project targets', async () => {
+      const root = fakeCtx({});
+      await resolveStack(root.ctx);
+      const named = fakeCtx({});
+      await resolveStack(named.ctx, {
+        kind: 'project',
+        dir: 'svc',
+        stackName: 'svc',
+      });
+      expect(
+        [...root.commands, ...named.commands].some((command) =>
+          command.includes('stack list')
+        )
+      ).toBe(false);
     });
   });
 

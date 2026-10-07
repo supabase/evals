@@ -35,6 +35,7 @@ function commandResult(stdout: string, ok = true): CommandResult {
 type ProjectState = {
   managed?: Record<string, string>;
   legacy?: Record<string, string>;
+  named?: Record<string, Record<string, string>>;
 };
 
 // Routes `exec` by the `cd '<dir>' &&` prefix the stack cascade adds, and
@@ -51,6 +52,24 @@ function fakeCtx(options: {
     const cd = command.match(/^cd '([^']+)' && ([\s\S]*)$/);
     if (cd) {
       const state = projects[cd[1]] ?? {};
+      if (cd[2].includes('stack list')) {
+        const stacks = Object.entries(projects).flatMap(([dir, project]) =>
+          Object.keys(project.named ?? {}).map((name) => ({
+            name,
+            project_root: `/ws/${dir}`,
+            owner: 'reachable',
+          }))
+        );
+        return commandResult(`/ws/${cd[1]}\n${JSON.stringify({ stacks })}`);
+      }
+      const stackName = /--stack '([^']+)'/.exec(cd[2])?.[1];
+      if (stackName !== undefined) {
+        const env = state.named?.[stackName];
+        if (!env) return commandResult('', false);
+        return cd[2].includes('--env')
+          ? commandResult(JSON.stringify(env))
+          : commandResult(JSON.stringify({ runtime: 'native' }));
+      }
       if (cd[2].includes('stack status --env')) {
         return state.managed
           ? commandResult(JSON.stringify(state.managed))
@@ -108,6 +127,30 @@ describe('resolveClientStacks', () => {
       apiUrl: ENV_B.API_URL,
       runtime: 'docker',
     });
+  });
+
+  it('resolves two named native stacks on distinct ports', async () => {
+    const ctx = fakeCtx({
+      projects: {
+        './client-a': { named: { native: ENV_A } },
+        './client-b': { named: { demo: ENV_B } },
+      },
+    });
+    const stacks = await resolveClientStacks(ctx, DIRS);
+    expect(stacks['client-a']).toEqual({
+      ok: true,
+      backend: 'managed-named',
+      dbUrl: DB_A,
+      apiUrl: ENV_A.API_URL,
+      runtime: 'native',
+    });
+    expect(stacks['client-b']).toMatchObject({
+      ok: true,
+      backend: 'managed-named',
+      dbUrl: DB_B,
+    });
+    expect((await checkBothStacksReady(ctx, stacks)).passed).toBe(true);
+    expect(checkDistinctPorts(stacks).passed).toBe(true);
   });
 
   it('reports a missing project directory without probing it', async () => {

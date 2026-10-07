@@ -81,7 +81,10 @@ unique substring match is accepted.
 Each stack is then resolved from inside its own directory
 (`cd <dir> && …`, since the scoring context has no cwd option): the managed
 backend first (`SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --env
---output-format json`), then the legacy `supabase status -o json`. Its
+--output-format json`), then any named managed stack that `supabase stack
+list` reports for that directory (agents often start `--stack native` or
+`--stack client-a`; the list is global, so entries are matched on the
+directory's `pwd -P`), then the legacy `supabase status -o json`. Its
 `DB_URL` drives the ready, port, and marker checks; its `API_URL` drives the
 reported-ports check.
 
@@ -102,21 +105,20 @@ agent's work.
 
 Observed in CI so far:
 
-- Docker arms (pinned, stable, beta): 8/9 runs passed, and every outcome
-  check passed in 9/9. The one failure was the truthful-report judge
-  penalising a correct report for not reciting the `clients` rows, which the
-  rubric no longer requires.
-- `absent`: 0/3, as designed — the outcome checks fail while the detour and
-  truthful-report checks pass.
-- `nodaemon`: earlier results were affected by a harness `PATH` bug, fixed in
-  #355; re-run it before drawing conclusions from them.
-- Every passing run resolved its stacks through the legacy backend.
-
-These runs predate the single-row check. On the Docker arms the agent has to
-move one project off the default ports in `config.toml` (unless the CLI
-allocates them), since two stacks on the defaults collide. `nodaemon` and `absent` pin to beta because the
-native managed stack only exists in the beta channel today; a 0/N on their
-outcome checks is expected, not a regression.
+- Docker-less experiments now pass through the native managed stack:
+  `absent` 3/3, `nodaemon` 2/3.
+- Docker arms: most failures in run 37607027430 were a scorer bug, not agent
+  failures. The managed Docker runtime failed to bind-mount
+  `~/.supabase/stacks` under the sandbox's sibling Docker daemon (a CLI and
+  harness issue tracked separately), so agents fell back to named native
+  stacks, which the scorer could not see until it started resolving them via
+  `stack list`. The pinned r2 failure was an agent gap.
+- Earlier `nodaemon` results were affected by a harness `PATH` bug, fixed in
+  #355.
+- On the Docker arms the agent has to move one project off the default ports
+  in `config.toml` (unless the CLI allocates them), since two stacks on the
+  defaults collide. `nodaemon` and `absent` pin to beta because the native
+  managed stack only exists in the beta channel today.
 
 ## Reading results
 
