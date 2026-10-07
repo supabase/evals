@@ -5,6 +5,7 @@ import {
   invocationTargetUnresolved,
   invocationTargets,
   invocationVerb,
+  listCliOverrides,
   type SupabaseInvocation,
 } from './cli-invocations.js';
 
@@ -608,5 +609,138 @@ describe('invocationTargetUnresolved', () => {
       invocationTargetUnresolved(inv(['supabase', 'start'], 'legacy-import'))
     ).toBe(false);
     expect(invocationTargetUnresolved(inv(['supabase', 'start']))).toBe(false);
+  });
+});
+
+describe('invocation env and runner', () => {
+  const S = '/sandbox';
+  const first = (command: string, cwd?: string) =>
+    findSupabaseInvocations([{ command, cwd }])[0];
+
+  it('records an absolute SUPABASE_HOME and TMPDIR with the call cwd', () => {
+    const invocation = first(
+      `SUPABASE_HOME=${S}/.supabase-runtime-home TMPDIR=${S}/.supabase-tmp supabase start`,
+      `${S}/client-a`
+    );
+    expect(invocation).toMatchObject({
+      cwd: `${S}/client-a`,
+      env: {
+        SUPABASE_HOME: `${S}/.supabase-runtime-home`,
+        TMPDIR: `${S}/.supabase-tmp`,
+      },
+    });
+    expect(invocation.runner).toBeUndefined();
+  });
+
+  it('records HOME in place of SUPABASE_HOME', () => {
+    expect(
+      first(
+        `HOME=${S}/.supabase-runtime-home TMPDIR=${S}/.supabase-tmp supabase start`,
+        `${S}/client-a`
+      ).env
+    ).toEqual({
+      HOME: `${S}/.supabase-runtime-home`,
+      TMPDIR: `${S}/.supabase-tmp`,
+    });
+  });
+
+  it('records env assigned after a cd and resolves the target from it', () => {
+    const invocation = first(
+      `cd client-a && TMPDIR=${S}/.tmp SUPABASE_HOME=${S}/.supabase-home SUPABASE_EXPERIMENTAL_STACK=1 supabase start --runtime docker --eager`,
+      S
+    );
+    expect(invocation.env).toEqual({
+      SUPABASE_HOME: `${S}/.supabase-home`,
+      TMPDIR: `${S}/.tmp`,
+    });
+    expect(invocationTargets(invocation, 'client-a')).toBe(true);
+  });
+
+  it('resolves $PWD-relative values and records the npx runner', () => {
+    const invocation = first(
+      'HOME="$PWD/.local-supabase-home" TMPDIR="$PWD/.local-supabase-home/tmp" NPM_CONFIG_CACHE=/home/node/.npm npx --yes supabase@2.120.0 start --workdir client-b',
+      S
+    );
+    expect(invocation).toMatchObject({
+      argv: ['supabase', 'start', '--workdir', 'client-b'],
+      env: {
+        HOME: `${S}/.local-supabase-home`,
+        TMPDIR: `${S}/.local-supabase-home/tmp`,
+      },
+      runner: 'npx --yes supabase@2.120.0',
+    });
+    expect(invocationTargets(invocation, 'client-b')).toBe(true);
+  });
+
+  it('resolves ${PWD} the same way', () => {
+    expect(first('SUPABASE_HOME=${PWD}/.home supabase start', S).env).toEqual({
+      SUPABASE_HOME: `${S}/.home`,
+    });
+  });
+
+  it('resolves a relative value against the cwd', () => {
+    expect(
+      first('mkdir -p .home && SUPABASE_HOME=.home supabase start', S).env
+    ).toEqual({ SUPABASE_HOME: `${S}/.home` });
+  });
+
+  it('drops a relative value when the cwd is unknown', () => {
+    expect(first('SUPABASE_HOME=.home supabase start').env).toBeUndefined();
+  });
+
+  it('drops values with other unresolved expansions', () => {
+    expect(
+      first('SUPABASE_HOME=$FOO/home TMPDIR=${BAR} HOME=/h supabase start', S)
+        .env
+    ).toEqual({ HOME: '/h' });
+  });
+
+  it('clears env with `env -u` and `env -i`', () => {
+    expect(
+      first('SUPABASE_HOME=/a env -u SUPABASE_HOME supabase start', S).env
+    ).toBeUndefined();
+    expect(first('HOME=/a env -i TMPDIR=/t supabase start', S).env).toEqual({
+      TMPDIR: '/t',
+    });
+  });
+
+  it('records env set through `env VAR=…`', () => {
+    expect(first('env SUPABASE_HOME=/a supabase start', S).env).toEqual({
+      SUPABASE_HOME: '/a',
+    });
+  });
+
+  it('records pnpm dlx and bunx runners but not unversioned or exec runs', () => {
+    expect(first('pnpm dlx supabase@2.0.0 start').runner).toBe(
+      'pnpm dlx supabase@2.0.0'
+    );
+    expect(first('bunx supabase@2.0.0 start').runner).toBe(
+      'bunx supabase@2.0.0'
+    );
+    expect(first('npx supabase start').runner).toBeUndefined();
+    expect(first('pnpm exec supabase start').runner).toBeUndefined();
+  });
+});
+
+describe('listCliOverrides', () => {
+  const runner = (spec: string) => ({
+    ...inv(['supabase', 'start']),
+    runner: spec,
+  });
+
+  it('lists distinct runner specs', () => {
+    expect(
+      listCliOverrides([
+        runner('npx supabase@2.0.0'),
+        inv(['supabase', 'start']),
+        runner('npx supabase@2.0.0'),
+      ])
+    ).toEqual(['npx supabase@2.0.0']);
+  });
+
+  it('skips the installed version', () => {
+    expect(
+      listCliOverrides([runner('npx supabase@2.0.0')], 'v2.0.0\n')
+    ).toEqual([]);
   });
 });

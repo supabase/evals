@@ -4,7 +4,9 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
+import type { SupabaseInvocation } from './cli-invocations.js';
 import {
+  candidateHomes,
   describeStack,
   maskUrlCredentials,
   parseJsonObject,
@@ -13,6 +15,7 @@ import {
   readDbUrl,
   readRuntimeKind,
   resolveStack,
+  resolveStackWithAgentHomes,
   urlPort,
 } from './stack.js';
 
@@ -571,5 +574,209 @@ describe('probeStackReady', () => {
       notes: 'nope',
     });
     expect(commands).toEqual([]);
+  });
+});
+
+describe('relocated CLI homes', () => {
+  const HOME_ENV = { SUPABASE_HOME: '/s/.home', TMPDIR: '/s/.tmp' };
+  const start = (
+    env: SupabaseInvocation['env'],
+    cwd = '/s/client-a',
+    verb = 'start'
+  ): SupabaseInvocation => ({
+    commandIndex: 0,
+    argv: ['supabase', verb],
+    cwd,
+    ...(env === undefined ? {} : { env }),
+  });
+  const PROJECT = { kind: 'project', dir: 'client-a' } as const;
+  const PREFIX = "SUPABASE_HOME='/s/.home' TMPDIR='/s/.tmp' ";
+  const ENV_CMD = `cd 'client-a' && ${PREFIX}${ROOT_MANAGED_ENV}`;
+  const STATUS_CMD = `cd 'client-a' && ${PREFIX}${ROOT_MANAGED_STATUS}`;
+  const LIST_CMD = `cd 'client-a' && pwd -P && ${PREFIX}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json`;
+  const found = commandResult(
+    '{"DB_URL":"postgresql://relocated","API_URL":"http://127.0.0.1:54321"}'
+  );
+
+  describe('resolveStack with a home', () => {
+    it('prefixes managed status and stack list, skipping legacy', async () => {
+      const { ctx, commands } = fakeCtx();
+      const result = await resolveStack(ctx, PROJECT, { home: HOME_ENV });
+      expect(result).toMatchObject({ ok: false });
+      expect(commands).toEqual([ENV_CMD, LIST_CMD]);
+      expect(commands.join('\n')).not.toContain('status -o json');
+      expect((result as { notes: string }).notes).toContain(
+        'managed (SUPABASE_HOME=/s/.home)'
+      );
+    });
+
+    it('shell-quotes the values', async () => {
+      const { ctx, commands } = fakeCtx();
+      await resolveStack(ctx, { kind: 'root' }, { home: { HOME: "/it's" } });
+      expect(commands[0]).toBe(`HOME='/it'\\''s' ${ROOT_MANAGED_ENV}`);
+    });
+
+    it('keeps root commands byte-identical without a home', async () => {
+      const { ctx, commands } = fakeCtx({ [ROOT_MANAGED_ENV]: found });
+      await resolveStack(ctx);
+      expect(commands[0]).toBe(ROOT_MANAGED_ENV);
+    });
+  });
+
+  describe('candidateHomes', () => {
+    it('keeps start invocations for the project, newest first, deduped', () => {
+      const other = { SUPABASE_HOME: '/s/other' };
+      expect(
+        candidateHomes(
+          [
+            start(other),
+            start(HOME_ENV),
+            start(other, '/s/client-b'),
+            start(HOME_ENV, '/s/client-a', 'stop'),
+            start(undefined),
+            start({ TMPDIR: '/s/.tmp' }),
+            start(HOME_ENV),
+          ],
+          PROJECT
+        )
+      ).toEqual([HOME_ENV, other]);
+    });
+
+    it('accepts a stack start and a --workdir target', () => {
+      expect(
+        candidateHomes(
+          [
+            {
+              commandIndex: 0,
+              argv: ['supabase', 'start', '--workdir', 'client-a'],
+              cwd: '/s',
+              env: HOME_ENV,
+            },
+            start({ HOME: '/s/h' }, '/s/client-a', 'stack start'),
+          ],
+          PROJECT
+        )
+      ).toEqual([{ HOME: '/s/h' }, HOME_ENV]);
+    });
+  });
+
+  describe('resolveStackWithAgentHomes', () => {
+    it('resolves under the default home without retrying', async () => {
+      const { ctx, commands } = fakeCtx({
+        [`cd 'client-a' && ${ROOT_MANAGED_ENV}`]: found,
+      });
+      const result = await resolveStackWithAgentHomes(ctx, PROJECT, [
+        start(HOME_ENV),
+      ]);
+      expect(result).toMatchObject({ ok: true });
+      expect(result).not.toHaveProperty('relocatedHome');
+      expect(
+        commands.some((command) => command.includes('SUPABASE_HOME'))
+      ).toBe(false);
+    });
+
+    it('retries under the agent home after the default cascade fails', async () => {
+      const { ctx, commands } = fakeCtx({
+        [ENV_CMD]: found,
+        [STATUS_CMD]: commandResult('{"runtime":"native"}'),
+      });
+      const result = await resolveStackWithAgentHomes(ctx, PROJECT, [
+        start(HOME_ENV),
+      ]);
+      expect(result).toEqual({
+        ok: true,
+        backend: 'managed',
+        dbUrl: 'postgresql://relocated',
+        apiUrl: 'http://127.0.0.1:54321',
+        runtime: 'native',
+        relocatedHome: '/s/.home',
+      });
+      const defaults = [
+        `cd 'client-a' && ${ROOT_MANAGED_ENV}`,
+        `cd 'client-a' && pwd -P && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json`,
+        `cd 'client-a' && ${ROOT_LEGACY}`,
+      ];
+      expect(commands).toEqual([...defaults, ENV_CMD, STATUS_CMD]);
+    });
+
+    it('runs the retry stack list under the home when the managed step fails', async () => {
+      const named = commandResult(
+        [
+          '/work/client-a',
+          JSON.stringify({
+            stacks: [
+              {
+                name: 'dev',
+                project_root: '/work/client-a',
+                owner: 'reachable',
+              },
+            ],
+          }),
+        ].join('\n')
+      );
+      const { ctx, commands } = fakeCtx({
+        [LIST_CMD]: named,
+        [`${PREFIX}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'dev' --env`]:
+          found,
+      });
+      const result = await resolveStackWithAgentHomes(ctx, PROJECT, [
+        start(HOME_ENV),
+      ]);
+      expect(result).toMatchObject({
+        ok: true,
+        backend: 'managed-named',
+        relocatedHome: '/s/.home',
+      });
+      expect(
+        commands.filter((command) => command.includes('status -o json'))
+      ).toHaveLength(1);
+      expect(commands).toContain(LIST_CMD);
+    });
+
+    it('uses HOME/.supabase as the root for a HOME override', async () => {
+      const home = { HOME: '/s/.h' };
+      const { ctx } = fakeCtx({
+        [`cd 'client-a' && HOME='/s/.h' ${ROOT_MANAGED_ENV}`]: found,
+      });
+      expect(
+        await resolveStackWithAgentHomes(ctx, PROJECT, [start(home)])
+      ).toMatchObject({ ok: true, relocatedHome: '/s/.h/.supabase' });
+    });
+
+    it('returns the original failure unchanged without candidates', async () => {
+      const { ctx } = fakeCtx();
+      const baseline = await resolveStack(fakeCtx().ctx, PROJECT);
+      expect(
+        await resolveStackWithAgentHomes(ctx, PROJECT, [
+          start(undefined),
+          start(HOME_ENV, '/s/client-b'),
+        ])
+      ).toEqual(baseline);
+    });
+
+    it('appends the retry notes when every candidate home fails', async () => {
+      const { ctx } = fakeCtx();
+      const result = await resolveStackWithAgentHomes(ctx, PROJECT, [
+        start(HOME_ENV),
+      ]);
+      expect(result).toMatchObject({ ok: false });
+      expect((result as { notes: string }).notes).toContain(
+        'managed (SUPABASE_HOME=/s/.home)'
+      );
+    });
+  });
+
+  it('describes a relocated stack for judge ground truth', () => {
+    expect(
+      describeStack({
+        ok: true,
+        backend: 'managed',
+        dbUrl: 'postgresql://x',
+        runtime: 'native',
+        relocatedHome: '/s/.home',
+      })
+    ).toBe(
+      "resolved: managed/native under the agent's relocated CLI home /s/.home"
+    );
   });
 });
