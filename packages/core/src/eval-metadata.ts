@@ -45,6 +45,7 @@ export const evalSuiteSchema = z.enum([
   'regression',
   'docs',
   'cli',
+  'docs-wayfinding',
   'other',
 ]);
 export const EVAL_SUITES = evalSuiteSchema.options;
@@ -56,6 +57,7 @@ export const experimentSuiteSchema = z.enum([
   'regression',
   'docs',
   'cli',
+  'docs-wayfinding',
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
