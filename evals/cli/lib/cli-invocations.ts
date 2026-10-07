@@ -94,6 +94,10 @@ function joinPath(base: string | undefined, path: string): string {
   return `${joined.startsWith('/') ? '/' : ''}${parts.join('/')}`;
 }
 
+function expandPwd(value: string, cwd: string | undefined): string {
+  return cwd === undefined ? value : value.replace(PWD_PREFIX_RE, cwd);
+}
+
 function changeDir(
   cwd: string | undefined,
   target: string | undefined
@@ -411,7 +415,10 @@ export function findSupabaseInvocations(
         segment,
         seed
       );
-      const dir = chdir === undefined ? state.cwd : changeDir(state.cwd, chdir);
+      const dir =
+        chdir === undefined
+          ? state.cwd
+          : changeDir(state.cwd, expandPwd(chdir, state.cwd));
       if (CHDIR_WORDS.has(argv[0])) {
         state = { ...state, cwd: changeDir(state.cwd, argv[1]) };
       } else if (argv[0] === 'export') {
@@ -481,13 +488,16 @@ function stackFlagName(inv: SupabaseInvocation): string | undefined {
 
 /**
  * The directory an invocation ran against: `--workdir` (or `SUPABASE_WORKDIR`)
- * resolved against its `cwd`; undefined when neither is known.
+ * resolved against its `cwd` (a leading `$PWD` is that `cwd`); undefined when
+ * neither is known.
  */
 export function invocationDirectory(
   inv: SupabaseInvocation
 ): string | undefined {
   const workdir = flagValue(inv.argv, '--workdir') ?? inv.workdir;
-  if (workdir !== undefined) return joinPath(inv.cwd, workdir);
+  if (workdir !== undefined) {
+    return joinPath(inv.cwd, expandPwd(workdir, inv.cwd));
+  }
   return inv.cwd === undefined ? undefined : joinPath(undefined, inv.cwd);
 }
 
