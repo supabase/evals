@@ -110,7 +110,9 @@ default resolution fails, the scorer retries under each `SUPABASE_HOME`/`HOME`
 the agent set on a start of that project: as a command prefix, through `env`,
 or through an `export` earlier in the same command. `$HOME` and `~` in a value
 resolve only when a `HOME=` assignment came earlier in that command; otherwise
-the value is dropped rather than guessing the sandbox user's home. Rc files and
+the value is dropped rather than guessing the sandbox user's home. `$PWD` is
+the shell's directory (not the one `env -C` moves to), while a plain relative
+value resolves against the directory the CLI runs in. Rc files and
 `.env` files aren't read. The scorer runs the same managed commands with those
 variables. A stack found this way passes the outcome checks, and stays
 visible: the `both stacks reach ready` notes say `relocated home: <path>`,
@@ -127,8 +129,10 @@ outcome checks fail. Recognised runners are `npx`/`bunx` (including
 `bun add -g`, `yarn global add` of `supabase@<version>`), which counts for every
 later invocation in the run. The runner spec is recorded in
 `metrics.cliOverride` (empty when none), the `both stacks reach ready` notes
-lead with `agent ran <runner>; scorer uses the installed CLI`, and so does the
-judge's ground truth for every project. Each project is judged by its latest
+lead with `agent ran <runner>; scorer uses the installed CLI`, and the judge's
+ground truth carries that note only on projects whose latest start used an
+override runner (adding that the project may be running without being reachable
+by the harness when it did not resolve). Each project is judged by its latest
 start (by tool-call time when recorded, else command order): if that start used
 an override runner, `both stacks reach ready` fails even when the installed CLI
 happens to resolve the stack (`started with <runner>, not the installed CLI`);
@@ -154,24 +158,34 @@ agent's work.
 | nodaemon | beta | Docker client present, daemon unreachable | the Docker-less gap | pass via `--runtime native` |
 | absent | beta | no Docker at all | the Docker-less gap | pass via `--runtime native` |
 
-Observed in CI (run 37618809016, head 4d4afce): 13/15 runs pass.
+The expected column is what each experiment should do when the agent behaves.
+`nodaemon` and `absent` pin to beta because the native managed stack only
+exists in the beta channel today; on the Docker arms the agent has to move one
+project off the default ports in `config.toml` (unless the CLI allocates
+them), since two stacks on the defaults collide.
 
-- `absent` 3/3 and `nodaemon` 3/3 pass through the native managed stack.
-- Docker experiments pass 7/9: `beta` 3/3, `stable` 3/3, `pinned` 1/3.
-- 12 of the 13 passes resolved through managed or managed-named stacks, several
-  under an agent-relocated CLI home, so the managed backend's `API_URL` is
-  observed live and drives the reported-ports check.
-- `pinned` r2 fails the version-swap policy: the agent ran
-  `npx supabase@2.120.0` because the multi-project docs point to
-  `supabase stack`, which the pinned 2.117.0 doesn't have. That is a
-  docs/product gap worth fixing, not only an agent gap.
-- `pinned` r3 is an agent/tooling gap, not a version swap: the agent ran
-  `init` through `npx`, then hit `apply_patch: command not found` and stopped
-  before starting anything.
-- On the Docker arms the agent has to move one project off the default ports
-  in `config.toml` (unless the CLI allocates them), since two stacks on the
-  defaults collide. `nodaemon` and `absent` pin to beta because the native
-  managed stack only exists in the beta channel today.
+## Observed in CI
+
+Latest run, 2026-10-07 (run 37628703266, head 8258177): 11/15 runs pass.
+
+| experiment | CLI version | passed |
+| --- | --- | --- |
+| absent | 2.121.0-beta.6 | 3/3 |
+| nodaemon | 2.121.0-beta.6 | 3/3 |
+| pinned | 2.117.0 | 3/3 |
+| beta | 2.121.0-beta.6 | 2/3 |
+| stable | 2.120.0 | 0/3 |
+
+- `absent` and `nodaemon` pass through the native managed stack.
+- `stable` fails every run on `both stacks reach ready`: in two runs neither
+  project had a start attempted, in one only `client-a` did. The `beta` miss
+  (r2) is the same shape, with no start attempted for either project.
+- None of the failed runs used a runner override.
+
+Earlier run 37618809016 (head 4d4afce): 13/15, with `pinned` r2 failing the
+version-swap policy (`npx supabase@2.120.0`, because the multi-project docs
+point to `supabase stack`, which 2.117.0 lacks) and `pinned` r3 stopping after
+`apply_patch: command not found`.
 
 ## Reading results
 

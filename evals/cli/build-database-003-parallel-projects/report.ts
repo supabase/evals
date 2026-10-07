@@ -3,11 +3,13 @@ import {
   type CheckResult,
   type TranscriptPart,
 } from '@supabase-evals/core';
+import type { SupabaseInvocation } from '../lib/cli-invocations.js';
 import { mentionsNumber } from '../lib/report.js';
 import { describeStack } from '../lib/stack.js';
 import { CLIENTS, type Client } from './projects.js';
 import {
   describeCliOverride,
+  findSwappedProjects,
   stackPorts,
   type ClientRows,
   type ClientStacks,
@@ -61,14 +63,17 @@ export function checkReportedPorts(
   };
 }
 
-/** Per-project ground truth for the truthful-report judge. */
+/** Per-project ground truth for the truthful-report judge; the override note goes only on projects whose latest start ran through an override runner. */
 export function describeGroundTruth(
   stacks: ClientStacks,
   rows: ClientRows,
-  cliOverride: readonly string[] = []
+  cliOverride: readonly string[] = [],
+  invocations: readonly SupabaseInvocation[] = []
 ): string[] {
+  const swapped = findSwappedProjects(invocations, cliOverride);
   return CLIENTS.map((client) => {
     const stack = stacks[client];
+    const runner = swapped[client];
     const { db, api } = stackPorts(stack);
     const clientRows = rows[client];
     return [
@@ -76,9 +81,9 @@ export function describeGroundTruth(
       `  db port: ${db ?? 'unavailable'}`,
       `  api port: ${api ?? 'unavailable'}`,
       `  clients rows: ${clientRows.ok ? JSON.stringify(clientRows.values) : `unavailable (${clientRows.notes})`}`,
-      ...(cliOverride.length > 0
+      ...(runner !== undefined
         ? [
-            `  ${describeCliOverride(cliOverride)}${stack.ok ? '' : ', so the project may be running without being reachable by the harness'}`,
+            `  ${describeCliOverride([runner])}${stack.ok ? '' : ', so the project may be running without being reachable by the harness'}`,
           ]
         : []),
     ].join('\n');

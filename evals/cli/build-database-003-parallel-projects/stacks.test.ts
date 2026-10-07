@@ -622,6 +622,73 @@ describe('attribution by directory', () => {
     startIn(command, `${S}/client-b`),
   ];
 
+  it('retries the relocated home of a cd-then-$PWD --stack start for that project only', async () => {
+    const home = `${S}/client-a/.h`;
+    const inner = fakeCtx({
+      projects: {
+        './client-a': { managed: ENV_A },
+        './client-b': { managed: ENV_B },
+      },
+    });
+    const seen: string[] = [];
+    const ctx = {
+      exec: async (command: string) => {
+        seen.push(command);
+        if (command.includes(`SUPABASE_HOME='${home}' `)) {
+          return command.startsWith("cd './client-a'")
+            ? inner.exec(command.replace(`SUPABASE_HOME='${home}' `, ''))
+            : commandResult('', false);
+        }
+        return command.includes('supabase ')
+          ? commandResult('', false)
+          : inner.exec(command);
+      },
+    };
+    const invocations = findSupabaseInvocations([
+      startIn(
+        'cd client-a && SUPABASE_HOME=$PWD/.h supabase stack start --stack native',
+        S
+      ),
+    ]);
+    const stacks = await resolveClientStacks(ctx, DIRS, invocations);
+    expect(stacks['client-a']).toMatchObject({ ok: true, relocatedHome: home });
+    expect(stacks['client-b'].ok).toBe(false);
+    expect(
+      seen.filter(
+        (command) =>
+          command.startsWith("cd './client-b'") && command.includes(home)
+      )
+    ).toEqual([]);
+  });
+
+  it('flags a cd-then-$PWD --stack start through an override runner for that project only', async () => {
+    const ready = await readyAfter([
+      startIn(
+        `cd client-a && SUPABASE_HOME=$PWD/.h ${BETA} stack start --stack native`,
+        S
+      ),
+      startIn('supabase start', `${S}/client-b`),
+    ]);
+    expect(ready.passed).toBe(false);
+    expect(ready.notes).toContain(
+      `client-a: managed (native), select 1 ok; client-a: started with ${BETA}`
+    );
+    expect(ready.notes).not.toContain('client-b: started with');
+  });
+
+  it('keeps a dist-tag npx start from marking its project swapped', async () => {
+    const ready = await readyAfter(
+      [
+        startIn('npx supabase@beta start', `${S}/client-a`),
+        startIn('supabase start', `${S}/client-b`),
+      ],
+      '2.121.0-beta.6'
+    );
+    expect(ready.passed).toBe(true);
+    expect(ready.notes).not.toContain('not the installed CLI');
+    expect(ready.notes).not.toContain('agent ran');
+  });
+
   it('judges each project by its latest start', async () => {
     const swapped = await readyAfter([
       ...both('supabase stack start'),

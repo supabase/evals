@@ -1,6 +1,7 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/cli/build-database-003-parallel-projects
 import type { TranscriptPart } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
+import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
   checkReportedPorts,
@@ -145,21 +146,54 @@ describe('describeGroundTruth with relocated homes and CLI overrides', () => {
     );
   });
 
-  it('explains every project when the agent swapped CLI versions', () => {
+  const RUNNER = 'npx --yes supabase@2.120.0';
+  const swapNote = `agent ran ${RUNNER}; scorer uses the installed CLI`;
+
+  it('notes only projects whose latest start ran through an override runner', () => {
+    const invocations = findSupabaseInvocations([
+      { command: `${RUNNER} start`, cwd: '/s/client-a' },
+      { command: 'supabase start', cwd: '/s/client-b' },
+    ]);
+    const lines = describeGroundTruth(
+      {
+        'client-a': stack(54322, 54321),
+        'client-b': { ok: false, notes: 'port 54322 already in use' },
+      },
+      rows,
+      [RUNNER],
+      invocations
+    );
+    expect(lines[0]).toContain(swapNote);
+    expect(lines[0]).not.toContain('may be running without being reachable');
+    expect(lines[1]).not.toContain(swapNote);
+    expect(lines[1]).not.toContain('may be running without being reachable');
+  });
+
+  it('warns that an unresolved override-started project may still be running', () => {
+    const invocations = findSupabaseInvocations([
+      { command: `${RUNNER} start --workdir client-b`, cwd: '/s' },
+    ]);
     const lines = describeGroundTruth(
       {
         'client-a': stack(54322, 54321),
         'client-b': { ok: false, notes: 'down' },
       },
       rows,
-      ['npx --yes supabase@2.120.0']
+      [RUNNER],
+      invocations
     );
-    expect(lines[0]).toContain(
-      'agent ran npx --yes supabase@2.120.0; scorer uses the installed CLI'
-    );
-    expect(lines[0]).not.toContain('may be running without being reachable');
+    expect(lines[0]).not.toContain(swapNote);
     expect(lines[1]).toContain(
-      'agent ran npx --yes supabase@2.120.0; scorer uses the installed CLI'
+      `${swapNote}, so the project may be running without being reachable by the harness`
     );
+  });
+
+  it('adds no note without invocations to attribute', () => {
+    const lines = describeGroundTruth(
+      { 'client-a': stack(54322, 54321), 'client-b': stack(54332, 54331) },
+      rows,
+      [RUNNER]
+    );
+    expect(lines.join('\n')).not.toContain('agent ran');
   });
 });

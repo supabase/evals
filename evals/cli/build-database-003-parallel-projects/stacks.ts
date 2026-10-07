@@ -132,7 +132,7 @@ function isLater(a: SupabaseInvocation, b: SupabaseInvocation): boolean {
 }
 
 /** Projects whose latest start ran through a `cliOverride` runner, mapped to that runner. */
-function findSwappedProjects(
+export function findSwappedProjects(
   invocations: readonly SupabaseInvocation[],
   cliOverride: readonly string[]
 ): Partial<Record<Client, string>> {

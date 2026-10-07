@@ -176,6 +176,21 @@ describe('findStartAttempts', () => {
     });
   });
 
+  it('attributes a cd-then-$PWD-home --stack start to the project it cd-ed into', () => {
+    expect(
+      findStartAttempts([
+        {
+          command:
+            'cd client-a && SUPABASE_HOME=$PWD/.h supabase stack start --stack native',
+          cwd: '/sandbox',
+        },
+      ])
+    ).toEqual({
+      projects: { 'client-a': true, 'client-b': false },
+      any: true,
+    });
+  });
+
   it('attributes --stack <other project> run inside a project to that project', () => {
     expect(
       findStartAttempts([
