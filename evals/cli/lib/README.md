@@ -11,6 +11,10 @@ What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
 helpers with a single consumer stay colocated with that eval.
 
+Project stack targets (`{ kind: 'project', dir }` without a stack name) also
+discover named managed stacks started from that directory via
+`supabase stack list`, before falling back to the legacy backend.
+
 Invocation attribution (`cli-invocations.ts`) starts from a tool call's `cwd`
 only when the agent parser records one (Codex, OpenCode); a `cd` persisting
 across separate tool calls in a persistent shell (e.g. Claude Code) is not

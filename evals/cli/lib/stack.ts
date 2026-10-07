@@ -91,12 +91,13 @@ export function readApiUrl(stdout: string): string | undefined {
   return typeof apiUrl === 'string' && apiUrl.length > 0 ? apiUrl : undefined;
 }
 
-/** `runtime.kind` from a `parseJsonObject`-parsed stdout, defaulting to `'unknown'`. */
+/** `runtime` (a string, or `{ kind }`) from a `parseJsonObject`-parsed stdout, defaulting to `'unknown'`. */
 export function readRuntimeKind(stdout: string): StackRuntime {
-  const runtime = parseJsonObject(stdout)?.runtime as
-    | { kind?: unknown }
-    | undefined;
-  const kind = runtime?.kind;
+  const runtime = parseJsonObject(stdout)?.runtime;
+  const kind =
+    typeof runtime === 'object' && runtime !== null
+      ? (runtime as { kind?: unknown }).kind
+      : runtime;
   return kind === 'native' || kind === 'docker' ? kind : 'unknown';
 }
 
@@ -125,6 +126,7 @@ export function maskUrlCredentials(rawUrl: string): string {
 // Root failure notes keep a 300-char total; each extra cascade step adds 150.
 const NOTES_CHARS_PER_STEP = 150;
 const MIN_NOTES_CHARS = 300;
+const MAX_NOTES_CHARS = 900;
 
 type CascadeStep = {
   label: StackBackend;
@@ -133,25 +135,36 @@ type CascadeStep = {
   statusCommand?: string;
 };
 
+function namedStepCommands(stackName: string): {
+  envCommand: string;
+  statusCommand: string;
+} {
+  const flag = `--stack ${shellQuote(stackName)}`;
+  return {
+    envCommand: `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --env --output-format json`,
+    statusCommand: `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --output-format json`,
+  };
+}
+
+// A managed stack's identity is (projectRoot, name), so a named stack started
+// inside the project dir is only visible from that dir.
+function projectNamedStep(dir: string, stackName: string): CascadeStep {
+  const { envCommand, statusCommand } = namedStepCommands(stackName);
+  return {
+    label: 'managed-named',
+    noteLabel: 'managed-named (project dir)',
+    envCommand: inProjectDir(dir, envCommand),
+    statusCommand: inProjectDir(dir, statusCommand),
+  };
+}
+
 function cascadeSteps(target: StackTarget): CascadeStep[] {
   const steps: CascadeStep[] = [];
   const stackName = target.kind === 'root' ? undefined : target.stackName;
   const dir = target.kind === 'project' ? target.dir : undefined;
   if (stackName !== undefined) {
-    const flag = `--stack ${shellQuote(stackName)}`;
-    const envCommand = `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --env --output-format json`;
-    const statusCommand = `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status ${flag} --output-format json`;
-    // A managed stack's identity is (projectRoot, name), so a named stack
-    // started inside the project dir is only visible from that dir.
-    if (dir !== undefined) {
-      steps.push({
-        label: 'managed-named',
-        noteLabel: 'managed-named (project dir)',
-        envCommand: inProjectDir(dir, envCommand),
-        statusCommand: inProjectDir(dir, statusCommand),
-      });
-    }
-    steps.push({ label: 'managed-named', envCommand, statusCommand });
+    if (dir !== undefined) steps.push(projectNamedStep(dir, stackName));
+    steps.push({ label: 'managed-named', ...namedStepCommands(stackName) });
   }
   if (target.kind === 'named') return steps;
 
@@ -209,20 +222,85 @@ async function runStep(
   }
 }
 
+type NamedStackDiscovery = { names: string[] } | { detail: string };
+
+/**
+ * Names of the non-default managed stacks whose `project_root` is `dir`,
+ * reachable owners first. `stack list` is global, so sibling projects' stacks
+ * are filtered out by resolved path.
+ */
+async function discoverNamedStacks(
+  ctx: ExecContext,
+  dir: string
+): Promise<NamedStackDiscovery> {
+  try {
+    const result = await ctx.exec(
+      inProjectDir(
+        dir,
+        'pwd -P && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list --output-format json'
+      )
+    );
+    const [firstLine = '', ...rest] = result.stdout.split('\n');
+    const projectRoot = firstLine.trim();
+    const stacks = parseJsonObject(rest.join('\n'))?.stacks;
+    if (!projectRoot || !Array.isArray(stacks)) {
+      return {
+        detail: result.ok ? 'unparseable output' : describeFailure(result),
+      };
+    }
+    const entries = stacks.filter(
+      (entry): entry is { name: string; owner?: unknown } =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        entry.project_root === projectRoot &&
+        typeof entry.name === 'string' &&
+        entry.name !== 'default'
+    );
+    const reachable = (entry: { owner?: unknown }) =>
+      entry.owner === 'reachable' ? 0 : 1;
+    entries.sort((a, b) => reachable(a) - reachable(b));
+    return { names: entries.map((entry) => entry.name) };
+  } catch (error) {
+    return { detail: errorMessage(error) };
+  }
+}
+
 /**
  * Resolves which stack backend actually came up and the Postgres connection
  * string to reach it, trying a named managed stack (when a name is given;
  * from the project dir first, then the sandbox root), then the cwd-scoped
- * managed stack, then the legacy Docker Compose stack.
- * The first step that yields a `DB_URL` wins.
+ * managed stack, then — for a project dir without a name — each named managed
+ * stack `stack list` reports for that dir, then the legacy Docker Compose
+ * stack. The first step that yields a `DB_URL` wins.
  */
 export async function resolveStack(
   ctx: ExecContext,
   target: StackTarget = { kind: 'root' }
 ): Promise<StackProbe> {
   const steps = cascadeSteps(target);
+  const discoverIn =
+    target.kind === 'project' && target.stackName === undefined
+      ? target.dir
+      : undefined;
   const details: string[] = [];
+  let attempts = steps.length;
   for (const step of steps) {
+    if (step.label === 'legacy' && discoverIn !== undefined) {
+      attempts += 1;
+      const discovery = await discoverNamedStacks(ctx, discoverIn);
+      if ('detail' in discovery) {
+        details.push(`stack list: ${discovery.detail}`);
+      } else if (discovery.names.length === 0) {
+        details.push('stack list: no named stacks for this project');
+      }
+      for (const name of 'names' in discovery ? discovery.names : []) {
+        attempts += 1;
+        const named = projectNamedStep(discoverIn, name);
+        const outcome = await runStep(ctx, named);
+        if ('ok' in outcome) return outcome;
+        details.push(`${named.noteLabel} '${name}': ${outcome.detail}`);
+      }
+    }
     const outcome = await runStep(ctx, step);
     if ('ok' in outcome) return outcome;
     details.push(`${step.noteLabel ?? step.label}: ${outcome.detail}`);
@@ -231,7 +309,10 @@ export async function resolveStack(
     ok: false,
     notes: truncate(
       details.join('; '),
-      Math.max(MIN_NOTES_CHARS, NOTES_CHARS_PER_STEP * steps.length)
+      Math.min(
+        MAX_NOTES_CHARS,
+        Math.max(MIN_NOTES_CHARS, NOTES_CHARS_PER_STEP * attempts)
+      )
     ),
   };
 }
