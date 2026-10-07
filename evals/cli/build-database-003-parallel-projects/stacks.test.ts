@@ -475,4 +475,64 @@ describe('stacks under an agent-relocated CLI home', () => {
     );
     expect(metrics.cliOverride).toEqual(['npx --yes supabase@2.120.0']);
   });
+
+  it('fails a project that resolved but was only ever started via an override runner', async () => {
+    const ctx = relocatedCtx(`${S}/.h`);
+    const stacks = await resolveClientStacks(
+      fakeCtx({
+        projects: {
+          './client-a': { managed: ENV_A },
+          './client-b': { managed: ENV_B },
+        },
+      }),
+      DIRS
+    );
+    const invocations = findSupabaseInvocations([
+      { command: 'supabase start', cwd: `${S}/client-a` },
+      {
+        command: 'npx --yes supabase@2.120.0 start --workdir client-b',
+        cwd: S,
+      },
+    ]);
+    const ready = await checkBothStacksReady(
+      ctx,
+      stacks,
+      ['npx --yes supabase@2.120.0'],
+      invocations
+    );
+    expect(ready.passed).toBe(false);
+    expect(ready.notes).toContain(
+      'client-b: started with npx --yes supabase@2.120.0, not the installed CLI'
+    );
+    expect(ready.notes).not.toContain('client-a: started with');
+  });
+
+  it('passes a project started via npx and later via the installed CLI', async () => {
+    const ctx = relocatedCtx(`${S}/.h`);
+    const stacks = await resolveClientStacks(
+      fakeCtx({
+        projects: {
+          './client-a': { managed: ENV_A },
+          './client-b': { managed: ENV_B },
+        },
+      }),
+      DIRS
+    );
+    const invocations = findSupabaseInvocations([
+      { command: 'supabase start', cwd: `${S}/client-a` },
+      {
+        command: 'npx --yes supabase@2.120.0 start --workdir client-b',
+        cwd: S,
+      },
+      { command: 'supabase start --workdir client-b', cwd: S },
+    ]);
+    const ready = await checkBothStacksReady(
+      ctx,
+      stacks,
+      ['npx --yes supabase@2.120.0'],
+      invocations
+    );
+    expect(ready.passed).toBe(true);
+    expect(ready.notes).not.toContain('not the installed CLI');
+  });
 });

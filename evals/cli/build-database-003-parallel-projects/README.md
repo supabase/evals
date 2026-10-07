@@ -110,8 +110,11 @@ different version (`npx supabase@2.120.0 …`, `bunx`, `pnpm dlx`) starts
 stacks the installed CLI can't resolve, so the outcome checks fail. The
 runner spec is recorded in `metrics.cliOverride` (empty when none), the
 `both stacks reach ready` notes say `agent ran <runner>; scorer uses the
-installed CLI`, and so does the judge's ground truth. The runner is never
-replayed.
+installed CLI`, and so does the judge's ground truth. A project whose every
+start went through such a runner fails `both stacks reach ready` even if the
+installed CLI happens to resolve its stack (`started with <runner>, not the
+installed CLI`); one also started with the installed CLI passes. The runner
+is never replayed.
 
 The frontmatter has no `services:` key. The sandbox shim turns it into
 `supabase start -x <container names>`, which the managed stack rejects. With

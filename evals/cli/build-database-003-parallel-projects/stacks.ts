@@ -1,5 +1,10 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import type { SupabaseInvocation } from '../lib/cli-invocations.js';
+import {
+  invocationTargetUnresolved,
+  invocationTargets,
+  invocationVerb,
+  type SupabaseInvocation,
+} from '../lib/cli-invocations.js';
 import { readRowStrings, type RowStringsProbe } from '../lib/markers.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import {
@@ -121,18 +126,47 @@ export function describeCliOverride(cliOverride: readonly string[]): string {
   return `agent ran ${cliOverride.join(', ')}; scorer uses the installed CLI`;
 }
 
+const START_VERBS = new Set(['start', 'stack start']);
+
+/** Projects whose every start ran through a `cliOverride` runner, mapped to the runners used. */
+function findSwappedProjects(
+  invocations: readonly SupabaseInvocation[],
+  cliOverride: readonly string[]
+): Partial<Record<Client, string>> {
+  const swapped: Partial<Record<Client, string>> = {};
+  for (const client of CLIENTS) {
+    const starts = invocations.filter(
+      (inv) =>
+        START_VERBS.has(invocationVerb(inv) ?? '') &&
+        (invocationTargetUnresolved(inv) || invocationTargets(inv, client))
+    );
+    if (
+      starts.length > 0 &&
+      starts.every(({ runner }) => runner && cliOverride.includes(runner))
+    ) {
+      swapped[client] = [...new Set(starts.map(({ runner }) => runner))].join(
+        ', '
+      );
+    }
+  }
+  return swapped;
+}
+
 export async function checkBothStacksReady(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   stacks: ClientStacks,
-  cliOverride: readonly string[] = []
+  cliOverride: readonly string[] = [],
+  invocations: readonly SupabaseInvocation[] = []
 ): Promise<CheckResult> {
   const name = 'both stacks reach ready';
   const probes = await Promise.all(
     CLIENTS.map((client) => probeStackReady(ctx, stacks[client]))
   );
+  const swapped = findSwappedProjects(invocations, cliOverride);
   return {
     name,
-    passed: probes.every(({ ready }) => ready),
+    passed:
+      probes.every(({ ready }) => ready) && CLIENTS.every((c) => !swapped[c]),
     notes: [
       ...CLIENTS.map((client, i) => {
         const stack = stacks[client];
@@ -140,7 +174,10 @@ export async function checkBothStacksReady(
           stack.ok && stack.relocatedHome !== undefined
             ? `, relocated home: ${stack.relocatedHome}`
             : '';
-        return `${client}: ${probes[i].notes}${relocated}`;
+        const swap = swapped[client]
+          ? `; ${client}: started with ${swapped[client]}, not the installed CLI`
+          : '';
+        return `${client}: ${probes[i].notes}${relocated}${swap}`;
       }),
       ...(cliOverride.length > 0 ? [describeCliOverride(cliOverride)] : []),
     ].join('; '),

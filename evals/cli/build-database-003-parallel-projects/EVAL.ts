@@ -61,7 +61,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     const checks: CheckResult[] = [
       checkProjectsInitialised(projectDirs),
-      await checkBothStacksReady(ctx, stacks, cliOverride),
+      await checkBothStacksReady(ctx, stacks, cliOverride, invocations),
       checkDistinctPorts(stacks),
       checkMarkerIsolation(
         'each project holds only its own marker row',
