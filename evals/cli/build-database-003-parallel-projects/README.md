@@ -130,9 +130,10 @@ outcome checks fail. Recognised runners are `npx`/`bunx` (including
 later invocation in the run until a global uninstall (`npm uninstall -g`,
 `pnpm remove -g`, `bun remove -g`, `yarn global remove`); an install whose tool
 call errored is ignored. A runner is compared against the CLI version the
-session staged (the environment marker), not the post-run `supabase --version`,
-which a global reinstall changes; `metrics.cliVersion` is the staged version and
-`metrics.cliVersionAfterRun` appears when the post-run version differs. The
+session staged (the environment marker, else `/usr/bin/supabase --version`, the
+release binary), not the PATH `supabase --version`, which a global reinstall
+changes; `metrics.cliVersion` is the staged version and
+`metrics.cliVersionAfterRun` appears when the PATH version differs. The
 runner spec is recorded in
 `metrics.cliOverride` (empty when none), the `both stacks reach ready` notes
 lead with `agent ran <runner>; scorer uses the installed CLI`, and the judge's

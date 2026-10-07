@@ -14,31 +14,40 @@ export async function safely<T>(fn: () => Promise<T> | T): Promise<T | null> {
   }
 }
 
-export async function readCliVersion(ctx: ExecContext): Promise<string | null> {
+const STAGED_CLI_PATH = '/usr/bin/supabase';
+
+export async function readCliVersion(
+  ctx: ExecContext,
+  binary = 'supabase'
+): Promise<string | null> {
   return safely(async () => {
-    const result = await ctx.exec('supabase --version');
+    const result = await ctx.exec(`${binary} --version`);
     return result.ok ? result.stdout.trim() : null;
   });
 }
 
-/** The CLI version the session staged (from the marker), else the version `supabase --version` reports now. */
+/** The staged CLI version: the marker's, else the release `.deb` binary's, else whatever `supabase` resolves to on PATH. */
 export async function readStagedCliVersion(
   ctx: ExecContext,
   marker: LocalStackEnvironmentMarker | undefined
 ): Promise<string | null> {
-  return marker?.cliVersion || readCliVersion(ctx);
+  return (
+    marker?.cliVersion ||
+    (await readCliVersion(ctx, STAGED_CLI_PATH)) ||
+    readCliVersion(ctx)
+  );
 }
 
 /**
- * The staged CLI version, plus the post-run `supabase --version` when it
- * differs — an agent's global reinstall can shadow the staged binary on PATH.
+ * The staged CLI version, plus the PATH `supabase --version` when it differs —
+ * an agent's global reinstall can shadow the staged binary on PATH.
  */
 export async function readCliVersions(
   ctx: ExecContext,
   marker: LocalStackEnvironmentMarker | undefined
 ): Promise<{ cliVersion: string | null; cliVersionAfterRun?: string }> {
+  const staged = await readStagedCliVersion(ctx, marker);
   const afterRun = await readCliVersion(ctx);
-  const staged = marker?.cliVersion || afterRun;
   const normalise = (version: string | null) =>
     version?.trim().replace(/^v/, '') ?? null;
   return {

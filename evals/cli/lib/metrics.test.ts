@@ -26,14 +26,55 @@ const ctxReporting = (version: string | null) => ({
   }),
 });
 
+const ctxByBinary = (versions: Record<string, string>) => ({
+  exec: async (command: string): Promise<CommandResult> => {
+    const version = versions[command.replace(/ --version$/, '')];
+    return {
+      ok: version !== undefined,
+      exitCode: version === undefined ? 127 : 0,
+      stdout: version === undefined ? '' : `${version}\n`,
+      stderr: '',
+    };
+  },
+});
+
 describe('readStagedCliVersion', () => {
+  it('reads the release binary, not PATH, without a marker version', async () => {
+    const ctx = ctxByBinary({
+      '/usr/bin/supabase': '2.117.0',
+      supabase: '2.120.0',
+    });
+    const staged = await readStagedCliVersion(ctx, undefined);
+    expect(staged).toBe('2.117.0');
+    const invocations = findSupabaseInvocations([
+      { command: 'npm i -g supabase@2.120.0' },
+      'supabase start',
+    ]);
+    expect(listCliOverrides(invocations, staged)).toEqual([
+      'npm i -g supabase@2.120.0',
+    ]);
+    expect(await readCliVersions(ctx, undefined)).toEqual({
+      cliVersion: '2.117.0',
+      cliVersionAfterRun: '2.120.0',
+    });
+  });
+
+  it('falls back to PATH when the release binary is missing', async () => {
+    expect(
+      await readStagedCliVersion(
+        ctxByBinary({ supabase: '2.120.0' }),
+        undefined
+      )
+    ).toBe('2.120.0');
+  });
+
   it('prefers the marker version over the post-run supabase --version', async () => {
     expect(
       await readStagedCliVersion(ctxReporting('2.120.0'), marker('2.119.0'))
     ).toBe('2.119.0');
   });
 
-  it('falls back to supabase --version without a marker version', async () => {
+  it('falls back to the binary version without a marker version', async () => {
     expect(await readStagedCliVersion(ctxReporting('2.120.0'), undefined)).toBe(
       '2.120.0'
     );
@@ -76,7 +117,7 @@ describe('readCliVersions', () => {
     });
   });
 
-  it('reports only the live version without a marker', async () => {
+  it('reports the single live version without a marker', async () => {
     expect(await readCliVersions(ctxReporting('2.120.0'), undefined)).toEqual({
       cliVersion: '2.120.0',
     });
