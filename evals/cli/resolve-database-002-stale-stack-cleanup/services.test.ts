@@ -335,6 +335,77 @@ describe('resolveServiceStacks with a renamed stack', () => {
   });
 });
 
+describe('resolveServiceStacks when config.toml resolution fails', () => {
+  const ROOT = '/sandbox';
+  const RUNTIME = `${ROOT}/checkout-service/runtime`;
+  const HOME = `${ROOT}/.supabase-home`;
+  const dirs = {
+    found: { 'checkout-service': './checkout-service' },
+    problems: {},
+    all: [],
+  };
+  const url = commandResult(
+    '{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:54322/postgres"}'
+  );
+  const listing = (...roots: string[]) =>
+    commandResult(
+      JSON.stringify({
+        stacks: roots.map((project_root) => ({
+          name: 'checkout-service',
+          project_root,
+          owner: 'reachable',
+        })),
+      })
+    );
+  const LIST = 'SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list';
+  const IN_RUNTIME = `cd '${RUNTIME}' && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'checkout-service' --env`;
+
+  it('finds the stack through the stack list entry named for the service', async () => {
+    const { ctx } = fakeCtx({
+      [LIST]: listing(RUNTIME),
+      [IN_RUNTIME]: url,
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs);
+    expect(stacks['checkout-service']).toMatchObject({
+      ok: true,
+      backend: 'managed-named',
+    });
+  });
+
+  it('finds it under a relocated home the agent started it with', async () => {
+    const invocations = findSupabaseInvocations([
+      `cd checkout-service && SUPABASE_HOME=${HOME} supabase stack start`,
+    ]);
+    const { ctx } = fakeCtx({
+      [`SUPABASE_HOME='${HOME}' ${LIST}`]: listing(RUNTIME),
+      [`cd '${RUNTIME}' && SUPABASE_HOME='${HOME}' SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack 'checkout-service' --env`]:
+        url,
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs, invocations);
+    expect(stacks['checkout-service']).toMatchObject({
+      ok: true,
+      relocatedHome: HOME,
+    });
+  });
+
+  it('stays unresolved when two entries name different roots', async () => {
+    const { ctx } = fakeCtx({
+      [LIST]: listing(RUNTIME, `${ROOT}/elsewhere`),
+      [IN_RUNTIME]: url,
+    });
+    const stacks = await resolveServiceStacks(ctx, dirs);
+    expect(stacks['checkout-service'].ok).toBe(false);
+  });
+
+  it('reports the stack list root it tried when that fails too', async () => {
+    const { ctx } = fakeCtx({ [LIST]: listing(RUNTIME) });
+    const probe = (await resolveServiceStacks(ctx, dirs))['checkout-service'];
+    expect(probe.ok ? '' : probe.notes).toContain(
+      `stack list root ${RUNTIME}:`
+    );
+  });
+});
+
 describe('checkStackRunning', () => {
   it('passes when select 1 answers', async () => {
     const { ctx } = fakeCtx({ 'select 1': commandResult('1\n') });

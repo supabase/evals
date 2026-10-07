@@ -65,6 +65,43 @@ async function readSandboxRoot(
   }
 }
 
+function stackListReader(ctx: Pick<LocalStackEvalContext, 'exec'>) {
+  const lists = new Map<string, Promise<StackListProbe>>();
+  return (home?: InvocationEnv) => {
+    const key = JSON.stringify(home ?? null);
+    const cached = lists.get(key);
+    if (cached) return cached;
+    const read = readStackList(ctx, home);
+    lists.set(key, read);
+    return read;
+  };
+}
+
+/** Distinct project roots of the `stack list` entries named `service` (reachable ones when any), under the default home and each relocated home the agent started it with. */
+async function listedRoots(
+  listUnder: ReturnType<typeof stackListReader>,
+  service: Service,
+  invocations: readonly SupabaseInvocation[]
+): Promise<string[]> {
+  const homes = [
+    undefined,
+    ...candidateHomes(
+      invocations,
+      { kind: 'named', stackName: service },
+      SERVICES
+    ),
+  ];
+  const entries = (
+    await Promise.all(
+      homes.map(async (home) => listedStacks(await listUnder(home), service))
+    )
+  ).flat();
+  const preferred = entries.some((entry) => entry.reachable)
+    ? entries.filter((entry) => entry.reachable)
+    : entries;
+  return [...new Set(preferred.map((entry) => entry.root))];
+}
+
 /**
  * Finds each service's project directory by `supabase/config.toml`, then, for
  * services without one, from the CLI's own `stack list` (default home and
@@ -81,15 +118,7 @@ export async function findServiceDirs(
   );
   if (unresolved.length === 0) return dirs;
 
-  const lists = new Map<string, Promise<StackListProbe>>();
-  const listUnder = (home?: InvocationEnv) => {
-    const key = JSON.stringify(home ?? null);
-    const cached = lists.get(key);
-    if (cached) return cached;
-    const read = readStackList(ctx, home);
-    lists.set(key, read);
-    return read;
-  };
+  const listUnder = stackListReader(ctx);
   let sandboxRoot: Promise<string | undefined> | undefined;
   const namedAtRoot: Service[] = [];
   const fromStackList: Service[] = [];
@@ -97,23 +126,7 @@ export async function findServiceDirs(
   const problems = { ...dirs.problems };
 
   for (const service of unresolved) {
-    const homes = [
-      undefined,
-      ...candidateHomes(
-        invocations,
-        { kind: 'named', stackName: service },
-        SERVICES
-      ),
-    ];
-    const entries = (
-      await Promise.all(
-        homes.map(async (home) => listedStacks(await listUnder(home), service))
-      )
-    ).flat();
-    const preferred = entries.some((entry) => entry.reachable)
-      ? entries.filter((entry) => entry.reachable)
-      : entries;
-    const roots = [...new Set(preferred.map((entry) => entry.root))];
+    const roots = await listedRoots(listUnder, service, invocations);
     if (roots.length > 1) {
       problems[service] = `ambiguous (stack list: ${roots.join(', ')})`;
     } else if (roots.length === 1) {
@@ -168,6 +181,7 @@ export async function resolveServiceStacks(
   invocations: readonly SupabaseInvocation[] = []
 ): Promise<Record<Service, StackProbe>> {
   const stacks = {} as Record<Service, StackProbe>;
+  const listUnder = stackListReader(ctx);
   for (const service of SERVICES) {
     const dir = dirs.found[service];
     const byName = await resolveStackWithAgentHomes(
@@ -176,12 +190,51 @@ export async function resolveServiceStacks(
       invocations,
       SERVICES
     );
-    stacks[service] =
+    const renamed =
       byName.ok || dir === undefined
         ? byName
         : await resolveRenamedStack(ctx, dir, byName.notes, invocations);
+    stacks[service] =
+      renamed.ok || dir === undefined
+        ? renamed
+        : await resolveListedStack(
+            ctx,
+            listUnder,
+            service,
+            dir,
+            renamed.notes,
+            invocations
+          );
   }
   return stacks;
+}
+
+// The agent may have broken the service's config.toml or rooted its stack in
+// another directory, so a lone `stack list` entry named for it locates the stack.
+async function resolveListedStack(
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  listUnder: ReturnType<typeof stackListReader>,
+  service: Service,
+  dir: string,
+  priorNotes: string,
+  invocations: readonly SupabaseInvocation[]
+): Promise<StackProbe> {
+  const roots = await listedRoots(listUnder, service, invocations);
+  if (roots.length !== 1 || roots[0] === dir) {
+    return { ok: false, notes: priorNotes };
+  }
+  const listed = await resolveStackWithAgentHomes(
+    ctx,
+    serviceStackTarget(service, roots[0]),
+    invocations,
+    SERVICES
+  );
+  return listed.ok
+    ? listed
+    : {
+        ok: false,
+        notes: `${priorNotes}; stack list root ${roots[0]}: ${listed.notes}`,
+      };
 }
 
 // Agents may recreate a service's stack under a different name, so when the

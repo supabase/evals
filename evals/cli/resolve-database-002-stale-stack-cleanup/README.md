@@ -43,6 +43,11 @@ Outcome checks:
   isn't required: deleting it is a fair reading of "we killed `legacy-import`".
 - `checkout-service stack is running` and `payments-api stack is running` —
   the stack resolves and answers `select 1`.
+  When resolution from the service's `config.toml` directory fails (an agent
+  that broke its own config, or rooted the stack elsewhere), the one `stack
+  list` entry named exactly for the service gives the directory to resolve in,
+  under the default and each relocated home; two or more distinct roots leave
+  it unresolved.
 - `surviving stacks kept their data` — each surviving database holds its own
   `service_marker` row and not the other's (case-insensitive), so a restart
   that wiped data, or all writes landing in one database, fails.
