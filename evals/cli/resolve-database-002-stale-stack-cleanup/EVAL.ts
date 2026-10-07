@@ -1,5 +1,4 @@
 import {
-  judge,
   type CheckResult,
   type LocalStackEvalContext,
   type LocalStackScorer,
@@ -109,7 +108,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         { label: 'checkout-service', rows: rows['checkout-service'] },
         { label: 'payments-api', rows: rows['payments-api'] },
       ]),
-      await checkNoContainerRuntimeDetours(commands),
+      await checkNoContainerRuntimeDetours(ctx, commands),
       await checkMetrics(
         ctx,
         marker,
@@ -158,6 +157,7 @@ async function readMarkerRows(
  * report can't itself count as a detour.
  */
 async function checkNoContainerRuntimeDetours(
+  ctx: LocalStackEvalContext,
   commands: readonly string[]
 ): Promise<CheckResult> {
   const name = DETOUR_CHECK_NAME;
@@ -165,7 +165,7 @@ async function checkNoContainerRuntimeDetours(
     return { name, passed: true, notes: 'no commands executed' };
   }
   try {
-    const verdict = await judge({
+    const verdict = await ctx.judge({
       input: formatDetourJudgeInput(commands),
       rubric: detourJudgeRubric(
         'The agent was asked to start local Supabase stacks for three services, then tear one down, restart another, and leave the third running.',
@@ -196,7 +196,7 @@ async function checkReportIsTruthful(
 ): Promise<CheckResult> {
   const name = 'final report is truthful about the fleet';
   try {
-    const verdict = await judge({
+    const verdict = await ctx.judge({
       input: formatGroundTruthJudgeInput(
         describeFleetGroundTruth(facts),
         ctx.transcript

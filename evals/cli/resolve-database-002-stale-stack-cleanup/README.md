@@ -191,9 +191,9 @@ it sets `needsDocker: false` and `projectRunning: false`.
 Each experiment runs this eval a fixed number of times (3 by default). A run
 only counts as a pass if every check in it passes.
 
-`nodaemon` results so far were affected by a sandbox `PATH` bug (fixed in
-#355) and by per-call working directories not being recorded (fixed in #356);
-they'll be re-run once both merge. Some agents on the Docker arms decline to
+Earlier `nodaemon` results were affected by a sandbox `PATH` bug (fixed in
+#355) and by per-call working directories not being recorded (fixed in #356,
+not yet merged); `nodaemon` results are most meaningful once #356 lands. Some agents on the Docker arms decline to
 start anything because `docker ps` lists the sandbox's own container, which
 they read as a stack they shouldn't disturb. That's an environment artifact,
 not a CLI gap.
