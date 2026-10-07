@@ -284,6 +284,18 @@ function resolveEnvPath(
   cwd: string | undefined,
   home: string | undefined
 ): string | undefined {
+  const expanded = expandAssigned(value, shellCwd, home);
+  if (expanded === undefined) return undefined;
+  if (expanded.startsWith('/')) return joinPath(undefined, expanded);
+  return cwd === undefined ? undefined : joinPath(cwd, expanded);
+}
+
+/** A value with a leading `$PWD`/`$HOME`/`~` expanded; a plain relative value stays relative. Undefined when it depends on an unknown directory or other expansion. */
+function expandAssigned(
+  value: string,
+  shellCwd: string | undefined,
+  home: string | undefined
+): string | undefined {
   const expanded = PWD_PREFIX_RE.test(value)
     ? shellCwd === undefined
       ? undefined
@@ -293,16 +305,12 @@ function resolveEnvPath(
         ? undefined
         : value.replace(HOME_PREFIX_RE, home)
       : value;
-  if (
-    expanded === undefined ||
+  return expanded === undefined ||
     expanded === '' ||
     SHELL_EXPANSION_RE.test(expanded) ||
     expanded.startsWith('~')
-  ) {
-    return undefined;
-  }
-  if (expanded.startsWith('/')) return joinPath(undefined, expanded);
-  return cwd === undefined ? undefined : joinPath(cwd, expanded);
+    ? undefined
+    : expanded;
 }
 
 function resolveEnv(
@@ -341,7 +349,7 @@ type EnvName = (typeof ENV_VARIABLES)[number];
 /** Shell state a command carries from segment to segment, restored when its subshell closes. */
 type ShellState = {
   cwd?: string;
-  vars: InvocationEnv;
+  vars: RawEnv;
   exported: ReadonlySet<EnvName>;
 };
 
@@ -367,14 +375,9 @@ function assignVariables(
   const exported = new Set(state.exported);
   for (const [name, raw] of assignments) {
     if (raw !== undefined) {
-      const resolved = resolveEnvPath(
-        raw,
-        state.cwd,
-        state.cwd,
-        state.vars.HOME
-      );
-      if (resolved === undefined) delete vars[name];
-      else vars[name] = resolved;
+      const expanded = expandAssigned(raw, state.cwd, state.vars.HOME);
+      if (expanded === undefined) delete vars[name];
+      else vars[name] = expanded;
     }
     if (exportThem) exported.add(name);
   }

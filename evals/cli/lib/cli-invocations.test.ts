@@ -1148,6 +1148,50 @@ describe('exported and home-relative env', () => {
     ).toBeUndefined();
   });
 
+  describe('relative values', () => {
+    const W = '/w';
+    const envOf = (command: string, cwd = W) =>
+      findSupabaseInvocations([{ command, cwd }])[0].env;
+
+    it('resolves an exported relative home where the CLI runs, like a prefix assignment', () => {
+      expect(
+        envOf('export SUPABASE_HOME=.h && cd client-a && supabase start')
+      ).toEqual({ SUPABASE_HOME: `${W}/client-a/.h` });
+      expect(envOf('cd client-a && SUPABASE_HOME=.h supabase start')).toEqual({
+        SUPABASE_HOME: `${W}/client-a/.h`,
+      });
+    });
+
+    it('resolves a relative home against the same directory when nothing changes it', () => {
+      expect(envOf('export SUPABASE_HOME=.h && supabase start')).toEqual({
+        SUPABASE_HOME: `${W}/.h`,
+      });
+    });
+
+    it('expands $PWD at export time', () => {
+      expect(
+        envOf('export SUPABASE_HOME=$PWD/.h && cd client-a && supabase start')
+      ).toEqual({ SUPABASE_HOME: `${W}/.h` });
+      expect(
+        envOf('export SUPABASE_HOME=${PWD}/.h && cd client-a && supabase start')
+      ).toEqual({ SUPABASE_HOME: `${W}/.h` });
+    });
+
+    it('expands $HOME at export time against a HOME set earlier', () => {
+      expect(
+        envOf(
+          'export HOME=/u && export SUPABASE_HOME=$HOME/.sb && cd client-a && supabase start'
+        )
+      ).toEqual({ HOME: '/u', SUPABASE_HOME: '/u/.sb' });
+    });
+
+    it('moves a relative export with an env -C directory', () => {
+      expect(
+        envOf('export SUPABASE_HOME=.h && env -C client-a supabase start')
+      ).toEqual({ SUPABASE_HOME: `${W}/client-a/.h` });
+    });
+  });
+
   it('drops $HOME/~ values when no HOME is in effect', () => {
     expect(first('SUPABASE_HOME=$HOME/.sb supabase start').env).toBeUndefined();
     expect(first('SUPABASE_HOME=~/.sb supabase start').env).toBeUndefined();
