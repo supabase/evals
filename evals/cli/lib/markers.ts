@@ -49,9 +49,11 @@ export async function readRowStrings(
 }
 
 /**
- * Passes when every database holds a row value equal to its own label and none
- * equal to another entry's label (trimmed, case-insensitive) — proving each
- * write reached the right stack rather than all landing in one database.
+ * Passes when every database holds a row value naming its own label and none
+ * naming another entry's — proving each write reached the right stack rather
+ * than all landing in one database. A label matches as a whole word,
+ * case-insensitively, so `marker for client-a` names `client-a` but
+ * `client-a-archive` does not.
  */
 export function checkMarkerIsolation(
   name: string,
@@ -64,10 +66,14 @@ export function checkMarkerIsolation(
     return { name, passed: false, notes };
   }
 
-  // Whole-value equality, so `client-a-archive` never counts as `client-a`.
-  const normalise = (value: string) => value.trim().toLowerCase();
-  const holds = (values: readonly string[], label: string) =>
-    values.some((value) => normalise(value) === normalise(label));
+  const holds = (values: readonly string[], label: string) => {
+    const escaped = label.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const word = new RegExp(
+      `(?<![A-Za-z0-9_-])${escaped}(?![A-Za-z0-9_-])`,
+      'i'
+    );
+    return values.some((value) => word.test(value));
+  };
   const passed = entries.every(
     ({ label, rows }) =>
       rows.ok &&

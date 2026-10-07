@@ -150,14 +150,38 @@ describe('checkMarkerIsolation', () => {
     ).toBe(false);
   });
 
-  it('does not count a value merely containing the label', () => {
+  it('matches a label named as a word inside a sentence', () => {
     expect(
       checkMarkerIsolation(NAME, [
-        { label: 'client-a', rows: rows('client-a marker') },
+        {
+          label: 'checkout-service',
+          rows: rows('marker for checkout-service'),
+        },
+        { label: 'client-a', rows: rows(' Client-A ') },
+      ]).passed
+    ).toBe(true);
+  });
+
+  it('fails a sentence naming another entry label', () => {
+    expect(
+      checkMarkerIsolation(NAME, [
+        { label: 'client-a', rows: rows('client-a, copied from client-b') },
         { label: 'client-b', rows: rows('client-b') },
       ]).passed
     ).toBe(false);
   });
+
+  it.each(['client-a-archive', 'client-ab', 'client-a_1', 'pre-client-a'])(
+    'does not count %j as naming client-a',
+    (value) => {
+      expect(
+        checkMarkerIsolation(NAME, [
+          { label: 'client-a', rows: rows(value) },
+          { label: 'client-b', rows: rows('client-b') },
+        ]).passed
+      ).toBe(false);
+    }
+  );
 
   it('fails with each entry described when any rows are unreadable', () => {
     expect(

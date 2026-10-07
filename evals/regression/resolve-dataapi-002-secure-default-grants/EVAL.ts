@@ -1,5 +1,4 @@
 import {
-  judge,
   serializeTranscript,
   type CheckResult,
   type LocalStackEvalContext,
@@ -297,7 +296,7 @@ async function checkUserBCannotInsertAsUserA(
 async function checkSecureDefaultDiagnosisAndFix(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: serializeTranscript(ctx.transcript, {
       includeToolCallInputs: true,
     }),

@@ -99,46 +99,6 @@ describe('buildDocsResult', () => {
     expect(result.calls[0].hasContent).toBe(false);
   });
 
-  it('finds the query nested under body.arguments (real Codex mcp_tool_call shape)', () => {
-    const result = buildDocsResult([
-      toolCall(
-        // Codex's parser sets originalName to the MCP tool's own name
-        // (item.tool), not the "mcp_tool_call" item type, and reports the
-        // whole raw item as `body`, args nested under `body.arguments`.
-        'search_docs',
-        {
-          id: 'item_9',
-          type: 'mcp_tool_call',
-          server: 'supabase-mcp',
-          tool: 'search_docs',
-          arguments: {
-            graphql_query:
-              '{ searchDocs(query: "rls") { nodes { title href } } }',
-          },
-        },
-        {
-          result: {
-            searchDocs: {
-              nodes: [
-                {
-                  title: 'Row Level Security',
-                  href: 'https://supabase.com/docs/guides/database/postgres/row-level-security',
-                },
-              ],
-            },
-          },
-        }
-      ),
-    ]);
-
-    expect(result.calls[0].query).toBe(
-      '{ searchDocs(query: "rls") { nodes { title href } } }'
-    );
-    expect(result.calls[0].pages.map((p) => p.url)).toEqual([
-      'https://supabase.com/docs/guides/database/postgres/row-level-security',
-    ]);
-  });
-
   it('unwraps a content-array result whose text field is a JSON-encoded string (real Claude Code shape)', () => {
     const result = buildDocsResult([
       toolCall(

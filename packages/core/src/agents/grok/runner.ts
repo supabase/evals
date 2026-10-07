@@ -16,6 +16,7 @@
 import type { McpServerConfig } from '../../index.js';
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type { AgentRunner } from '../types.js';
+import { enrichFromUpdates } from './parser.js';
 import {
   SCRATCH,
   npmGlobalBin,
@@ -54,6 +55,14 @@ export const grokRunner: AgentRunner<GrokModel> = {
   defaultCliVersion: '1.0.34',
   defaultModel: DEFAULT_GROK_MODEL,
   sessionDir: `${GROK_HOME}/sessions`,
+
+  async enrichEvents(sandbox, events) {
+    const updates = await sandbox.exec(
+      `cat ${this.sessionDir}/*/*/updates.jsonl`
+    );
+    if (!updates.ok) return;
+    return { promptAt: enrichFromUpdates(events, updates.stdout) };
+  },
 
   async install(sandbox, version, apiKey) {
     await npmInstallGlobal(
