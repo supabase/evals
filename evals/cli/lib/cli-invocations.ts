@@ -258,16 +258,22 @@ function stripPrefixes(
   };
 }
 
-/** A path assignment resolved against `cwd`/`home`; undefined when it depends on an unknown directory or other expansion. */
+/**
+ * A path assignment resolved to an absolute path; undefined when it depends on
+ * an unknown directory or other expansion. `$PWD` expands against the shell's
+ * `shellCwd`, a plain relative value against the executable's `cwd` (which
+ * `env -C` moves).
+ */
 function resolveEnvPath(
   value: string,
+  shellCwd: string | undefined,
   cwd: string | undefined,
   home: string | undefined
 ): string | undefined {
   const expanded = PWD_PREFIX_RE.test(value)
-    ? cwd === undefined
+    ? shellCwd === undefined
       ? undefined
-      : value.replace(PWD_PREFIX_RE, cwd)
+      : value.replace(PWD_PREFIX_RE, shellCwd)
     : HOME_PREFIX_RE.test(value)
       ? home === undefined
         ? undefined
@@ -287,6 +293,7 @@ function resolveEnvPath(
 
 function resolveEnv(
   rawEnv: RawEnv,
+  shellCwd: string | undefined,
   cwd: string | undefined,
   home: string | undefined
 ): InvocationEnv | undefined {
@@ -294,7 +301,7 @@ function resolveEnv(
   for (const name of ENV_VARIABLES) {
     const raw = rawEnv[name];
     const resolved =
-      raw === undefined ? undefined : resolveEnvPath(raw, cwd, home);
+      raw === undefined ? undefined : resolveEnvPath(raw, shellCwd, cwd, home);
     if (resolved !== undefined) env[name] = resolved;
   }
   return Object.keys(env).length === 0 ? undefined : env;
@@ -346,7 +353,12 @@ function assignVariables(
   const exported = new Set(state.exported);
   for (const [name, raw] of assignments) {
     if (raw !== undefined) {
-      const resolved = resolveEnvPath(raw, state.cwd, state.vars.HOME);
+      const resolved = resolveEnvPath(
+        raw,
+        state.cwd,
+        state.cwd,
+        state.vars.HOME
+      );
       if (resolved === undefined) delete vars[name];
       else vars[name] = resolved;
     }
@@ -432,7 +444,7 @@ export function findSupabaseInvocations(
         isSupabaseBinary(argv[0]) &&
         !argv.some((word) => HELP_FLAGS.has(word))
       ) {
-        const env = resolveEnv(rawEnv, dir, state.vars.HOME);
+        const env = resolveEnv(rawEnv, state.cwd, dir, state.vars.HOME);
         const effectiveRunner = runner ?? globalRunner;
         invocations.push({
           commandIndex,

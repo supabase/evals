@@ -687,6 +687,35 @@ describe('invocation env and runner', () => {
     ).toEqual({ SUPABASE_HOME: `${S}/.home` });
   });
 
+  it('expands $PWD against the shell cwd, not the env -C directory', () => {
+    const w = '/w';
+    expect(
+      first('SUPABASE_HOME=$PWD/.h env -C client-a supabase start', w)
+    ).toMatchObject({ cwd: '/w/client-a', env: { SUPABASE_HOME: '/w/.h' } });
+    expect(
+      first('env -C client-a SUPABASE_HOME=$PWD/.h supabase start', w).env
+    ).toEqual({ SUPABASE_HOME: '/w/.h' });
+    expect(
+      first('cd client-a && SUPABASE_HOME=$PWD/.h supabase start', w).env
+    ).toEqual({ SUPABASE_HOME: '/w/client-a/.h' });
+    expect(
+      first('export SUPABASE_HOME=$PWD/.h && env -C client-a supabase start', w)
+        .env
+    ).toEqual({ SUPABASE_HOME: '/w/.h' });
+  });
+
+  it('resolves a plain relative value against the env -C directory', () => {
+    expect(
+      first('SUPABASE_HOME=.h env -C client-a supabase start', '/w').env
+    ).toEqual({ SUPABASE_HOME: '/w/client-a/.h' });
+  });
+
+  it('drops $PWD under env -C when the shell cwd is unknown', () => {
+    expect(
+      first('SUPABASE_HOME=$PWD/.h env -C /w/client-a supabase start').env
+    ).toBeUndefined();
+  });
+
   it('drops a relative value when the cwd is unknown', () => {
     expect(first('SUPABASE_HOME=.home supabase start').env).toBeUndefined();
   });
