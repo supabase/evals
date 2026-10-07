@@ -1,8 +1,9 @@
 import type { LocalStackEvalContext } from '@supabase-evals/core';
 import {
+  invocationTargetsDir,
   invocationTargetUnresolved,
   invocationTargets,
-  invocationVerb,
+  isStartInvocation,
   type InvocationEnv,
   type SupabaseInvocation,
 } from './cli-invocations.js';
@@ -380,33 +381,44 @@ export async function resolveStack(
   };
 }
 
-const START_VERBS = new Set(['start', 'stack start']);
-
 function targetName(target: StackTarget): string | undefined {
   if (target.kind === 'root') return undefined;
   if (target.kind === 'named') return target.stackName;
   return target.stackName ?? target.dir.slice(target.dir.lastIndexOf('/') + 1);
 }
 
+function startsTarget(
+  inv: SupabaseInvocation,
+  target: StackTarget,
+  knownTargets: readonly string[] | undefined
+): boolean {
+  const name = targetName(target);
+  if (name === undefined || invocationTargetUnresolved(inv)) return true;
+  return (
+    (target.kind === 'project' && invocationTargetsDir(inv, target.dir)) ||
+    invocationTargets(inv, name, knownTargets)
+  );
+}
+
 /**
  * Distinct relocated CLI homes the agent started the target under, newest
  * first. A home counts only when the invocation set `SUPABASE_HOME` or `HOME`.
+ * `knownTargets` are the sibling project/stack names an invocation's directory
+ * can belong to instead of the `--stack` name it passed.
  */
 export function candidateHomes(
   invocations: readonly SupabaseInvocation[],
-  target: StackTarget
+  target: StackTarget,
+  knownTargets?: readonly string[]
 ): InvocationEnv[] {
-  const name = targetName(target);
   const homes = new Map<string, InvocationEnv>();
   for (const inv of [...invocations].reverse()) {
     const { env } = inv;
     if (
       env === undefined ||
       effectiveRoot(env) === undefined ||
-      !START_VERBS.has(invocationVerb(inv) ?? '') ||
-      (name !== undefined &&
-        !invocationTargets(inv, name) &&
-        !invocationTargetUnresolved(inv))
+      !isStartInvocation(inv) ||
+      !startsTarget(inv, target, knownTargets)
     ) {
       continue;
     }
@@ -423,12 +435,13 @@ export function candidateHomes(
 export async function resolveStackWithAgentHomes(
   ctx: ExecContext,
   target: StackTarget,
-  invocations: readonly SupabaseInvocation[]
+  invocations: readonly SupabaseInvocation[],
+  knownTargets?: readonly string[]
 ): Promise<StackProbe> {
   const initial = await resolveStack(ctx, target);
   if (initial.ok) return initial;
   const notes = [initial.notes];
-  for (const home of candidateHomes(invocations, target)) {
+  for (const home of candidateHomes(invocations, target, knownTargets)) {
     const retry = await resolveStack(ctx, target, { home });
     if (retry.ok) {
       return { ...retry, relocatedHome: effectiveRoot(home) };

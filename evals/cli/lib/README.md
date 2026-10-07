@@ -17,8 +17,15 @@ discover named managed stacks started from that directory via
 
 `resolveStackWithAgentHomes` retries a failed resolution under each
 `SUPABASE_HOME`/`HOME` the agent started the target with (`cli-invocations.ts`
-records them per invocation) and marks the result with `relocatedHome`;
-`listCliOverrides` reports `npx`/`bunx`/`pnpm dlx` runs of another CLI version.
+records them per invocation, including an earlier `export` in the same
+command) and marks the result with `relocatedHome`; `listCliOverrides` reports
+`npx`/`bunx`/`npm exec`/`pnpm dlx`/`yarn dlx` runs and global installs of
+another explicit CLI version, and `listUnverifiedRunners` the dist-tag ones.
+
+`invocationTargets` attributes an invocation to the directory it ran in
+before its `--stack`/`--project-id` name; pass `knownTargets` (the eval's
+sibling project or stack names) so a name given inside another known
+target's directory isn't credited to the named one.
 
 Invocation attribution (`cli-invocations.ts`) starts from a tool call's `cwd`
 only when the agent parser records one (Codex, OpenCode); a `cd` persisting

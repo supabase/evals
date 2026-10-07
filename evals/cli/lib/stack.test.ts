@@ -660,6 +660,55 @@ describe('relocated CLI homes', () => {
     });
   });
 
+  describe('candidateHomes by directory', () => {
+    const named = (cwd: string, name = 'demo'): SupabaseInvocation => ({
+      commandIndex: 0,
+      argv: ['supabase', 'stack', 'start', '--stack', name],
+      cwd,
+      env: HOME_ENV,
+    });
+
+    it('credits a --stack start to the project directory it ran in', () => {
+      expect(
+        candidateHomes([named('/s/client-a')], PROJECT, [
+          'client-a',
+          'client-b',
+        ])
+      ).toEqual([HOME_ENV]);
+      expect(
+        candidateHomes([named('/s/client-a')], {
+          kind: 'project',
+          dir: '/s/client-a',
+        })
+      ).toEqual([HOME_ENV]);
+      expect(
+        candidateHomes([named('/s/client-b')], PROJECT, [
+          'client-a',
+          'client-b',
+        ])
+      ).toEqual([]);
+    });
+
+    it('does not credit --stack client-a run inside client-b to client-a', () => {
+      expect(
+        candidateHomes([named('/s/client-b', 'client-a')], PROJECT, [
+          'client-a',
+          'client-b',
+        ])
+      ).toEqual([]);
+    });
+
+    it('still credits a named target from a root start by --stack name', () => {
+      expect(
+        candidateHomes(
+          [named('/sandbox', 'payments-api')],
+          { kind: 'named', stackName: 'payments-api' },
+          ['payments-api', 'legacy-import']
+        )
+      ).toEqual([HOME_ENV]);
+    });
+  });
+
   describe('resolveStackWithAgentHomes', () => {
     it('resolves under the default home without retrying', async () => {
       const { ctx, commands } = fakeCtx({
