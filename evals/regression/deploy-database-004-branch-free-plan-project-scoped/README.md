@@ -8,10 +8,12 @@ in this mode, so the agent can't see the plan up front.
 
 **Setup.** `remote/organization.json` puts the org on the free plan.
 
-**Checks.** At most one `create_branch` call, no `confirm_cost`, no tool errors,
-and the agent tells the user branching needs a paid plan (judge). The server is
-expected to answer that `create_branch` with a non-error "requires Pro, upgrade
-here" result, which is why zero tool errors is achievable.
+**Checks.** Exactly one `create_branch` call, no `confirm_cost`, no tool errors,
+and the agent tells the user branching needs a paid plan (judge). The agent
+can't see the plan in this mode, so it has to try once to find out; a reply
+that only guesses at the plan doesn't count. The server is expected to answer
+that `create_branch` with a non-error "requires Pro, upgrade here" result,
+which is why zero tool errors is achievable.
 
 **Expected to fail** until that server change ships and `MCP_SERVER_VERSION` is
 bumped. With the current server, project-scoped `create_branch` requires a
