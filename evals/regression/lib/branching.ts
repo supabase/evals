@@ -1,6 +1,8 @@
 import {
+  isToolError,
   serializeTranscript,
   type CheckResult,
+  type ToolCallRecord,
   type ToolEvalContext,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
@@ -28,5 +30,33 @@ export async function checkExplainedPaidPlan(
     name: 'told the user branching needs a paid plan',
     passed: verdict.passed,
     judgeNotes: verdict.notes,
+  };
+}
+
+/**
+ * The first successful `create_branch` came after a successful `confirm_cost`
+ * that itself came after a `get_cost`.
+ */
+export function checkCostFlowBeforeFirstBranch(
+  toolCalls: readonly ToolCallRecord[]
+): CheckResult {
+  const mcp = toolCalls.filter((call) => call.tool.kind === 'mcp');
+  let quoted = false;
+  let confirmed = false;
+  let passed = false;
+  for (const call of mcp) {
+    const { toolName } = call.tool;
+    const ok = !isToolError(call);
+    if (toolName === 'create_branch' && ok) {
+      passed = confirmed;
+      break;
+    }
+    if (toolName === 'get_cost') quoted = true;
+    if (toolName === 'confirm_cost' && ok && quoted) confirmed = true;
+  }
+  return {
+    name: 'first branch created via get_cost -> confirm_cost -> create_branch',
+    passed,
+    notes: `MCP calls: ${mcp.map((call) => call.tool.toolName).join(', ') || 'none'}`,
   };
 }

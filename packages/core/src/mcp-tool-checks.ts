@@ -1,5 +1,6 @@
-import type { CheckResult, ToolCallRecord } from '@supabase-evals/core';
-import { isRecord } from '@supabase-evals/core/json';
+import type { CheckResult } from './eval-metadata.js';
+import type { ToolCallRecord } from './index.js';
+import { isRecord } from './json.js';
 
 const isMcp = (call: ToolCallRecord) => call.tool.kind === 'mcp';
 
@@ -25,7 +26,7 @@ export function checkNoMcpToolErrors(
 ): CheckResult {
   const failed = toolCalls.filter((call) => isMcp(call) && isToolError(call));
   return {
-    name: 'no Supabase MCP tool errors',
+    name: 'no MCP tool errors',
     passed: failed.length === 0,
     notes:
       failed
@@ -37,7 +38,7 @@ export function checkNoMcpToolErrors(
   };
 }
 
-export function checkCallCount(
+export function checkMcpCallCount(
   toolCalls: readonly ToolCallRecord[],
   toolName: string,
   { min = 0, max = Number.POSITIVE_INFINITY }: { min?: number; max?: number }
@@ -55,33 +56,5 @@ export function checkCallCount(
     name: `called ${toolName} ${range} time(s)`,
     passed: count >= min && count <= max,
     notes: `called ${count} time(s)`,
-  };
-}
-
-/**
- * The first successful `create_branch` came after a successful `confirm_cost`
- * that itself came after a `get_cost`.
- */
-export function checkCostFlowBeforeFirstBranch(
-  toolCalls: readonly ToolCallRecord[]
-): CheckResult {
-  const mcp = toolCalls.filter(isMcp);
-  let quoted = false;
-  let confirmed = false;
-  let passed = false;
-  for (const call of mcp) {
-    const { toolName } = call.tool;
-    const ok = !isToolError(call);
-    if (toolName === 'create_branch' && ok) {
-      passed = confirmed;
-      break;
-    }
-    if (toolName === 'get_cost') quoted = true;
-    if (toolName === 'confirm_cost' && ok && quoted) confirmed = true;
-  }
-  return {
-    name: 'first branch created via get_cost -> confirm_cost -> create_branch',
-    passed,
-    notes: `MCP calls: ${mcp.map((call) => call.tool.toolName).join(', ') || 'none'}`,
   };
 }

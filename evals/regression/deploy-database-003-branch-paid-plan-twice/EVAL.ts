@@ -1,9 +1,9 @@
-import type { ToolScorer } from '@supabase-evals/core';
 import {
-  checkCallCount,
-  checkCostFlowBeforeFirstBranch,
+  checkMcpCallCount,
   checkNoMcpToolErrors,
-} from '../lib/mcp-calls.js';
+  type ToolScorer,
+} from '@supabase-evals/core';
+import { checkCostFlowBeforeFirstBranch } from '../lib/branching.js';
 
 // Pro-plan org asking for two branches in a row: the first goes through the
 // cost flow, and the plan, once known, isn't re-checked. See README.md.
@@ -22,7 +22,7 @@ const scorer: ToolScorer = async (ctx) => {
       passed: branches.length >= 2,
       notes: `branches: ${branches.map((b) => b.name).join(', ') || 'none'}`,
     },
-    checkCallCount(ctx.toolCalls, 'get_organization', { max: 1 }),
+    checkMcpCallCount(ctx.toolCalls, 'get_organization', { max: 1 }),
     checkNoMcpToolErrors(ctx.toolCalls),
   ];
   return { passed: checks.every((check) => check.passed), checks };
