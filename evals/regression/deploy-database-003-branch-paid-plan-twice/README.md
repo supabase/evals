@@ -12,6 +12,13 @@ server runs account-scoped with the `branching` feature.
 `create_branch`, two branches exist at the end, `get_organization` is called at
 most once (calling it first is fine), and there are no tool errors.
 
+**Legacy cost flow.** The `get_cost` -> `confirm_cost` -> `create_branch` order
+is what the server expects from clients on MCP protocol revisions before
+2026-07-28, and it's the flow the eval runs go through. Clients that support form
+elicitation (revision 2026-07-28) don't call `get_cost`/`confirm_cost`.
+`create_branch` asks the user to confirm the cost itself. The eval doesn't
+cover that flow.
+
 **Single prompt, not two turns.** The second request ("can you make another one
 for the payments work too?") would ideally be a follow-up turn, but the harness
 runs one prompt per eval, so the prompt asks for both, one after the other.

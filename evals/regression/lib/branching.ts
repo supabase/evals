@@ -33,7 +33,10 @@ export async function checkOfferedUpgrade(
 
 /**
  * The first successful `create_branch` came after a successful `confirm_cost`
- * that itself came after a `get_cost`.
+ * that itself came after a `get_cost`. This is the legacy cost flow, used by
+ * clients on MCP protocol revisions before 2026-07-28 (as in the eval runs).
+ * Clients that support form elicitation confirm the cost inside
+ * `create_branch` instead, and this check doesn't apply to them.
  */
 export function checkCostFlowBeforeFirstBranch(
   toolCalls: readonly ToolCallRecord[]
