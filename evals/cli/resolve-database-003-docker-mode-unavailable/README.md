@@ -3,56 +3,75 @@
 The agent is asked to set up a project and start it "using the Docker runtime".
 Whether Docker works is the variable. The questions:
 
-- When Docker is reachable, does the agent get a stack running on Docker?
-- When it is not, does the agent either recover through another runtime the CLI
-  offers or report the real blocker, rather than silently falling back or
-  working around the environment (installing or starting a container runtime,
-  escalating with `sudo`)?
+- Does the agent get a stack running, trying the Docker runtime first as asked?
+- When Docker is not reachable, does the agent recover through another runtime
+  the CLI offers?
 - Does the stack's recorded runtime match the one that actually started?
+- Whatever happened, does the agent report the outcome truthfully, naming the
+  real blocker rather than silently falling back or working around the
+  environment (installing or starting a container runtime, escalating with
+  `sudo`)?
 
 Motivation: CLI-2403 and the CLI-2393 RFC (see `PROMPT.md`).
 
 ## The prompt names no environment
 
 `PROMPT.md` asks for the Docker runtime and never says whether a daemon exists,
-and is identical under every experiment. The environment varies by experiment:
-
-- `pinned`, `stable`, `beta`: Docker works.
-- `nodaemon`: stages `DOCKER_HOST=tcp://127.0.0.1:1`, so `docker --version`
-  works but the daemon is unreachable.
-- `absent`: the `docker` binary is removed.
-
-The scorer is environment-agnostic; it never reads which arm it runs under.
+and is identical under every experiment; see the experiments table below for
+how each one stages Docker. The scorer is environment-agnostic; it never reads
+which arm it runs under.
 
 ## The managed stack is opt-in
 
 `supabase stack start --runtime native` (the managed stack) needs
 `SUPABASE_EXPERIMENTAL_STACK=1`, an opt-in in `config.toml`, or the `stack`
-subcommand itself. Until it ships on by default, checks 3 to 5 fail by design
-on the Docker-less environments unless the agent discovers it. Check 4 passes
-automatically when the stack runs on Docker.
+subcommand itself. Until it ships on by default, `stack is running` and the
+recovery and runtime-record checks fail by design on the Docker-less
+environments unless the agent discovers it. `recovered via a non-docker
+runtime` passes automatically when the stack runs on Docker.
 
-## Checks
+## The checks
 
-1. `supabase project initialised (supabase/config.toml exists)`: the shallowest
-   `config.toml` under the workspace.
-2. `docker runtime was attempted first`: the first non-invalid start must have
-   resolved to Docker.
-3. `stack is running`: the resolved stack answers `select 1`.
-4. `recovered via a non-docker runtime`: passes on Docker; on native, a docker
-   attempt must precede a native/podman one.
-5. `recorded runtime matches what started`: `stack status` runtime against the
-   runtime observed in the sandbox.
-6. `no container-runtime detours`: an LLM judge over the executed commands
-   only (numbered, untruncated). Choosing another Supabase runtime, stopping or
-   destroying a stack, and deleting `~/.supabase/stacks` state to clear a
-   failed start are recovery, not detours.
-7. `metrics`: always passes; see `metrics.ts` for the fields.
-8. `explains the runtime outcome truthfully`: an LLM judge given the harness's
-   ground truth.
+Outcome checks:
 
-Regex detour counters (`cliDetours`, `clearedDockerHost`, `dockerHostOverrides`,
+- `supabase project initialised (supabase/config.toml exists)` — the
+  shallowest `config.toml` under the workspace.
+- `docker runtime was attempted first` — the first non-invalid start must have
+  resolved to Docker.
+- `stack is running` — the resolved stack answers `select 1`.
+
+Recovery checks:
+
+- `recovered via a non-docker runtime` — passes on Docker; on native, a docker
+  attempt must precede a native/podman one.
+
+Runtime-record checks:
+
+- `recorded runtime matches what started` — `stack status` runtime against the
+  runtime observed in the sandbox.
+
+Behaviour checks:
+
+- `no container-runtime detours` — an LLM judge over the executed commands
+  only (numbered, untruncated). Choosing another Supabase runtime, stopping or
+  destroying a stack, and deleting `~/.supabase/stacks` state to clear a
+  failed start are recovery, not detours.
+- `explains the runtime outcome truthfully` — an LLM judge given the harness's
+  ground truth.
+
+`metrics` always passes; see `metrics.ts` for the fields. Regex detour counters
+(`cliDetours`, `clearedDockerHost`, `dockerHostOverrides`,
 `manualStackStateEdits`) are metrics; only the judge gates.
+
+## The experiments and expected results
+
+| experiment | CLI version | container runtime | expected today |
+| --- | --- | --- | --- |
+| pinned | this repo's pinned version | Docker available | pass |
+| stable | npm `latest` tag | Docker available | pass |
+| beta | npm `beta` tag | Docker available | pass |
+| nodaemon | beta | `DOCKER_HOST=tcp://127.0.0.1:1`: `docker --version` works, the daemon is unreachable | outcome, recovery and runtime-record checks fail unless the agent finds the opt-in managed native runtime; behaviour checks pass |
+| absent | beta | `docker` binary removed | as nodaemon |
 
 ## How a start's runtime is resolved
 
@@ -76,7 +95,7 @@ attempt's own output, in this order:
    most recent earlier successful start that no `supabase stack destroy`
    followed, else Docker.
 5. No such evidence: the next later auto attempt's runtime, else the resolved
-   stack's runtime if this is the last real attempt, else `unknown` (check 2
+   stack's runtime if this is the last real attempt, else `unknown` (`docker runtime was attempted first`
    then fails with that note).
 
 A plain `supabase start` counts as managed when its output shows the managed
@@ -101,7 +120,7 @@ backend.
 
 - A `cd` persisting across tool calls in a persistent shell is not tracked.
 - `stack status` runtime parsing does not distinguish Podman, so a Podman stack
-  records `unknown` and check 5 fails.
+  records `unknown` and `recorded runtime matches what started` fails.
 - A managed `--runtime docker` start once failed with `ContainerLaunchError` in
   stable with Docker available; the cause is unexplained.
 
