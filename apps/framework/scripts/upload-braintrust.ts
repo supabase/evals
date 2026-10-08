@@ -800,7 +800,7 @@ async function main() {
     const lines = [
       '## Braintrust',
       '',
-      ...(pr_url ? [`[Pull request](${pr_url})`, ''] : []),
+      ...(pr_url ? [`[PR #${pr_url.split('/').pop()}](${pr_url})`, ''] : []),
       `[All experiments in this run](${runUrl})`,
       '',
       ...uploaded.map(({ name, url }) => `- [${name}](${url})`),
