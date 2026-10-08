@@ -49,6 +49,10 @@ on:
         description: "Pin the cli suite's beta CLI version instead of resolving npm's beta dist-tag (blank to resolve)"
         required: false
         default: ""
+      cli_next_version:
+        description: "Pin the cli suite's next CLI version instead of resolving npm's next dist-tag (blank to resolve)"
+        required: false
+        default: ""
   schedule:
     - cron: '15 6 * * *'
   pull_request:
@@ -89,6 +93,7 @@ jobs:
       do_merge: ${{ steps.inputs.outputs.do_merge }}
       cli_stable_version: ${{ steps.inputs.outputs.cli_stable_version }}
       cli_beta_version: ${{ steps.inputs.outputs.cli_beta_version }}
+      cli_next_version: ${{ steps.inputs.outputs.cli_next_version }}
     steps:
       - name: Prepare inputs
         id: inputs
@@ -106,6 +111,7 @@ jobs:
             sandbox_concurrency="${{ inputs.sandbox_concurrency }}"
             cli_stable_version="${{ inputs.cli_stable_version }}"
             cli_beta_version="${{ inputs.cli_beta_version }}"
+            cli_next_version="${{ inputs.cli_next_version }}"
 
             if [ -z "$suite" ] && [ -z "$eval_id" ]; then
               echo "::error::Set suite or eval to choose which evals to run."
@@ -125,6 +131,7 @@ jobs:
             sandbox_concurrency="250"
             cli_stable_version=""
             cli_beta_version=""
+            cli_next_version=""
           else
             experiments_override=""
             eval_id=""
@@ -135,6 +142,7 @@ jobs:
             sandbox_concurrency="250"
             cli_stable_version=""
             cli_beta_version=""
+            cli_next_version=""
           fi
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
@@ -168,6 +176,7 @@ jobs:
             echo "do_merge=$do_merge"
             echo "cli_stable_version=$cli_stable_version"
             echo "cli_beta_version=$cli_beta_version"
+            echo "cli_next_version=$cli_next_version"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
@@ -309,6 +318,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       SUPABASE_CLI_STABLE_VERSION: ${{ needs.prepare.outputs.cli_stable_version }}
       SUPABASE_CLI_BETA_VERSION: ${{ needs.prepare.outputs.cli_beta_version }}
+      SUPABASE_CLI_NEXT_VERSION: ${{ needs.prepare.outputs.cli_next_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -339,6 +349,7 @@ jobs:
             echo "XAI_API_KEY=${XAI_API_KEY}"
             echo "SUPABASE_CLI_STABLE_VERSION=${SUPABASE_CLI_STABLE_VERSION}"
             echo "SUPABASE_CLI_BETA_VERSION=${SUPABASE_CLI_BETA_VERSION}"
+            echo "SUPABASE_CLI_NEXT_VERSION=${SUPABASE_CLI_NEXT_VERSION}"
           } > .env
 
       - name: Run evals

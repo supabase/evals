@@ -1,12 +1,12 @@
 /**
- * Resolves "latest stable"/"latest beta" Supabase CLI versions from npm's
+ * Resolves "latest stable"/"latest beta"/"latest next" Supabase CLI versions from npm's
  * dist-tags. npm can point at a still-draft release with no downloadable
  * asset, so the resolved version's `.deb` is verified first.
  */
 
 import { isRecord } from '@supabase-evals/core/json';
 
-export type CliChannel = 'stable' | 'beta';
+export type CliChannel = 'stable' | 'beta' | 'next';
 
 const NPM_DIST_TAGS_URL =
   'https://registry.npmjs.org/-/package/supabase/dist-tags';
@@ -30,18 +30,20 @@ const MAX_BETA_FALLBACK_CANDIDATES = 5;
 const ENV_OVERRIDE: Record<CliChannel, string> = {
   stable: 'SUPABASE_CLI_STABLE_VERSION',
   beta: 'SUPABASE_CLI_BETA_VERSION',
+  next: 'SUPABASE_CLI_NEXT_VERSION',
 };
 
 const DIST_TAG: Record<CliChannel, string> = {
   stable: 'latest',
   beta: 'beta',
+  next: 'next',
 };
 
 const versionCache = new Map<CliChannel, Promise<string>>();
 
-const CLI_CHANNELS = new Set<CliChannel>(['stable', 'beta']);
+const CLI_CHANNELS = new Set<CliChannel>(['stable', 'beta', 'next']);
 
-/** Whether `value` names a channel (`'stable'` | `'beta'`) rather than an exact version. */
+/** Whether `value` names a channel (`'stable'` | `'beta'` | `'next'`) rather than an exact version. */
 export function isCliChannel(value: string): value is CliChannel {
   return CLI_CHANNELS.has(value as CliChannel);
 }
@@ -95,7 +97,7 @@ export async function resolveCliVersion(channel: CliChannel): Promise<string> {
   return promise;
 }
 
-/** Resolves `value`: a channel tag (`'stable'` | `'beta'`) resolves against npm; an exact version or `undefined` passes through unchanged. */
+/** Resolves `value`: a channel tag (`'stable'` | `'beta'` | `'next'`) resolves against npm; an exact version or `undefined` passes through unchanged. */
 export async function resolveCliVersionOption(
   value: string | CliChannel | undefined
 ): Promise<string | undefined> {
@@ -136,15 +138,15 @@ async function resolveCliVersionUncached(channel: CliChannel): Promise<string> {
   }
 
   // A transient failure here throws rather than silently walking back to an
-  // older beta (or never walking back, for stable).
+  // older beta (or never walking back, for stable and next).
   if (await debAssetExists(version)) return version;
 
   // npm's dist-tag can point at a version whose GitHub release is still a
   // draft with no downloadable .deb. Only beta walks back to an older
-  // published version; stable is never guessed at.
-  if (channel === 'stable') {
+  // published version; stable and next are never guessed at.
+  if (channel !== 'beta') {
     throw new Error(
-      `npm's "latest" dist-tag for "supabase" points at ${version}, but its ` +
+      `npm's "${distTag}" dist-tag for "supabase" points at ${version}, but its ` +
         `release asset is missing (checked amd64 and arm64 .deb assets at ` +
         `${releaseTagUrl(version)})`
     );

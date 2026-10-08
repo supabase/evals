@@ -3,6 +3,7 @@ import { cliDebUrl } from '../src/cli-channel.js';
 
 const STABLE_ENV = 'SUPABASE_CLI_STABLE_VERSION';
 const BETA_ENV = 'SUPABASE_CLI_BETA_VERSION';
+const NEXT_ENV = 'SUPABASE_CLI_NEXT_VERSION';
 const DIST_TAGS_URL = 'https://registry.npmjs.org/-/package/supabase/dist-tags';
 const PACKUMENT_URL = 'https://registry.npmjs.org/supabase';
 const INSTALL_V1_ACCEPT = 'application/vnd.npm.install-v1+json';
@@ -63,12 +64,14 @@ beforeEach(() => {
   vi.resetModules();
   delete process.env[STABLE_ENV];
   delete process.env[BETA_ENV];
+  delete process.env[NEXT_ENV];
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env[STABLE_ENV];
   delete process.env[BETA_ENV];
+  delete process.env[NEXT_ENV];
 });
 
 describe('resolveCliVersion', () => {
@@ -100,6 +103,27 @@ describe('resolveCliVersion', () => {
     const { resolveCliVersion } = await import('../src/cli-channel.js');
 
     await expect(resolveCliVersion('beta')).resolves.toBe('1.3.0-beta.1');
+  });
+
+  it('resolves the next channel from the "next" dist-tag when its asset exists', async () => {
+    const fetchMock = routedFetchMock({
+      distTags: { latest: '1.2.3', beta: '1.3.0-beta.1', next: '3.0.0-next.2' },
+      assetOk: () => true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliVersion } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliVersion('next')).resolves.toBe('3.0.0-next.2');
+  });
+
+  it('honours the next env override without touching the network', async () => {
+    process.env[NEXT_ENV] = 'v3.0.0-next.3';
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliVersion } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliVersion('next')).resolves.toBe('3.0.0-next.3');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('prefers the env override over the network and strips a leading v', async () => {
@@ -490,6 +514,28 @@ describe('resolveCliVersion', () => {
     await expect(resolveCliVersion('stable')).rejects.toThrow(
       'checked amd64 and arm64 .deb assets at ' +
         'https://github.com/supabase/cli/releases/tag/v1.2.3'
+    );
+  });
+
+  it('throws instead of walking back when the next dist-tag asset is a 404', async () => {
+    const fetchMock = routedFetchMock({
+      distTags: { latest: '1.2.3', next: '3.0.0-next.2' },
+      assetOk: () => false,
+      packument: {
+        versions: { '3.0.0-next.2': {}, '3.0.0-next.1': {} },
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliVersion } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliVersion('next')).rejects.toThrow(
+      `npm's "next" dist-tag for "supabase" points at 3.0.0-next.2, but its ` +
+        'release asset is missing (checked amd64 and arm64 .deb assets at ' +
+        'https://github.com/supabase/cli/releases/tag/v3.0.0-next.2)'
+    );
+
+    expect(fetchMock.mock.calls.some(([url]) => url === PACKUMENT_URL)).toBe(
+      false
     );
   });
 
