@@ -115,6 +115,19 @@ export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
 // beta version (e.g. "2.118.0-beta.60") round-trips through this schema too.
 const cliVersionSchema = z.string().regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/);
 
+/** Supabase MCP server feature groups (its `--features` values). */
+export const mcpFeatureSchema = z.enum([
+  'account',
+  'branching',
+  'database',
+  'debugging',
+  'development',
+  'docs',
+  'functions',
+  'storage',
+]);
+export type McpFeature = z.infer<typeof mcpFeatureSchema>;
+
 export type EvalMetadata = {
   stage: EvalStage;
   product: EvalProduct[];
@@ -166,6 +179,18 @@ export type EvalMetadata = {
    * which evals they can run.
    */
   needsDocker?: boolean;
+  /**
+   * Scope the Supabase MCP server to the eval's project (`--project-ref`),
+   * the way a user's project-scoped MCP URL does (tools evals only). Account
+   * tools (`list_organizations`, `get_organization`, `get_cost`, …) are not
+   * available in this mode. Defaults to false.
+   */
+  projectScoped?: boolean;
+  /**
+   * Supabase MCP feature groups to enable on top of the experiment's (tools
+   * evals only), e.g. `[branching]` for a scenario that needs branch tools.
+   */
+  mcpFeatures?: McpFeature[];
 };
 
 export type ParsedEvalMarkdown = {
@@ -188,6 +213,8 @@ export const evalMetadataSchema = z.object({
   skills: z.array(z.string().min(1)).optional(),
   skipCliInstall: z.union([z.boolean(), z.stringbool()]).optional(),
   needsDocker: z.union([z.boolean(), z.stringbool()]).optional(),
+  projectScoped: z.union([z.boolean(), z.stringbool()]).optional(),
+  mcpFeatures: z.array(mcpFeatureSchema).optional(),
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
@@ -267,6 +294,8 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
       : undefined,
     skipCliInstall: data.skipCliInstall,
     needsDocker: data.needsDocker,
+    projectScoped: data.projectScoped,
+    mcpFeatures: toTokenList(data.mcpFeatures),
   };
 }, evalMetadataSchema);
 

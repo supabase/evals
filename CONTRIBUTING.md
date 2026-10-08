@@ -40,6 +40,8 @@ Reserve LLM-as-a-judge checks via `ctx.judge()` for semantic or free-form outcom
 
 Prefer building checks declaratively and returning the list in one place instead of accumulating checks within branching logic, so the list remains stable if one path fails.
 
+Reuse shared checks before writing your own. `evals/lib/` holds checks any suite can use, such as counting MCP tool calls (`checkMcpCallCount`) and failing on MCP tool errors (`checkNoMcpToolErrors`). Helpers shared within one suite live in `evals/<suite>/lib/`. Run their tests with `pnpm --filter @supabase-evals/framework test:evals-lib`.
+
 ## Adding an experiment
 
 Add a `*.experiment.ts` file under `experiments/<owner>/` for the agent, model, and runtime setup you want to compare. Experiment discovery only scans this owner directory depth, so supporting files can live beside experiments or in nested directories. Reuse the base configs exported from `experiments/presets.ts` where they fit.

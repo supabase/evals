@@ -14,7 +14,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/OrganizationResponseV1"
+                    "$ref": "#/components/schemas/OrganizationResponseV1_Output"
                   }
                 }
               }
@@ -36,11 +36,6 @@
         "security": [
           {
             "bearer": []
-          },
-          {
-            "fga_permissions": [
-              "organizations_read"
-            ]
           }
         ],
         "summary": "List all organizations",
@@ -54,7 +49,12 @@
           }
         ],
         "x-endpoint-owners": [
-          "management-api"
+          "control-plane"
+        ],
+        "x-fga-permissions": [
+          [
+            "organizations_read"
+          ]
         ],
         "x-oauth-scope": "organizations:read"
       }
@@ -81,7 +81,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V1OrganizationSlugResponse"
+                  "$ref": "#/components/schemas/V1OrganizationSlugResponse_Output"
                 }
               }
             }
@@ -99,11 +99,6 @@
         "security": [
           {
             "bearer": []
-          },
-          {
-            "fga_permissions": [
-              "organization_admin_read"
-            ]
           }
         ],
         "summary": "Gets information about the organization",
@@ -117,7 +112,12 @@
           }
         ],
         "x-endpoint-owners": [
-          "management-api"
+          "control-plane"
+        ],
+        "x-fga-permissions": [
+          [
+            "organization_admin_read"
+          ]
         ],
         "x-oauth-scope": "organizations:read"
       }
@@ -135,7 +135,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/V1ProjectWithDatabaseResponse"
+                    "$ref": "#/components/schemas/V1ProjectWithDatabaseResponse_Output"
                   }
                 }
               }
@@ -154,11 +154,6 @@
         "security": [
           {
             "bearer": []
-          },
-          {
-            "fga_permissions": [
-              "projects_read"
-            ]
           }
         ],
         "summary": "List all projects",
@@ -172,7 +167,12 @@
           }
         ],
         "x-endpoint-owners": [
-          "management-api"
+          "control-plane"
+        ],
+        "x-fga-permissions": [
+          [
+            "projects_read"
+          ]
         ],
         "x-oauth-scope": "projects:read"
       },
@@ -568,7 +568,6 @@
         "x-oauth-scope": "database:read"
       },
       "post": {
-        "description": "Only available to selected partner OAuth apps",
         "operationId": "v1-apply-a-migration",
         "parameters": [
           {
@@ -624,11 +623,6 @@
         "security": [
           {
             "bearer": []
-          },
-          {
-            "fga_permissions": [
-              "database_migrations_write"
-            ]
           }
         ],
         "summary": "Apply a database migration",
@@ -643,6 +637,11 @@
         ],
         "x-endpoint-owners": [
           "infra"
+        ],
+        "x-fga-permissions": [
+          [
+            "database_migrations_write"
+          ]
         ],
         "x-oauth-scope": "database:write"
       }
@@ -1544,6 +1543,161 @@
         ],
         "x-oauth-scope": "database:read"
       }
+    },
+    "/v1/projects/{ref}/branches": {
+      "get": {
+        "description": "Returns all database branches of the specified project.",
+        "operationId": "v1-list-all-branches",
+        "parameters": [
+          {
+            "name": "ref",
+            "required": true,
+            "in": "path",
+            "description": "Project ref",
+            "schema": {
+              "minLength": 20,
+              "maxLength": 20,
+              "pattern": "^[a-z]+$",
+              "example": "abcdefghijklmnopqrst",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BranchResponse_Output"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden action"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Failed to retrieve database branches"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all database branches",
+        "tags": [
+          "Environments"
+        ],
+        "x-badges": [
+          {
+            "name": "OAuth scope: environment:read",
+            "position": "after"
+          }
+        ],
+        "x-endpoint-owners": [
+          "dev-workflows"
+        ],
+        "x-fga-permissions": [
+          [
+            "branching_development_read"
+          ],
+          [
+            "branching_production_read"
+          ]
+        ],
+        "x-oauth-scope": "environment:read"
+      },
+      "post": {
+        "description": "Creates a database branch from the specified project.",
+        "operationId": "v1-create-a-branch",
+        "parameters": [
+          {
+            "name": "ref",
+            "required": true,
+            "in": "path",
+            "description": "Project ref",
+            "schema": {
+              "minLength": 20,
+              "maxLength": 20,
+              "pattern": "^[a-z]+$",
+              "example": "abcdefghijklmnopqrst",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBranchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchResponse_Output"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden action"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Failed to create database branch"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a database branch",
+        "tags": [
+          "Environments"
+        ],
+        "x-badges": [
+          {
+            "name": "OAuth scope: environment:write",
+            "position": "after"
+          }
+        ],
+        "x-endpoint-owners": [
+          "dev-workflows"
+        ],
+        "x-fga-permissions": [
+          [
+            "branching_development_create"
+          ],
+          [
+            "branching_production_create"
+          ]
+        ],
+        "x-oauth-scope": "environment:write"
+      }
     }
   },
   "info": {
@@ -1830,6 +1984,117 @@
           "with_data"
         ]
       },
+      "BranchResponse_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_ref": {
+            "type": "string"
+          },
+          "parent_project_ref": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "git_branch": {
+            "type": "string"
+          },
+          "pr_number": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "latest_check_run_id": {
+            "description": "This field is deprecated and will not be populated.",
+            "deprecated": true,
+            "type": "number"
+          },
+          "persistent": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATING_PROJECT",
+              "RUNNING_MIGRATIONS",
+              "MIGRATIONS_PASSED",
+              "MIGRATIONS_FAILED",
+              "FUNCTIONS_DEPLOYED",
+              "FUNCTIONS_FAILED"
+            ],
+            "description": "This field is deprecated. List action runs to get branch status instead.",
+            "deprecated": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "review_requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "with_data": {
+            "type": "boolean"
+          },
+          "notify_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "deletion_scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "preview_project_status": {
+            "type": "string",
+            "enum": [
+              "INACTIVE",
+              "ACTIVE_HEALTHY",
+              "ACTIVE_UNHEALTHY",
+              "COMING_UP",
+              "UNKNOWN",
+              "GOING_DOWN",
+              "INIT_FAILED",
+              "REMOVED",
+              "RESTORING",
+              "UPGRADING",
+              "PAUSING",
+              "RESTORE_FAILED",
+              "RESTARTING",
+              "PAUSE_FAILED",
+              "RESIZING"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "project_ref",
+          "parent_project_ref",
+          "is_default",
+          "persistent",
+          "status",
+          "created_at",
+          "updated_at",
+          "with_data"
+        ]
+      },
       "BranchDeleteResponse": {
         "type": "object",
         "properties": {
@@ -1888,6 +2153,105 @@
         ]
       },
       "V1ProjectWithDatabaseResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated: Use `ref` instead."
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 20,
+            "pattern": "^[a-z]+$",
+            "description": "Project ref",
+            "example": "abcdefghijklmnopqrst"
+          },
+          "organization_id": {
+            "type": "string",
+            "description": "Deprecated: Use `organization_slug` instead.",
+            "deprecated": true
+          },
+          "organization_slug": {
+            "type": "string",
+            "pattern": "^[\\w-]+$",
+            "description": "Organization slug",
+            "example": "tsrqponmlkjihgfedcba"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of your project"
+          },
+          "region": {
+            "type": "string",
+            "description": "Region of your project"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "Creation timestamp"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "INACTIVE",
+              "ACTIVE_HEALTHY",
+              "ACTIVE_UNHEALTHY",
+              "COMING_UP",
+              "UNKNOWN",
+              "GOING_DOWN",
+              "INIT_FAILED",
+              "REMOVED",
+              "RESTORING",
+              "UPGRADING",
+              "PAUSING",
+              "RESTORE_FAILED",
+              "RESTARTING",
+              "PAUSE_FAILED",
+              "RESIZING"
+            ]
+          },
+          "database": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "Database host"
+              },
+              "version": {
+                "type": "string",
+                "description": "Database version"
+              },
+              "postgres_engine": {
+                "type": "string",
+                "description": "Database engine"
+              },
+              "release_channel": {
+                "type": "string",
+                "description": "Release channel"
+              }
+            },
+            "required": [
+              "host",
+              "version",
+              "postgres_engine",
+              "release_channel"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "organization_id",
+          "organization_slug",
+          "name",
+          "region",
+          "created_at",
+          "status",
+          "database"
+        ]
+      },
+      "V1ProjectWithDatabaseResponse_Output": {
         "type": "object",
         "properties": {
           "id": {
@@ -2448,6 +2812,30 @@
         ]
       },
       "OrganizationResponseV1": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Deprecated: Use `slug` instead.",
+            "deprecated": true
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[\\w-]+$",
+            "description": "Organization slug",
+            "example": "tsrqponmlkjihgfedcba"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ]
+      },
+      "OrganizationResponseV1_Output": {
         "type": "object",
         "properties": {
           "id": {
@@ -11411,6 +11799,57 @@
             "type": "array",
             "items": {
               "type": "string",
+              "enum": [
+                "AI_SQL_GENERATOR_OPT_IN",
+                "AI_DATA_GENERATOR_OPT_IN",
+                "AI_LOG_GENERATOR_OPT_IN"
+              ]
+            }
+          },
+          "allowed_release_channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "internal",
+                "alpha",
+                "beta",
+                "ga",
+                "withdrawn",
+                "preview"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "opt_in_tags",
+          "allowed_release_channels"
+        ]
+      },
+      "V1OrganizationSlugResponse_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": [
+              "free",
+              "pro",
+              "team",
+              "enterprise",
+              "platform"
+            ]
+          },
+          "opt_in_tags": {
+            "type": "array",
+            "items": {
               "enum": [
                 "AI_SQL_GENERATOR_OPT_IN",
                 "AI_DATA_GENERATOR_OPT_IN",

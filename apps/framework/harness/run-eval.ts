@@ -148,9 +148,10 @@ function discoverEvals(): EvalManifest[] {
   if (!existsSync(root)) return [];
   const out: EvalManifest[] = [];
   // evals/<suite>/<id>/. The suite folder is what CODEOWNERS scopes by.
+  // evals/lib/ holds scorer helpers shared across suites.
   for (const suiteDir of readdirSync(root)) {
     const dir = join(root, suiteDir);
-    if (!statSync(dir).isDirectory()) continue;
+    if (suiteDir === 'lib' || !statSync(dir).isDirectory()) continue;
     const suite = evalSuiteSchema.parse(suiteDir);
     for (const id of readdirSync(dir)) {
       const evalDir = join(dir, id);
@@ -325,12 +326,20 @@ function readSessionSeedArgs(ev: EvalManifest) {
   const projectSeedSql = join(ev.remoteDir, 'project.sql');
   const logsSeedJsonl = join(ev.remoteDir, 'logs.jsonl');
   const functionsSeedDir = join(ev.remoteDir, 'functions');
+  const organizationSeedJson = join(ev.remoteDir, 'organization.json');
+  const migrationsSeedDir = join(ev.remoteDir, 'migrations');
 
   return {
     projectSeedSql: existsSync(projectSeedSql) ? projectSeedSql : undefined,
     logsSeedJsonl: existsSync(logsSeedJsonl) ? logsSeedJsonl : undefined,
     functionsSeedDir: existsSync(functionsSeedDir)
       ? functionsSeedDir
+      : undefined,
+    organizationSeedJson: existsSync(organizationSeedJson)
+      ? organizationSeedJson
+      : undefined,
+    migrationsSeedDir: existsSync(migrationsSeedDir)
+      ? migrationsSeedDir
       : undefined,
     pgvector: ev.metadata.product.includes('vectors'),
   };
@@ -537,6 +546,8 @@ async function runOne(
     await exp.runtime.startSession({
       ...readSessionSeedArgs(ev),
       hostname: agentRunsInSandbox ? '0.0.0.0' : undefined,
+      projectScoped: ev.metadata.projectScoped,
+      mcpFeatures: ev.metadata.mcpFeatures,
     })
   );
 

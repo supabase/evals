@@ -33,6 +33,8 @@ import {
   createManagementApiClient,
   createPlatform,
   loadFunctionSeeds,
+  loadMigrationSeeds,
+  loadOrganizationSeed,
   type ManagementApiClient,
   type PgServerHandle,
   type PlatformHandle,
@@ -48,6 +50,7 @@ import type {
   ExperimentDisplayMetadata,
   ExperimentSuite,
   JudgeCall,
+  McpFeature,
   ModelProvider,
   ReasoningEffortLevel,
 } from './eval-metadata.js';
@@ -92,6 +95,7 @@ export {
   evalStageSchema,
   evalSuiteSchema,
   experimentSuiteSchema,
+  mcpFeatureSchema,
   experimentDisplayMetadataSchema,
   modelProviderSchema,
   rawEvalResultSchema,
@@ -145,6 +149,7 @@ export type {
   EvalStage,
   ExperimentDisplayMetadata,
   ExperimentSuite,
+  McpFeature,
   ModelProvider,
   ParsedEvalMarkdown,
   ReasoningEffortLevel,
@@ -952,7 +957,15 @@ export type EvalSessionArgs = {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
+  /** Path to `remote/organization.json`: the org's name and plan. */
+  organizationSeedJson?: string;
+  /** Path to `remote/migrations/`: `<version>_<name>.sql` migration history. */
+  migrationsSeedDir?: string;
   pgvector?: boolean;
+  /** Scope MCP servers to the seeded project (see `EvalMetadata.projectScoped`). */
+  projectScoped?: boolean;
+  /** Extra MCP feature groups (see `EvalMetadata.mcpFeatures`). */
+  mcpFeatures?: McpFeature[];
   /**
    * Host to bind the platform-lite server to. Defaults to 127.0.0.1 (host-side,
    * for in-process agents). The harness sets 0.0.0.0 for CLI agents in tools
@@ -978,6 +991,10 @@ export type PlatformLiteMcpContext = {
   // it needs neither a project api-url nor a real token.
   apiUrl?: string;
   accessToken?: string;
+  /** Scope the server to this project, when the eval asks for it. */
+  projectRef?: string;
+  /** Feature groups the eval needs on top of the server's own. */
+  extraFeatures?: McpFeature[];
 };
 
 export type McpServerConfig = {
@@ -1009,7 +1026,8 @@ export function platformLiteRuntime(options: {
   return {
     id: 'platform-lite',
     async startSession(args) {
-      const backend = await bootPlatformBackend(args);
+      const { projectScoped, mcpFeatures, ...seedArgs } = args;
+      const backend = await bootPlatformBackend(seedArgs);
       const mcpServers: Record<string, McpServerConfig> = {};
       const cleanupFns: Array<() => Promise<void>> = [];
 
@@ -1021,6 +1039,8 @@ export function platformLiteRuntime(options: {
           const resolved = await mcpServer.createConfig({
             apiUrl: backend.url,
             accessToken: backend.accessToken,
+            projectRef: projectScoped ? backend.ref : undefined,
+            extraFeatures: mcpFeatures,
           });
           mcpServers[mcpServer.name] = resolved.config;
           if (resolved.cleanup) cleanupFns.push(resolved.cleanup);
@@ -1089,11 +1109,11 @@ export function platformLiteRuntime(options: {
 
 export function supabaseMcpServer(
   options: {
-    features?: string[];
+    features?: McpFeature[];
     version?: string;
   } = {}
 ): McpServerDefinition {
-  const features = options.features ?? [
+  const baseFeatures = options.features ?? [
     'docs',
     'account',
     'database',
@@ -1105,7 +1125,13 @@ export function supabaseMcpServer(
 
   return {
     name: 'supabase-mcp',
-    async createConfig({ apiUrl, accessToken } = {}) {
+    async createConfig({
+      apiUrl,
+      accessToken,
+      projectRef,
+      extraFeatures = [],
+    } = {}) {
+      const features = [...new Set([...baseFeatures, ...extraFeatures])];
       // Server flags are identical whether we launch the published package via
       // npx or a local build directly with node.
       const serverArgs = [
@@ -1121,6 +1147,7 @@ export function supabaseMcpServer(
       // platform-independent (it queries the public docs GraphQL API), so a
       // docs-only server runs standalone with no `--api-url`.
       if (apiUrl) serverArgs.push('--api-url', apiUrl);
+      if (projectRef) serverArgs.push('--project-ref', projectRef);
 
       const local = resolveLocalMcpServer();
       if (local) {
@@ -1386,7 +1413,10 @@ async function getAvailablePort(): Promise<number> {
 }
 
 export const ACCESS_TOKEN = 'eval-token';
-export const MCP_SERVER_VERSION = '0.12.0';
+// TEMP(AI-1292): preview of supabase/mcp#463 (tracks the PR's latest push) so CI
+// runs the branching fix. Revert to the released version before merging #375.
+export const MCP_SERVER_VERSION =
+  'https://pkg.pr.new/@supabase/mcp-server-supabase@463';
 // Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
 // server requires a token to boot but never authenticates without a platform.
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;
@@ -1412,6 +1442,10 @@ export async function bootPlatformBackend(opts: {
   projectSeedSql?: string;
   logsSeedJsonl?: string;
   functionsSeedDir?: string;
+  /** Path to a JSON org seed (`{ name?, plan? }`); defaults to a free-plan org. */
+  organizationSeedJson?: string;
+  /** Directory of `<version>_<name>.sql` files applied as migration history. */
+  migrationsSeedDir?: string;
   pgvector?: boolean;
   /** Management API access token; defaults to the in-process eval token. */
   accessToken?: string;
@@ -1439,11 +1473,27 @@ export async function bootPlatformBackend(opts: {
     ? await loadFunctionSeeds(opts.functionsSeedDir)
     : undefined;
 
+  const migrations = opts.migrationsSeedDir
+    ? await loadMigrationSeeds(opts.migrationsSeedDir)
+    : undefined;
+
+  const organization = opts.organizationSeedJson
+    ? await loadOrganizationSeed(opts.organizationSeedJson)
+    : undefined;
+
   const accessToken = opts.accessToken ?? ACCESS_TOKEN;
   const platform = await createPlatform({
     accessToken,
+    organization,
     projects: [
-      { ref: opts.ref, sql, logs, functions, pgvector: opts.pgvector },
+      {
+        ref: opts.ref,
+        sql,
+        migrations,
+        logs,
+        functions,
+        pgvector: opts.pgvector,
+      },
     ],
   });
 

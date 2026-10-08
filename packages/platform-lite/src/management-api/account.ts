@@ -1,38 +1,36 @@
 import { ProjectInstance } from '../project/ProjectInstance.js';
 import type { ProjectStore } from '../project-store.js';
+import type { Organization } from '../organization.js';
 import {
   createManagementApiRoutes,
   type ManagementApiRoutes,
 } from './routes.js';
+import { generateRef } from './utils.js';
 
-const DEFAULT_ORG = {
-  id: 'default-org',
-  slug: 'default-org',
-  name: 'Default Organization',
-  plan: 'free',
-  allowed_release_channels: ['ga'],
-  opt_in_tags: [],
-};
-
-export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
+export function createAccountRoutes(
+  store: ProjectStore,
+  org: Organization
+): ManagementApiRoutes {
   const routes = createManagementApiRoutes();
 
+  // Like the real list endpoint, no plan: callers need get_organization for it.
   routes.get('/v1/organizations', (c) => {
-    return c.json([DEFAULT_ORG]);
+    return c.json([{ id: org.id, slug: org.slug, name: org.name }]);
   });
 
   routes.get('/v1/organizations/:slug', (c) => {
     const { slug } = c.req.param();
-    if (slug !== DEFAULT_ORG.slug) {
+    if (slug !== org.slug) {
       return c.json({ message: 'Organization not found' }, 404);
     }
-    return c.json(DEFAULT_ORG);
+    return c.json(org);
   });
 
+  // Branch databases are projects internally but aren't listed as projects.
   routes.get('/v1/projects', (c) => {
-    const projects = Array.from(store.values()).map((p) =>
-      p.toProjectDetails()
-    );
+    const projects = Array.from(store.values())
+      .filter((p) => !p.parentRef)
+      .map((p) => p.toProjectDetails());
     return c.json(projects);
   });
 
@@ -52,7 +50,7 @@ export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
     }>();
     const ref = generateRef();
     const name = body.name ?? ref;
-    const orgSlug = body.organization_slug ?? DEFAULT_ORG.slug;
+    const orgSlug = body.organization_slug ?? org.slug;
     const instance = new ProjectInstance(ref, name, orgSlug);
     await instance.init();
     store.set(ref, instance);
@@ -76,8 +74,4 @@ export function createAccountRoutes(store: ProjectStore): ManagementApiRoutes {
   });
 
   return routes;
-}
-
-function generateRef(): string {
-  return crypto.randomUUID().replace(/-/g, '').slice(0, 20);
 }

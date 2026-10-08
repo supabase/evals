@@ -10,7 +10,8 @@ import {
 } from '@supabase/lite/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
-import type { EdgeFunctionSeed, LogRow } from '../types.js';
+import type { components } from '../management-api/types.js';
+import type { MigrationSeed, ProjectSeed } from '../types.js';
 import { LOGS_BASE_SQL, seedLogRow } from './log-seeding.js';
 import { STORAGE_SCHEMA_SUPPLEMENT_SQL } from './storage-schema.js';
 
@@ -18,6 +19,8 @@ export type Migration = {
   version: string;
   name: string;
 };
+
+export type Branch = components['schemas']['BranchResponse'];
 
 export type EdgeFunctionEntry = {
   id: string;
@@ -61,10 +64,14 @@ export class ProjectInstance {
   name: string;
   organizationId: string;
   status: 'ACTIVE_HEALTHY' | 'INACTIVE';
+  /** Set on a branch database: the ref of the project it branched from. */
+  parentRef?: string;
   app!: App;
   pglite!: PGlite;
   logsDb: PGlite;
-  migrations: Migration[];
+  /** Migration history with each migration's SQL, so a branch can replay it. */
+  migrations: MigrationSeed[];
+  branches: Branch[];
   functions: Map<string, EdgeFunctionEntry>;
   /** Edge Function secrets, by name. Injected into the function env at invoke. */
   secrets: Map<string, string>;
@@ -77,17 +84,20 @@ export class ProjectInstance {
     this.status = 'ACTIVE_HEALTHY';
     this.logsDb = new PGlite();
     this.migrations = [];
+    this.branches = [];
     this.functions = new Map();
     this.secrets = new Map();
     this.createdAt = new Date().toISOString();
   }
 
-  async init(
-    sql?: string,
-    logs?: LogRow[],
-    functions?: EdgeFunctionSeed[],
-    pgvector = false
-  ): Promise<void> {
+  /** Boot the database and seed it: migration history first, then `sql`. */
+  async init({
+    sql,
+    migrations = [],
+    logs,
+    functions,
+    pgvector = false,
+  }: Omit<ProjectSeed, 'ref' | 'name'> = {}): Promise<void> {
     // createPgliteConnection is async; App.init() can't handle Promise<Connection>
     // so we resolve it before constructing the App.
     const connection = await createPgliteConnection(
@@ -109,6 +119,10 @@ export class ProjectInstance {
     await this.app.connection.exec(getAuthSchemaSql());
     await this.app.connection.exec(getStorageSchemaSql());
     await this.app.connection.exec(STORAGE_SCHEMA_SUPPLEMENT_SQL);
+
+    for (const migration of migrations) {
+      await this.applyMigration(migration);
+    }
 
     if (sql) {
       await this.app.connection.exec(sql);
@@ -140,6 +154,26 @@ export class ProjectInstance {
           files: fn.files,
         });
       }
+    }
+  }
+
+  /** Run `query` and record it in the migration history. Throws on SQL errors. */
+  async applyMigration({
+    name,
+    query,
+    version = new Date().toISOString().replace(/\D/g, '').slice(0, 14),
+  }: Omit<MigrationSeed, 'version'> & {
+    version?: string;
+  }): Promise<Migration> {
+    await this.app.connection.exec(query);
+    this.migrations.push({ version, name, query });
+    return { version, name };
+  }
+
+  /** Replay this project's migration history onto `target` (a fresh branch). */
+  async replayMigrationsOnto(target: ProjectInstance): Promise<void> {
+    for (const migration of this.migrations) {
+      await target.applyMigration(migration);
     }
   }
 

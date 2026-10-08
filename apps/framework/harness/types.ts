@@ -60,7 +60,8 @@ export interface EvalManifest {
   evalPath: string;
   /**
    * `remote/` — the hosted project's starting state, seeded into
-   * platform-lite (project.sql, logs.jsonl, functions/).
+   * platform-lite (project.sql, migrations/, logs.jsonl, functions/,
+   * organization.json).
    */
   remoteDir: string;
 }

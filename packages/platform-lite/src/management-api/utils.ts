@@ -16,3 +16,8 @@ export function hasRows(v: unknown): v is { rows: unknown[] } {
   if (typeof v !== 'object' || v === null || !('rows' in v)) return false;
   return Array.isArray((v as Record<string, unknown>)['rows']);
 }
+
+/** A random 20-char project ref. */
+export function generateRef(): string {
+  return crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+}

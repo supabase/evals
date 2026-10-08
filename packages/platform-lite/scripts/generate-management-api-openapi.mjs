@@ -24,6 +24,7 @@ const ROUTE_MODULE_ORDER = [
   'functions.ts',
   'debugging.ts',
   'development.ts',
+  'branching.ts',
 ];
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');

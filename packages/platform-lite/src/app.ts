@@ -8,11 +8,14 @@ import { createFunctionsRoutes } from './management-api/functions.js';
 import { createSecretsRoutes } from './management-api/secrets.js';
 import { createDebuggingRoutes } from './management-api/debugging.js';
 import { createDevelopmentRoutes } from './management-api/development.js';
+import { createBranchingRoutes } from './management-api/branching.js';
 import { createOpenApiRoutes } from './management-api/openapi.js';
 import { listen } from './listen.js';
 import type { ListenOptions } from './listen.js';
 import { startPgWireServer, type PgServerHandle } from './project/pg-wire.js';
 import type { AppOptions } from './types.js';
+import { generateRef } from './management-api/utils.js';
+import { createOrganization } from './organization.js';
 
 export interface ServerHandle extends AsyncDisposable {
   readonly url: string;
@@ -45,6 +48,7 @@ async function build(
   const { accessToken, projects = [], seedDir } = options;
 
   const store = createProjectStore();
+  const org = createOrganization(options.organization);
 
   const seeds = [...projects];
   if (seedDir) {
@@ -55,20 +59,21 @@ async function build(
   for (const seed of seeds) {
     const ref = seed.ref ?? generateRef();
     const name = seed.name ?? ref;
-    const instance = new ProjectInstance(ref, name, 'default-org');
-    await instance.init(seed.sql, seed.logs, seed.functions, seed.pgvector);
+    const instance = new ProjectInstance(ref, name, org.slug);
+    await instance.init(seed);
     store.set(ref, instance);
   }
 
   const app = new Hono();
 
   const routeBundles = [
-    createAccountRoutes(store),
+    createAccountRoutes(store, org),
     createDatabaseRoutes(store),
     createFunctionsRoutes(store),
     createSecretsRoutes(store),
     createDebuggingRoutes(store),
     createDevelopmentRoutes(store),
+    createBranchingRoutes(store, org),
   ];
 
   app.route('/', createOpenApiRoutes());
@@ -144,8 +149,4 @@ export async function createPlatform(
     dispose,
     [Symbol.asyncDispose]: dispose,
   };
-}
-
-function generateRef(): string {
-  return crypto.randomUUID().replace(/-/g, '').slice(0, 20);
 }
