@@ -524,6 +524,22 @@ jobs:
             fi
           done
 
+      - name: Find the PR for this branch
+        # Dispatched runs have a branch ref, not a PR ref, so look the PR up for
+        # the Braintrust links. A branch with several open PRs gets no link.
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          urls=$(gh pr list --head "$GITHUB_REF_NAME" --state open --json url --jq '.[].url')
+          count=$(grep -c . <<< "$urls" || true)
+          if [ "$count" -eq 1 ]; then
+            echo "PR_URL=$urls" >> "$GITHUB_ENV"
+          elif [ "$count" -gt 1 ]; then
+            echo "::warning::$count open PRs for $GITHUB_REF_NAME, so the Braintrust summary has no PR link: $(tr '\n' ' ' <<< "$urls")"
+          fi
+
       - name: Upload results to Braintrust
         # A Braintrust outage shouldn't block publishing results.
         continue-on-error: true

@@ -261,6 +261,10 @@ function summarize(command: string): string {
 }
 
 function prUrl(): Record<string, string> {
+  // Set by eval-refresh.yml for dispatched runs, which have no PR ref.
+  if (process.env.PR_URL) {
+    return { pr_url: process.env.PR_URL };
+  }
   const repo = process.env.GITHUB_REPOSITORY;
   const prNumber = process.env.GITHUB_REF?.match(/^refs\/pull\/(\d+)\//)?.[1];
   return repo && prNumber
