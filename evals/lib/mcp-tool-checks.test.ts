@@ -56,6 +56,16 @@ describe('checkNoMcpToolErrors', () => {
     );
   });
 
+  it("ignores the agent's own MCP helpers", () => {
+    const helper: ToolCallRecord = {
+      tool: { kind: 'mcp', server: 'supabase', toolName: 'list_mcp_resources' },
+      body: { server: 'supabase' },
+      ts: 0,
+      error: "resources/list failed: unknown MCP server 'supabase'",
+    };
+    expect(checkNoMcpToolErrors([helper]).passed).toBe(true);
+  });
+
   it('fails on an MCP tool error', () => {
     expect(
       checkNoMcpToolErrors([

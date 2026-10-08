@@ -1,7 +1,10 @@
 import type { CheckResult, ToolCallRecord } from '@supabase-evals/core';
 import { isRecord } from '@supabase-evals/core/json';
 
-const isMcp = (call: ToolCallRecord) => call.tool.kind === 'mcp';
+// The server name `supabaseMcpServer()` registers. Agents' own MCP helpers
+// (e.g. Codex's `list_mcp_resources`) are recorded as MCP calls too.
+const isSupabaseMcp = (call: ToolCallRecord) =>
+  call.tool.kind === 'mcp' && call.tool.server === 'supabase-mcp';
 
 /**
  * True for a recorded `error` (CLI agents report `isError` results this way)
@@ -23,9 +26,11 @@ export function isToolError({ error, result }: ToolCallRecord): boolean {
 export function checkNoMcpToolErrors(
   toolCalls: readonly ToolCallRecord[]
 ): CheckResult {
-  const failed = toolCalls.filter((call) => isMcp(call) && isToolError(call));
+  const failed = toolCalls.filter(
+    (call) => isSupabaseMcp(call) && isToolError(call)
+  );
   return {
-    name: 'no MCP tool errors',
+    name: 'no Supabase MCP tool errors',
     passed: failed.length === 0,
     notes:
       failed
@@ -43,7 +48,7 @@ export function checkMcpCallCount(
   { min = 0, max = Number.POSITIVE_INFINITY }: { min?: number; max?: number }
 ): CheckResult {
   const count = toolCalls.filter(
-    (call) => isMcp(call) && call.tool.toolName === toolName
+    (call) => isSupabaseMcp(call) && call.tool.toolName === toolName
   ).length;
   const range =
     min === max
