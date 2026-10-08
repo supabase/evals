@@ -157,7 +157,7 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Ports.** The range is 54321 to 54329. Another project's stack holding them blocked local runs
   entirely, and one eval shipped for review having never run end to end because of it. #168, #206
   **Fix.** Preflight the ports. Both later evals open their testing steps with it.
-- **`pnpm check` needs `OPENAI_API_KEY`** and stops without it, which reads as a broken diff.
+- **`pnpm test` needs `OPENAI_API_KEY`** and stops without it, which reads as a broken diff.
   #228, #168
 - **A stale local `VERCEL_OIDC_TOKEN` shadows the real one** and every sandbox create fails. #192
 - **`ctx.stackStatus()` requires three values together** and throws when any is missing, so an eval
