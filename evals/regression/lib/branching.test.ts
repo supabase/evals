@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework test:regression-lib
+// Run: pnpm --filter @supabase-evals/framework test:evals-lib
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { checkCostFlowBeforeFirstBranch } from './branching.js';

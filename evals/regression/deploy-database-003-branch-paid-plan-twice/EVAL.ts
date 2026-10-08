@@ -1,8 +1,8 @@
+import type { ToolScorer } from '@supabase-evals/core';
 import {
   checkMcpCallCount,
   checkNoMcpToolErrors,
-  type ToolScorer,
-} from '@supabase-evals/core';
+} from '../../lib/mcp-tool-checks.js';
 import { checkCostFlowBeforeFirstBranch } from '../lib/branching.js';
 
 // Pro-plan org asking for two branches in a row: the first goes through the

@@ -148,9 +148,10 @@ function discoverEvals(): EvalManifest[] {
   if (!existsSync(root)) return [];
   const out: EvalManifest[] = [];
   // evals/<suite>/<id>/. The suite folder is what CODEOWNERS scopes by.
+  // evals/lib/ holds scorer helpers shared across suites.
   for (const suiteDir of readdirSync(root)) {
     const dir = join(root, suiteDir);
-    if (!statSync(dir).isDirectory()) continue;
+    if (suiteDir === 'lib' || !statSync(dir).isDirectory()) continue;
     const suite = evalSuiteSchema.parse(suiteDir);
     for (const id of readdirSync(dir)) {
       const evalDir = join(dir, id);

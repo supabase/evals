@@ -1,11 +1,11 @@
 import {
-  isToolError,
   serializeTranscript,
   type CheckResult,
   type ToolCallRecord,
   type ToolEvalContext,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { isToolError } from '../../lib/mcp-tool-checks.js';
 
 /** Judge: the agent said the Free plan can't branch and linked the upgrade page. */
 export async function checkExplainedPlanUpgrade(

@@ -1,6 +1,5 @@
-import type { CheckResult } from './eval-metadata.js';
-import type { ToolCallRecord } from './index.js';
-import { isRecord } from './json.js';
+import type { CheckResult, ToolCallRecord } from '@supabase-evals/core';
+import { isRecord } from '@supabase-evals/core/json';
 
 const isMcp = (call: ToolCallRecord) => call.tool.kind === 'mcp';
 

@@ -1,5 +1,6 @@
+// Run: pnpm --filter @supabase-evals/framework test:evals-lib
 import { describe, expect, it } from 'vitest';
-import type { ToolCallRecord } from './index.js';
+import type { ToolCallRecord } from '@supabase-evals/core';
 import {
   checkMcpCallCount,
   checkNoMcpToolErrors,

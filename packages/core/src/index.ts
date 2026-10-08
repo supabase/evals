@@ -109,11 +109,6 @@ export {
 export { parseEvalMarkdown } from './eval-markdown.js';
 export { buildSkillResult } from './skill-results.js';
 export {
-  checkMcpCallCount,
-  checkNoMcpToolErrors,
-  isToolError,
-} from './mcp-tool-checks.js';
-export {
   buildDocsResult,
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';

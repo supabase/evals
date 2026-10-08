@@ -1,8 +1,8 @@
+import type { ToolScorer } from '@supabase-evals/core';
 import {
   checkMcpCallCount,
   checkNoMcpToolErrors,
-  type ToolScorer,
-} from '@supabase-evals/core';
+} from '../../lib/mcp-tool-checks.js';
 import { checkExplainedPlanUpgrade } from '../lib/branching.js';
 
 // Free-plan org, account-scoped MCP: the agent can see the plan, so it should
