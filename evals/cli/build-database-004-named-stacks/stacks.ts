@@ -8,7 +8,7 @@ import {
   candidateHomes,
   maskUrlCredentials,
   probeStackReady,
-  resolveStackWithAgentHomes,
+  resolveStack,
   type StackProbe,
 } from '../lib/stack.js';
 import { readStackList, type StackListProbe } from '../lib/stack-list.js';
@@ -30,7 +30,55 @@ async function realPath(ctx: ExecContext, path: string): Promise<string> {
   }
 }
 
-/** `stack list` under the default home and each relocated home the agent started either stack under. */
+const DISCOVERY_ROOTS = ['/tmp'];
+const DISCOVERY_MAX_DEPTH = 8;
+const STATE_FILE_RE = /^(\/.+)\/stacks\/[^/]+\/state\.json$/;
+
+function homeRoot(home: InvocationEnv): string | undefined {
+  if (home.SUPABASE_HOME !== undefined) return home.SUPABASE_HOME;
+  return home.HOME === undefined ? undefined : `${home.HOME}/.supabase`;
+}
+
+/** CLI homes holding managed-stack state under the workspace or `/tmp`, found by their `stacks/<id>/state.json` files. */
+async function discoverHomeRoots(
+  ctx: ExecContext,
+  workspace: string
+): Promise<string[]> {
+  try {
+    const roots = [workspace, ...DISCOVERY_ROOTS]
+      .map((root) => shellQuote(root))
+      .join(' ');
+    const { stdout } = await ctx.exec(
+      `find ${roots} -maxdepth ${DISCOVERY_MAX_DEPTH} -type d \\( -name node_modules -o -name .git -o -path '*/stacks/*/*' \\) -prune -o -type f -path '*/stacks/*/state.json' -print 2>/dev/null`
+    );
+    return [
+      ...new Set(
+        stdout
+          .split('\n')
+          .flatMap((line) => STATE_FILE_RE.exec(line.trim())?.[1] ?? [])
+      ),
+    ];
+  } catch {
+    return [];
+  }
+}
+
+async function defaultHomeRoot(ctx: ExecContext): Promise<string | undefined> {
+  try {
+    const { ok, stdout } = await ctx.exec(
+      'printf %s "${SUPABASE_HOME:-$HOME/.supabase}"'
+    );
+    return ok && stdout.trim() ? stdout.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `stack list` under the default home, each relocated home the agent started
+ * either stack under, and each other home found on disk (an agent may relocate
+ * the home inside a script, where no invocation shows it).
+ */
 async function readStackLists(
   ctx: ExecContext,
   workspace: string,
@@ -43,8 +91,13 @@ async function readStackLists(
       { kind: 'project', dir: workspace, stackName },
       STACK_NAMES
     )) {
-      homes.set(JSON.stringify(home), home);
+      const root = homeRoot(home);
+      if (root !== undefined) homes.set(root, home);
     }
+  }
+  const known = new Set([...homes.keys(), await defaultHomeRoot(ctx)]);
+  for (const root of await discoverHomeRoots(ctx, workspace)) {
+    if (!known.has(root)) homes.set(root, { SUPABASE_HOME: root });
   }
   return [
     { list: await readStackList(ctx) },
@@ -57,77 +110,89 @@ async function readStackLists(
   ];
 }
 
-type ListedEntry = { name?: unknown; project_root?: unknown };
+type ListedStack = {
+  name: string;
+  root?: string;
+  reachable: boolean;
+  home?: InvocationEnv;
+};
 
-async function findListedStack(
+async function listedStacks(
   ctx: ExecContext,
-  lists: readonly HomeStackList[],
-  stackName: StackName,
-  workspace: string
-): Promise<{ found: true } | { found: false; notes: string }> {
-  const listed: string[] = [];
+  lists: readonly HomeStackList[]
+): Promise<{ stacks: ListedStack[]; failures: string[] }> {
+  const stacks: ListedStack[] = [];
   const failures: string[] = [];
-  for (const { list } of lists) {
+  for (const { home, list } of lists) {
     if (!list.ok) {
       failures.push(list.notes);
       continue;
     }
-    for (const entry of list.stacks as ListedEntry[]) {
+    for (const entry of list.stacks as Array<{
+      name?: unknown;
+      project_root?: unknown;
+      owner?: unknown;
+    } | null>) {
       if (typeof entry?.name !== 'string') continue;
-      const root =
-        typeof entry.project_root === 'string'
-          ? await realPath(ctx, entry.project_root)
-          : undefined;
-      if (entry.name === stackName && root === workspace)
-        return { found: true };
-      listed.push(`${entry.name}@${root ?? 'unknown root'}`);
+      stacks.push({
+        name: entry.name,
+        root:
+          typeof entry.project_root === 'string'
+            ? await realPath(ctx, entry.project_root)
+            : undefined,
+        reachable: entry.owner === 'reachable',
+        home,
+      });
     }
   }
-  const summary =
-    listed.length > 0
-      ? `stack list has ${truncate(listed.join(', '), 300)}`
-      : failures.length > 0
-        ? `stack list unavailable: ${truncate(failures.join('; '), 300)}`
-        : 'stack list is empty';
-  return {
-    found: false,
-    notes: `no stack named '${stackName}' registered for ${workspace}; ${summary}`,
-  };
+  return { stacks, failures };
 }
 
 async function resolveNamedStack(
   ctx: ExecContext,
   stackName: StackName,
   workspace: string,
-  invocations: readonly SupabaseInvocation[],
-  lists: readonly HomeStackList[]
+  listing: { stacks: readonly ListedStack[]; failures: readonly string[] },
+  realWorkspace: string
 ): Promise<StackProbe> {
-  const listing = await findListedStack(
-    ctx,
-    lists,
-    stackName,
-    await realPath(ctx, workspace)
-  );
-  if (!listing.found) return { ok: false, notes: listing.notes };
-  const probe = await resolveStackWithAgentHomes(
-    ctx,
-    { kind: 'project', dir: workspace, stackName },
-    invocations,
-    STACK_NAMES
-  );
-  if (!probe.ok) {
+  const candidates = listing.stacks
+    .filter(({ name, root }) => name === stackName && root === realWorkspace)
+    .sort((a, b) => Number(b.reachable) - Number(a.reachable));
+  if (candidates.length === 0) {
+    const listed = listing.stacks.map(
+      ({ name, root }) => `${name}@${root ?? 'unknown root'}`
+    );
+    const summary =
+      listed.length > 0
+        ? `stack list has ${truncate(listed.join(', '), 300)}`
+        : listing.failures.length > 0
+          ? `stack list unavailable: ${truncate(listing.failures.join('; '), 300)}`
+          : 'stack list is empty';
     return {
       ok: false,
-      notes: `'${stackName}' is listed but did not resolve: ${probe.notes}`,
+      notes: `no stack named '${stackName}' registered for ${realWorkspace}; ${summary}`,
     };
   }
-  if (probe.backend !== 'managed-named') {
-    return {
-      ok: false,
-      notes: `'${stackName}' is listed but resolved to the ${probe.backend} stack, not the named one`,
-    };
+  const notes: string[] = [];
+  for (const { home } of candidates) {
+    const probe = await resolveStack(
+      ctx,
+      { kind: 'project', dir: workspace, stackName },
+      { home }
+    );
+    if (!probe.ok) {
+      notes.push(`did not resolve: ${probe.notes}`);
+    } else if (probe.backend !== 'managed-named') {
+      notes.push(`resolved to the ${probe.backend} stack, not the named one`);
+    } else {
+      const relocatedHome = home && homeRoot(home);
+      return relocatedHome === undefined ? probe : { ...probe, relocatedHome };
+    }
   }
-  return probe;
+  return {
+    ok: false,
+    notes: `'${stackName}' is listed but ${notes.join('; ')}`,
+  };
 }
 
 /** Resolves `dev` and `test` as named stacks registered for `workspace`; the default stack never stands in for either. */
@@ -136,20 +201,24 @@ export async function resolveNamedStacks(
   workspace: string,
   invocations: readonly SupabaseInvocation[]
 ): Promise<NamedStacks> {
-  const lists = await readStackLists(ctx, workspace, invocations);
+  const listing = await listedStacks(
+    ctx,
+    await readStackLists(ctx, workspace, invocations)
+  );
+  const realWorkspace = await realPath(ctx, workspace);
   const dev = await resolveNamedStack(
     ctx,
     'dev',
     workspace,
-    invocations,
-    lists
+    listing,
+    realWorkspace
   );
   const test = await resolveNamedStack(
     ctx,
     'test',
     workspace,
-    invocations,
-    lists
+    listing,
+    realWorkspace
   );
   return { dev, test };
 }

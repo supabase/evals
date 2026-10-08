@@ -44,6 +44,8 @@ type FakeOptions = {
   dev?: { rows: OrderRow[]; pristine: boolean } | 'missing';
   test?: { rows: OrderRow[]; pristine: boolean } | 'missing';
   judge?: (args: JudgeInput) => Promise<{ passed: boolean; notes?: string }>;
+  /** Registers both stacks only under this CLI home, leaving a broken `dev` in the default one. */
+  relocatedHome?: string;
 };
 
 function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
@@ -61,24 +63,40 @@ function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
   );
   const exec = async (command: string): Promise<CommandResult> => {
     if (command.endsWith('supabase --version')) return commandResult('2.0.0\n');
+    const inRelocatedHome =
+      options.relocatedHome === undefined ||
+      command.includes(`SUPABASE_HOME='${options.relocatedHome}'`);
+    if (command.startsWith('find ')) {
+      return commandResult(
+        options.relocatedHome === undefined
+          ? ''
+          : `${options.relocatedHome}/stacks/abc/state.json\n`
+      );
+    }
+    if (command.startsWith('printf %s'))
+      return commandResult('/home/.supabase');
     const realpath = command.match(/^realpath -m -- '([^']+)'$/);
     if (realpath) return commandResult(`${realpath[1]}\n`);
-    if (
-      command.startsWith('SUPABASE_EXPERIMENTAL_STACK=1 supabase stack list')
-    ) {
+    if (command.includes('supabase stack list')) {
       return commandResult(
         JSON.stringify({
-          stacks: stacks.map(({ name }) => ({
-            name,
-            project_root: WS,
-            runtime: 'native',
-            owner: 'reachable',
-          })),
+          stacks: stacks
+            .filter(({ name }) => inRelocatedHome || name === 'dev')
+            .map(({ name }) => ({
+              name,
+              project_root: WS,
+              runtime: 'native',
+              owner: inRelocatedHome ? 'reachable' : 'unavailable',
+            })),
         })
       );
     }
     const stackName = /--stack '([^']+)'/.exec(command)?.[1];
-    if (command.includes('stack status') && stackName !== undefined) {
+    if (
+      command.includes('stack status') &&
+      stackName !== undefined &&
+      inRelocatedHome
+    ) {
       const stack = stacks.find(({ name }) => name === stackName);
       if (!stack) return commandResult('', false);
       return command.includes('--env')
@@ -143,6 +161,18 @@ describe('named-stacks scorer', () => {
     expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
     expect(result.checks?.filter(({ passed }) => !passed)).toEqual([]);
     expect(result.passed).toBe(true);
+  });
+
+  it('passes when the agent relocated the CLI home inside a script', async () => {
+    const { ctx } = fakeCtx(
+      [
+        call('npm run db:dev:start'),
+        call('npm run db:test:start'),
+        call(`DATABASE_URL='${TEST_URL}' npm run db:reset-test`),
+      ],
+      { relocatedHome: '/ws/.supabase-local/home/.supabase' }
+    );
+    expect(await failedNames(ctx)).toEqual([]);
   });
 
   it('fails when the reset hit dev and test kept its sample orders', async () => {

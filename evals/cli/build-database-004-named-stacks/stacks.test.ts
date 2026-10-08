@@ -3,7 +3,7 @@ import type {
   CommandResult,
   LocalStackEvalContext,
 } from '@supabase-evals/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
@@ -23,7 +23,7 @@ function commandResult(stdout: string, ok = true): CommandResult {
 }
 
 type FakeHome = {
-  list?: Array<{ name: string; project_root: string }>;
+  list?: Array<{ name: string; project_root: string; owner?: string }>;
   named?: Record<string, string>;
   managed?: string;
 };
@@ -34,10 +34,22 @@ function fakeCtx(
     homes?: Record<string, FakeHome>;
     links?: Record<string, string>;
     down?: string[];
+    found?: string[];
+    defaultHome?: string;
   }
 ): Pick<LocalStackEvalContext, 'exec'> {
-  const { homes = {}, links = {}, down = [] } = options;
+  const {
+    homes = {},
+    links = {},
+    down = [],
+    found = [],
+    defaultHome = '/home/.supabase',
+  } = options;
   const exec = async (command: string): Promise<CommandResult> => {
+    if (command.startsWith('find '))
+      return commandResult(found.map((path) => `${path}\n`).join(''));
+    if (command.startsWith('printf %s')) return commandResult(defaultHome);
+
     const realpath = command.match(/^realpath -m -- '([^']+)'$/);
     if (realpath)
       return commandResult(`${links[realpath[1]] ?? realpath[1]}\n`);
@@ -59,6 +71,7 @@ function fakeCtx(
                 ...entry,
                 runtime: 'native',
                 owner: 'reachable',
+                ...entry,
               })),
             })
           )
@@ -76,6 +89,8 @@ function fakeCtx(
   };
   return { exec };
 }
+
+const stateFile = (home: string) => `${home}/stacks/abc123/state.json`;
 
 const LISTED = [
   { name: 'dev', project_root: WS },
@@ -192,6 +207,146 @@ describe('resolveNamedStacks', () => {
       relocatedHome: '/h',
     });
     expect(stacks.test.ok).toBe(true);
+  });
+});
+
+describe('resolveNamedStacks home discovery', () => {
+  const NAMED = { dev: DEV_URL, test: TEST_URL };
+
+  it('finds stacks under a home relocated inside a script, with no env on any invocation', async () => {
+    const home = `${WS}/.supabase-local/home/.supabase`;
+    const ctx = fakeCtx({
+      list: [{ name: 'dev', project_root: WS, owner: 'unavailable' }],
+      found: [stateFile(home)],
+      homes: { [home]: { list: LISTED, named: NAMED } },
+    });
+    const invocations = findSupabaseInvocations([
+      'npm run db:dev:start',
+      'npm run db:test:start',
+    ]);
+    const stacks = await resolveNamedStacks(ctx, WS, invocations);
+    expect(stacks.dev).toMatchObject({
+      ok: true,
+      backend: 'managed-named',
+      dbUrl: DEV_URL,
+      relocatedHome: home,
+    });
+    expect(stacks.test).toMatchObject({
+      ok: true,
+      dbUrl: TEST_URL,
+      relocatedHome: home,
+    });
+  });
+
+  it('finds a SUPABASE_HOME directory set by package scripts', async () => {
+    const home = `${WS}/.supabase-home`;
+    const ctx = fakeCtx({
+      list: [{ name: 'dev', project_root: WS, owner: 'unavailable' }],
+      found: [stateFile(home)],
+      homes: { [home]: { list: LISTED, named: NAMED } },
+    });
+    const stacks = await resolveNamedStacks(ctx, WS, []);
+    expect([stacks.dev.ok, stacks.test.ok]).toEqual([true, true]);
+  });
+
+  it('prefers the reachable stack over an unavailable one in another home', async () => {
+    const home = `${WS}/.supabase-home`;
+    const ctx = fakeCtx({
+      list: [{ name: 'dev', project_root: WS, owner: 'unavailable' }],
+      named: { dev: DEFAULT_URL },
+      found: [stateFile(home)],
+      homes: { [home]: { list: LISTED, named: NAMED } },
+    });
+    const { dev } = await resolveNamedStacks(ctx, WS, []);
+    expect(dev).toMatchObject({
+      ok: true,
+      dbUrl: DEV_URL,
+      relocatedHome: home,
+    });
+  });
+
+  it('does not list a discovered home that is the default home or an invocation home again', async () => {
+    const exec = vi.fn(fakeCtx({ list: LISTED, named: NAMED }).exec);
+    const invocations = findSupabaseInvocations([
+      'SUPABASE_HOME=/h supabase stack start --stack dev',
+    ]);
+    await resolveNamedStacks(
+      {
+        exec: async (command) =>
+          command.startsWith('find ')
+            ? commandResult(
+                `${stateFile('/home/.supabase')}\n${stateFile('/h')}\n`
+              )
+            : exec(command),
+      },
+      WS,
+      invocations
+    );
+    const lists = exec.mock.calls.filter(([command]) =>
+      command.includes('stack list')
+    );
+    expect(lists).toHaveLength(2);
+  });
+
+  it('ignores a discovered home whose dev belongs to another project', async () => {
+    const home = `${WS}/.supabase-home`;
+    const ctx = fakeCtx({
+      list: [],
+      found: [stateFile(home)],
+      homes: {
+        [home]: {
+          list: [
+            { name: 'dev', project_root: '/other' },
+            { name: 'test', project_root: WS },
+          ],
+          named: NAMED,
+        },
+      },
+    });
+    const stacks = await resolveNamedStacks(ctx, WS, []);
+    expect(stacks.dev).toEqual({
+      ok: false,
+      notes: expect.stringContaining('dev@/other'),
+    });
+    expect(stacks.test.ok).toBe(true);
+  });
+
+  it('fails with notes when the only discovered dev is unreachable and does not resolve', async () => {
+    const home = `${WS}/.supabase-home`;
+    const ctx = fakeCtx({
+      list: [],
+      found: [stateFile(home)],
+      homes: {
+        [home]: {
+          list: [{ name: 'dev', project_root: WS, owner: 'unavailable' }],
+        },
+      },
+    });
+    const { dev, test } = await resolveNamedStacks(ctx, WS, []);
+    expect(dev).toEqual({
+      ok: false,
+      notes: expect.stringContaining("'dev' is listed but did not resolve"),
+    });
+    expect(test).toEqual({
+      ok: false,
+      notes: expect.stringContaining("no stack named 'test' registered"),
+    });
+  });
+
+  it('keeps finding homes from invocation env when nothing is on disk', async () => {
+    const invocations = findSupabaseInvocations([
+      'SUPABASE_HOME=/agent/.supabase supabase stack start --stack dev',
+      'SUPABASE_HOME=/agent/.supabase supabase stack start --stack test',
+    ]);
+    const ctx = fakeCtx({
+      list: [],
+      homes: { '/agent/.supabase': { list: LISTED, named: NAMED } },
+    });
+    const stacks = await resolveNamedStacks(ctx, WS, invocations);
+    expect(stacks.dev).toMatchObject({
+      ok: true,
+      relocatedHome: '/agent/.supabase',
+    });
   });
 });
 
